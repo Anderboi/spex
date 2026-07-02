@@ -1,26 +1,122 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #f3efe7;
+  --foreground: #1b1a17;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --font-sans: 'Space Grotesk', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: 'Space Grotesk', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  margin: 0;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+input {
+  font-family: inherit;
+  outline: none;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes sheetUp {
+  from { opacity: 0; transform: translateY(24px) scale(.98); }
+  to { opacity: 1; transform: none; }
+}
+
+@keyframes savePulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: .35; }
+}
+
+.noscroll::-webkit-scrollbar {
+  display: none;
+}
+
+.noscroll {
+  scrollbar-width: none;
+}
+
+.spec-row .row-lead {
+  opacity: 0;
+  transition: opacity .13s ease;
+}
+
+.spec-row:hover .row-lead {
+  opacity: 1;
+}
+
+.spec-row .row-lead.is-sel {
+  opacity: 1 !important;
+}
+
+.spec-row .row-actions {
+  opacity: 0;
+  transition: opacity .13s ease;
+}
+
+.spec-row:hover .row-actions {
+  opacity: 1;
+}
+
+.drag-dots {
+  cursor: grab;
+}
+
+.drag-dots:active {
+  cursor: grabbing;
+}
+
+@media (max-width: 600px) {
+  .replace-sub {
+    display: none;
+  }
+  .hdr-actions {
+    display: none !important;
+  }
+  .mob-hdr-btns {
+    display: flex !important;
+  }
+}
+
+@media print {
+  body > * {
+    visibility: hidden;
+  }
+  #spec-summary, #spec-summary * {
+    visibility: visible;
+  }
+  #spec-summary {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    max-width: none;
+    box-shadow: none;
+    border-radius: 0;
+  }
+  .summary-bar {
+    display: none !important;
+  }
+  .summary-break {
+    break-inside: avoid;
+  }
+  @page {
+    margin: 14mm;
+  }
 }
