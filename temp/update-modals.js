@@ -1,0 +1,1 @@
+const fs = require(" fs\); const target = \components/spec-builder/components/Modals.tsx\; let f = fs.readFileSync(target,\utf8\); const start = f.indexOf(\// --- ProcureModal --\); const end = f.indexOf(\// --- SummaryModal --\, start); console.log(\start\, start, \end\, end);

@@ -47,67 +47,67 @@ export default function GroupSection({
   onAddPlaceholder, shareItem
 }: GroupSectionProps) {
   return (
-    <div style={{ marginTop: 30 }}>
-      <div onClick={() => setCollapsed({ ...collapsed, [group.type]: !collapsed[group.type] })} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 4px 14px 4px', borderBottom: '1px solid #1b1a17', cursor: 'pointer' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 13 }}>
-          <span style={{ color: '#9a958a', fontSize: 11, display: 'inline-block', transition: 'transform .2s', transform: group.caret }}>▾</span>
-          <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 13, letterSpacing: '.12em', textTransform: 'uppercase', fontWeight: 600 }}>{group.type}</span>
-          <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 11, color: '#9a958a', border: '1px solid #d9d3c6', borderRadius: 20, padding: '2px 9px' }}>{group.count}</span>
+    <div className="mt-[30px]">
+      <div onClick={() => setCollapsed({ ...collapsed, [group.type]: !collapsed[group.type] })} className="flex items-center justify-between px-1 pb-[14px] border-b border-fg cursor-pointer">
+        <div className="flex items-center gap-3">
+          <span className="text-fg-muted text-[11px] inline-block transition-transform duration-200" style={{ transform: group.caret }}>▾</span>
+          <span className="font-mono text-[13px] tracking-[.12em] uppercase font-semibold">{group.type}</span>
+          <span className="font-mono text-[11px] text-fg-muted border border-border-muted rounded-full px-2 py-[2px]">{group.count}</span>
         </div>
-        <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 13.5, fontWeight: 600, letterSpacing: '.02em' }}>{group.sumStr} ₽</span>
+        <span className="font-mono text-[13.5px] font-semibold tracking-[.02em]">{group.sumStr} ₽</span>
       </div>
 
       {group.showTable && group.open && (
         <>
-          <div style={{ display: 'grid', gridTemplateColumns: '38px 46px 58px minmax(150px,1.5fr) 1.1fr 90px 104px 122px 140px 86px', gap: 14, padding: '11px 4px 9px 4px', fontFamily: "'JetBrains Mono',monospace", fontSize: 9.5, letterSpacing: '.1em', textTransform: 'uppercase', color: '#a8a296' }}>
-            <span></span><span></span><span>Код</span><span>Наименование</span><span>Спецификация</span><span style={{ textAlign: 'right' }}>Кол-во</span><span style={{ textAlign: 'right' }}>Цена/шт</span><span style={{ textAlign: 'right' }}>Итого</span><span>Статус</span><span></span>
+          <div className="grid grid-cols-[38px_46px_58px_minmax(150px,1.5fr)_1.1fr_90px_104px_122px_140px_86px] gap-3.5 py-3 px-1 pb-2 font-mono text-[9.5px] tracking-[.1em] uppercase text-fg-dim">
+            <span></span><span></span><span>Код</span><span>Наименование</span><span>Спецификация</span><span className="text-right">Кол-во</span><span className="text-right">Цена/шт</span><span className="text-right">Итого</span><span>Статус</span><span></span>
           </div>
           {group.items.map((it: SpecItem) => (
             <SpecRow key={it.id} it={it} selected={!!selected[it.id]} accent={accent} dragId={dragId} dragOverId={dragOverId} statusMenuId={statusMenuId} setStatusMenuId={setStatusMenuId} setStatus={setStatus} onOpen={() => onOpen(it.id)} onOpenFill={() => onOpenFill(it)} onToggleSel={() => onToggleSel(it.id)} onRemove={() => onRemove(it.id)} onDeleteFull={() => onDeleteFull(it.id)} onDragStart={(e: React.DragEvent) => onDragStart(it.id, e)} onDragOver={(e: React.DragEvent) => onDragOver(it.id, e)} onDrop={(e: React.DragEvent) => onDrop(e)} onDragEnd={onDragEnd} shareItem={() => shareItem(it)} />
           ))}
-          <div onClick={() => onAddPlaceholder(group.type)} style={{ display: 'flex', alignItems: 'center', gap: 11, padding: '13px 4px', borderTop: '1px dashed #cfc9bb', color: '#9a958a', cursor: 'pointer', fontFamily: "'Space Grotesk',sans-serif", fontSize: 14, fontWeight: 600 }}>
-            <span style={{ width: 24, height: 24, borderRadius: 7, border: '1.5px dashed #cdc6b6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16, lineHeight: 1 }}>+</span> Добавить позицию
+          <div onClick={() => onAddPlaceholder(group.type)} className="flex items-center gap-[11px] py-3 px-1 border-t border-dashed border-fg-dash text-fg-muted cursor-pointer font-sans text-[14px] font-semibold">
+            <span className="w-6 h-6 rounded-[7px] border-[1.5px] border-dashed border-fg-dash-dots flex items-center justify-center text-[16px] leading-none">+</span> Добавить позицию
           </div>
         </>
       )}
 
       {group.showCards && group.open && group.items.map((it: SpecItem) => (
         it.placeholder ? (
-          <div key={it.id} onClick={() => onOpenFill(it)} style={{ background: 'transparent', border: '1.5px dashed #cfc9bb', borderRadius: 16, padding: 15, marginTop: 10, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 13 }}>
-            <div style={{ width: 50, height: 50, borderRadius: 9, border: '1.5px dashed #cdc6b6', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#b3aea2', fontSize: 24, lineHeight: 1, flex: 'none' }}>+</div>
-            <div style={{ flex: 1, minWidth: 0 }}><div style={{ fontSize: 16, fontWeight: 500, fontStyle: 'italic', color: '#6a665a' }}>Материал не выбран</div><div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 10, color: '#6a665a', marginTop: 3 }}>{it.code} · нажмите, чтобы заполнить</div></div>
-            <span onClick={(e) => { e.stopPropagation(); onDeleteFull(it.id); }} style={{ fontFamily: "'JetBrains Mono',monospace", color: '#c2bdb1', cursor: 'pointer', fontSize: 16, lineHeight: 1, padding: 4 }}>✕</span>
+          <div key={it.id} onClick={() => onOpenFill(it)} className="bg-transparent border-[1.5px] border-dashed border-fg-dash rounded-[16px] p-[15px] mt-[10px] cursor-pointer flex items-center gap-[13px]">
+            <div className="w-[50px] h-[50px] rounded-[9px] border-[1.5px] border-dashed border-fg-dash-dots flex items-center justify-center text-fg-icon text-[24px] leading-none flex-none">+</div>
+            <div className="flex-1 min-w-0"><div className="text-[16px] font-medium italic text-fg-secondary">Материал не выбран</div><div className="font-mono text-[10px] text-fg-secondary mt-[3px]">{it.code} · нажмите, чтобы заполнить</div></div>
+            <span onClick={(e) => { e.stopPropagation(); onDeleteFull(it.id); }} className="font-mono text-fg-delete cursor-pointer text-[16px] leading-none p-1">✕</span>
           </div>
         ) : (
-          <div key={it.id} style={{ background: '#faf8f3', border: '1px solid #e6e1d5', borderRadius: 16, padding: 14, marginTop: 10 }}>
-            <div style={{ display: 'flex', gap: 12 }}>
-              <div onClick={() => onOpen(it.id)} style={{ width: 54, height: 54, borderRadius: 9, border: '1px solid #e2ddd1', background: 'repeating-linear-gradient(135deg,#e9e4d9,#e9e4d9 5px,#f0ebe1 5px,#f0ebe1 10px)', flex: 'none', cursor: 'pointer' }}></div>
-              <div onClick={() => onOpen(it.id)} style={{ flex: 1, minWidth: 0, cursor: 'pointer' }}>
-                <div style={{ fontSize: 17, fontWeight: 600, letterSpacing: '-.01em', lineHeight: 1.05, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{it.name}</div>
-                <div style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 10, color: '#9a958a', marginTop: 3, letterSpacing: '.04em' }}>{it.code} · {it.brand}</div>
-                <div style={{ fontSize: 14, color: '#46423a', marginTop: 6, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{it.spec}</div>
+          <div key={it.id} className="bg-bg-card border border-border rounded-[16px] p-[14px] mt-[10px]">
+            <div className="flex gap-3">
+              <div onClick={() => onOpen(it.id)} className="w-[54px] h-[54px] rounded-[9px] border border-border-placeholder flex-none cursor-pointer [background:repeating-linear-gradient(135deg,#e9e4d9,#e9e4d9_5px,#f0ebe1_5px,#f0ebe1_10px)]"></div>
+              <div onClick={() => onOpen(it.id)} className="flex-1 min-w-0 cursor-pointer">
+                <div className="text-[17px] font-semibold tracking-[-.01em] leading-[1.05] truncate">{it.name}</div>
+                <div className="font-mono text-[10px] text-fg-muted mt-[3px] tracking-[.04em]">{it.code} · {it.brand}</div>
+                <div className="text-[14px] text-fg-body mt-[6px] truncate">{it.spec}</div>
               </div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 2, flex: 'none' }}>
-                <a href={brandSite(it.brand)} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 34, height: 34, borderRadius: 9, color: '#9a958a', textDecoration: 'none', fontSize: 16 }}>↗</a>
-                <span onClick={() => shareItem(it)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 34, height: 34, borderRadius: 9, color: '#9a958a', cursor: 'pointer' }}>🔗</span>
-                <span onClick={() => onRemove(it.id)} style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 34, height: 34, borderRadius: 9, color: '#b3aea2', cursor: 'pointer', fontSize: 16 }}>✕</span>
+              <div className="flex items-center gap-[2px] flex-none">
+                <a href={brandSite(it.brand)} target="_blank" rel="noopener noreferrer" className="flex items-center justify-center w-[34px] h-[34px] rounded-[9px] text-fg-muted no-underline text-[16px]">↗</a>
+                <span onClick={() => shareItem(it)} className="flex items-center justify-center w-[34px] h-[34px] rounded-[9px] text-fg-muted cursor-pointer">🔗</span>
+                <span onClick={() => onRemove(it.id)} className="flex items-center justify-center w-[34px] h-[34px] rounded-[9px] text-fg-icon cursor-pointer text-[16px]">✕</span>
               </div>
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 12, paddingTop: 11, borderTop: '1px solid #ece6da' }}>
-              <div style={{ position: 'relative' }}>
+            <div className="flex items-center justify-between mt-3 pt-[11px] border-t border-[#ece6da]">
+              <div className="relative">
                 <StatusBadge status={it.status} accent={accent} menuOpen={statusMenuId === it.id} onToggleMenu={(e: React.MouseEvent) => { e.stopPropagation(); setStatusMenuId(statusMenuId === it.id ? null : it.id); }} onPick={(s: string) => { setStatus(it.id, s); }} />
               </div>
-              <div style={{ display: 'flex', alignItems: 'baseline', gap: 12 }}>
-                <span style={{ fontFamily: "'JetBrains Mono',monospace", fontSize: 11.5, color: '#9a958a' }}>{it.qty} {it.unit} × {fmt(it.price)}</span>
-                <span style={{ fontFamily: "'Space Grotesk',sans-serif", fontSize: 18, fontWeight: 700, letterSpacing: '-.01em' }}>{fmt(it.qty * it.price)} ₽</span>
+              <div className="flex items-baseline gap-3">
+                <span className="font-mono text-[11.5px] text-fg-muted">{it.qty} {it.unit} × {fmt(it.price)}</span>
+                <span className="font-sans text-[18px] font-bold tracking-[-.01em]">{fmt(it.qty * it.price)} ₽</span>
               </div>
             </div>
           </div>
         )
       ))}
       {group.showCards && group.open && (
-        <div onClick={() => onAddPlaceholder(group.type)} style={{ display: 'flex', alignItems: 'center', gap: 11, padding: 15, marginTop: 10, border: '1.5px dashed #cfc9bb', borderRadius: 16, color: '#9a958a', cursor: 'pointer', fontFamily: "'Space Grotesk',sans-serif", fontSize: 14, fontWeight: 600 }}>
-          <span style={{ width: 26, height: 26, borderRadius: 7, border: '1.5px dashed #cdc6b6', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 17, lineHeight: 1 }}>+</span> Добавить позицию
+        <div onClick={() => onAddPlaceholder(group.type)} className="flex items-center gap-[11px] p-[15px] mt-[10px] border-[1.5px] border-dashed border-fg-dash rounded-[16px] text-fg-muted cursor-pointer font-sans text-[14px] font-semibold">
+          <span className="w-[26px] h-[26px] rounded-[7px] border-[1.5px] border-dashed border-fg-dash-dots flex items-center justify-center text-[17px] leading-none">+</span> Добавить позицию
         </div>
       )}
     </div>

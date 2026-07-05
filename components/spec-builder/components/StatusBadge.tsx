@@ -15,15 +15,15 @@ export default function StatusBadge({ status, accent, menuOpen, onToggleMenu, on
   const m = statusMeta(status, accent);
   return (
     <>
-      <span onClick={onToggleMenu} style={{ display: 'inline-flex', alignItems: 'center', gap: 7, padding: '5px 8px 5px 11px', borderRadius: 20, fontSize: 12.5, fontWeight: 600, whiteSpace: 'nowrap', cursor: 'pointer', background: m.bg, color: m.fg, border: `1px solid ${m.bd}` }}>
-        <span style={{ width: 6, height: 6, borderRadius: '50%', flex: 'none', background: 'currentColor', opacity: 0.8 }}></span>{status}<span style={{ fontSize: 9, opacity: 0.6, marginLeft: 1 }}>▾</span>
+      <span onClick={onToggleMenu} className="inline-flex items-center gap-[7px] py-[5px] pr-2 pl-[11px] rounded-full text-[12.5px] font-semibold whitespace-nowrap cursor-pointer" style={{ background: m.bg, color: m.fg, border: `1px solid ${m.bd}` }}>
+        <span className="size-1.5 rounded-full flex-none bg-current opacity-80"></span>{status}<span className="text-[9px] opacity-60 ml-[1px]">▾</span>
       </span>
       {menuOpen && (
-        <div style={{ position: 'absolute', top: 'calc(100% + 6px)', right: 0, zIndex: 40, minWidth: 182, background: '#faf8f3', border: '1px solid #d9d3c6', borderRadius: 13, padding: 6, boxShadow: '0 16px 40px rgba(27,26,23,.18)' }}>
+        <div className="absolute top-[calc(100%+6px)] right-0 z-40 min-w-[182px] bg-bg-card border border-border-muted rounded-[13px] p-[6px] shadow-[0_16px_40px_rgba(27,26,23,.18)]">
           {STATUS_FLOW.map(s => {
             const sm2 = statusMeta(s, accent);
-            return <div key={s} onClick={() => onPick(s)} style={{ display: 'flex', alignItems: 'center', gap: 9, padding: '9px 10px', borderRadius: 9, cursor: 'pointer', fontSize: 13.5, fontWeight: 500, color: '#1b1a17' }}>
-              <span style={{ width: 8, height: 8, borderRadius: '50%', flex: 'none', background: sm2.dot }}></span><span style={{ flex: 1 }}>{s}</span><span style={{ color: '#1b1a17', fontSize: 12, width: 12, textAlign: 'right' }}>{s === status ? '✓' : ''}</span>
+            return <div key={s} onClick={() => onPick(s)} className="flex items-center gap-[9px] py-[9px] px-[10px] rounded-[9px] cursor-pointer text-[13.5px] font-medium text-fg">
+              <span className="size-[8px] rounded-full flex-none" style={{ background: sm2.dot }}></span><span className="flex-1">{s}</span><span className="text-fg text-[12px] w-3 text-right">{s === status ? '✓' : ''}</span>
             </div>;
           })}
         </div>

@@ -13,8 +13,8 @@ export default function SpecBuilder() {
   const ctx = useSpecBuilder();
 
   return (
-    <div style={{ minHeight: '100vh', background: '#f3efe7', color: '#1b1a17', padding: '0 clamp(16px,4vw,48px) 140px' }}>
-      <div style={{ maxWidth: 1180, margin: '0 auto' }}>
+    <div className="min-h-screen bg-bg text-fg px-[clamp(16px,4vw,48px)] pb-35">
+      <div className="max-w-[1180px] mx-auto">
         <HeaderSection
           saveStatus={ctx.saveStatus}
           mobMenuOpen={ctx.mobMenuOpen}
@@ -34,26 +34,26 @@ export default function SpecBuilder() {
         <TypeChipsSection activeType={ctx.activeType} setActiveType={ctx.setActiveType} />
 
         {ctx.stReplace.count > 0 && !ctx.replaceHidden && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 14, marginTop: 18, background: '#f7e7e3', border: '1px solid #ecccc4', borderRadius: 14, padding: '13px 16px' }}>
-            <span style={{ flex: 'none', width: 30, height: 30, borderRadius: '50%', background: '#bf5345', color: '#f7e7e3', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 17, fontWeight: 700, lineHeight: 1 }}>!</span>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 14.5, fontWeight: 600, color: '#a23b2e' }}>{ctx.stReplace.count} {plural(ctx.stReplace.count, 'позиция требует', 'позиции требуют', 'позиций требуют')} замены</div>
-              <div style={{ fontSize: 12.5, color: '#9b6f64', marginTop: 1 }}>Отмечены статусом «Заменить» · {fmt(ctx.stReplace.sum)} ₽</div>
+          <div className="flex items-center gap-[14px] mt-[18px] bg-bg-red-light border border-border-red rounded-[14px] py-[13px] px-4">
+            <span className="flex-none size-7 rounded-full bg-bg-red text-bg-red-light flex items-center justify-center text-[17px] font-bold leading-none">!</span>
+            <div className="flex-1 min-w-0">
+              <div className="text-[14.5px] font-semibold text-fg-red">{ctx.stReplace.count} {plural(ctx.stReplace.count, 'позиция требует', 'позиции требуют', 'позиций требуют')} замены</div>
+              <div className="text-[12.5px] text-fg-dim-text mt-[1px]">Отмечены статусом «Заменить» · {fmt(ctx.stReplace.sum)} ₽</div>
             </div>
-            <button onClick={() => ctx.setStatusFilter(ctx.statusFilter === 'Заменить' ? null : 'Заменить')} style={{ flex: 'none', background: '#bf5345', color: '#fbf4f2', border: 'none', borderRadius: 10, padding: '10px 15px', fontFamily: "'Space Grotesk',sans-serif", fontSize: 13.5, fontWeight: 600, cursor: 'pointer', whiteSpace: 'nowrap' }}>{ctx.statusFilter === 'Заменить' ? 'Показать все' : 'Показать только их'}</button>
-            <button onClick={() => ctx.setReplaceHidden(true)} type="button" aria-label="Скрыть" style={{ flex: 'none', width: 28, height: 28, borderRadius: 8, border: 'none', background: 'transparent', color: '#bf5345', cursor: 'pointer', fontSize: 16, lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>✕</button>
+            <button onClick={() => ctx.setStatusFilter(ctx.statusFilter === 'Заменить' ? null : 'Заменить')} className="flex-none bg-bg-red text-[#fbf4f2] border-none rounded-[10px] py-[10px] px-[15px] font-sans text-[13.5px] font-semibold cursor-pointer whitespace-nowrap">{ctx.statusFilter === 'Заменить' ? 'Показать все' : 'Показать только их'}</button>
+            <button onClick={() => ctx.setReplaceHidden(true)} type="button" aria-label="Скрыть" className="flex-none w-[28px] h-[28px] rounded-lg border-none bg-transparent text-bg-red cursor-pointer text-[16px] leading-none flex items-center justify-center">✕</button>
           </div>
         )}
 
         {ctx.groups.length === 0 && (
-          <div style={{ textAlign: 'center', padding: '90px 20px', color: '#9a958a' }}>
-            <div style={{ fontSize: 22, fontWeight: 600, color: '#1b1a17' }}>Ничего не найдено</div>
-            <div style={{ fontSize: 15, marginTop: 8 }}>Измените запрос или сбросьте фильтр по типу.</div>
-            <button onClick={() => { ctx.setQuery(''); ctx.setQueryInput(''); ctx.setActiveType('Все типы'); ctx.setStatusFilter(null); }} style={{ marginTop: 20, background: '#1b1a17', color: '#f3efe7', border: 'none', borderRadius: 11, padding: '11px 20px', fontSize: 14, fontWeight: 600, cursor: 'pointer' }}>Сбросить фильтры</button>
+          <div className="text-center py-[90px] px-5 text-fg-muted">
+            <div className="text-[22px] font-semibold text-fg">Ничего не найдено</div>
+            <div className="text-[15px] mt-2">Измените запрос или сбросьте фильтр по типу.</div>
+            <button onClick={() => { ctx.setQuery(''); ctx.setQueryInput(''); ctx.setActiveType('Все типы'); ctx.setStatusFilter(null); }} className="mt-5 bg-bg-accent text-bg border-none rounded-[11px] py-[11px] px-5 text-[14px] font-semibold cursor-pointer">Сбросить фильтры</button>
           </div>
         )}
 
-        <div style={{ paddingTop: 6 }}>
+        <div className="pt-[6px]">
           {ctx.groups.map(g => (
             <GroupSection key={g.type} group={g} collapsed={ctx.collapsed} setCollapsed={ctx.setCollapsed} selected={ctx.selected} accent={ctx.accent} dragId={ctx.dragId} dragOverId={ctx.dragOverId} statusMenuId={ctx.statusMenuId} setStatusMenuId={ctx.setStatusMenuId} setStatus={ctx.setStatus} onOpen={(id: string) => { ctx.setOpenId(id); ctx.setDetailTab('overview'); }} onOpenFill={ctx.openFill} onToggleSel={ctx.toggleSel} onRemove={(id: string) => { ctx.setDeleteId(id); ctx.setDeleteMode(null); ctx.setOpenId(null); }} onDeleteFull={ctx.deleteFull} onDragStart={(id: string, e: React.DragEvent) => { ctx.setDragId(id); try { e.dataTransfer!.effectAllowed = 'move'; e.dataTransfer!.setData('text/plain', id); const row = (e.currentTarget as HTMLElement).closest('.spec-row'); if (row) e.dataTransfer!.setDragImage(row, 18, 18); } catch { } }} onDragOver={(id: string, e: React.DragEvent) => { e.preventDefault(); const d = ctx.dragId ? ctx.items.find(x => x.id === ctx.dragId) : null; if (d && d.type !== (ctx.items.find(x => x.id === id)?.type || '')) return; ctx.setDragOverId(id); }} onDrop={(e: React.DragEvent) => { e.preventDefault(); ctx.reorderItems(ctx.dragId!, ctx.dragOverId!); }} onDragEnd={() => { ctx.setDragId(null); ctx.setDragOverId(null); }} onAddPlaceholder={ctx.addPlaceholder} shareItem={ctx.shareItem} />
           ))}
@@ -129,10 +129,21 @@ export default function SpecBuilder() {
 
       {ctx.procureOpen && (
         <ProcureModal
-          stAwait={ctx.stAwait} stOrder={ctx.stOrder} stDeliv={ctx.stDeliv}
-          stReplace={ctx.stReplace} procScopeSum={ctx.procScopeSum}
-          procScopeCount={ctx.procScopeCount} pickPhase={ctx.pickPhase}
-          pickSum={ctx.pickSum} onClose={() => ctx.setProcureOpen(false)}
+          accent={ctx.accent}
+          procEmpty={ctx.procEmpty}
+          procDeliveredPct={ctx.procDeliveredPct}
+          procHeadline={ctx.procHeadline}
+          procScopeSumStr={ctx.procScopeSumStr}
+          procBars={ctx.procBars}
+          procStages={ctx.procStages}
+          hasProcReplace={ctx.hasProcReplace}
+          procReplaceCount={ctx.procReplaceCount}
+          procReplaceSumStr={ctx.procReplaceSumStr}
+          stReplace={ctx.stReplace}
+          hasProcPick={ctx.hasProcPick}
+          procPickCount={ctx.procPickCount}
+          procPickSumStr={ctx.procPickSumStr}
+          onClose={() => ctx.setProcureOpen(false)}
           onOpen={(id: string) => { ctx.setProcureOpen(false); ctx.setOpenId(id); ctx.setDetailTab('overview'); }}
           onShowReplace={() => { ctx.setProcureOpen(false); ctx.setStatusFilter('Заменить'); ctx.setActiveType('Все типы'); ctx.setQuery(''); ctx.setQueryInput(''); }}
         />
@@ -149,9 +160,9 @@ export default function SpecBuilder() {
       )}
 
       {ctx.toast != null && (
-        <div style={{ position: 'fixed', left: '50%', bottom: 108, transform: 'translateX(-50%)', zIndex: 80, display: 'flex', alignItems: 'center', gap: 16, background: '#1b1a17', color: '#f3efe7', padding: '13px 16px 13px 22px', borderRadius: 12, fontFamily: "'Space Grotesk',sans-serif", fontSize: 14, fontWeight: 500, boxShadow: '0 14px 40px rgba(27,26,23,.32)' }}>
+        <div className="fixed left-1/2 bottom-27 -translate-x-1/2 z-80 flex items-center gap-4 bg-bg-accent text-bg py-[13px] pl-[22px] pr-4 rounded-[12px] font-sans text-[14px] font-medium shadow-[0_14px_40px_rgba(27,26,23,.32)]">
           <span>{ctx.toast!.msg}</span>
-          {ctx.toast!.actionLabel && ctx.toast!.action && <span onClick={() => { ctx.toast!.action!(); ctx.setToast(null); }} style={{ flex: 'none', cursor: 'pointer', fontWeight: 700, padding: '6px 12px', borderRadius: 8, border: '1px solid rgba(243,239,231,.32)', color: '#f3efe7' }}>{ctx.toast!.actionLabel}</span>}
+          {ctx.toast!.actionLabel && ctx.toast!.action && <span onClick={() => { ctx.toast!.action!(); ctx.setToast(null); }} className="flex-none cursor-pointer font-bold py-[6px] px-3 rounded-lg border border-[rgba(243,239,231,.32)] text-bg">{ctx.toast!.actionLabel}</span>}
         </div>
       )}
     </div>

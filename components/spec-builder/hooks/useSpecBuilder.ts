@@ -5,7 +5,7 @@ import { SpecItem, CatalogItem, DraftItem, FileEntry, Variant, TYPE_ORDER, STATU
 import { CATALOG } from '../catalog';
 import {
   STORAGE_KEY, fmt, prefixFor, nextCode, catKey, plural, prefixOf, numOf,
-  renumberAfter, renumberSequential, exportCSV, SEED_ITEMS, FILE_CATS, guessMap, extOf
+  renumberAfter, renumberSequential, exportCSV, SEED_ITEMS, FILE_CATS, guessMap, extOf, statusMeta
 } from '../utils';
 
 export interface ToastState {
@@ -438,6 +438,28 @@ export function useSpecBuilder() {
   const pickSum = pickPhase.reduce((s, it) => s + it.qty * it.price, 0);
   const sortLabel = sort === 'code' ? 'По коду' : sort === 'az' ? 'А→Я' : 'По сумме';
 
+  // Procurement stages for the procure modal
+  const mkProcStage = (st: ProcStats, key: string, label: string, sub: string) => ({
+    label, sub, color: statusMeta(key, accent).bar, count: st.count, sumStr: fmt(st.sum),
+    hasItems: st.count > 0, noItems: st.count === 0, items: st.items,
+  });
+  const procStages = [
+    mkProcStage(stAwait, 'Согласовано', 'Ожидает закупки', 'Согласовано — можно заказывать'),
+    mkProcStage(stOrder, 'Приобретено', 'Заказано', 'Оплачено · в производстве или в пути'),
+    mkProcStage(stDeliv, 'Доставлено', 'Доставлено', 'Получено на объекте'),
+  ];
+  type ProcBar = { color: string; width: string; show: boolean };
+  const procBars: ProcBar[] = [
+    { color: statusMeta('Доставлено', accent).bar, width: procScopeSum ? (stDeliv.sum / procScopeSum * 100) + '%' : '0%', show: stDeliv.count > 0 },
+    { color: statusMeta('Приобретено', accent).bar, width: procScopeSum ? (stOrder.sum / procScopeSum * 100) + '%' : '0%', show: stOrder.count > 0 },
+    { color: statusMeta('Согласовано', accent).bar, width: procScopeSum ? (stAwait.sum / procScopeSum * 100) + '%' : '0%', show: stAwait.count > 0 },
+  ].filter(b => b.show);
+  const procEmpty = procScopeCount === 0 && stReplace.count === 0;
+  const procDeliveredPct = procScopeSum ? Math.round(stDeliv.sum / procScopeSum * 100) : 0;
+  const procHeadline = `${stDeliv.count} из ${procScopeCount} ${plural(procScopeCount, 'позиции', 'позиций', 'позиций')} доставлено`;
+  const hasProcReplace = stReplace.count > 0;
+  const hasProcPick = pickPhase.length > 0;
+
   return {
     // State
     items, setItems, query, setQuery, queryInput, setQueryInput,
@@ -460,7 +482,11 @@ export function useSpecBuilder() {
     catTypesPresent, catInSpec, catInSpecCount, catSorted, catSelectedList,
     catSelCount, catSelSum, fillItem,
     stAwait, stOrder, stDeliv, stReplace, procScopeSum, procScopeCount,
-    pickPhase, pickSum, sortLabel,
+    procScopeSumStr: fmt(procScopeSum), pickPhase, pickSum, sortLabel,
+    procStages, procBars, procEmpty, procDeliveredPct, procHeadline,
+    procDeliveredCount: stDeliv.count,
+    hasProcReplace, procReplaceCount: stReplace.count, procReplaceSumStr: fmt(stReplace.sum),
+    hasProcPick, procPickCount: pickPhase.length, procPickSumStr: fmt(pickSum),
 
     // Actions
     showToast, updateItem, setStatus, incQty, setPrice, setUnit, toggleSel,

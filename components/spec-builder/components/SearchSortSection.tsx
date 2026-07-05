@@ -11,13 +11,15 @@ interface SearchSortSectionProps {
 
 export default function SearchSortSection({ queryInput, setQueryInput, setQuery, sortLabel, onSort, debounceTimer }: SearchSortSectionProps) {
   return (
-    <div style={{ display: 'flex', gap: 12, marginTop: 'clamp(22px,4vw,34px)', flexWrap: 'wrap' }}>
-      <div style={{ flex: 1, minWidth: 240, display: 'flex', alignItems: 'center', gap: 13, background: '#faf8f3', border: '1px solid #e6e1d5', borderRadius: 14, padding: '0 18px', height: 54 }}>
-        <div style={{ width: 15, height: 15, border: '1.6px solid #b3aea2', borderRadius: '50%', position: 'relative', flex: 'none' }}><div style={{ position: 'absolute', width: 6, height: 1.6, background: '#b3aea2', right: -4, bottom: 0, transform: 'rotate(45deg)', transformOrigin: 'left' }}></div></div>
-        <input value={queryInput} onChange={(e) => { const v = e.target.value; setQueryInput(v); clearTimeout(debounceTimer.current); debounceTimer.current = setTimeout(() => setQuery(v), 240); }} aria-label="Поиск по материалам" placeholder="Поиск по материалам, артикулам, брендам…" style={{ flex: 1, border: 'none', background: 'transparent', fontSize: 15.5, color: '#1b1a17', minWidth: 0, outline: 'none' }} />
-        {queryInput.trim().length > 0 && <button onClick={() => { clearTimeout(debounceTimer.current); setQueryInput(''); setQuery(''); }} type="button" aria-label="Очистить поиск" style={{ flex: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', width: 26, height: 26, borderRadius: 8, border: 'none', background: '#ece6da', color: '#46423a', cursor: 'pointer', fontSize: 14, lineHeight: 1 }}>✕</button>}
+    <div className="flex gap-3 mt-[clamp(22px,4vw,34px)] flex-wrap">
+      <div className="flex-1 min-w-60 flex items-center gap-3 bg-bg-card border border-border rounded-[14px] px-4.5 h-13">
+        <div className="size-4 border-[1.6px] border-fg-icon rounded-full relative flex-none">
+          <div className="absolute w-1.5 h-[1.6px] bg-fg-icon -right-1 bottom-0 rotate-45 origin-left"></div>
+        </div>
+        <input value={queryInput} onChange={(e) => { const v = e.target.value; setQueryInput(v); clearTimeout(debounceTimer.current); debounceTimer.current = setTimeout(() => setQuery(v), 240); }} aria-label="Поиск по материалам" placeholder="Поиск по материалам, артикулам, брендам…" className="flex-1 border-none bg-transparent text-[15.5px] text-fg min-w-0 outline-none" />
+        {queryInput.trim().length > 0 && <button onClick={() => { clearTimeout(debounceTimer.current); setQueryInput(''); setQuery(''); }} type="button" aria-label="Очистить поиск" className="flex-none flex items-center justify-center w-[26px] h-[26px] rounded-lg border-none bg-bg-clear text-fg-body cursor-pointer text-[14px] leading-none">✕</button>}
       </div>
-      <button onClick={onSort} style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#faf8f3', border: '1px solid #e6e1d5', borderRadius: 14, padding: '0 20px', height: 54, fontFamily: "'JetBrains Mono',monospace", fontSize: 12.5, letterSpacing: '.04em', color: '#1b1a17', cursor: 'pointer', whiteSpace: 'nowrap' }}>{sortLabel} <span style={{ color: '#9a958a' }}>↕</span></button>
+      <button onClick={onSort} className="flex items-center gap-2.5 bg-bg-card border border-border rounded-[14px] px-5 h-13 font-mono text-[12.5px] tracking-[.04em] text-fg cursor-pointer whitespace-nowrap">{sortLabel} <span className="text-fg-muted">↕</span></button>
     </div>
   );
 }
