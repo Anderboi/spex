@@ -317,7 +317,7 @@ export function AddModal({
 
   return (
     <div onClick={onClose} className="fixed inset-0 z-60 flex items-start justify-center overflow-y-auto" style={{ background: 'rgba(27,26,23,.42)', padding: 'clamp(12px,6vh,80px) 16px' }}>
-      <div onClick={(e: React.MouseEvent) => e.stopPropagation()} role="dialog" aria-modal="true" data-modal="add" tabIndex={-1} className="w-full max-w-[560px] max-h-[90vh] flex flex-col bg-bg rounded-[22px] overflow-hidden outline-none" style={{ boxShadow: '0 30px 80px rgba(27,26,23,.3)' }}>
+      <div onClick={(e: React.MouseEvent) => e.stopPropagation()} role="dialog" aria-modal="true" data-modal="add" tabIndex={-1} className="w-full max-w-140 max-h-[90vh] flex flex-col bg-bg rounded-[22px] overflow-hidden outline-none" style={{ boxShadow: '0 30px 80px rgba(27,26,23,.3)' }}>
         <div className="flex-none flex items-center justify-between py-5 px-6 pb-4 border-b border-border-subtle">
           <span className="text-[19px] font-bold tracking-[-.01em]">{editId ? 'Заполнить позицию' : 'Новый материал'}</span>
           <button onClick={onClose} type="button" aria-label="Закрыть" className="bg-none border-none cursor-pointer text-[20px] text-fg leading-none p-1">✕</button>

@@ -7,14 +7,15 @@ import SearchSortSection from './components/SearchSortSection';
 import TypeChipsSection from './components/TypeChipsSection';
 import GroupSection from './components/GroupSection';
 import BottomBar from './components/BottomBar';
-import { DetailModal, AddModal, DeleteModal, ProcureModal, SummaryModal } from './components/Modals';
+import { DetailModal, DeleteModal, ProcureModal, SummaryModal } from './components/Modals';
+import AddModalForm from './components/AddModalForm';
 
 export default function SpecBuilder() {
   const ctx = useSpecBuilder();
 
   return (
     <div className="min-h-screen bg-bg text-fg px-[clamp(16px,4vw,48px)] pb-35">
-      <div className="max-w-[1180px] mx-auto">
+      <div className="max-w-295 mx-auto">
         <HeaderSection
           saveStatus={ctx.saveStatus}
           mobMenuOpen={ctx.mobMenuOpen}
@@ -49,7 +50,7 @@ export default function SpecBuilder() {
           <div className="text-center py-[90px] px-5 text-fg-muted">
             <div className="text-[22px] font-semibold text-fg">Ничего не найдено</div>
             <div className="text-[15px] mt-2">Измените запрос или сбросьте фильтр по типу.</div>
-            <button onClick={() => { ctx.setQuery(''); ctx.setQueryInput(''); ctx.setActiveType('Все типы'); ctx.setStatusFilter(null); }} className="mt-5 bg-bg-accent text-bg border-none rounded-[11px] py-[11px] px-5 text-[14px] font-semibold cursor-pointer">Сбросить фильтры</button>
+            <button onClick={() => { ctx.setQuery(''); ctx.setQueryInput(''); ctx.setActiveType('Все типы'); ctx.setStatusFilter(null); }} className="mt-5 bg-bg-accent text-bg border-none rounded-[12px] py-3 px-5 text-[14px] font-semibold cursor-pointer">Сбросить фильтры</button>
           </div>
         )}
 
@@ -88,27 +89,65 @@ export default function SpecBuilder() {
         />);
       })()}
 
-      {ctx.addOpen && (
-        <AddModal
-          editId={ctx.editId} addMode={ctx.addMode} setAddMode={ctx.setAddMode}
-          draft={ctx.draft} setDraft={ctx.setDraft}
-          onClose={() => { ctx.setAddOpen(false); ctx.setEditId(null); }}
-          onSubmit={ctx.submitAdd}
-          catQueryInput={ctx.catQueryInput} setCatQueryInput={ctx.setCatQueryInput}
-          setCatQuery={ctx.setCatQuery} catDebounce={ctx.catDebounce}
-          catType={ctx.catType} setCatType={ctx.setCatType}
-          catSort={ctx.catSort} setCatSort={ctx.setCatSort}
-          catSortDir={ctx.catSortDir} setCatSortDir={ctx.setCatSortDir}
-          catHideInSpec={ctx.catHideInSpec} setCatHideInSpec={ctx.setCatHideInSpec}
-          catSelected={ctx.catSelected} toggleCat={ctx.toggleCat}
-          catSorted={ctx.catSorted} catInSpec={ctx.catInSpec}
-          catInSpecCount={ctx.catInSpecCount} catSelCount={ctx.catSelCount}
-          catSelSumStr={fmt(ctx.catSelSum)} addFromCatalog={ctx.addFromCatalog}
-          fillItem={ctx.fillItem} catTypesPresent={ctx.catTypesPresent}
-          catSelectedList={ctx.catSelectedList} setCatSelected={ctx.setCatSelected}
-          prefixOf={prefixOf}
-        />
-      )}
+      {ctx.addOpen && (() => {
+        const handleManualSubmit = (data: { name: string; brand?: string; type: string; spec?: string; qty: number; unit: string; price: number }) => {
+          const price = data.price;
+          if (ctx.editId) {
+            ctx.updateItem(ctx.editId, () => ({
+              name: data.name.trim(),
+              brand: (data.brand || '').trim() || '—',
+              spec: (data.spec || '').trim() || '—',
+              qty: data.qty,
+              unit: data.unit,
+              price,
+              status: price > 0 ? 'Подобрано' : 'Не выбрано',
+              placeholder: false,
+            }));
+            ctx.showToast('Позиция заполнена');
+          } else {
+            const item: import('./types').SpecItem = {
+              id: 'i' + Date.now(),
+              type: data.type,
+              code: '',
+              name: data.name.trim(),
+              brand: (data.brand || '').trim() || '—',
+              spec: (data.spec || '').trim() || '—',
+              qty: data.qty,
+              unit: data.unit,
+              price,
+              status: 'Не выбрано',
+              article: '—',
+              format: '—',
+              surface: '—',
+              color: '—',
+              variants: [],
+            };
+            ctx.setItems((prev: import('./types').SpecItem[]) => [item, ...prev]);
+          }
+          ctx.setAddOpen(false);
+          ctx.setEditId(null);
+        };
+        return (
+          <AddModalForm
+            editId={ctx.editId}
+            onClose={() => { ctx.setAddOpen(false); ctx.setEditId(null); }}
+            onSubmitManual={handleManualSubmit}
+            fillItem={ctx.fillItem}
+            catQueryInput={ctx.catQueryInput} setCatQueryInput={ctx.setCatQueryInput}
+            setCatQuery={ctx.setCatQuery} catDebounce={ctx.catDebounce}
+            catType={ctx.catType} setCatType={ctx.setCatType}
+            catSort={ctx.catSort} setCatSort={ctx.setCatSort}
+            catSortDir={ctx.catSortDir} setCatSortDir={ctx.setCatSortDir}
+            catHideInSpec={ctx.catHideInSpec} setCatHideInSpec={ctx.setCatHideInSpec}
+            catSelected={ctx.catSelected} toggleCat={ctx.toggleCat}
+            catSorted={ctx.catSorted} catInSpec={ctx.catInSpec}
+            catInSpecCount={ctx.catInSpecCount} catSelCount={ctx.catSelCount}
+            catSelSumStr={fmt(ctx.catSelSum)} addFromCatalog={ctx.addFromCatalog}
+            catTypesPresent={ctx.catTypesPresent}
+            catSelectedList={ctx.catSelectedList} setCatSelected={ctx.setCatSelected}
+          />
+        );
+      })()}
 
       {ctx.deleteId != null && (() => {
         const del = ctx.items.find(it => it.id === ctx.deleteId);
