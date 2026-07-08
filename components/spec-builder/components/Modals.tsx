@@ -1,13 +1,22 @@
 'use client';
 
-import { SpecItem, Variant, DraftItem, FileEntry, TYPE_ORDER, STATUS_FLOW, UNIT_OPTIONS } from '../types';
-import { CATALOG } from '../catalog';
 import {
-  fmt, brandSite, statusMeta, plural, plural as pl, catKey, availMeta,
-  FILE_CATS, MAP_OPTIONS, humanSize
-} from '../utils';
-import { ToastState } from '../hooks/useSpecBuilder';
-import StatusBadge from './StatusBadge';
+  SpecItem,
+  DraftItem,
+  TYPE_ORDER,
+  STATUS_FLOW,
+  UNIT_OPTIONS,
+} from "@/lib/types";
+import {
+  fmt,
+  brandSite,
+  statusMeta,
+  plural,
+  catKey,
+  availMeta,
+  humanSize,
+} from "@/lib/utils";
+import { FILE_CATS, MAP_OPTIONS } from '@/lib/constants';
 
 // ─── DetailModal ─────────────────────────────────────────────────
 interface DetailModalProps {

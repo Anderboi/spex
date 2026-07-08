@@ -1,3 +1,17 @@
+export type ProjectStatus = "В работе" | "Завершен" | "Черновик" | "На паузе";
+export type ProjectType = "Интерьер" | "Экстерьер" | "Коммерческий";
+
+export interface Project {
+  id: string;
+  name: string;
+  type: ProjectType;
+  status: ProjectStatus;
+  rooms: number;
+  items: number;
+  budget: number;
+  updatedAt: string;
+}
+
 export interface SpecItem {
   id: string;
   type: string;
@@ -74,27 +88,56 @@ export interface FileCategory {
   key: string;
   label: string;
   accept: string;
-  kind: 'doc' | 'tex';
+  kind: "doc" | "tex";
   upTitle: string;
   upHint: string;
   empty: string;
 }
 
-export const TYPE_ORDER = ['Отделка', 'Мебель', 'Оборудование', 'Сантехника', 'Освещение', 'Текстиль', 'Инженерное оборудование', 'Декор', 'Двери', 'Электрика'];
+export const TYPE_ORDER = [
+  "Отделка",
+  "Мебель",
+  "Оборудование",
+  "Сантехника",
+  "Освещение",
+  "Текстиль",
+  "Инженерное оборудование",
+  "Декор",
+  "Двери",
+  "Электрика",
+];
 
-export const STATUS_FLOW = ['Не выбрано', 'Подобрано', 'Согласовано', 'Приобретено', 'Доставлено', 'Заменить'];
+export const STATUS_FLOW = [
+  "Не выбрано",
+  "Подобрано",
+  "Согласовано",
+  "Приобретено",
+  "Доставлено",
+  "Заменить",
+];
 
-export const UNIT_OPTIONS = ['шт', 'м²', 'м³', 'м.п.', 'компл.', 'пара', 'л', 'кг', 'рул.', 'уп.'];
+export const UNIT_OPTIONS = [
+  "шт",
+  "м²",
+  "м³",
+  "м.п.",
+  "компл.",
+  "пара",
+  "л",
+  "кг",
+  "рул.",
+  "уп.",
+];
 
 export const PREFIX_MAP: Record<string, string> = {
-  'Отделка': 'От',
-  'Мебель': 'М',
-  'Оборудование': 'Об',
-  'Сантехника': 'С',
-  'Освещение': 'О',
-  'Текстиль': 'Т',
-  'Инженерное оборудование': 'ИО',
-  'Декор': 'Д',
-  'Двери': 'Дв',
-  'Электрика': 'Э',
+  Отделка: "От",
+  Мебель: "М",
+  Оборудование: "Об",
+  Сантехника: "С",
+  Освещение: "О",
+  Текстиль: "Т",
+  "Инженерное оборудование": "ИО",
+  Декор: "Д",
+  Двери: "Дв",
+  Электрика: "Э",
 };

@@ -4,8 +4,8 @@ import React, { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { SpecItem, TYPE_ORDER, UNIT_OPTIONS } from '../types';
-import { fmt, catKey } from '../utils';
+import { SpecItem, TYPE_ORDER, UNIT_OPTIONS } from '@/lib/types';
+import { fmt, catKey } from "@/lib/utils";
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -75,7 +75,7 @@ export default function AddModalForm({
 
   return (
     <Dialog open={true} onOpenChange={() => onClose()}>
-      <DialogContent className="!max-w-[560px] max-h-[90vh] overflow-hidden bg-bg rounded-[22px] p-0 gap-0 [&>button]:hidden">
+      <DialogContent className="max-w-180! flex flex-col max-h-[90vh] overflow-hidden bg-bg rounded-[22px] p-0 gap-0 [&>button]:hidden">
         <DialogHeader className="flex flex-row items-center justify-between py-5 px-6 pb-4 border-b border-border-subtle">
           <DialogTitle className="text-[19px] font-bold tracking-[-.01em] m-0">
             {editId ? 'Заполнить позицию' : 'Новый материал'}
@@ -102,19 +102,19 @@ export default function AddModalForm({
               <div className="space-y-4">
                 <div>
                   <label className="font-mono text-[10px] tracking-[.08em] uppercase text-fg-muted">Наименование</label>
-                  <Input {...register('name')} placeholder="Напр. Rome Vein" className="h-[46px] border-border bg-bg-card text-[15px] rounded-[11px] mt-[7px]" />
+                  <Input {...register('name')} placeholder="Напр. Rome Vein" className="h-12 border-border bg-bg-card text-[15px] rounded-[11px] mt-[7px]" />
                   {errors.name && <p className="text-[11px] text-fg-red mt-1">{errors.name.message}</p>}
                 </div>
 
                 <div className="flex gap-3">
                   <div className="flex-1">
                     <label className="font-mono text-[10px] tracking-[.08em] uppercase text-fg-muted">Бренд</label>
-                    <Input {...register('brand')} placeholder="ABK" className="h-[46px] border-border bg-bg-card text-[15px] rounded-[11px] mt-[7px]" />
+                    <Input {...register('brand')} placeholder="ABK" className="h-12 border-border bg-bg-card text-[15px] rounded-[11px] mt-[7px]" />
                   </div>
                   <div className="flex-1">
                     <label className="font-mono text-[10px] tracking-[.08em] uppercase text-fg-muted">Тип</label>
                     <Select onValueChange={(v) => setValue('type', v || 'Отделка')} defaultValue="Отделка">
-                      <SelectTrigger className="h-[46px] border-border bg-bg-card text-[15px] rounded-[11px] mt-[7px]">
+                      <SelectTrigger className="h-12 border-border bg-bg-card text-[15px] rounded-[11px] mt-[7px]">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -138,7 +138,7 @@ export default function AddModalForm({
                   <div className="w-20">
                     <label className="font-mono text-[10px] tracking-[.08em] uppercase text-fg-muted">Ед.</label>
                     <Select onValueChange={(v) => setValue('unit', v || 'шт')} defaultValue="шт">
-                      <SelectTrigger className="h-[46px] border-border bg-bg-card text-[15px] font-mono rounded-[11px] mt-[7px]">
+                      <SelectTrigger className="h-12 border-border bg-bg-card text-[15px] font-mono rounded-[11px] mt-[7px]">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>

@@ -1,12 +1,20 @@
 'use client';
 
 import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
-import { SpecItem, CatalogItem, DraftItem, FileEntry, Variant, TYPE_ORDER, STATUS_FLOW } from '../types';
-import { CATALOG } from '../catalog';
 import {
-  STORAGE_KEY, fmt, prefixFor, nextCode, catKey, plural, prefixOf, numOf,
-  renumberAfter, renumberSequential, exportCSV, SEED_ITEMS, FILE_CATS, guessMap, extOf, statusMeta
-} from '../utils';
+  SpecItem,
+  CatalogItem,
+  DraftItem,
+  FileEntry,
+  Variant,
+  TYPE_ORDER,
+  STATUS_FLOW,
+} from "@/lib/types";
+import {
+   fmt, prefixFor, nextCode, catKey, plural, prefixOf, numOf,
+  renumberAfter, renumberSequential, exportCSV, guessMap, extOf, statusMeta
+} from '@/lib/utils';
+import { CATALOG, FILE_CATS, SEED_ITEMS, STORAGE_KEY } from '@/lib/constants';
 
 export interface ToastState {
   msg: string;

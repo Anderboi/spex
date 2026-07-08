@@ -1,6 +1,6 @@
 'use client';
 
-import { TYPE_ORDER } from '../types';
+import { TYPE_ORDER } from "@/lib/types";
 
 interface TypeChipsSectionProps {
   activeType: string;

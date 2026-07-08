@@ -1,7 +1,7 @@
 'use client';
 
-import { SpecItem } from '../types';
-import { fmt, brandSite } from '../utils';
+import { SpecItem } from "@/lib/types";
+import { fmt, brandSite } from "@/lib/utils";
 import SpecRow from './SpecRow';
 import StatusBadge from './StatusBadge';
 

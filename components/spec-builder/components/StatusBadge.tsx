@@ -1,7 +1,7 @@
 'use client';
 
-import { STATUS_FLOW } from '../types';
-import { statusMeta } from '../utils';
+import { STATUS_FLOW } from '@/lib/types';
+import { statusMeta } from "@/lib/utils";
 
 interface StatusBadgeProps {
   status: string;
