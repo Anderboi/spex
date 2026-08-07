@@ -26,13 +26,13 @@ export function AppSidebar() {
       <SidebarContent>
         <SidebarGroup>
           <SidebarMenu>
-            <SidebarMenuItem>
-              {NAV_ITEMS.map((item) => (
-                <SidebarMenuButton className="cursor-pointer hover:bg-bg-select">
+            {NAV_ITEMS.map((item, index) => (
+              <SidebarMenuItem key={index}>
+                <SidebarMenuButton className="cursor-pointer hover:bg-bg-select" >
                   <Link href={item.href}>{item.label}</Link>
                 </SidebarMenuButton>
-              ))}
-            </SidebarMenuItem>
+              </SidebarMenuItem>
+            ))}
           </SidebarMenu>
         </SidebarGroup>
         <SidebarGroup />
