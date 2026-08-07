@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { fmt } from "@/lib/utils";
 import { LibraryMaterial } from '@/lib/types';
+import PageHeader from '@/components/layout/PageHeader';
 
 export default function MaterialsLibraryPage() {
   const [search, setSearch] = useState("");
@@ -22,9 +23,7 @@ export default function MaterialsLibraryPage() {
     <div className="p-8 max-w-7xl mx-auto space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">
-            Библиотека материалов
-          </h1>
+          <PageHeader>Библиотека материалов</PageHeader>
           <p className="text-sm text-muted-foreground mt-1">
             Сохраненные позиции и образцы для быстрого добавления в проекты
           </p>

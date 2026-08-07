@@ -12,24 +12,26 @@ import {
 import { Settings, User2 } from "lucide-react";
 import Link from "next/link";
 
+const NAV_ITEMS = [
+  { href: "/projects", label: "Проекты" },
+  { href: "/materials", label: "Материалы" },
+  { href: "/contacts", label: "Контакты" },
+];
+
 export function AppSidebar() {
   return (
     <Sidebar variant="inset">
-      <SidebarHeader>SpecTrack</SidebarHeader>
+      <SidebarHeader className="font-heading text-xl">Spex</SidebarHeader>
       <SidebarSeparator />
       <SidebarContent>
         <SidebarGroup>
           <SidebarMenu>
             <SidebarMenuItem>
-              <SidebarMenuButton className="cursor-pointer">
-                <Link href={"/projects"}>Проекты</Link>
-              </SidebarMenuButton>
-              <SidebarMenuButton className="cursor-pointer">
-                <Link href={"/materials"}>Материалы</Link>
-              </SidebarMenuButton>
-              <SidebarMenuButton className="cursor-pointer">
-                <Link href={"/contacts"}>Контакты</Link>
-              </SidebarMenuButton>
+              {NAV_ITEMS.map((item) => (
+                <SidebarMenuButton className="cursor-pointer hover:bg-bg-select">
+                  <Link href={item.href}>{item.label}</Link>
+                </SidebarMenuButton>
+              ))}
             </SidebarMenuItem>
           </SidebarMenu>
         </SidebarGroup>

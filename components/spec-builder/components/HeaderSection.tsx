@@ -1,5 +1,6 @@
 "use client";
 
+import PageHeader from '@/components/layout/PageHeader';
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -52,11 +53,12 @@ export default function HeaderSection({
           </BreadcrumbList>
         </Breadcrumb>
 
-        <div className="flex-1 items-center justify-between gap-3 w-full">
-          <h1 className="text-[clamp(32px,6vw,54px)] tracking-[-.02em] font-heading m-0 mt-3 leading-[0.98]">
+        {/* <div className="flex-1 items-center justify-between gap-3 w-full"> */}
+          <PageHeader>Спецификации</PageHeader>
+          {/* <h1 className="text-[clamp(32px,6vw,54px)] tracking-[-.02em] font-heading m-0 mt-3 leading-[0.98]">
             Спецификации
-          </h1>
-        </div>
+          </h1> */}
+        {/* </div> */}
       </div>
       <div className="flex items-center gap-2 flex-wrap w-full justify-end">
         <div

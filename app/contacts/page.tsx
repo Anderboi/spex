@@ -15,7 +15,8 @@ import {
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { SupplierContact } from '@/lib/types';
+import { SupplierContact } from "@/lib/types";
+import PageHeader from "@/components/layout/PageHeader";
 
 export default function ContactsPage() {
   const [search, setSearch] = useState("");
@@ -27,15 +28,13 @@ export default function ContactsPage() {
       {/* Шапка страницы */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight">
-            Контакты поставщиков
-          </h1>
+          <PageHeader>Контакты поставщиков</PageHeader>
           <p className="text-sm text-muted-foreground mt-1">
             База салонов, фабрик и персональных менеджеров
           </p>
         </div>
         <Button className="gap-2">
-          <Plus className="h-4 w-4" /> Добавить контакт
+          <Plus className="size-4" /> Добавить контакт
         </Button>
       </div>
 
