@@ -14,9 +14,20 @@ import {
 import AddModalForm from "./components/AddModalForm";
 import { useSpecBuilder } from '@/hooks/useSpecBuilder';
 import { DetailModal } from './components/DetailsModal';
+import { useState, useTransition } from 'react';
+import { SpecItem } from '@/lib/types';
 
-export default function SpecBuilder() {
+export default function SpecBuilder({
+  projectId,
+  initialItems,
+}: {
+  projectId: string;
+  initialItems: SpecItem[];
+}) {
   const ctx = useSpecBuilder();
+
+  const [items, setItems] = useState(initialItems);
+  const [isPending, startTransition] = useTransition();
 
   return (
     <div className="min-h-screen w-full min-w-0 bg-bg text-fg px-4 sm:px-6 md:px-8 lg:px-12 pb-35 relative overflow-x-hidden">
