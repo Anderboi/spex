@@ -8,6 +8,7 @@
   --color-background: var(--background);
   --color-foreground: var(--foreground);
   --color-bg: #f3efe7;
+  --color-bg-sidebar: #f3efe7;
   --color-bg-card: #faf8f3;
   --color-bg-accent: #1b1a17;
   --color-bg-red: #bf5345;
@@ -258,7 +259,7 @@ input {
   --chart-4: oklch(0.371 0 0);
   --chart-5: oklch(0.269 0 0);
   --radius: 0.625rem;
-  --sidebar: oklch(0.985 0 0);
+  --sidebar: oklch(95.303% 0.01138 84.523);
   --sidebar-foreground: oklch(0.145 0 0);
   --sidebar-primary: oklch(0.205 0 0);
   --sidebar-primary-foreground: oklch(0.985 0 0);
