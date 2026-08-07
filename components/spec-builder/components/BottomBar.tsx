@@ -26,15 +26,15 @@ export default function BottomBar({
   onClearSel, onSelectAllVisible, onBulkDelete, bulkStatus
 }: BottomBarProps) {
   return (
-    <div className="fixed left-0 right-0 bottom-0 z-50 flex justify-center px-[clamp(16px,4vw,48px)] pb-[clamp(16px,3vw,28px)] pointer-events-none">
-      <div className="w-full max-w-[1180px] flex items-center justify-between gap-4 bg-bg-accent text-bg rounded-[16px] py-[18px] px-[clamp(18px,3vw,30px)] pointer-events-auto shadow-[0_18px_50px_rgba(27,26,23,.28)]">
+    <div className="sticky left-0 right-0 bottom-0 z-50 flex justify-center px-[clamp(16px,4vw,48px)] pb-[clamp(16px,3vw,28px)] pointer-events-none">
+      <div className="w-full max-w-295 flex items-center justify-between gap-4 bg-bg-accent text-bg rounded-[16px] py-4 px-[clamp(18px,3vw,30px)] pointer-events-auto shadow-[0_18px_50px_rgba(27,26,23,.28)]">
         {!selectionActive ? (
           <div className="flex items-center justify-between gap-4 w-full">
             <div className="flex items-baseline gap-3">
               <span className="font-mono text-[10.5px] tracking-[.12em] uppercase text-[#8d887d]">Позиций</span>
               <span className="text-[clamp(20px,4vw,26px)] font-bold">{totalCount}</span>
             </div>
-            <div className="flex items-baseline gap-[14px]">
+            <div className="flex items-baseline gap-3">
               <span className="font-mono text-[10.5px] tracking-[.12em] uppercase text-[#8d887d]">Сумма</span>
               <span className="text-[clamp(22px,5vw,30px)] font-bold tracking-[-.01em]">{totalSum} ₽</span>
             </div>
