@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useTransition } from "react";
 import {
   Building2,
   User,
@@ -15,13 +15,20 @@ import {
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { SupplierContact } from "@/lib/types";
 import PageHeader from "@/components/layout/PageHeader";
+import { upsertSupplier } from './actions';
+import { getSuppliers } from '@/lib/queries';
 
-export default function ContactsPage() {
+interface PageProps {
+  searchParams: Promise<{ search?: string }>;
+}
+
+export default async function ContactsPage({ searchParams }: PageProps) {
+  const params = await searchParams;
+  
   const [search, setSearch] = useState("");
   // В реальном приложении: fetch из Supabase
-  const [contacts] = useState<SupplierContact[]>([]);
+  const contacts = await getSuppliers(params.search);
 
   return (
     <div className="p-8 max-w-7xl mx-auto space-y-6">
@@ -66,12 +73,12 @@ export default function ContactsPage() {
                 <h3 className="text-base font-semibold mt-2">{contact.name}</h3>
                 {contact.contactPerson && (
                   <p className="text-xs text-muted-foreground flex items-center gap-1.5 mt-1">
-                    <User className="h-3.5 w-3.5" /> {contact.contactPerson}
+                    <User className="size-3.5" /> {contact.contactPerson}
                   </p>
                 )}
               </div>
-              <Button size="icon" variant="ghost" className="h-8 w-8">
-                <MoreHorizontal className="h-4 w-4" />
+              <Button size="icon" variant="ghost" className="size-8">
+                <MoreHorizontal className="size-4" />
               </Button>
             </div>
 
@@ -81,7 +88,7 @@ export default function ContactsPage() {
                   href={`tel:${contact.phone}`}
                   className="flex items-center gap-2 hover:text-foreground"
                 >
-                  <Phone className="h-3.5 w-3.5" /> {contact.phone}
+                  <Phone className="size-3.5" /> {contact.phone}
                 </a>
               )}
               {contact.email && (
@@ -89,7 +96,7 @@ export default function ContactsPage() {
                   href={`mailto:${contact.email}`}
                   className="flex items-center gap-2 hover:text-foreground"
                 >
-                  <Mail className="h-3.5 w-3.5" /> {contact.email}
+                  <Mail className="size-3.5" /> {contact.email}
                 </a>
               )}
               {contact.website && (
@@ -99,9 +106,9 @@ export default function ContactsPage() {
                   rel="noreferrer"
                   className="flex items-center gap-2 hover:text-foreground"
                 >
-                  <Globe className="h-3.5 w-3.5" />{" "}
+                  <Globe className="size-3.5" />{" "}
                   {contact.website.replace("https://", "")}{" "}
-                  <ExternalLink className="h-3 w-3" />
+                  <ExternalLink className="size-3" />
                 </a>
               )}
             </div>
