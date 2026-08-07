@@ -43,7 +43,7 @@ export default function SpecRow({
         <span className="font-mono text-[12.5px] font-medium text-fg-dim">{it.code}</span>
         <div className="min-w-0">
           <div className="text-[15.5px] font-medium italic text-fg-secondary">Материал не выбран</div>
-          <div className="font-mono text-[10.5px] text-fg-secondary mt-[2px] tracking-[.02em]">Нажмите, чтобы заполнить</div>
+          <div className="font-mono text-[10.5px] text-fg-secondary mt-0.5 tracking-[.02em]">Нажмите, чтобы заполнить</div>
         </div>
         <span className="text-fg-dots">—</span>
         <span className="font-mono text-[13.5px] text-right text-fg-dim">{it.qty} <span className="text-fg-dots">{it.unit}</span></span>
@@ -68,7 +68,7 @@ export default function SpecRow({
       <span className="font-mono text-[12.5px] font-medium text-fg">{it.code}</span>
       <div onClick={onOpen} className="min-w-0 cursor-pointer">
         <div className="text-[16px] font-semibold tracking-[-.01em] truncate">{it.name}</div>
-        <div className="font-mono text-[11px] text-fg-muted mt-[2px]">{it.brand}</div>
+        <div className="font-mono text-[11px] text-fg-muted mt-0.5">{it.brand}</div>
       </div>
       <span className="text-[14.5px] text-fg-body truncate">{it.spec}</span>
       <span className="font-mono text-[13.5px] text-right">{it.qty} <span className="text-fg-dim">{it.unit}</span></span>
