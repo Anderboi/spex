@@ -4,6 +4,7 @@ import { useState, useMemo } from "react";
 import { fmtRub, plural } from "@/lib/utils";
 import { MOCK_PROJECTS } from "@/lib/constants";
 import { ProjectCard } from "@/components/project/ProjectCard";
+import { Breadcrumb, BreadcrumbItem, BreadcrumbLink, BreadcrumbList, BreadcrumbPage, BreadcrumbSeparator } from '@/components/ui/breadcrumb';
 
 function EmptyState({ onNew }: { onNew: () => void }) {
   return (
@@ -99,11 +100,17 @@ export default function ProjectsPage() {
         {/* Header */}
         <div className="flex items-end justify-between gap-5 flex-wrap pt-[clamp(28px,5vw,48px)]">
           <div className="w-full">
-            <div className="font-mono text-[11.5px] tracking-[.1em] uppercase text-fg-muted flex gap-2 items-center">
-              <span>SpecTrack</span>
-              <span className="opacity-50">/</span>
-              <span className="text-fg">Проекты</span>
-            </div>
+            <Breadcrumb>
+              <BreadcrumbList>
+                <BreadcrumbItem>
+                  <BreadcrumbLink render={<a href="/" />}>Home</BreadcrumbLink>
+                </BreadcrumbItem>
+                <BreadcrumbSeparator />
+                <BreadcrumbItem>
+                  <BreadcrumbPage>Проекты</BreadcrumbPage>
+                </BreadcrumbItem>
+              </BreadcrumbList>
+            </Breadcrumb>
             <div className="flex items-center justify-between gap-3 w-full">
               <div>
                 <h1 className="text-[clamp(34px,6vw,54px)] font-bold tracking-[-.02em] m-0 mt-3 leading-[0.98]">
