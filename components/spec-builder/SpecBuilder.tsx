@@ -55,7 +55,7 @@ export default function SpecBuilder() {
         />
 
         {ctx.stReplace.count > 0 && !ctx.replaceHidden && (
-          <div className="flex items-center gap-3 mt-4 bg-bg-red-light border border-border-red rounded-[14px] py-3 px-4">
+          <div className="flex items-center gap-3 mt-4 bg-bg-red-light border border-border-red rounded-lg py-1 sm:py-2 px-2 sm:px-4">
             <span className="flex-none size-7 rounded-full bg-bg-red text-bg-red-light flex items-center justify-center text-[17px] font-bold leading-none">
               !
             </span>
@@ -70,7 +70,7 @@ export default function SpecBuilder() {
                 )}{" "}
                 замены
               </div>
-              <div className="text-[12.5px] text-fg-dim-text mt-[1px]">
+              <div className="text-[12.5px] text-fg-dim-text hidden md:block">
                 Отмечены статусом «Заменить» · {fmt(ctx.stReplace.sum)} ₽
               </div>
             </div>

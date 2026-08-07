@@ -23,7 +23,7 @@ export default function SearchSortSection({
 }: SearchSortSectionProps) {
   return (
     <div className="flex gap-3 mt-[clamp(22px,4vw,34px)] flex-wrap">
-      <div className="flex-1 min-w-60 flex items-center gap-3 bg-bg-card border border-border rounded-lg px-4 //h-10">
+      <div className="flex-1 min-w-60 h-10 flex items-center gap-3 bg-bg-card border border-border rounded-lg px-4 //h-10">
         
         <Search className="size-5 text-fg-icon"/>
         <input
@@ -55,7 +55,7 @@ export default function SearchSortSection({
       </div>
       <button
         onClick={onSort}
-        className="flex items-center gap-2 bg-bg-card border border-border rounded-lg p-4 //h-13 font-mono text-[12px] tracking-[.04em] text-fg cursor-pointer whitespace-nowrap"
+        className="flex items-center h-10 gap-2 bg-bg-card border border-border rounded-lg p-4 //h-13 font-mono text-[12px] tracking-[.04em] text-fg cursor-pointer whitespace-nowrap"
       >
         {sortLabel} <span className="text-fg-muted">↕</span>
       </button>

@@ -3,6 +3,7 @@
 import { SpecItem } from "@/lib/types";
 import { fmt, brandSite } from "@/lib/utils";
 import StatusBadge from './StatusBadge';
+import { Link, X } from 'lucide-react';
 
 interface SpecRowProps {
   it: SpecItem;
@@ -57,30 +58,107 @@ export default function SpecRow({
     );
   }
   return (
-    <div className="spec-row grid grid-cols-[38px_46px_58px_minmax(150px,1.5fr)_1.1fr_90px_104px_122px_140px_86px] gap-3.5 items-center py-3.5 px-1 border-t border-border-subtle" onDragOver={onDragOver} onDrop={onDrop} style={{ background: selected ? '#efe9dc' : 'transparent', opacity: dragId === it.id ? 0.4 : 1, boxShadow: dragOverId === it.id ? `inset 0 2px 0 0 ${accent}` : 'none' }}>
+    <div
+      className="spec-row grid grid-cols-[38px_46px_58px_minmax(150px,1.5fr)_1.1fr_90px_104px_122px_140px_86px] gap-3.5 items-center py-3.5 px-1 border-t border-border-subtle"
+      onDragOver={onDragOver}
+      onDrop={onDrop}
+      style={{
+        background: selected ? "#efe9dc" : "transparent",
+        opacity: dragId === it.id ? 0.4 : 1,
+        boxShadow: dragOverId === it.id ? `inset 0 2px 0 0 ${accent}` : "none",
+      }}
+    >
       <div className="flex items-center gap-2">
-        <span className="drag-dots grid grid-cols-[repeat(2,2.5px)] gap-[2.5px] auto-rows-[2.5px] cursor-grab" draggable onDragStart={onDragStart} onDragEnd={onDragEnd}>
-          {[1, 2, 3, 4, 5, 6].map(i => <span key={i} className="w-[2.5px] h-[2.5px] rounded-full bg-fg-icon"></span>)}
+        <span
+          className="drag-dots grid grid-cols-[repeat(2,2.5px)] gap-[2.5px] auto-rows-[2.5px] cursor-grab"
+          draggable
+          onDragStart={onDragStart}
+          onDragEnd={onDragEnd}
+        >
+          {[1, 2, 3, 4, 5, 6].map((i) => (
+            <span
+              key={i}
+              className="w-[2.5px] h-[2.5px] rounded-full bg-fg-icon"
+            ></span>
+          ))}
         </span>
-        <span onClick={(e) => { e.stopPropagation(); onToggleSel(); }} className="w-4 h-4 rounded-[5px] flex items-center justify-center cursor-pointer text-bg text-[11px] leading-none flex-none" style={{ border: `1.5px solid ${selected ? accent : '#c2bdb1'}`, background: selected ? accent : 'transparent' }}>{selected ? '✓' : ''}</span>
+        <span
+          onClick={(e) => {
+            e.stopPropagation();
+            onToggleSel();
+          }}
+          className="w-4 h-4 rounded-[5px] flex items-center justify-center cursor-pointer text-bg text-[11px] leading-none flex-none"
+          style={{
+            border: `1.5px solid ${selected ? accent : "#c2bdb1"}`,
+            background: selected ? accent : "transparent",
+          }}
+        >
+          {selected ? "✓" : ""}
+        </span>
       </div>
-      <div onClick={onOpen} className="size-10 rounded-[9px] border border-border-placeholder cursor-pointer [background:repeating-linear-gradient(135deg,#e9e4d9,#e9e4d9_5px,#f0ebe1_5px,#f0ebe1_10px)]"></div>
-      <span className="font-mono text-[12.5px] font-medium text-fg">{it.code}</span>
+      <div
+        onClick={onOpen}
+        className="size-10 rounded-[9px] border border-border-placeholder cursor-pointer [background:repeating-linear-gradient(135deg,#e9e4d9,#e9e4d9_5px,#f0ebe1_5px,#f0ebe1_10px)]"
+      ></div>
+      <span className="font-mono text-[12.5px] font-medium text-fg">
+        {it.code}
+      </span>
       <div onClick={onOpen} className="min-w-0 cursor-pointer">
-        <div className="text-[16px] font-semibold tracking-[-.01em] truncate">{it.name}</div>
-        <div className="font-mono text-[11px] text-fg-muted mt-0.5">{it.brand}</div>
+        <div className="text-[16px] font-semibold tracking-[-.01em] truncate">
+          {it.name}
+        </div>
+        <div className="font-mono text-[11px] text-fg-muted mt-0.5">
+          {it.brand}
+        </div>
       </div>
       <span className="text-[14.5px] text-fg-body truncate">{it.spec}</span>
-      <span className="font-mono text-[13.5px] text-right">{it.qty} <span className="text-fg-dim">{it.unit}</span></span>
-      <span className="font-mono text-[13.5px] text-right text-fg-body">{fmt(it.price)}</span>
-      <span className="font-sans text-[16px] font-bold text-right tracking-[-.01em]">{fmt(it.qty * it.price)} ₽</span>
+      <span className="font-mono text-[13.5px] text-right">
+        {it.qty} <span className="text-fg-dim">{it.unit}</span>
+      </span>
+      <span className="font-mono text-[13.5px] text-right text-fg-body">
+        {fmt(it.price)}
+      </span>
+      <span className="font-sans text-[16px] font-bold text-right tracking-[-.01em]">
+        {fmt(it.qty * it.price)} ₽
+      </span>
       <div className="relative">
-        <StatusBadge status={it.status} accent={accent} menuOpen={statusMenuId === it.id} onToggleMenu={(e: React.MouseEvent) => { e.stopPropagation(); setStatusMenuId(statusMenuId === it.id ? null : it.id); }} onPick={(s: string) => { setStatus(it.id, s); }} />
+        <StatusBadge
+          status={it.status}
+          accent={accent}
+          menuOpen={statusMenuId === it.id}
+          onToggleMenu={(e: React.MouseEvent) => {
+            e.stopPropagation();
+            setStatusMenuId(statusMenuId === it.id ? null : it.id);
+          }}
+          onPick={(s: string) => {
+            setStatus(it.id, s);
+          }}
+        />
       </div>
       <div className="flex items-center justify-end gap-3">
-        <a href={brandSite(it.brand)} target="_blank" rel="noopener noreferrer" title="Сайт производителя" className="text-fg-icon no-underline text-[14px] leading-none cursor-pointer">↗</a>
-        <span onClick={shareItem} title="Поделиться" className="text-fg-icon cursor-pointer text-[14px]">🔗</span>
-        <span onClick={onRemove} className="font-mono text-fg-delete cursor-pointer text-[15px] leading-none" title="Удалить">✕</span>
+        <a
+          href={brandSite(it.brand)}
+          target="_blank"
+          rel="noopener noreferrer"
+          title="Сайт производителя"
+          className="text-fg-icon no-underline text-[14px] leading-none cursor-pointer"
+        >
+          ↗
+        </a>
+        <span
+          onClick={shareItem}
+          title="Поделиться"
+          className="text-fg-icon cursor-pointer text-[14px]"
+        >
+          <Link size="14" />
+        </span>
+        <span
+          onClick={onRemove}
+          className="font-mono text-fg-delete cursor-pointer text-[15px] leading-none"
+          title="Удалить"
+        >
+          <X size="14" />
+        </span>
       </div>
     </div>
   );
