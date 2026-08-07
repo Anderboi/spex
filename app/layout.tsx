@@ -1,16 +1,37 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import { Geist } from "next/font/google";
+import { Geist, JetBrains_Mono, Unbounded } from "next/font/google";
 import { cn } from "@/lib/utils";
-import { SidebarProvider, SidebarTrigger } from '@/components/ui/sidebar';
-import { AppSidebar } from '@/components/app-sidebar';
-
-const geist = Geist({subsets:['latin'],variable:'--font-sans'});
+import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
+import { AppSidebar } from "@/components/app-sidebar";
 
 export const metadata: Metadata = {
-  title: "Спецификации — SpecTrack",
-  description: "Interior designer specification builder app",
+  title: { default: "Balans Design", template: "%s | Balans" },
+  description: "Приложение для управления материалами для дизайна интерьера",
+  openGraph: {
+    type: "website",
+    locale: "ru_RU",
+    siteName: "Balans App",
+  },
 };
+
+const geist = Geist({
+  subsets: ["latin", "cyrillic"],
+  display: "swap",
+  variable: "--font-sans",
+});
+
+const spaceGrotesk = Unbounded({
+  subsets: ["latin", "cyrillic"],
+  variable: "--font-unbounded",
+  display: "swap",
+});
+
+const jetbrainsMono = JetBrains_Mono({
+  subsets: ["latin", "cyrillic"],
+  variable: "--font-mono",
+  display: "swap",
+});
 
 export default function RootLayout({
   children,
@@ -18,27 +39,25 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="ru" className={cn("font-sans", geist.variable)}>
-      <head>
-        <link rel="preconnect" href="https://fonts.googleapis.com" />
-        <link
-          rel="preconnect"
-          href="https://fonts.gstatic.com"
-          crossOrigin="anonymous"
-        />
-        <link
-          href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap"
-          rel="stylesheet"
-        />
-      </head>
-      <body>
-        
-        <SidebarProvider >
+    <html
+      lang="ru"
+      className={cn(
+        geist.variable,
+        spaceGrotesk.variable,
+        jetbrainsMono.variable,
+        "font-sans",
+      )}
+      suppressHydrationWarning
+    >
+      <body className="antialiased min-h-screen bg-bg text-fg">
+        <SidebarProvider>
           <AppSidebar />
-          <main className='flex-1 min-w-0'>
-            <SidebarTrigger />
-            {children}
-          </main>
+          <div className="relative flex min-h-svh flex-1 flex-col min-w-0 w-full bg-bg overflow-x-hidden">
+            <header className="flex h-8 items-center gap-2 px-4">
+              <SidebarTrigger />
+            </header>
+            <main className="flex-1 w-full min-w-0">{children}</main>
+          </div>
         </SidebarProvider>
       </body>
     </html>

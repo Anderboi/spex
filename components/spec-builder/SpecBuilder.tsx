@@ -19,8 +19,8 @@ export default function SpecBuilder() {
   const ctx = useSpecBuilder();
 
   return (
-    <div className="min-h-screen w-full min-w-0 bg-bg text-fg px-[clamp(16px,4vw,48px)] pb-35 relative">
-      <div className="max-w-295 mx-auto">
+    <div className="min-h-screen w-full min-w-0 bg-bg text-fg px-4 sm:px-6 md:px-8 lg:px-12 pb-35 relative overflow-x-hidden">
+      <div className="w-full min-w-0 //mx-auto">
         <HeaderSection
           saveStatus={ctx.saveStatus}
           mobMenuOpen={ctx.mobMenuOpen}
@@ -55,7 +55,7 @@ export default function SpecBuilder() {
         />
 
         {ctx.stReplace.count > 0 && !ctx.replaceHidden && (
-          <div className="flex items-center gap-[14px] mt-[18px] bg-bg-red-light border border-border-red rounded-[14px] py-[13px] px-4">
+          <div className="flex items-center gap-3 mt-4 bg-bg-red-light border border-border-red rounded-[14px] py-3 px-4">
             <span className="flex-none size-7 rounded-full bg-bg-red text-bg-red-light flex items-center justify-center text-[17px] font-bold leading-none">
               !
             </span>
@@ -80,7 +80,7 @@ export default function SpecBuilder() {
                   ctx.statusFilter === "Заменить" ? null : "Заменить",
                 )
               }
-              className="flex-none bg-bg-red text-[#fbf4f2] border-none rounded-[10px] py-[10px] px-[15px] font-sans text-[13.5px] font-semibold cursor-pointer whitespace-nowrap"
+              className="flex-none bg-bg-red text-bg-delete border-none rounded-[10px] py-2 px-4 font-sans text-[13.5px] font-semibold cursor-pointer whitespace-nowrap"
             >
               {ctx.statusFilter === "Заменить"
                 ? "Показать все"
@@ -90,7 +90,7 @@ export default function SpecBuilder() {
               onClick={() => ctx.setReplaceHidden(true)}
               type="button"
               aria-label="Скрыть"
-              className="flex-none w-[28px] h-[28px] rounded-lg border-none bg-transparent text-bg-red cursor-pointer text-[16px] leading-none flex items-center justify-center"
+              className="flex-none size-7 rounded-lg border-none bg-transparent text-bg-red cursor-pointer text-[16px] leading-none flex items-center justify-center"
             >
               ✕
             </button>
@@ -98,7 +98,7 @@ export default function SpecBuilder() {
         )}
 
         {ctx.groups.length === 0 && (
-          <div className="text-center py-[90px] px-5 text-fg-muted">
+          <div className="text-center py-22 px-5 text-fg-muted">
             <div className="text-[22px] font-semibold text-fg">
               Ничего не найдено
             </div>
@@ -119,7 +119,7 @@ export default function SpecBuilder() {
           </div>
         )}
 
-        <div className="pt-[6px]">
+        <div className="pt-1">
           {ctx.groups.map((g) => (
             <GroupSection
               key={g.type}
@@ -477,7 +477,7 @@ export default function SpecBuilder() {
       )}
 
       {ctx.toast != null && (
-        <div className="fixed left-1/2 bottom-27 -translate-x-1/2 z-80 flex items-center gap-4 bg-bg-accent text-bg py-[13px] pl-[22px] pr-4 rounded-[12px] font-sans text-[14px] font-medium shadow-[0_14px_40px_rgba(27,26,23,.32)]">
+        <div className="fixed left-1/2 bottom-27 -translate-x-1/2 z-80 flex items-center gap-4 bg-bg-accent text-bg py-3 pl-6 pr-4 rounded-[12px] font-sans text-[14px] font-medium shadow-[0_14px_40px_rgba(27,26,23,.32)]">
           <span>{ctx.toast!.msg}</span>
           {ctx.toast!.actionLabel && ctx.toast!.action && (
             <span

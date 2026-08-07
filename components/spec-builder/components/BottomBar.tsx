@@ -2,6 +2,7 @@
 
 import { STATUS_FLOW } from '@/lib/types';
 import { statusMeta } from "@/lib/utils";
+import { useSidebar } from "@/components/ui/sidebar";
 
 interface BottomBarProps {
   totalCount: number;
@@ -25,8 +26,16 @@ export default function BottomBar({
   allVisibleSelected, visIds, selected, bulkMenuOpen, setBulkMenuOpen,
   onClearSel, onSelectAllVisible, onBulkDelete, bulkStatus
 }: BottomBarProps) {
+  const { state, isMobile } = useSidebar();
+  const isCollapsed = state === "collapsed" || isMobile;
+
   return (
-    <div className="sticky left-0 right-0 bottom-0 z-50 flex justify-center px-[clamp(16px,4vw,48px)] pb-[clamp(16px,3vw,28px)] pointer-events-none">
+    <div
+      style={{
+        left: isCollapsed ? "0px" : "var(--sidebar-width, 0px)",
+      }}
+      className="fixed left-0 right-0 bottom-0  transition-all duration-200 ease-in-out z-40 flex justify-center px-[clamp(16px,4vw,48px)] pb-[clamp(16px,3vw,28px)] pointer-events-none"
+    >
       <div className="w-full max-w-295 flex items-center justify-between gap-4 bg-bg-accent text-bg rounded-[16px] py-4 px-[clamp(18px,3vw,30px)] pointer-events-auto shadow-[0_18px_50px_rgba(27,26,23,.28)]">
         {!selectionActive ? (
           <div className="flex items-center justify-between gap-4 w-full">

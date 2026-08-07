@@ -53,7 +53,7 @@ export default function HeaderSection({
         </Breadcrumb>
 
         <div className="flex-1 items-center justify-between gap-3 w-full">
-          <h1 className="text-[clamp(34px,6vw,54px)] font-bold tracking-[-.02em] m-0 mt-3 leading-[0.98]">
+          <h1 className="text-[clamp(32px,6vw,54px)] tracking-[-.02em] font-heading m-0 mt-3 leading-[0.98]">
             Спецификации
           </h1>
         </div>
