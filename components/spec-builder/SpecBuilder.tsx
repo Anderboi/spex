@@ -7,19 +7,19 @@ import TypeChipsSection from "./components/TypeChipsSection";
 import GroupSection from "./components/GroupSection";
 import BottomBar from "./components/BottomBar";
 import {
-  DetailModal,
   DeleteModal,
   ProcureModal,
   SummaryModal,
 } from "./components/Modals";
 import AddModalForm from "./components/AddModalForm";
 import { useSpecBuilder } from '@/hooks/useSpecBuilder';
+import { DetailModal } from './components/DetailsModal';
 
 export default function SpecBuilder() {
   const ctx = useSpecBuilder();
 
   return (
-    <div className="min-h-screen bg-bg text-fg px-[clamp(16px,4vw,48px)] pb-35">
+    <div className="min-h-screen w-full min-w-0 bg-bg text-fg px-[clamp(16px,4vw,48px)] pb-35 relative">
       <div className="max-w-295 mx-auto">
         <HeaderSection
           saveStatus={ctx.saveStatus}

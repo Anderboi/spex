@@ -21,7 +21,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 const manualSchema = z.object({
   name: z.string().min(1, "Required"),
@@ -471,6 +470,7 @@ export default function AddModalForm({
                           background: on ? "#eef0e6" : "#faf8f3",
                         }}
                       >
+                        {/* Image */}
                         <span className="flex-none size-16 rounded-sm border border-border-placeholder bg-[repeating-linear-gradient(135deg,#e7e1d6,#e7e1d6_5px,#efe9df_5px,#efe9df_10px)]"></span>
                         <span className="flex-1 min-w-0">
                           <span className="flex items-baseline justify-between gap-2">
