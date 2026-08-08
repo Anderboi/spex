@@ -4,6 +4,7 @@ import { Geist, JetBrains_Mono, Unbounded } from "next/font/google";
 import { cn } from "@/lib/utils";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
+import { ThemeProvider } from "@/components/theme-provider";
 
 export const metadata: Metadata = {
   title: { default: "Balans Design", template: "%s | Balans" },
@@ -50,15 +51,22 @@ export default function RootLayout({
       suppressHydrationWarning
     >
       <body className="antialiased min-h-screen bg-bg text-fg">
-        <SidebarProvider>
-          <AppSidebar />
-          <div className="relative flex min-h-svh flex-1 flex-col min-w-0 w-full bg-bg overflow-x-hidden">
-            <header className="flex h-8 items-center gap-2 px-4">
-              <SidebarTrigger />
-            </header>
-            <main className="flex-1 w-full min-w-0">{children}</main>
-          </div>
-        </SidebarProvider>
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="light"
+          enableSystem={false}
+          disableTransitionOnChange
+        >
+          <SidebarProvider>
+            <AppSidebar />
+            <div className="relative flex min-h-svh flex-1 flex-col min-w-0 w-full bg-bg overflow-x-hidden">
+              <header className="flex h-8 items-center gap-2 px-4">
+                <SidebarTrigger />
+              </header>
+              <main className="flex-1 w-full min-w-0">{children}</main>
+            </div>
+          </SidebarProvider>
+        </ThemeProvider>
       </body>
     </html>
   );
