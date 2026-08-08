@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { LibraryMaterial, SupplierContact } from './types';
+import { LibraryMaterial, SupplierContact } from "./types";
 
 /**
  * ==========================================
@@ -185,4 +185,49 @@ export async function getProjectSpecItems(projectId: string) {
   }
 
   return data;
+}
+
+export async function getCompanies() {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from("companies")
+    .select("*")
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.error(`Error fetching companies:`, error.message);
+    return [];
+  }
+
+  return data ?? [];
+}
+
+export async function getContacts() {
+  const supabase = await createClient();
+
+  const { data, error } = await supabase
+    .from("contacts")
+    .select("*")
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.error(`Error fetching contacts:`, error.message);
+    return [];
+  }
+
+  return data ?? [];
+}
+
+export async function getContactsData() {
+  // Вызываем параллельно и сразу получаем готовые массивы
+  const [companies, contacts] = await Promise.all([
+    getCompanies(),
+    getContacts(),
+  ]);
+
+  return {
+    companies,
+    contacts,
+  };
 }

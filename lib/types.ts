@@ -105,7 +105,10 @@ export const TYPE_ORDER = [
   "Декор",
   "Двери",
   "Электрика",
+  "Другое",
 ];
+
+export type CompanyCategory = (typeof TYPE_ORDER)[number];
 
 export const STATUS_FLOW = [
   "Не выбрано",
@@ -144,28 +147,28 @@ export const PREFIX_MAP: Record<string, string> = {
 
 export interface SupplierContact {
   id: string;
-  name: string;          // Название компании / Салон (например, "Kerama Marazzi", "Krassky")
-  contactPerson?: string;// Имя менеджера ("Алексей")
+  name: string; // Название компании / Салон (например, "Kerama Marazzi", "Krassky")
+  contactPerson?: string; // Имя менеджера ("Алексей")
   phone?: string;
   email?: string;
   website?: string;
   address?: string;
   city?: string;
-  category?: string;     // "Плитка", "Свет", "Сантехника"
-  note?: string;         // Доп. заметки (например, "Скидка студии 15%")
+  category?: string; // "Плитка", "Свет", "Сантехника"
+  note?: string; // Доп. заметки (например, "Скидка студии 15%")
 }
 
 export interface LibraryMaterial {
   id: string;
-  name: string;          // "Travertine Navona"
-  brand: string;         // "Salvatori"
-  category: string;      // "Напольные покрытия", "Камень"
-  article?: string;      // Артикул
-  unit: string;          // "м²", "шт"
+  name: string; // "Travertine Navona"
+  brand: string; // "Salvatori"
+  category: string; // "Напольные покрытия", "Камень"
+  article?: string; // Артикул
+  unit: string; // "м²", "шт"
   price: number;
   image?: string;
-  supplierId?: string;   // Внешний ключ на SupplierContact
+  supplierId?: string; // Внешний ключ на SupplierContact
   supplier?: SupplierContact;
-  tags?: string[];       // ["микроцемент", "бежевый", "минимализм"]
+  tags?: string[]; // ["микроцемент", "бежевый", "минимализм"]
   specifications?: Record<string, string>; // Износостойкость, формат и т.д.
 }

@@ -1,8 +1,9 @@
 import { z } from "zod";
+import { TYPE_ORDER } from "./types";
 
 // --- SUPPLIERS / CONTACTS ---
-export const supplierSchema = z.object({
-  id: z.string().uuid().optional(),
+export const companySchema = z.object({
+  id: z.string().uuid(),
   name: z.string().min(1, "Укажите название компании"),
   contact_person: z.string().optional().nullable(),
   phone: z.string().optional().nullable(),
@@ -15,11 +16,28 @@ export const supplierSchema = z.object({
   website: z.string().optional().nullable(),
   address: z.string().optional().nullable(),
   city: z.string().optional().nullable(),
-  category: z.string().optional().nullable(),
+  category: z.enum(TYPE_ORDER).optional(),
   note: z.string().optional().nullable(),
 });
 
-export type SupplierInput = z.infer<typeof supplierSchema>;
+export type CompanyInput = z.infer<typeof companySchema>;
+
+export const contactSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string().min(1, "Укажите имя контакта"),
+  phone: z.string().optional().nullable(),
+  title: z.string().optional().nullable(),
+  email: z
+    .string()
+    .email("Некорректный E-mail")
+    .optional()
+    .or(z.literal(""))
+    .nullable(),
+  category: z.enum(TYPE_ORDER).optional(),
+  note: z.string().optional().nullable(),
+});
+
+export type ContactInput = z.infer<typeof contactSchema>;
 
 // --- MATERIALS ---
 export const materialSchema = z.object({
@@ -33,7 +51,7 @@ export const materialSchema = z.object({
   price: z.number().min(0, "Цена не может быть отрицательной").default(0),
   image_url: z.string().optional().nullable(),
   tags: z.array(z.string()).default([]),
-  specifications: z.record(z.string(),z.any()).default({}),
+  specifications: z.record(z.string(), z.any()).default({}),
 });
 
 export type MaterialInput = z.infer<typeof materialSchema>;
@@ -81,4 +99,3 @@ export const reorderSpecItemsSchema = z.object({
 });
 
 export type ReorderSpecItemsInput = z.infer<typeof reorderSpecItemsSchema>;
-
