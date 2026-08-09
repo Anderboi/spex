@@ -12,9 +12,9 @@ import {
   UserRound,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { CompanyInput, ContactInput } from '@/lib/validations';
-import { initials } from '@/lib/utils';
-import { ManagerRow } from './manager-row';
+import { CompanyInput, ContactInput } from "@/lib/validations";
+import { initials } from "@/lib/utils";
+import { ManagerRow } from "./manager-row";
 
 export function CompanyCard({
   company,
@@ -34,7 +34,7 @@ export function CompanyCard({
   return (
     <article className="overflow-hidden rounded-xl border border-border bg-card">
       <div className="flex items-start gap-3 p-4 sm:gap-4 sm:p-5">
-        <div className="bg-bg-brand text-fg-brand flex size-10 shrink-0 items-center justify-center rounded-lg bg-brand-muted font-serif text-base text-brand sm:size-11 sm:text-lg">
+        <div className="bg-bg-brand text-fg-brand flex size-10 shrink-0 items-center justify-center rounded-lg font-serif text-base text-brand sm:size-11 sm:text-lg">
           {initials(company.name)}
         </div>
         <div className="min-w-0 flex-1">
@@ -42,9 +42,23 @@ export function CompanyCard({
             <h3 className="font-serif text-lg font-semibold leading-tight text-card-foreground">
               {company.name}
             </h3>
-            <span className="rounded-full border border-fg-brand/50 bg-bg-brand/30 text-fg-brand px-2 py-0.5 text-xs font-medium text-brand">
-              {company.category}
-            </span>
+            <div className="flex flex-wrap gap-2">
+              {Array.isArray(company.category) &&
+              company.category.length > 0 ? (
+                company.category.map((cat) => (
+                  <span
+                    key={cat}
+                    className="rounded-full border border-fg-brand/50 bg-bg-brand/30 text-fg-brand px-2 py-0.5 text-xs font-medium text-brand"
+                  >
+                    {cat}
+                  </span>
+                ))
+              ) : (
+                <span className="text-xs text-muted-foreground">
+                  Без категории
+                </span>
+              )}
+            </div>
           </div>
           <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
             {company.address ? (

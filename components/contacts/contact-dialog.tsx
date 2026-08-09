@@ -24,6 +24,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { upsertContact } from "@/app/contacts/actions"; // Импорт вашей Server Action
+import z from "zod";
+import { TYPE_ORDER } from "@/lib/types";
+import { CategoryMultiSelect } from "../layout/category-multiselect";
 
 interface ContactDialogProps {
   open: boolean;
@@ -48,7 +51,11 @@ export function ContactDialog({
 
   const defaultCompanyId = independentOnly ? null : (fixedCompanyId ?? null);
 
-  const form = useForm<ContactInput>({
+  const form = useForm<
+    z.input<typeof contactSchema>,
+    any,
+    z.output<typeof contactSchema>
+  >({
     resolver: zodResolver(contactSchema),
     defaultValues: {
       id: undefined,
@@ -58,7 +65,7 @@ export function ContactDialog({
       email: "",
       note: "",
       company_id: defaultCompanyId,
-      category: "Другое",
+      category: [],
       user_id: null,
     },
   });
@@ -73,9 +80,30 @@ export function ContactDialog({
         phone: "",
         note: "",
         company_id: defaultCompanyId,
+        category: [],
       });
     }
   }, [open, fixedCompanyId, independentOnly, form, defaultCompanyId]);
+
+  const categories = form.watch("category") || [];
+
+  const toggleCategory = (type: string) => {
+    const current = Array.isArray(categories) ? categories : [];
+    if (categories.includes(type)) {
+      // Удаляем категорию из массива
+      form.setValue(
+        "category",
+        categories.filter((c: string) => c !== type),
+        { shouldValidate: true, shouldDirty: true },
+      );
+    } else {
+      // Добавляем категорию в массив
+      form.setValue("category", [...current, type], {
+        shouldValidate: true,
+        shouldDirty: true,
+      });
+    }
+  };
 
   const onSubmit: SubmitHandler<ContactInput> = (values) => {
     startTransition(async () => {
@@ -107,7 +135,7 @@ export function ContactDialog({
   return (
     <Dialog open={open} onOpenChange={(val) => !val && onClose()}>
       <DialogContent className="sm:max-w-125">
-        <DialogHeader>
+        <DialogHeader className="border-b border-border-subtle py-2">
           <DialogTitle>
             {independentOnly ? "Добавить специалиста" : "Добавить контакт"}
           </DialogTitle>
@@ -163,7 +191,25 @@ export function ContactDialog({
                 )}
               />
             </div>
-
+            <FormField
+              control={form.control}
+              name="category"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Категории компании</FormLabel>
+                  <FormControl>
+                    <CategoryMultiSelect
+                      options={TYPE_ORDER}
+                      selected={field.value || []}
+                      onChange={(newCategories) => {
+                        field.onChange(newCategories);
+                      }}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
             {/* Выбор компании (скрыт, если зафиксирована компания или режим независимого специалиста) */}
             {showCompanySelect && (
               <FormField

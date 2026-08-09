@@ -42,6 +42,8 @@ export type ResetPasswordRequestInput = z.infer<
 >;
 export type NewPasswordInput = z.infer<typeof newPasswordSchema>;
 
+const categoriesSchema = z.array(z.string()).default([]);
+
 // --- SUPPLIERS / CONTACTS ---
 export const companySchema = z.object({
   id: z.string().uuid().optional(),
@@ -57,7 +59,7 @@ export const companySchema = z.object({
   website: z.string().optional().nullable(),
   address: z.string().optional().or(z.literal("")).nullable(),
   city: z.string().optional().or(z.literal("")).nullable(),
-  category: z.enum(TYPE_ORDER).optional(),
+  category: categoriesSchema,
   note: z.string().optional().nullable(),
 });
 
@@ -74,7 +76,7 @@ export const contactSchema = z.object({
     .optional()
     .or(z.literal(""))
     .nullable(),
-  category: z.enum(TYPE_ORDER).optional(),
+  category: categoriesSchema,
   note: z.string().optional().nullable(),
   company_id: z.string().uuid().optional().nullable(),
   user_id: z.string().uuid().optional().nullable(),

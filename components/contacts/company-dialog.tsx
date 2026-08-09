@@ -17,8 +17,16 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../ui/dialog';
-import { upsertCompany } from '@/app/contacts/actions';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { upsertCompany } from "@/app/contacts/actions";
+import z from 'zod';
+import { CategoryMultiSelect } from '../layout/category-multiselect';
 
 interface CompanyDialogProps {
   open: boolean;
@@ -33,12 +41,16 @@ export function CompanyDialog({
 }: CompanyDialogProps) {
   const [isPending, startTransition] = useTransition();
 
-  const form = useForm<CompanyInput, any, CompanyInput>({
+  const form = useForm<
+    z.input<typeof companySchema>,
+    any,
+    z.output<typeof companySchema>
+  >({
     resolver: zodResolver(companySchema),
     defaultValues: {
       id: undefined,
       name: "",
-      category: TYPE_ORDER[0],
+      category: [],
       website: "",
       email: "",
       phone: "",
@@ -46,6 +58,8 @@ export function CompanyDialog({
       note: "",
     },
   });
+
+  const { watch, setValue } = form;
 
   const onSubmit: SubmitHandler<CompanyInput> = (values) => {
     startTransition(async () => {
@@ -55,25 +69,42 @@ export function CompanyDialog({
         form.setError("root", { message: res.error });
         return;
       }
-      
+
       form.reset();
       onClose();
       onSuccess?.();
     });
   };
 
+  const categories = watch("category") || [];
+
+  const toggleCategory = (type: string) => {
+    const current = Array.isArray(categories) ? categories : [];
+    if (categories.includes(type)) {
+      // Удаляем категорию из массива
+      setValue(
+        "category",
+        categories.filter((c: string) => c !== type),
+        { shouldValidate: true, shouldDirty: true },
+      );
+    } else {
+      // Добавляем категорию в массив
+     setValue("category", [...current, type], {
+       shouldValidate: true,
+       shouldDirty: true,
+     });}
+  };
+
   return (
-    <Dialog
-      open={open}
-      // onClose={onClose}
-    >
-      <DialogContent>
-        <DialogHeader>
+    <Dialog open={open} onOpenChange={(val) => !val && onClose()}>
+      <DialogContent className="sm:max-w-125">
+        <DialogHeader className="border-b border-border-subtle py-2">
           <DialogTitle>Добавить компанию</DialogTitle>
           <DialogDescription>
             Поставщики, салоны и подрядчики для спецификаций.
           </DialogDescription>
         </DialogHeader>
+
         <Form {...form}>
           <form
             onSubmit={form.handleSubmit(onSubmit, (errors) => {
@@ -81,6 +112,7 @@ export function CompanyDialog({
             })}
             className="flex flex-col gap-4"
           >
+            {/* Название компании */}
             <FormField
               control={form.control}
               name="name"
@@ -95,30 +127,29 @@ export function CompanyDialog({
               )}
             />
 
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <FormField
-                control={form.control}
-                name="category"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Категория</FormLabel>
-                    <FormControl>
-                      <select
-                        {...field}
-                        className="h-8 w-full rounded-lg border border-input bg-background px-3 text-sm"
-                      >
-                        {TYPE_ORDER.map((c) => (
-                          <option key={c} value={c}>
-                            {c}
-                          </option>
-                        ))}
-                      </select>
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+            {/* Выбор нескольких категорий (Мультиселект-чипсы) */}
+            <FormField
+              control={form.control}
+              name="category"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Категории компании</FormLabel>
+                  <FormControl>
+                    <CategoryMultiSelect
+                      options={TYPE_ORDER}
+                      selected={field.value || []}
+                      onChange={(newCategories) => {
+                        field.onChange(newCategories);
+                      }}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
+            {/* Сайт и Email */}
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <FormField
                 control={form.control}
                 name="website"
@@ -136,8 +167,7 @@ export function CompanyDialog({
                   </FormItem>
                 )}
               />
-            </div>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+
               <FormField
                 control={form.control}
                 name="email"
@@ -147,7 +177,7 @@ export function CompanyDialog({
                     <FormControl>
                       <Input
                         type="email"
-                        placeholder="H5B0g@example.com"
+                        placeholder="info@example.com"
                         {...field}
                         value={field.value || ""}
                       />
@@ -156,6 +186,10 @@ export function CompanyDialog({
                   </FormItem>
                 )}
               />
+            </div>
+
+            {/* Телефон и Адрес */}
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <FormField
                 control={form.control}
                 name="phone"
@@ -174,24 +208,27 @@ export function CompanyDialog({
                   </FormItem>
                 )}
               />
+
+              <FormField
+                control={form.control}
+                name="address"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Адрес / Город</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder="Москва, ARTPLAY"
+                        {...field}
+                        value={field.value || ""}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
             </div>
-            <FormField
-              control={form.control}
-              name="address"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Адрес / Город</FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder="Москва, Центр дизайна ARTPLAY"
-                      {...field}
-                      value={field.value || ""}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+
+            {/* Заметки */}
             <FormField
               control={form.control}
               name="note"
@@ -200,8 +237,8 @@ export function CompanyDialog({
                   <FormLabel>Заметки</FormLabel>
                   <FormControl>
                     <textarea
-                      className="border border-border rounded-lg p-2"
-                      placeholder="Москва, Центр дизайна ARTPLAY"
+                      className="w-full min-h-[70px] border border-input bg-background rounded-lg p-2 text-sm focus:outline-none focus:ring-1 focus:ring-border"
+                      placeholder="Особые условия, персональные скидки..."
                       {...field}
                       value={field.value || ""}
                     />
@@ -210,11 +247,15 @@ export function CompanyDialog({
                 </FormItem>
               )}
             />
+
+            {/* Ошибки сервера */}
             {form.formState.errors.root && (
               <p className="text-sm font-medium text-destructive">
                 {form.formState.errors.root.message}
               </p>
             )}
+
+            {/* Кнопки действия */}
             <div className="mt-2 flex justify-end gap-2">
               <Button
                 type="button"

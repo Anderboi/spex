@@ -20,6 +20,8 @@ import { deleteCompany, deleteContact } from "@/app/contacts/actions";
 import PageHeader from "../layout/PageHeader";
 import { CompanyDialog } from "./company-dialog";
 import { ContactDialog } from './contact-dialog';
+import TypeChipsSection from '../spec-builder/components/TypeChipsSection';
+import { useSearchParams } from 'next/navigation';
 
 interface ContactsViewProps {
   initialCompanies: CompanyInput[];
@@ -33,6 +35,9 @@ export default function ContactsView({
   const [tab, setTab] = useState<"companies" | "independent">("companies");
   const [query, setQuery] = useState("");
   const [isPending, startTransition] = useTransition();
+
+  const searchParams = useSearchParams();
+  const selectedCategory = searchParams.get("type");
 
   // Состояния диалогов
   const [companyDialogOpen, setCompanyDialogOpen] = useState(false);
@@ -62,25 +67,64 @@ export default function ContactsView({
   // Фильтрация поиска по компаниям и контактам
   const q = query.trim().toLowerCase();
 
+  // Фильтрация компаний
   const filteredCompanies = useMemo(() => {
-    if (!q) return optimisticCompanies;
-    return optimisticCompanies.filter(
-      (c) =>
-        c.name.toLowerCase().includes(q) ||
-        c.category?.toLowerCase().includes(q) ||
-        c.address?.toLowerCase().includes(q),
-    );
-  }, [optimisticCompanies, q]);
+    return optimisticCompanies.filter((c) => {
+      // 1. Проверяем выбор в чипсах
+      const isAllSelected =
+        !selectedCategory ||
+        selectedCategory === "" ||
+        selectedCategory === "Все типы";
 
+      const matchesCategory =
+        isAllSelected ||
+        (Array.isArray(c.category) && c.category.includes(selectedCategory)) ||
+        (typeof c.category === "string" &&
+          (c.category as string) === selectedCategory);
+
+      // 2. Проверяем поисковый запрос
+      const matchesQuery =
+        !q ||
+        c.name.toLowerCase().includes(q) ||
+        c.address?.toLowerCase().includes(q) ||
+        (Array.isArray(c.category) &&
+          c.category.some((cat) => cat.toLowerCase().includes(q))) ||
+        (typeof c.category === "string" &&
+          (c.category as string).toLowerCase().includes(q));
+
+      return matchesCategory && matchesQuery;
+    });
+  }, [optimisticCompanies, q, selectedCategory]);
+
+  // Фильтрация специалистов
   const filteredIndependent = useMemo(() => {
-    if (!q) return independentContacts;
-    return independentContacts.filter(
-      (m) =>
+    return independentContacts.filter((m) => {
+      // 1. Проверяем категорию
+      const isAllSelected =
+        !selectedCategory ||
+        selectedCategory === "" ||
+        selectedCategory === "Все типы";
+
+      const matchesCategory =
+        isAllSelected ||
+        (Array.isArray(m.category) && m.category.includes(selectedCategory)) ||
+        (typeof m.category === "string" &&
+          (m.category as string) === selectedCategory);
+
+      // 2. Проверяем поисковый запрос
+      const matchesQuery =
+        !q ||
         m.name.toLowerCase().includes(q) ||
         m.title?.toLowerCase().includes(q) ||
-        m.email?.toLowerCase().includes(q),
-    );
-  }, [independentContacts, q]);
+        m.email?.toLowerCase().includes(q) ||
+        (Array.isArray(m.category) &&
+          m.category.some((cat) => cat.toLowerCase().includes(q))) ||
+        (typeof m.category === "string" &&
+          (m.category as string).toLowerCase().includes(q));
+
+      return matchesCategory && matchesQuery;
+    });
+  }, [independentContacts, q, selectedCategory]);
 
   // Обработчики удаления с оптимистичным обновлением
   const handleRemoveCompany = (id: string) => {
@@ -144,17 +188,9 @@ export default function ContactsView({
                 className="h-10 w-full rounded-lg border border-input bg-card pl-9 pr-3 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30"
               />
             </div>
-            {/* <div className="flex gap-4 text-sm text-muted-foreground">
-              <span className="inline-flex items-center gap-1.5 tabular-nums">
-                <Building2 className="size-4" /> {optimisticCompanies.length}{" "}
-                компаний
-              </span>
-              <span className="inline-flex items-center gap-1.5 tabular-nums">
-                <Users className="size-4" /> {optimisticContacts.length}{" "}
-                контактов
-              </span>
-            </div> */}
           </div>
+
+          <TypeChipsSection paramName="type" />
 
           {/* Табы */}
           <div role="tablist" className="flex gap-1 border-b border-border">
@@ -202,7 +238,9 @@ export default function ContactsView({
                 <CompanyCard
                   key={c.id}
                   company={c}
-                  managers={optimisticContacts.filter((m) => m.company_id === c.id)}
+                  managers={optimisticContacts.filter(
+                    (m) => m.company_id === c.id,
+                  )}
                   onAddManager={(companyId) =>
                     setManagerDialog({ open: true, companyId })
                   }
@@ -305,7 +343,6 @@ export default function ContactsView({
         independentOnly={managerDialog.independent}
         onClose={() => setManagerDialog({ open: false })}
       />
-      
     </div>
   );
 }

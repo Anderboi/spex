@@ -106,7 +106,7 @@ export const TYPE_ORDER = [
   "Двери",
   "Электрика",
   "Другое",
-];
+] as const;
 
 export type CompanyCategory = (typeof TYPE_ORDER)[number];
 
