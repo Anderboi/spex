@@ -1,5 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { LibraryMaterial, SupplierContact } from "./types";
+import { auth } from "@/auth";
+import { createAdminClient } from "./supabase/admin";
 
 /**
  * ==========================================
@@ -124,12 +126,18 @@ export async function getMaterialById(id: string) {
 export async function getProjects(
   status: "active" | "archived" | "completed" = "active",
 ) {
-  const supabase = await createClient();
+  const session = await auth();
+
+  if (!session?.user?.id) {
+    return [];
+  }
+
+  const supabase = createAdminClient();
 
   const { data, error } = await supabase
     .from("projects")
     .select("*")
-    .eq("status", status)
+    .eq("user_id", session.user.id)
     .order("updated_at", { ascending: false });
 
   if (error) {
@@ -141,11 +149,18 @@ export async function getProjects(
 }
 
 export async function getProjectById(projectId: string) {
-  const supabase = await createClient();
+  const session = await auth();
+
+  if (!session?.user?.id) {
+    return null;
+  }
+
+  const supabase = createAdminClient();
 
   const { data, error } = await supabase
     .from("projects")
     .select("*")
+    .eq("user_id", session.user.id)
     .eq("id", projectId)
     .single();
 
@@ -188,11 +203,18 @@ export async function getProjectSpecItems(projectId: string) {
 }
 
 export async function getCompanies() {
+  const session = await auth();
+
+  if (!session?.user?.id) {
+    return [];
+  }
+
   const supabase = await createClient();
 
   const { data, error } = await supabase
     .from("companies")
     .select("*")
+    .eq("user_id", session.user.id)
     .order("created_at", { ascending: false });
 
   if (error) {

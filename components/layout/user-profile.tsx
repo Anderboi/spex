@@ -4,6 +4,8 @@ import { useState, useRef, useEffect, useTransition } from "react";
 import { STORAGE_KEY } from "@/lib/constants";
 import { logout } from "@/app/(auth)/actions";
 import { LogoutDialog } from "../auth/logout-dialog";
+import { initials } from "@/lib/utils";
+import { ChevronDown } from "lucide-react";
 
 interface UserProfileProps {
   user?: {
@@ -23,14 +25,12 @@ export function UserProfile({ user }: UserProfileProps) {
 
   const menuRef = useRef<HTMLDivElement>(null);
 
-  const userName = user?.name ?? "Анна Лебедева";
+  const userName = user?.name ?? user?.email;
   const userEmail = user?.email ?? "a.lebedeva@studio.ru";
-  const initials = userName
-    .split(" ")
-    .map((n) => n[0])
-    .join("")
-    .slice(0, 2)
-    .toUpperCase();
+  const initial = initials(userName || "user") || "@";
+  const role = "Дизайнер"; //TODO: Добавить роли
+
+  if (!user) return null;
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -58,6 +58,13 @@ export function UserProfile({ user }: UserProfileProps) {
   // 3. Вызываем Server Action при подтверждении
   const handleConfirmLogout = () => {
     setIsLogoutDialogOpen(false);
+
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+    } catch (e) {
+      console.error("Ошибка очистки localStorage:", e);
+    }
+
     startTransition(async () => {
       try {
         await logout();
@@ -121,7 +128,7 @@ export function UserProfile({ user }: UserProfileProps) {
           }`}
         >
           <div className="size-8 rounded-[8px] bg-bg-accent text-bg flex items-center justify-center font-mono text-[12px] font-bold flex-none">
-            {initials}
+            {initial}
           </div>
 
           <div className="flex-1 text-left min-w-0">
@@ -129,9 +136,10 @@ export function UserProfile({ user }: UserProfileProps) {
               {userName}
             </div>
             <div className="text-[11px] text-fg-muted leading-tight truncate mt-0.5">
-              Студия дизайна
+              {role}
             </div>
           </div>
+          <ChevronDown size={16} className="text-fg-muted" />
         </button>
       </div>
 
