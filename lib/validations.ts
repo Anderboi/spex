@@ -64,7 +64,7 @@ export const companySchema = z.object({
 export type CompanyInput = z.infer<typeof companySchema>;
 
 export const contactSchema = z.object({
-  id: z.string().uuid(),
+  id: z.string().uuid().optional(),
   name: z.string().min(1, "Укажите имя контакта"),
   phone: z.string().optional().nullable(),
   title: z.string().optional().nullable(),
@@ -76,6 +76,8 @@ export const contactSchema = z.object({
     .nullable(),
   category: z.enum(TYPE_ORDER).optional(),
   note: z.string().optional().nullable(),
+  company_id: z.string().uuid().optional().nullable(),
+  user_id: z.string().uuid().optional().nullable(),
 });
 
 export type ContactInput = z.infer<typeof contactSchema>;

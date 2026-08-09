@@ -8,20 +8,30 @@ import {
   CompanyInput,
   ContactInput,
 } from "@/lib/validations";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { auth } from "@/auth";
 
 // --- КОМПАНИИ ---
 
 export async function upsertCompany(input: CompanyInput) {
-  const supabase = await createClient();
-  const parsed = companySchema.safeParse(input);
+  const supabase = createAdminClient();
+  const session = await auth();
+  if (!session?.user?.id) {
+    return { success: false, error: "Неавторизованный доступ" };
+  }
 
+  const parsed = companySchema.safeParse(input);
+  const payload = {
+    ...parsed.data,
+    user_id: session.user.id,
+  };
   if (!parsed.success) {
     return { success: false, error: "Некорректные данные компании" };
   }
 
   const { data, error } = await supabase
     .from("companies")
-    .upsert(parsed.data)
+    .upsert(payload)
     .select()
     .single();
 
@@ -48,19 +58,31 @@ export async function deleteCompany(id: string) {
 export async function upsertContact(
   input: ContactInput & { company_id?: string | null },
 ) {
-  const supabase = await createClient();
+  const supabase = createAdminClient();
+  const session = await auth();
+  if (!session?.user?.id) {
+    return { success: false, error: "Неавторизованный доступ" };
+  }
   const parsed = contactSchema.safeParse(input);
 
   if (!parsed.success) {
+    console.error("Zod validation errors:", parsed.error.format());
     return { success: false, error: "Некорректные данные контакта" };
+  }
+
+  const payload = {
+    ...parsed.data,
+    user_id: session.user.id,
+    company_id: input.company_id ?? null,
+  };
+
+  if (!payload.id) {
+    delete payload.id;
   }
 
   const { data, error } = await supabase
     .from("contacts")
-    .upsert({
-      ...parsed.data,
-      company_id: input.company_id ?? null,
-    })
+    .upsert(payload)
     .select()
     .single();
 

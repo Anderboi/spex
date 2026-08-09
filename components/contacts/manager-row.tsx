@@ -1,9 +1,9 @@
-"use client"
+"use client";
 
-import { Mail, Phone, Trash2 } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { ContactInput } from '@/lib/validations';
-import { initials } from '@/lib/utils';
+import { Mail, Phone, Trash2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { ContactInput } from "@/lib/validations";
+import { initials } from "@/lib/utils";
 
 export function ManagerRow({
   manager,
@@ -14,7 +14,7 @@ export function ManagerRow({
 }) {
   return (
     <li className="group flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors hover:bg-card">
-      <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-secondary text-xs font-medium text-secondary-foreground">
+      <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-bg text-xs font-medium text-fg">
         {initials(manager.name)}
       </div>
       <div className="min-w-0 flex-1">
@@ -56,7 +56,7 @@ export function ManagerRow({
         variant="ghost"
         size="icon-xs"
         aria-label={`Remove ${manager.name}`}
-        onClick={() => onRemove(manager.id)}
+        onClick={() => onRemove(manager.id || "")}
         className="text-muted-foreground opacity-100 transition-opacity hover:text-destructive sm:opacity-0 sm:group-hover:opacity-100"
       >
         <Trash2 />

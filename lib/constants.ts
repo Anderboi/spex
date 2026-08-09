@@ -27,7 +27,7 @@ export const STATUS_CONFIG: Record<
 export const MOCK_PROJECTS: Project[] = [
   {
     id: "p1",
-    name: "Резиденция на Патриарших",
+    title: "Резиденция на Патриарших",
     type: "Интерьер",
     status: "В работе",
     rooms: 8,
@@ -37,7 +37,7 @@ export const MOCK_PROJECTS: Project[] = [
   },
   {
     id: "p2",
-    name: "Лофт-студия ArtPlay",
+    title: "Лофт-студия ArtPlay",
     type: "Интерьер",
     status: "Завершен",
     rooms: 3,
@@ -47,7 +47,7 @@ export const MOCK_PROJECTS: Project[] = [
   },
   {
     id: "p3",
-    name: "Загородный дом Villa Verde",
+    title: "Загородный дом Villa Verde",
     type: "Экстерьер",
     status: "В работе",
     rooms: 12,
@@ -57,7 +57,7 @@ export const MOCK_PROJECTS: Project[] = [
   },
   {
     id: "p4",
-    name: "Офис TechPoint",
+    title: "Офис TechPoint",
     type: "Коммерческий",
     status: "Черновик",
     rooms: 5,
@@ -67,7 +67,7 @@ export const MOCK_PROJECTS: Project[] = [
   },
   {
     id: "p5",
-    name: "Пентхаус City Park",
+    title: "Пентхаус City Park",
     type: "Интерьер",
     status: "На паузе",
     rooms: 6,
@@ -77,7 +77,7 @@ export const MOCK_PROJECTS: Project[] = [
   },
   {
     id: "p6",
-    name: "Ресторан White Rabbit",
+    title: "Ресторан White Rabbit",
     type: "Коммерческий",
     status: "Завершен",
     rooms: 4,

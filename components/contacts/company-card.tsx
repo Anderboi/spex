@@ -89,7 +89,7 @@ export function CompanyCard({
           variant="ghost"
           size="icon-sm"
           aria-label={`Remove ${company.name}`}
-          // onClick={() => onRemoveCompany(company.id)}
+          onClick={() => onRemoveCompany(company.id || "")}
           className="text-muted-foreground cursor-pointer hover:text-destructive"
         >
           <Trash2 />
@@ -113,7 +113,7 @@ export function CompanyCard({
           <Button
             variant="ghost"
             size="sm"
-            // onClick={() => onAddManager(company.id)}
+            onClick={() => onAddManager(company.id || "")}
           >
             <Plus /> Add contact
           </Button>

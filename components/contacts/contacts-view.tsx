@@ -10,6 +10,7 @@ import {
   UserPlus,
   Users,
   Loader2,
+  Contact,
 } from "lucide-react";
 import { CompanyCard } from "./company-card";
 // import { CompanyDialog, ManagerDialog } from "./contact-dialogs";
@@ -17,7 +18,8 @@ import { initials } from "@/lib/utils";
 import { CompanyInput, ContactInput } from "@/lib/validations";
 import { deleteCompany, deleteContact } from "@/app/contacts/actions";
 import PageHeader from "../layout/PageHeader";
-import { CompanyDialog } from "./contact-dialogs";
+import { CompanyDialog } from "./company-dialog";
+import { ContactDialog } from './contact-dialog';
 
 interface ContactsViewProps {
   initialCompanies: CompanyInput[];
@@ -53,7 +55,7 @@ export default function ContactsView({
 
   // Группировка независимых контактов
   const independentContacts = useMemo(
-    () => optimisticContacts.filter((m) => !m.id),
+    () => optimisticContacts.filter((m) => !m.company_id),
     [optimisticContacts],
   );
 
@@ -98,7 +100,7 @@ export default function ContactsView({
   return (
     <div className="min-h-screen">
       <header className="border-b border-border">
-        <div className="mx-auto flex max-w-5xl flex-col gap-6 px-4 py-6 sm:px-6 sm:py-8">
+        <div className="mx-auto flex max-w-5xl flex-col gap-4 px-4 py-6 sm:px-6 sm:py-8">
           <div className="flex flex-col gap-5 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between sm:gap-4">
             <div>
               <PageHeader>Контакты</PageHeader>
@@ -116,14 +118,14 @@ export default function ContactsView({
                   setManagerDialog({ open: true, independent: true })
                 }
               >
-                <UserPlus className="mr-2 size-4" /> Добавить специалиста
+                <UserPlus className="mr-1 size-4" /> Добавить специалиста
               </Button>
               <Button
                 size="lg"
-                className="flex-1 whitespace-nowrap sm:flex-none"
+                className="flex-1 bg-fg whitespace-nowrap sm:flex-none"
                 onClick={() => setCompanyDialogOpen(true)}
               >
-                <Plus className="mr-2 size-4" /> Добавить компанию
+                <Plus className="mr-1 size-4" /> Добавить компанию
               </Button>
             </div>
           </div>
@@ -142,7 +144,7 @@ export default function ContactsView({
                 className="h-10 w-full rounded-lg border border-input bg-card pl-9 pr-3 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30"
               />
             </div>
-            <div className="flex gap-4 text-sm text-muted-foreground">
+            {/* <div className="flex gap-4 text-sm text-muted-foreground">
               <span className="inline-flex items-center gap-1.5 tabular-nums">
                 <Building2 className="size-4" /> {optimisticCompanies.length}{" "}
                 компаний
@@ -151,7 +153,7 @@ export default function ContactsView({
                 <Users className="size-4" /> {optimisticContacts.length}{" "}
                 контактов
               </span>
-            </div>
+            </div> */}
           </div>
 
           {/* Табы */}
@@ -200,7 +202,7 @@ export default function ContactsView({
                 <CompanyCard
                   key={c.id}
                   company={c}
-                  managers={optimisticContacts.filter((m) => m.id === c.id)}
+                  managers={optimisticContacts.filter((m) => m.company_id === c.id)}
                   onAddManager={(companyId) =>
                     setManagerDialog({ open: true, companyId })
                   }
@@ -238,7 +240,7 @@ export default function ContactsView({
                 key={m.id}
                 className="flex items-start gap-3 rounded-xl border border-border bg-card p-4"
               >
-                <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-secondary text-sm font-medium text-secondary-foreground">
+                <div className="flex size-10 shrink-0 items-center bg-bg justify-center rounded-full text-sm font-medium text-secondary-foreground">
                   {initials(m.name)}
                 </div>
                 <div className="min-w-0 flex-1">
@@ -296,14 +298,14 @@ export default function ContactsView({
         open={companyDialogOpen}
         onClose={() => setCompanyDialogOpen(false)}
       />
-
-      {/* <ManagerDialog
+      <ContactDialog
         open={managerDialog.open}
-        onClose={() => setManagerDialog({ open: false })}
         companies={optimisticCompanies}
         fixedCompanyId={managerDialog.companyId}
         independentOnly={managerDialog.independent}
-      /> */}
+        onClose={() => setManagerDialog({ open: false })}
+      />
+      
     </div>
   );
 }
@@ -322,10 +324,10 @@ function TabButton({
     <button
       type="button"
       onClick={onClick}
-      className={`-mb-px inline-flex items-center gap-2 border-b-2 px-3 py-2.5 text-sm font-medium transition-colors ${
+      className={`-mb-px inline-flex items-center gap-2 border-b-2 px-3 py-2.5 text-sm font-medium font-mono transition-colors ${
         active
-          ? "border-brand text-foreground"
-          : "border-transparent text-muted-foreground hover:text-foreground"
+          ? "border-fg-brand text-fg"
+          : "border-transparent text-fg-muted hover:text-fg"
       }`}
     >
       {children}
@@ -335,7 +337,7 @@ function TabButton({
 
 function Count({ children }: { children: React.ReactNode }) {
   return (
-    <span className="rounded-full bg-secondary px-1.5 py-0.5 text-xs font-medium text-secondary-foreground">
+    <span className="rounded-full bg-bg-brand px-1.5 py-0.5 text-xs font-medium text-fg">
       {children}
     </span>
   );
