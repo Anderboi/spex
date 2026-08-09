@@ -18,6 +18,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '../ui/dialog';
+import { upsertCompany } from '@/app/contacts/actions';
 
 interface CompanyDialogProps {
   open: boolean;
@@ -35,6 +36,7 @@ export function CompanyDialog({
   const form = useForm<CompanyInput, any, CompanyInput>({
     resolver: zodResolver(companySchema),
     defaultValues: {
+      id: undefined,
       name: "",
       category: TYPE_ORDER[0],
       website: "",
@@ -47,8 +49,13 @@ export function CompanyDialog({
 
   const onSubmit: SubmitHandler<CompanyInput> = (values) => {
     startTransition(async () => {
-      //TODO: Здесь вызываем Server Action вместо локального пропса
-      // const res = await upsertCompany(values);
+      const res = await upsertCompany(values);
+
+      if (!res.success) {
+        form.setError("root", { message: res.error });
+        return;
+      }
+      
       form.reset();
       onClose();
       onSuccess?.();
@@ -59,7 +66,6 @@ export function CompanyDialog({
     <Dialog
       open={open}
       // onClose={onClose}
-      
     >
       <DialogContent>
         <DialogHeader>
@@ -70,7 +76,9 @@ export function CompanyDialog({
         </DialogHeader>
         <Form {...form}>
           <form
-            onSubmit={form.handleSubmit(onSubmit)}
+            onSubmit={form.handleSubmit(onSubmit, (errors) => {
+              console.log("Ошибки валидации Zod:", errors);
+            })}
             className="flex flex-col gap-4"
           >
             <FormField
@@ -97,7 +105,7 @@ export function CompanyDialog({
                     <FormControl>
                       <select
                         {...field}
-                        className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                        className="h-8 w-full rounded-lg border border-input bg-background px-3 text-sm"
                       >
                         {TYPE_ORDER.map((c) => (
                           <option key={c} value={c}>
@@ -113,13 +121,13 @@ export function CompanyDialog({
 
               <FormField
                 control={form.control}
-                name="address"
+                name="website"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Адрес / Город</FormLabel>
+                    <FormLabel>Сайт</FormLabel>
                     <FormControl>
                       <Input
-                        placeholder="Москва, Центр дизайна ARTPLAY"
+                        placeholder="https://example.com"
                         {...field}
                         value={field.value || ""}
                       />
@@ -129,7 +137,84 @@ export function CompanyDialog({
                 )}
               />
             </div>
-
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <FormField
+                control={form.control}
+                name="email"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Эл. почта</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="email"
+                        placeholder="H5B0g@example.com"
+                        {...field}
+                        value={field.value || ""}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="phone"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Телефон</FormLabel>
+                    <FormControl>
+                      <Input
+                        type="tel"
+                        placeholder="+7 999 999 99 99"
+                        {...field}
+                        value={field.value || ""}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+            <FormField
+              control={form.control}
+              name="address"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Адрес / Город</FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder="Москва, Центр дизайна ARTPLAY"
+                      {...field}
+                      value={field.value || ""}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="note"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Заметки</FormLabel>
+                  <FormControl>
+                    <textarea
+                      className="border border-border rounded-lg p-2"
+                      placeholder="Москва, Центр дизайна ARTPLAY"
+                      {...field}
+                      value={field.value || ""}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            {form.formState.errors.root && (
+              <p className="text-sm font-medium text-destructive">
+                {form.formState.errors.root.message}
+              </p>
+            )}
             <div className="mt-2 flex justify-end gap-2">
               <Button
                 type="button"

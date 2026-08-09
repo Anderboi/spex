@@ -34,15 +34,15 @@ export function CompanyCard({
   return (
     <article className="overflow-hidden rounded-xl border border-border bg-card">
       <div className="flex items-start gap-3 p-4 sm:gap-4 sm:p-5">
-        <div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-brand-muted font-serif text-base text-brand sm:size-11 sm:text-lg">
+        <div className="bg-bg-brand text-fg-brand flex size-10 shrink-0 items-center justify-center rounded-lg bg-brand-muted font-serif text-base text-brand sm:size-11 sm:text-lg">
           {initials(company.name)}
         </div>
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <h3 className="font-serif text-lg leading-tight text-card-foreground">
+          <div className="flex flex-wrap items-center gap-4">
+            <h3 className="font-serif text-lg font-semibold leading-tight text-card-foreground">
               {company.name}
             </h3>
-            <span className="rounded-full border border-brand/30 bg-brand/10 px-2 py-0.5 text-xs font-medium text-brand">
+            <span className="rounded-full border border-fg-brand/50 bg-bg-brand/30 text-fg-brand px-2 py-0.5 text-xs font-medium text-brand">
               {company.category}
             </span>
           </div>
@@ -89,8 +89,8 @@ export function CompanyCard({
           variant="ghost"
           size="icon-sm"
           aria-label={`Remove ${company.name}`}
-          onClick={() => onRemoveCompany(company.id)}
-          className="text-muted-foreground hover:text-destructive"
+          // onClick={() => onRemoveCompany(company.id)}
+          className="text-muted-foreground cursor-pointer hover:text-destructive"
         >
           <Trash2 />
         </Button>
@@ -113,7 +113,7 @@ export function CompanyCard({
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => onAddManager(company.id)}
+            // onClick={() => onAddManager(company.id)}
           >
             <Plus /> Add contact
           </Button>

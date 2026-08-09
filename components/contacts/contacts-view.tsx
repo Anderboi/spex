@@ -15,8 +15,9 @@ import { CompanyCard } from "./company-card";
 // import { CompanyDialog, ManagerDialog } from "./contact-dialogs";
 import { initials } from "@/lib/utils";
 import { CompanyInput, ContactInput } from "@/lib/validations";
-import { deleteCompany, deleteContact } from '@/app/contacts/actions';
-import PageHeader from '../layout/PageHeader';
+import { deleteCompany, deleteContact } from "@/app/contacts/actions";
+import PageHeader from "../layout/PageHeader";
+import { CompanyDialog } from "./contact-dialogs";
 
 interface ContactsViewProps {
   initialCompanies: CompanyInput[];
@@ -100,7 +101,6 @@ export default function ContactsView({
         <div className="mx-auto flex max-w-5xl flex-col gap-6 px-4 py-6 sm:px-6 sm:py-8">
           <div className="flex flex-col gap-5 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between sm:gap-4">
             <div>
-              
               <PageHeader>Контакты</PageHeader>
               <p className="mt-2 max-w-xl text-pretty text-sm text-muted-foreground">
                 Компании, поставщики и представители. Управляйте справочником и
@@ -116,7 +116,7 @@ export default function ContactsView({
                   setManagerDialog({ open: true, independent: true })
                 }
               >
-                <UserPlus className="mr-2 size-4" /> Независимый контакт
+                <UserPlus className="mr-2 size-4" /> Добавить специалиста
               </Button>
               <Button
                 size="lg"
@@ -167,7 +167,7 @@ export default function ContactsView({
               active={tab === "independent"}
               onClick={() => setTab("independent")}
             >
-              Независимые
+              Специалисты
               <Count>{independentContacts.length}</Count>
             </TabButton>
           </div>
@@ -200,9 +200,7 @@ export default function ContactsView({
                 <CompanyCard
                   key={c.id}
                   company={c}
-                  managers={optimisticContacts.filter(
-                    (m) => m.id === c.id,
-                  )}
+                  managers={optimisticContacts.filter((m) => m.id === c.id)}
                   onAddManager={(companyId) =>
                     setManagerDialog({ open: true, companyId })
                   }
@@ -294,12 +292,12 @@ export default function ContactsView({
       </main>
 
       {/* Диалоговые окна */}
-      {/* <CompanyDialog
+      <CompanyDialog
         open={companyDialogOpen}
         onClose={() => setCompanyDialogOpen(false)}
       />
 
-      <ManagerDialog
+      {/* <ManagerDialog
         open={managerDialog.open}
         onClose={() => setManagerDialog({ open: false })}
         companies={optimisticCompanies}

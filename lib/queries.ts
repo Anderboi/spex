@@ -209,7 +209,7 @@ export async function getCompanies() {
     return [];
   }
 
-  const supabase = await createClient();
+   const supabase = createAdminClient();
 
   const { data, error } = await supabase
     .from("companies")
@@ -222,7 +222,7 @@ export async function getCompanies() {
     return [];
   }
 
-  return data ?? [];
+  return data;
 }
 
 export async function getContacts() {

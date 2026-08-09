@@ -44,9 +44,9 @@ export type NewPasswordInput = z.infer<typeof newPasswordSchema>;
 
 // --- SUPPLIERS / CONTACTS ---
 export const companySchema = z.object({
-  id: z.string().uuid(),
+  id: z.string().uuid().optional(),
   name: z.string().min(1, "Укажите название компании"),
-  contact_person: z.string().optional().nullable(),
+  user_id: z.string().optional().nullable(),
   phone: z.string().optional().nullable(),
   email: z
     .string()
@@ -55,8 +55,8 @@ export const companySchema = z.object({
     .or(z.literal(""))
     .nullable(),
   website: z.string().optional().nullable(),
-  address: z.string().optional().nullable(),
-  city: z.string().optional().nullable(),
+  address: z.string().optional().or(z.literal("")).nullable(),
+  city: z.string().optional().or(z.literal("")).nullable(),
   category: z.enum(TYPE_ORDER).optional(),
   note: z.string().optional().nullable(),
 });

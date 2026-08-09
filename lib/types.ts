@@ -3,7 +3,7 @@ export type ProjectType = "Интерьер" | "Экстерьер" | "Комм�
 
 export interface Project {
   id: string;
-  name: string;
+  title: string;
   type: ProjectType;
   status: ProjectStatus;
   rooms: number;
