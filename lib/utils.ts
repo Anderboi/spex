@@ -29,8 +29,12 @@ export function plural(
   return many;
 }
 
-export const fmtRub = (n: number) =>
-  n.toLocaleString("ru-RU").replace(/,/g, "\u2009") + " ₽";
+export const fmtRub = (n?: number | null) =>{
+  if (n === undefined || n === null || isNaN(n)) {
+    return "0 ₽";
+  }
+
+  n.toLocaleString("ru-RU").replace(/,/g, "\u2009") + " ₽";}
 
 export const fmtDate = (iso: string) =>
   new Date(iso).toLocaleDateString("ru-RU", {

@@ -1,6 +1,47 @@
 import { z } from "zod";
 import { TYPE_ORDER } from "./types";
 
+// --- AUTH ---
+export const loginSchema = z.object({
+  email: z.string().email("Введите корректный email"),
+  password: z.string().min(6, "Пароль должен быть минимум 6 символов"),
+});
+
+export type LoginInput = z.infer<typeof loginSchema>;
+
+export const registerSchema = z
+  .object({
+    name: z.string().min(2, "Имя должно содержать минимум 2 символа"),
+    email: z.string().email("Введите корректный email"),
+    password: z.string().min(6, "Пароль должен быть не менее 6 символов"),
+    confirmPassword: z.string(),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    message: "Пароли не совпадают",
+    path: ["confirmPassword"],
+  });
+
+export type RegisterInput = z.infer<typeof registerSchema>;
+
+export const resetPasswordRequestSchema = z.object({
+  email: z.string().email("Введите корректный email"),
+});
+
+export const newPasswordSchema = z
+  .object({
+    password: z.string().min(6, "Пароль должен быть не менее 6 символов"),
+    confirmPassword: z.string(),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    message: "Пароли не совпадают",
+    path: ["confirmPassword"],
+  });
+
+export type ResetPasswordRequestInput = z.infer<
+  typeof resetPasswordRequestSchema
+>;
+export type NewPasswordInput = z.infer<typeof newPasswordSchema>;
+
 // --- SUPPLIERS / CONTACTS ---
 export const companySchema = z.object({
   id: z.string().uuid(),
@@ -67,6 +108,7 @@ export const projectSchema = z.object({
 
 export type ProjectInput = z.infer<typeof projectSchema>;
 
+// --- SPEC ITEMS ---
 export const specItemSchema = z.object({
   id: z.string().uuid().optional(),
   project_id: z.string().uuid("Укажите ID проекта"),
@@ -99,3 +141,4 @@ export const reorderSpecItemsSchema = z.object({
 });
 
 export type ReorderSpecItemsInput = z.infer<typeof reorderSpecItemsSchema>;
+
