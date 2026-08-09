@@ -75,13 +75,16 @@ export function CreateProjectDialog({ trigger }: CreateProjectDialogProps) {
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger>
         {trigger || (
-          <Button className="flex items-center gap-2 bg-bg-accent text-bg border-none rounded-[13px] py-4 px-6 font-sans text-[15px] font-semibold cursor-pointer">
-            <Plus className="h-4 w-4" /> Новый проект
-          </Button>
+          <div
+            role="button"
+            className="flex items-center gap-2 bg-bg-accent text-bg border-none rounded-[13px] py-4 px-6 font-sans text-[15px] font-semibold cursor-pointer"
+          >
+            <Plus className="size-4" /> Новый проект
+          </div>
         )}
       </DialogTrigger>
 
-      <DialogContent className="sm:max-w-[480px] bg-bg-card border-border-muted rounded-[20px] p-6 text-fg">
+      <DialogContent className="sm:max-w-120 bg-bg-card border-border-muted rounded-[20px] p-6 text-fg">
         <DialogHeader>
           <DialogTitle className="text-xl font-bold tracking-tight">
             Новый проект
