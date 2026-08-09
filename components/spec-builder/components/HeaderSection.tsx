@@ -1,6 +1,6 @@
 "use client";
 
-import PageHeader from '@/components/layout/PageHeader';
+import PageHeader from "@/components/layout/PageHeader";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -28,19 +28,10 @@ export default function HeaderSection({
   setAddOpen,
 }: HeaderSectionProps) {
   return (
-    <div className="flex items-end justify-between gap-4 flex-wrap pt-[clamp(28px,5vw,48px)] sm:pt-0">
+    <div className="flex items-end justify-between  gap-4 flex-wrap pt-[clamp(28px,5vw,48px)] //sm:pt-0">
       <div className="w-full">
-        {/* <div className="font-mono text-[11.5px] tracking-[.1em] uppercase text-fg-muted flex gap-2 items-center">
-          <span>Седьмой тестовый проект</span>
-          <span className="opacity-50">/</span>
-          <span className="text-fg">Спецификации</span>
-        </div> */}
         <Breadcrumb>
           <BreadcrumbList>
-            {/* <BreadcrumbItem>
-              <BreadcrumbLink render={<a href="/" />}>Home</BreadcrumbLink>
-            </BreadcrumbItem>
-            <BreadcrumbSeparator /> */}
             <BreadcrumbItem>
               <BreadcrumbLink render={<a href="/projects" />}>
                 Проекты
@@ -53,12 +44,7 @@ export default function HeaderSection({
           </BreadcrumbList>
         </Breadcrumb>
 
-        {/* <div className="flex-1 items-center justify-between gap-3 w-full"> */}
-          <PageHeader>Спецификации</PageHeader>
-          {/* <h1 className="text-[clamp(32px,6vw,54px)] tracking-[-.02em] font-heading m-0 mt-3 leading-[0.98]">
-            Спецификации
-          </h1> */}
-        {/* </div> */}
+        <PageHeader>Спецификации</PageHeader>
       </div>
       <div className="flex items-center gap-2 flex-wrap w-full justify-end">
         <div

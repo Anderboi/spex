@@ -30,7 +30,7 @@ export default function SpecBuilder({
   const [isPending, startTransition] = useTransition();
 
   return (
-    <div className="min-h-screen w-full min-w-0 bg-bg text-fg px-4 sm:px-6 md:px-8 lg:px-12 pb-35 relative overflow-x-hidden">
+    <div className="min-h-screen w-full min-w-0 bg-bg text-fg px-4 sm:px-6 md:px-10 pb-35 relative overflow-x-hidden">
       <div className="w-full min-w-0 //mx-auto">
         <HeaderSection
           saveStatus={ctx.saveStatus}

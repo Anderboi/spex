@@ -1,5 +1,6 @@
 "use client";
 
+import { Search } from 'lucide-react';
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useTransition } from "react";
 
@@ -39,37 +40,14 @@ export function ProjectFilters() {
       className={`flex items-center gap-3 mt-9 flex-wrap transition-opacity ${isPending ? "opacity-60" : "opacity-100"}`}
     >
       {/* Search Input */}
-      <div className="relative flex-1 min-w-55 max-w-105">
-        <svg
-          className="absolute left-4 top-1/2 -translate-y-1/2 pointer-events-none text-fg-muted"
-          width="16"
-          height="16"
-          viewBox="0 0 16 16"
-          fill="none"
-        >
-          <circle
-            cx="7"
-            cy="7"
-            r="5.5"
-            stroke="currentColor"
-            strokeWidth="1.4"
-          />
-          <line
-            x1="10.8"
-            y1="10.8"
-            x2="14.5"
-            y2="14.5"
-            stroke="currentColor"
-            strokeWidth="1.4"
-            strokeLinecap="round"
-          />
-        </svg>
+      <div className="flex-1 min-w-60 h-10 flex items-center gap-3 bg-bg-card border border-border rounded-lg px-4">
+        <Search className="size-5 text-fg-icon" />
         <input
           type="text"
           placeholder="Поиск по проектам…"
           defaultValue={query}
           onChange={(e) => updateSearch(e.target.value)}
-          className="w-full bg-bg-card border border-border-muted rounded-[12px] py-3.5 pl-11 pr-4 font-sans text-[15px] text-fg placeholder:text-fg-muted outline-none focus:border-border-dash-input transition-colors"
+          className="flex-1 border-none bg-transparent text-[15.5px] text-fg min-w-0 outline-none focus:border-border-dash-input transition-colors"
         />
         {query && (
           <button

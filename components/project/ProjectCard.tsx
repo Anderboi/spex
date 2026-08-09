@@ -36,7 +36,7 @@ export function ProjectCard({
   return (
     <Link
       href={`/projects/${project.id}`}
-      className="group block bg-bg-card border border-border-muted rounded-[14px] overflow-hidden transition-shadow duration-200 hover:shadow-[0_8px_32px_rgba(27,26,23,.08)]"
+      className="group block bg-bg-card border border-border-muted rounded-xl overflow-hidden transition-shadow duration-200 hover:shadow-[0_8px_32px_rgba(27,26,23,.08)]"
     >
       {/* Cover */}
       <div
@@ -91,14 +91,14 @@ export function ProjectCard({
             TYPE_COLORS[project.type] ?? "bg-bg-accent text-bg"
           }`}
         >
-          {project.type}
+          {project.type || "Интерьер"}
         </span>
       </div>
 
       {/* Body */}
       <div className="p-5 pt-4">
         <h3 className="text-[19px] font-bold text-fg tracking-[-.01em] leading-[1.15] mb-3">
-          {project.name}
+          {project.title || "Новый проект"}
         </h3>
 
         {/* Stats */}
