@@ -17,11 +17,11 @@ import { CompanyCard } from "./company-card";
 import { initials } from "@/lib/utils";
 import { CompanyInput, ContactInput } from "@/lib/validations";
 import { deleteCompany, deleteContact } from "@/app/contacts/actions";
-import PageHeader from "../layout/PageHeader";
+import PageTitle from "../layout/page-title";
 import { CompanyDialog } from "./company-dialog";
-import { ContactDialog } from './contact-dialog';
-import TypeChipsSection from '../spec-builder/components/TypeChipsSection';
-import { useSearchParams } from 'next/navigation';
+import { ContactDialog } from "./contact-dialog";
+import TypeChipsSection from "../spec-builder/components/TypeChipsSection";
+import { useSearchParams } from "next/navigation";
 
 interface ContactsViewProps {
   initialCompanies: CompanyInput[];
@@ -142,78 +142,77 @@ export default function ContactsView({
   };
 
   return (
-    <div className="min-h-screen">
-      <header className="border-b border-border">
-        <div className="mx-auto flex max-w-5xl flex-col gap-4 px-4 py-6 sm:px-6 sm:py-8">
-          <div className="flex flex-col gap-5 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between sm:gap-4">
-            <div>
-              <PageHeader>Контакты</PageHeader>
-              <p className="mt-2 max-w-xl text-pretty text-sm text-muted-foreground">
-                Компании, поставщики и представители. Управляйте справочником и
-                привязывайте их к позициям спецификации.
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <Button
-                variant="outline"
-                size="lg"
-                className="flex-1 whitespace-nowrap sm:flex-none"
-                onClick={() =>
-                  setManagerDialog({ open: true, independent: true })
-                }
-              >
-                <UserPlus className="mr-1 size-4" /> Добавить специалиста
-              </Button>
-              <Button
-                size="lg"
-                className="flex-1 bg-fg whitespace-nowrap sm:flex-none"
-                onClick={() => setCompanyDialogOpen(true)}
-              >
-                <Plus className="mr-1 size-4" /> Добавить компанию
-              </Button>
-            </div>
+    <div className="min-h-screen w-full min-w-0 bg-bg text-fg px-4 sm:px-6 md:px-10 pb-35 relative overflow-x-hidden">
+      <header className="flex flex-col gap-4 pt-[clamp(28px,5vw,48px)]">
+        <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between sm:gap-4">
+          {/* title n description */}
+          <div>
+            <PageTitle>Контакты</PageTitle>
+            <p className="text-[15px] text-pretty text-fg-secondary mt-2 font-normal">
+              Компании, поставщики и представители. Управляйте справочником и
+              привязывайте их к позициям спецификации.
+            </p>
           </div>
-
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="relative flex-1 basis-full sm:basis-auto sm:min-w-56">
-              <Search
-                aria-hidden="true"
-                className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
-              />
-              <input
-                type="search"
-                value={query}
-                onChange={(e) => setQuery(e.target.value)}
-                placeholder="Поиск по названию, категории, имени..."
-                className="h-10 w-full rounded-lg border border-input bg-card pl-9 pr-3 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30"
-              />
-            </div>
-          </div>
-
-          <TypeChipsSection paramName="type" />
-
-          {/* Табы */}
-          <div role="tablist" className="flex gap-1 border-b border-border">
-            <TabButton
-              active={tab === "companies"}
-              onClick={() => setTab("companies")}
+          <div className="flex flex-wrap items-center gap-2">
+            <Button
+              variant="outline"
+              size="lg"
+              className="flex-1 whitespace-nowrap sm:flex-none"
+              onClick={() =>
+                setManagerDialog({ open: true, independent: true })
+              }
             >
-              Компании
-              <Count>{optimisticCompanies.length}</Count>
-            </TabButton>
-            <TabButton
-              active={tab === "independent"}
-              onClick={() => setTab("independent")}
+              <UserPlus className="mr-1 size-4" /> Добавить специалиста
+            </Button>
+            <Button
+              size="lg"
+              className="flex-1 bg-fg whitespace-nowrap sm:flex-none"
+              onClick={() => setCompanyDialogOpen(true)}
             >
-              Специалисты
-              <Count>{independentContacts.length}</Count>
-            </TabButton>
+              <Plus className="mr-1 size-4" /> Добавить компанию
+            </Button>
           </div>
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3">
+          <div className="relative flex-1 basis-full sm:basis-auto sm:min-w-56">
+            <Search
+              aria-hidden="true"
+              className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
+            />
+            <input
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Поиск по названию, категории, имени..."
+              className="h-10 w-full rounded-lg border border-input bg-card pl-9 pr-3 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30"
+            />
+          </div>
+        </div>
+
+        <TypeChipsSection paramName="type" />
+
+        {/* Табы */}
+        <div role="tablist" className="flex gap-1 border-b border-border">
+          <TabButton
+            active={tab === "companies"}
+            onClick={() => setTab("companies")}
+          >
+            Компании
+            <Count>{optimisticCompanies.length}</Count>
+          </TabButton>
+          <TabButton
+            active={tab === "independent"}
+            onClick={() => setTab("independent")}
+          >
+            Специалисты
+            <Count>{independentContacts.length}</Count>
+          </TabButton>
         </div>
       </header>
 
       {/* Основной контент */}
-      <main className="mx-auto max-w-5xl px-4 py-6 sm:px-6 sm:py-8">
+      <main className="">
         {tab === "companies" ? (
           filteredCompanies.length === 0 ? (
             <EmptyState
