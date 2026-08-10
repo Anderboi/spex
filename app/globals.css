@@ -203,7 +203,7 @@
   }
 
   body {
-    @apply bg-background text-foreground font-sans antialiased;
+    @apply bg-bg text-fg font-sans antialiased;
   }
 
   input {
