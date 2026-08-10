@@ -8,25 +8,46 @@ import { CompanyInput, ContactInput, MaterialInput } from "./validations";
  * MATERIALS QUERIES
  * ==========================================
  */
+export type MaterialListItem = {
+  id: string;
+  name: string;
+  category: string;
+  brand: string | null;
+  article: string | null;
+  price: number | null;
+  unit: string;
+  image_url: string | null;
+  created_at: string;
+  companies: { id: string; name: string } | null;
+  contacts: { id: string; name: string } | null;
+};
+
+const MATERIAL_LIST_SELECT = `
+  id,
+  name,
+  category,
+  brand,
+  article,
+  price,
+  unit,
+  image_url,
+  created_at,
+  companies:company_id (id, name),
+  contacts:contact_id (id, name)
+`;
 
 export async function getMaterials(options?: {
   search?: string;
   category?: string;
 }) {
-  const { userId } = await requireSession();
+  const { orgId } = await requireSession();
   const supabase = createAdminClient();
 
   // Делаем JOIN с таблицей suppliers, чтобы сразу получать данные о поставщике
   let query = supabase
     .from("materials")
-    .select(
-      `
-      *,
-      companies:company_id (id, name),
-      contacts:contact_id (id, name)
-    `,
-    )
-    .eq("user_id", userId)
+    .select(MATERIAL_LIST_SELECT)
+    .eq("orgId", orgId)
     .order("created_at", { ascending: false });
 
   if (options?.search && options.search.trim() !== "") {
@@ -36,8 +57,9 @@ export async function getMaterials(options?: {
     );
   }
 
-  if (options?.category) {
-    query = query.eq("category", options.category);
+  const cleanCategory = options?.category?.trim();
+  if (cleanCategory && cleanCategory !== "all") {
+    query = query.eq("category", cleanCategory);
   }
 
   const { data, error } = await query;
@@ -47,23 +69,17 @@ export async function getMaterials(options?: {
     throw new Error(`Failed to fetch materials: ${error.message}`);
   }
 
-  return data;
+  return (data as unknown as MaterialListItem[]) ?? [];
 }
 
 export async function getMaterialById(id: string) {
-  const { userId } = await requireSession();
+  const { orgId } = await requireSession();
   const supabase = createAdminClient();
 
   const { data, error } = await supabase
     .from("materials")
-    .select(
-      `
-      *,
-      companies:company_id (id, name),
-      contacts:contact_id (id, name)
-    `,
-    )
-    .eq("user_id", userId)
+    .select(MATERIAL_LIST_SELECT)
+    .eq("orgId", orgId)
     .eq("id", id)
     .single();
 
@@ -81,17 +97,29 @@ export async function getMaterialById(id: string) {
  * ==========================================
  */
 const PROJECT_STATUSES = ["active", "archived", "completed"] as const;
+
 export type ProjectStatus = (typeof PROJECT_STATUSES)[number];
 
-export async function getProjects(status?: ProjectStatus) {
-  const { userId } = await requireSession();
+export type ProjectListItem = {
+  id: string;
+  name: string;
+  code: string | null;
+  client_name: string | null;
+  status: "active" | "archived" | "completed";
+  cover_url: string | null;
+  updated_at: string;
+};
+const PROJECT_LIST_SELECT =
+  "id, name, code, client_name, status, cover_url, updated_at";
 
+export async function getProjects(status?: ProjectStatus) {
+  const { orgId } = await requireSession();
   const supabase = createAdminClient();
 
   let query = supabase
     .from("projects")
-    .select("*")
-    .eq("user_id", userId)
+    .select(PROJECT_LIST_SELECT)
+    .eq("orgId", orgId)
     .order("updated_at", { ascending: false });
 
   if (status) {
@@ -105,18 +133,18 @@ export async function getProjects(status?: ProjectStatus) {
     throw new Error(`Failed to fetch projects: ${error.message}`);
   }
 
-  return data;
+  return (data as ProjectListItem[]) ?? [];
 }
 
 export async function getProjectById(projectId: string) {
-  const { userId } = await requireSession();
+  const { orgId } = await requireSession();
 
   const supabase = createAdminClient();
 
   const { data, error } = await supabase
     .from("projects")
-    .select("*")
-    .eq("user_id", userId)
+    .select(PROJECT_LIST_SELECT)
+    .eq("orgId", orgId)
     .eq("id", projectId)
     .single();
 
@@ -158,15 +186,25 @@ export async function getProjectSpecItems(projectId: string) {
   return data;
 }
 
-export async function getCompanies() {
-  const { userId } = await requireSession();
+export type CompanyListItem = {
+  id: string;
+  name: string;
+  category: string[];
+  phone: string | null;
+  email: string | null;
+  website: string | null;
+  address: string | null;
+  note: string | null;
+};
 
+export async function getCompanies() {
+  const { orgId } = await requireSession();
   const supabase = createAdminClient();
 
   const { data, error } = await supabase
     .from("companies")
-    .select("*")
-    .eq("user_id", userId)
+    .select("id, name, category, phone, email, website,address, note")
+    .eq("orgId", orgId)
     .order("created_at", { ascending: false });
 
   if (error) {
@@ -174,17 +212,17 @@ export async function getCompanies() {
     throw new Error(`Failed to fetch companies: ${error.message}`);
   }
 
-  return data;
+  return (data as CompanyListItem[]) ?? [];
 }
 
 export async function getContacts() {
-  const { userId } = await requireSession();
+  const { orgId } = await requireSession();
   const supabase = createAdminClient();
 
   const { data, error } = await supabase
     .from("contacts")
-    .select("*")
-    .eq("user_id", userId)
+    .select("id, name, category, phone, email, note")
+    .eq("orgId", orgId)
     .order("created_at", { ascending: false });
 
   if (error) {
@@ -201,19 +239,19 @@ export type CounterpartyData = {
 };
 
 export async function getCounterparties(): Promise<CounterpartyData> {
-  const { userId } = await requireSession();
+  const { orgId } = await requireSession();
   const supabase = createAdminClient();
 
   const [companiesRes, contactsRes] = await Promise.all([
     supabase
       .from("companies")
       .select("id, name,category")
-      .eq("user_id", userId)
+      .eq("orgId", orgId)
       .order("name"),
     supabase
       .from("contacts")
       .select("id, name, company_id, companies(name), category")
-      .eq("user_id", userId)
+      .eq("orgId", orgId)
       .order("name"),
   ]);
 
