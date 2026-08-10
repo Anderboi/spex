@@ -6,7 +6,7 @@ export default async function ContactsPage() {
   const { companies, contacts } = await getContactsData();
 
   // Разделяем контакты компании и независимые контакты
-  const independentContacts = contacts.filter((c) => !c.company_id);
+  const independentContacts = contacts.filter((c) => !c.id);
 
   return (
     <Suspense fallback={<div>Загрузка...</div>}>

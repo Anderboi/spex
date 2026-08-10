@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { projectSchema, ProjectInput } from "@/lib/validations";
-import { auth } from "@/auth";
+import { auth } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
 
 type ActionResponse<T = any> = {

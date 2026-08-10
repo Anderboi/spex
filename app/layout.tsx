@@ -5,7 +5,7 @@ import { cn } from "@/lib/utils";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { AppSidebar } from "@/components/app-sidebar";
 import { ThemeProvider } from "@/components/theme-provider";
-import { auth } from "@/auth";
+import { auth } from "@/lib/auth";
 
 export const metadata: Metadata = {
   title: { default: "Balans Design", template: "%s | Balans" },

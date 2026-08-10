@@ -166,17 +166,4 @@ export interface SupplierContact {
   note?: string; // Доп. заметки (например, "Скидка студии 15%")
 }
 
-export interface LibraryMaterial {
-  id: string;
-  name: string; // "Travertine Navona"
-  brand: string; // "Salvatori"
-  category: string; // "Напольные покрытия", "Камень"
-  article?: string; // Артикул
-  unit: string; // "м²", "шт"
-  price: number;
-  image?: string;
-  supplierId?: string; // Внешний ключ на SupplierContact
-  supplier?: SupplierContact;
-  tags?: string[]; // ["микроцемент", "бежевый", "минимализм"]
-  specifications?: Record<string, string>; // Износостойкость, формат и т.д.
-}
+

@@ -9,7 +9,7 @@ import {
   ContactInput,
 } from "@/lib/validations";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { auth } from "@/auth";
+import { auth } from "@/lib/auth";
 
 // --- КОМПАНИИ ---
 

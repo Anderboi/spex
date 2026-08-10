@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { MaterialInput, materialSchema } from "@/lib/validations";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { auth } from "@/auth";
+import { auth } from "@/lib/auth";
 
 type ActionResponse<T = any> = {
   success: boolean;
