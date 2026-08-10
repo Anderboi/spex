@@ -1,56 +1,7 @@
-import { createClient } from "@/lib/supabase/server";
-import { LibraryMaterial, SupplierContact } from "./types";
-import { auth } from "@/auth";
+import { LibraryMaterial } from "./types";
+import { requireSession } from "@/lib/auth";
 import { createAdminClient } from "./supabase/admin";
 import { CompanyInput, ContactInput, MaterialInput } from "./validations";
-
-/**
- * ==========================================
- * CONTACTS / SUPPLIERS QUERIES
- * ==========================================
- */
-
-export async function getSuppliers(searchQuery?: string) {
-  const supabase = await createClient();
-
-  let query = supabase
-    .from("suppliers")
-    .select("*")
-    .order("name", { ascending: true });
-
-  if (searchQuery && searchQuery.trim() !== "") {
-    // Поиск по названию, имени менеджера или городу
-    query = query.or(
-      `name.ilike.%${searchQuery}%,contact_person.ilike.%${searchQuery}%,city.ilike.%${searchQuery}%`,
-    );
-  }
-
-  const { data, error } = await query;
-
-  if (error) {
-    console.error("Error fetching suppliers:", error.message);
-    return [];
-  }
-
-  return data as SupplierContact[];
-}
-
-export async function getSupplierById(id: string) {
-  const supabase = await createClient();
-
-  const { data, error } = await supabase
-    .from("suppliers")
-    .select("*")
-    .eq("id", id)
-    .single();
-
-  if (error) {
-    console.error(`Error fetching supplier ${id}:`, error.message);
-    return null;
-  }
-
-  return data as SupplierContact;
-}
 
 /**
  * ==========================================
@@ -62,6 +13,7 @@ export async function getMaterials(options?: {
   search?: string;
   category?: string;
 }) {
+  const { userId } = await requireSession();
   const supabase = createAdminClient();
 
   // Делаем JOIN с таблицей suppliers, чтобы сразу получать данные о поставщике
@@ -74,6 +26,7 @@ export async function getMaterials(options?: {
       contacts:contact_id (id, name)
     `,
     )
+    .eq("user_id", userId)
     .order("created_at", { ascending: false });
 
   if (options?.search && options.search.trim() !== "") {
@@ -91,13 +44,14 @@ export async function getMaterials(options?: {
 
   if (error) {
     console.error("Error fetching materials:", error.message);
-    return [];
+    throw new Error(`Failed to fetch materials: ${error.message}`);
   }
 
-  return data as MaterialInput[];
+  return data;
 }
 
 export async function getMaterialById(id: string) {
+  const { userId } = await requireSession();
   const supabase = createAdminClient();
 
   const { data, error } = await supabase
@@ -109,15 +63,16 @@ export async function getMaterialById(id: string) {
       contacts:contact_id (id, name)
     `,
     )
+    .eq("user_id", userId)
     .eq("id", id)
     .single();
 
   if (error) {
     console.error(`Error fetching material ${id}:`, error.message);
-    return null;
+    throw new Error(`Failed to fetch material: ${error.message}`);
   }
 
-  return data as LibraryMaterial;
+  return data;
 }
 
 /**
@@ -128,45 +83,40 @@ export async function getMaterialById(id: string) {
 const PROJECT_STATUSES = ["active", "archived", "completed"] as const;
 export type ProjectStatus = (typeof PROJECT_STATUSES)[number];
 
-export async function getProjects(
-  status?: ProjectStatus,
-) {
-  const session = await auth();
-
-  if (!session?.user?.id) {
-    return [];
-  }
+export async function getProjects(status?: ProjectStatus) {
+  const { userId } = await requireSession();
 
   const supabase = createAdminClient();
 
-  const { data, error } = await supabase
+  let query = supabase
     .from("projects")
     .select("*")
-    .eq("user_id", session.user.id)
-    .eq("status", status)
+    .eq("user_id", userId)
     .order("updated_at", { ascending: false });
+
+  if (status) {
+    query = query.eq("status", status);
+  }
+
+  const { data, error } = await query;
 
   if (error) {
     console.error("Error fetching projects:", error.message);
-    return [];
+    throw new Error(`Failed to fetch projects: ${error.message}`);
   }
 
   return data;
 }
 
 export async function getProjectById(projectId: string) {
-  const session = await auth();
-
-  if (!session?.user?.id) {
-    return null;
-  }
+  const { userId } = await requireSession();
 
   const supabase = createAdminClient();
 
   const { data, error } = await supabase
     .from("projects")
     .select("*")
-    .eq("user_id", session.user.id)
+    .eq("user_id", userId)
     .eq("id", projectId)
     .single();
 
@@ -183,7 +133,7 @@ export async function getProjectById(projectId: string) {
  * Включает связанные данные поставщика и оригинального материала
  */
 export async function getProjectSpecItems(projectId: string) {
-  const supabase = await createClient();
+  const supabase = createAdminClient();
 
   const { data, error } = await supabase
     .from("spec_items")
@@ -202,49 +152,47 @@ export async function getProjectSpecItems(projectId: string) {
       `Error fetching spec items for project ${projectId}:`,
       error.message,
     );
-    return [];
+    throw new Error(`Failed to fetch spec items: ${error.message}`);
   }
 
   return data;
 }
 
 export async function getCompanies() {
-  const session = await auth();
-
-  if (!session?.user?.id) {
-    return [];
-  }
+  const { userId } = await requireSession();
 
   const supabase = createAdminClient();
 
   const { data, error } = await supabase
     .from("companies")
     .select("*")
-    .eq("user_id", session.user.id)
+    .eq("user_id", userId)
     .order("created_at", { ascending: false });
 
   if (error) {
     console.error(`Error fetching companies:`, error.message);
-    return [];
+    throw new Error(`Failed to fetch companies: ${error.message}`);
   }
 
   return data;
 }
 
 export async function getContacts() {
+  const { userId } = await requireSession();
   const supabase = createAdminClient();
 
   const { data, error } = await supabase
     .from("contacts")
     .select("*")
+    .eq("user_id", userId)
     .order("created_at", { ascending: false });
 
   if (error) {
     console.error(`Error fetching contacts:`, error.message);
-    return [];
+    throw new Error(`Failed to fetch contacts: ${error.message}`);
   }
 
-  return data ?? [];
+  return data;
 }
 
 export type CounterpartyData = {
@@ -253,13 +201,19 @@ export type CounterpartyData = {
 };
 
 export async function getCounterparties(): Promise<CounterpartyData> {
+  const { userId } = await requireSession();
   const supabase = createAdminClient();
 
   const [companiesRes, contactsRes] = await Promise.all([
-    supabase.from("companies").select("id, name,category").order("name"),
+    supabase
+      .from("companies")
+      .select("id, name,category")
+      .eq("user_id", userId)
+      .order("name"),
     supabase
       .from("contacts")
       .select("id, name, company_id, companies(name), category")
+      .eq("user_id", userId)
       .order("name"),
   ]);
 
