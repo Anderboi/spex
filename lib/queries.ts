@@ -1,4 +1,3 @@
-import { LibraryMaterial } from "./types";
 import { requireSession } from "@/lib/auth";
 import { createAdminClient } from "./supabase/admin";
 import { CompanyInput, ContactInput, MaterialInput } from "./validations";
@@ -20,6 +19,7 @@ export type MaterialListItem = {
   created_at: string;
   companies: { id: string; name: string } | null;
   contacts: { id: string; name: string } | null;
+  tags: string[];
 };
 
 const MATERIAL_LIST_SELECT = `
@@ -286,4 +286,40 @@ export async function getContactsData() {
     companies,
     contacts,
   };
+}
+export type UserOrganization = {
+  id: string;
+  name: string;
+  role: "owner" | "admin" | "member";
+  is_active: boolean;
+};
+
+export async function getUserOrganizations(): Promise<UserOrganization[]> {
+  const { userId, orgId: activeOrgId } = await requireSession();
+  const supabase = createAdminClient();
+
+  const { data, error } = await supabase
+    .from("organization_members")
+    .select(
+      `
+      role,
+      organizations:org_id (
+        id,
+        name
+      )
+    `,
+    )
+    .eq("user_id", userId);
+
+  if (error) {
+    console.error("[getUserOrganizations] Database error:", error.message);
+    throw new Error("Не удалось загрузить список организаций");
+  }
+
+  return (data ?? []).map((item: any) => ({
+    id: item.organizations.id,
+    name: item.organizations.name,
+    role: item.role,
+    is_active: item.organizations.id === activeOrgId,
+  }));
 }

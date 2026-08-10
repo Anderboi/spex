@@ -1,18 +1,31 @@
 "use server";
 
-import { signIn, signOut } from "@/auth";
+import { requireSession, signIn, signOut } from "@/lib/auth";
 import { AuthError } from "next-auth";
 import bcrypt from "bcryptjs";
 import { createClient } from "@supabase/supabase-js";
-import { NewPasswordInput, newPasswordSchema, RegisterInput, registerSchema, ResetPasswordRequestInput, resetPasswordRequestSchema } from '@/lib/validations';
-import { sendPasswordResetEmail, sendVerificationEmail } from '@/lib/mail';
-import { generatePasswordResetToken, generateVerificationToken } from '@/lib/tokens';
-import { z } from 'zod/v3';
+import {
+  NewPasswordInput,
+  newPasswordSchema,
+  RegisterInput,
+  registerSchema,
+  ResetPasswordRequestInput,
+  resetPasswordRequestSchema,
+} from "@/lib/validations";
+import { sendPasswordResetEmail, sendVerificationEmail } from "@/lib/mail";
+import {
+  generatePasswordResetToken,
+  generateVerificationToken,
+} from "@/lib/tokens";
+import { z } from "zod/v3";
+import { createAdminClient } from '@/lib/supabase/admin';
+import { redirect } from 'next/navigation';
+import { revalidatePath } from 'next/cache';
 
 // Используем Service Role Key для прямых операций с записью
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
 );
 
 export async function registerWithCredentials(data: RegisterInput) {
@@ -343,4 +356,92 @@ export async function loginWithCredentials(formData: FormData) {
 
 export async function logout() {
   await signOut({ redirectTo: "/login" });
+}
+
+export async function createOrganization(formData: FormData) {
+  const { userId } = await requireSession();
+  const name = formData.get("name")?.toString().trim();
+
+  if (!name || name.length < 2) {
+    return { error: "Название организации должно содержать минимум 2 символа" };
+  }
+
+  const supabase = createAdminClient();
+
+  // 1. Создаем запись организации
+  const { data: org, error: orgError } = await supabase
+    .from("organizations")
+    .insert({ name })
+    .select("id")
+    .single();
+
+  if (orgError || !org) {
+    console.error(
+      "[createOrganization] Error creating org:",
+      orgError?.message,
+    );
+    return { error: "Не удалось создать организацию. Попробуйте еще раз." };
+  }
+
+  // 2. Добавляем пользователя как владельца (owner)
+  const { error: memberError } = await supabase
+    .from("organization_members")
+    .insert({
+      org_id: org.id,
+      user_id: userId,
+      role: "owner",
+    });
+
+  if (memberError) {
+    console.error(
+      "[createOrganization] Error adding member:",
+      memberError.message,
+    );
+    return { error: "Ошибка при назначении прав владельца." };
+  }
+
+  // 3. Делаем созданную организацию активной для пользователя
+  await supabase
+    .from("profiles")
+    .update({ active_org_id: org.id })
+    .eq("id", userId);
+
+  revalidatePath("/", "layout");
+  redirect("/projects");
+}
+
+/**
+ * Переключение активной организации
+ */
+export async function switchOrganization(orgId: string) {
+  const { userId } = await requireSession();
+  const supabase = createAdminClient();
+
+  // Проверяем, состоит ли пользователь в этой организации
+  const { data: membership, error: checkError } = await supabase
+    .from("organization_members")
+    .select("id")
+    .eq("org_id", orgId)
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (checkError || !membership) {
+    throw new Error("У вас нет доступа к этой организации");
+  }
+
+  // Обновляем активную организацию в профиле
+  const { error: updateError } = await supabase
+    .from("profiles")
+    .update({ active_org_id: orgId })
+    .eq("id", userId);
+
+  if (updateError) {
+    console.error(
+      "[switchOrganization] Error updating active org:",
+      updateError.message,
+    );
+    throw new Error("Не удалось переключить организацию");
+  }
+
+  revalidatePath("/", "layout");
 }

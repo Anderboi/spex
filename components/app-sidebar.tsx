@@ -17,6 +17,7 @@ import { BookUser, Folder, Layers, Settings, User2 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { UserProfile } from "./layout/user-profile";
+import { OrgSwitcher } from './orgs/org-switcher';
 
 const NAV_ITEMS = [
   { href: "/projects", label: "Проекты", icon: Folder },
@@ -75,6 +76,7 @@ export function AppSidebar({ session }: { session?: any }) {
       </SidebarContent>
       <SidebarSeparator />
       <SidebarFooter>
+        <OrgSwitcher orgs={[]} />
         <UserProfile user={session?.user} />
       </SidebarFooter>
     </Sidebar>
