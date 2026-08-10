@@ -4,7 +4,6 @@ import Google from "next-auth/providers/google";
 import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { createClient } from "@supabase/supabase-js";
-import { loginSchema } from "./lib/validations";
 import { authConfig } from "./auth.config";
 
 const supabaseAdmin = createClient(

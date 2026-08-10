@@ -1,20 +1,74 @@
+// components/ui/type-chips-section.tsx
 "use client";
 
-import { useRef, useState } from "react";
+import { useRef, useState, useTransition } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { TYPE_ORDER } from "@/lib/types";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
 interface TypeChipsSectionProps {
-  activeType: string;
-  setActiveType: (t: string) => void;
+  /** Список типов (по умолчанию берется TYPE_ORDER из @/lib/types) */
+  items?: readonly string[];
+
+  /** Название для первого пункта (по умолчанию "Все типы") */
+  allLabel?: string;
+
+  /** 1. Controlled mode (через useState) */
+  activeType?: string;
+  setActiveType?: (type: string) => void;
+
+  /** 2. URL mode (автоматически через URL searchParams, например "type") */
+  paramName?: string;
+
+  className?: string;
 }
 
 export default function TypeChipsSection({
-  activeType,
+  items = TYPE_ORDER,
+  allLabel = "Все типы",
+  activeType: controlledActive,
   setActiveType,
+  paramName,
+  className = "",
 }: TypeChipsSectionProps) {
-  const allTypes = ["Все типы", ...TYPE_ORDER];
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const [isPending, startTransition] = useTransition();
+
+  const allTypes = [allLabel, ...items];
+
+  // Определяем активный тип: приоритет у prop -> затем paramName из URL -> по умолчанию "Все типы"
+  let activeType = controlledActive;
+  if (paramName) {
+    activeType = searchParams.get(paramName) ?? allLabel;
+  }
+  if (!activeType) {
+    activeType = allLabel;
+  }
+
+  // Обработчик переключения типа
+  const handleSelect = (selectedType: string) => {
+    // Если передан внешний сеттер состояния (useState)
+    if (setActiveType) {
+      setActiveType(selectedType);
+    }
+
+    // Если используется фильтрация через URL SearchParams
+    if (paramName) {
+      const params = new URLSearchParams(searchParams.toString());
+      if (selectedType && selectedType !== allLabel) {
+        params.set(paramName, selectedType);
+      } else {
+        params.delete(paramName); // Сбрасываем параметр, если выбрано "Все типы"
+      }
+
+      startTransition(() => {
+        router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+      });
+    }
+  };
 
   // Рефы и состояния для Drag-to-Scroll на десктопе
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -53,13 +107,15 @@ export default function TypeChipsSection({
   };
 
   return (
-    <div className="mt-4 w-full">
+    <div
+      className={`mt-4 w-full transition-opacity ${isPending ? "opacity-60" : "opacity-100"} ${className}`}
+    >
       {/* 1. МОБИЛЬНАЯ ВЕРСИЯ (< sm): Селект */}
       <div className="block sm:hidden w-full">
         <div className="relative">
           <select
             value={activeType}
-            onChange={(e) => setActiveType(e.target.value)}
+            onChange={(e) => handleSelect(e.target.value)}
             className="w-full h-10 rounded-lg bg-bg-card border border-border px-3.5 pr-8 text-sm text-fg-body font-sans appearance-none focus:outline-none focus:ring-1 focus:ring-border cursor-pointer shadow-sm"
           >
             {allTypes.map((label) => (
@@ -68,16 +124,14 @@ export default function TypeChipsSection({
               </option>
             ))}
           </select>
-          {/* Кастомная стрелочка для селекта */}
           <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-fg-muted">
             <span className="text-[10px]">▾</span>
           </div>
         </div>
       </div>
 
-      {/* 2. ДЕСКТОП ВЕРСИЯ (>= sm): Чипсы с Drag-to-Scroll + Стрелки + Градиентный фейд */}
+      {/* 2. ДЕСКТОП ВЕРСИЯ (>= sm): Чипсы с Drag-to-Scroll */}
       <div className="hidden sm:block relative w-full min-w-0 group">
-        {/* Левая стрелка */}
         <button
           type="button"
           onClick={() => scroll("left")}
@@ -86,7 +140,6 @@ export default function TypeChipsSection({
           <ChevronLeft className="size-4" />
         </button>
 
-        {/* CSS-Маска прозрачности по краям */}
         <div className="[mask-image:linear-gradient(to_right,transparent,black_24px,black_calc(100%-24px),transparent)]">
           <div
             ref={scrollRef}
@@ -108,7 +161,7 @@ export default function TypeChipsSection({
                       e.preventDefault();
                       return;
                     }
-                    setActiveType(label);
+                    handleSelect(label);
                   }}
                   size="sm"
                   className={`shrink-0 rounded-full px-4 font-sans transition-colors cursor-pointer ${
@@ -124,7 +177,6 @@ export default function TypeChipsSection({
           </div>
         </div>
 
-        {/* Правая стрелка */}
         <button
           type="button"
           onClick={() => scroll("right")}

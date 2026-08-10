@@ -1,6 +1,6 @@
 "use client";
 
-import PageHeader from "@/components/layout/PageHeader";
+import PageTitle from "@/components/layout/page-title";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -44,7 +44,7 @@ export default function HeaderSection({
           </BreadcrumbList>
         </Breadcrumb>
 
-        <PageHeader>Спецификации</PageHeader>
+        <PageTitle>Спецификации</PageTitle>
       </div>
       <div className="flex items-center gap-2 flex-wrap w-full justify-end">
         <div

@@ -94,6 +94,14 @@ export interface FileCategory {
   empty: string;
 }
 
+export interface SupplierOption {
+  id: string; // ID записи (компании или контакта)
+  name: string; // Имя контакта или Название компании
+  type: "company" | "contact";
+  company_id?: string | null; // ID компании (если выбран контакт)
+  company_name?: string | null; // Название компании (для подписи контактов)
+}
+
 export const TYPE_ORDER = [
   "Отделка",
   "Мебель",

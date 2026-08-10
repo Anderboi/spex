@@ -1,5 +1,5 @@
 import { fmtRub, plural } from "@/lib/utils";
-import { ProjectCard } from "@/components/project/ProjectCard";
+import { ProjectCard } from "@/components/project/project-card";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -9,11 +9,12 @@ import {
   BreadcrumbSeparator,
 } from "@/components/ui/breadcrumb";
 import { getProjects } from "@/lib/queries";
-import { ProjectFilters } from "@/components/project/ProjectFilters";
-import { Suspense } from "react";
-import EmptyState from "@/components/project/EmptyState";
-import PageHeader from '@/components/layout/PageHeader';
-import { CreateProjectDialog } from '@/components/project/CreateProjectDialog';
+import EmptyState from "@/components/project/empty-state";
+import PageTitle from "@/components/layout/page-title";
+import { CreateProjectDialog } from "@/components/project/create-project-dialog";
+import { Suspense } from 'react';
+import SearchSortSection from '@/components/spec-builder/components/SearchSortSection';
+import { SearchSortBar } from '@/components/layout/search-sort-bar';
 
 interface ProjectsPageProps {
   searchParams: Promise<{
@@ -61,83 +62,69 @@ export default async function ProjectsPage({
   });
 
   return (
-    <div className="min-h-screen bg-bg text-fg px-[clamp(16px,4vw,48px)] pb-35">
-      <div className="max-w-295 mx-auto">
-        {/* Header */}
-        <div className="flex items-end justify-between gap-5 flex-wrap pt-[clamp(28px,5vw,48px)]">
-          <div className="w-full">
-            <Breadcrumb>
-              <BreadcrumbList>
-                <BreadcrumbItem>
-                  <BreadcrumbLink render={<a href="/" />}>Home</BreadcrumbLink>
-                </BreadcrumbItem>
-                <BreadcrumbSeparator />
-                <BreadcrumbItem>
-                  <BreadcrumbPage>Проекты</BreadcrumbPage>
-                </BreadcrumbItem>
-              </BreadcrumbList>
-            </Breadcrumb>
-            <div className="flex items-center justify-between gap-3 w-full">
-              <div>
-                <PageHeader>Проекты</PageHeader>
-                <p className="text-[15px] text-fg-secondary mt-2 font-normal">
-                  Ваши дизайн-проекты и спецификации
-                </p>
-              </div>
-            </div>
-          </div>
+    <div className="min-h-screen w-full min-w-0 bg-bg text-fg px-4 sm:px-6 md:px-10 pb-35 relative overflow-x-hidden">
+      {/* Header */}
+      <div className="flex items-end justify-between gap-4 flex-wrap pt-[clamp(28px,5vw,48px)]">
+        {/* Title & description */}
+        <div>
+          <PageTitle>Проекты</PageTitle>
+          <p className="text-[15px] text-pretty text-fg-secondary mt-2 font-normal">
+            Ваши дизайн-проекты и спецификации
+          </p>
+        </div>
 
-          {/* Stats pills */}
-          <div className="flex items-center gap-3 flex-wrap w-full">
-            <div className="flex items-center gap-2 bg-bg-card border border-border-muted rounded-[11px] py-2.5 px-4">
-              <span className="size-2 rounded-full bg-bg-green flex-none" />
-              <span className="font-mono text-[13px] font-semibold text-fg">
-                {activeCount}
-              </span>
-              <span className="text-[13px] text-fg-muted">
-                {plural(activeCount, "активный", "активных", "активных")}
-              </span>
-            </div>
-            <div className="flex items-center gap-2 bg-bg-card border border-border-muted rounded-[11px] py-2.5 px-4">
-              <span className="font-mono text-[13px] font-semibold text-fg">
-                {totalItems}
-              </span>
-              <span className="text-[13px] text-fg-muted">
-                {plural(totalItems, "позиция", "позиции", "позиций")}
-              </span>
-            </div>
-            <div className="flex items-center gap-2 bg-bg-card border border-border-muted rounded-[11px] py-2.5 px-4">
-              <span className="font-mono text-[13px] font-semibold text-fg">
-                {fmtRub(totalBudget)}
-              </span>
-              <span className="text-[13px] text-fg-muted">общий бюджет</span>
-            </div>
-            <div className="ml-auto">
-              <CreateProjectDialog />
-            </div>
-            {/* <button className="flex items-center gap-2 bg-bg-accent text-bg border-none rounded-[13px] py-4 px-6 font-sans text-[15px] font-semibold cursor-pointer ml-auto">
+        {/* Stats pills */}
+        <div className="flex items-center gap-3 flex-wrap w-full">
+          <div className="flex items-center gap-2 bg-bg-card border border-border-muted rounded-[11px] py-2.5 px-4">
+            <span className="size-2 rounded-full bg-bg-green flex-none" />
+            <span className="font-mono text-[13px] font-semibold text-fg">
+              {activeCount}
+            </span>
+            <span className="text-[13px] text-fg-muted">
+              {plural(activeCount, "активный", "активных", "активных")}
+            </span>
+          </div>
+          <div className="flex items-center gap-2 bg-bg-card border border-border-muted rounded-[11px] py-2.5 px-4">
+            <span className="font-mono text-[13px] font-semibold text-fg">
+              {totalItems}
+            </span>
+            <span className="text-[13px] text-fg-muted">
+              {plural(totalItems, "позиция", "позиции", "позиций")}
+            </span>
+          </div>
+          <div className="flex items-center gap-2 bg-bg-card border border-border-muted rounded-[11px] py-2.5 px-4">
+            <span className="font-mono text-[13px] font-semibold text-fg">
+              {fmtRub(totalBudget)}
+            </span>
+            <span className="text-[13px] text-fg-muted">общий бюджет</span>
+          </div>
+          <div className="ml-auto">
+            <CreateProjectDialog />
+          </div>
+          {/* <button className="flex items-center gap-2 bg-bg-accent text-bg border-none rounded-[13px] py-4 px-6 font-sans text-[15px] font-semibold cursor-pointer ml-auto">
               <span className="text-[18px] leading-none -mt-[2px]">+</span>{" "}
               Новый проект
             </button> */}
-          </div>
         </div>
-
-        {/* Search & Sort */}
-        <Suspense fallback={<div className="h-14 mt-9" />}>
-          <ProjectFilters />
-        </Suspense>
-
-        {/* Grid or empty */}
-        {projects.length === 0 ? (
-          <EmptyState />
-        ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5 mt-8">
-            {projects.map((p, i) => (
-              <ProjectCard key={p.id} project={p} index={i} />
-            ))}
-          </div>
-        )}
       </div>
+
+      {/* Search & Sort */}
+      <Suspense fallback={<div className="h-14 mt-9" />}>
+        <SearchSortBar  placeholder='Поиск проекта по адресу, клиенту, названию...'
+        
+        />
+      </Suspense>
+
+      {/* Grid or empty */}
+      {projects.length === 0 ? (
+        <EmptyState />
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5 mt-8">
+          {projects.map((p, i) => (
+            <ProjectCard key={p.id} project={p} index={i} />
+          ))}
+        </div>
+      )}
     </div>
   );
 }

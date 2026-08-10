@@ -1,4 +1,4 @@
-import { CreateProjectDialog } from "./CreateProjectDialog";
+import { CreateProjectDialog } from "./create-project-dialog";
 
 function EmptyState({ onNew }: { onNew?: () => void }) {
   return (

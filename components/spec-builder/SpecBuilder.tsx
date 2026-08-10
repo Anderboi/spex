@@ -6,16 +6,12 @@ import SearchSortSection from "./components/SearchSortSection";
 import TypeChipsSection from "./components/TypeChipsSection";
 import GroupSection from "./components/GroupSection";
 import BottomBar from "./components/BottomBar";
-import {
-  DeleteModal,
-  ProcureModal,
-  SummaryModal,
-} from "./components/Modals";
+import { DeleteModal, ProcureModal, SummaryModal } from "./components/modals";
 import AddModalForm from "./components/AddModalForm";
-import { useSpecBuilder } from '@/hooks/useSpecBuilder';
-import { DetailModal } from './components/DetailsModal';
-import { useState, useTransition } from 'react';
-import { SpecItem } from '@/lib/types';
+import { useSpecBuilder } from "@/hooks/useSpecBuilder";
+import { DetailModal } from "./components/DetailsModal";
+import { useState, useTransition } from "react";
+import { SpecItem } from "@/lib/types";
 
 export default function SpecBuilder({
   projectId,
