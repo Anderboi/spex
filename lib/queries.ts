@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { LibraryMaterial, SupplierContact } from "./types";
 import { auth } from "@/auth";
 import { createAdminClient } from "./supabase/admin";
+import { CompanyInput, ContactInput, MaterialInput } from "./validations";
 
 /**
  * ==========================================
@@ -61,7 +62,7 @@ export async function getMaterials(options?: {
   search?: string;
   category?: string;
 }) {
-  const supabase = await createClient();
+  const supabase = createAdminClient();
 
   // Делаем JOIN с таблицей suppliers, чтобы сразу получать данные о поставщике
   let query = supabase
@@ -69,7 +70,8 @@ export async function getMaterials(options?: {
     .select(
       `
       *,
-      supplier:suppliers(*)
+      companies:company_id (id, name),
+      contacts:contact_id (id, name)
     `,
     )
     .order("created_at", { ascending: false });
@@ -92,18 +94,19 @@ export async function getMaterials(options?: {
     return [];
   }
 
-  return data as LibraryMaterial[];
+  return data as MaterialInput[];
 }
 
 export async function getMaterialById(id: string) {
-  const supabase = await createClient();
+  const supabase = createAdminClient();
 
   const { data, error } = await supabase
     .from("materials")
     .select(
       `
       *,
-      supplier:suppliers(*)
+      companies:company_id (id, name),
+      contacts:contact_id (id, name)
     `,
     )
     .eq("id", id)
@@ -122,9 +125,11 @@ export async function getMaterialById(id: string) {
  * PROJECTS QUERIES
  * ==========================================
  */
+const PROJECT_STATUSES = ["active", "archived", "completed"] as const;
+export type ProjectStatus = (typeof PROJECT_STATUSES)[number];
 
 export async function getProjects(
-  status: "active" | "archived" | "completed" = "active",
+  status?: ProjectStatus,
 ) {
   const session = await auth();
 
@@ -138,6 +143,7 @@ export async function getProjects(
     .from("projects")
     .select("*")
     .eq("user_id", session.user.id)
+    .eq("status", status)
     .order("updated_at", { ascending: false });
 
   if (error) {
@@ -239,6 +245,42 @@ export async function getContacts() {
   }
 
   return data ?? [];
+}
+
+export type CounterpartyData = {
+  companies: CompanyInput[];
+  contacts: ContactInput[];
+};
+
+export async function getCounterparties(): Promise<CounterpartyData> {
+  const supabase = createAdminClient();
+
+  const [companiesRes, contactsRes] = await Promise.all([
+    supabase.from("companies").select("id, name,category").order("name"),
+    supabase
+      .from("contacts")
+      .select("id, name, company_id, companies(name), category")
+      .order("name"),
+  ]);
+
+  const companies = companiesRes.data || [];
+  const contacts = contactsRes.data || [];
+
+  return {
+    companies: companies.map((c) => ({
+      id: c.id,
+      name: c.name,
+      category: c.category || [],
+    })),
+    contacts: contacts.map((c) => ({
+      id: c.id,
+      name: c.name,
+      category: c.category || [],
+      company_id: c.company_id,
+      company_name:
+        (c.companies as unknown as { name: string } | null)?.name || null,
+    })),
+  };
 }
 
 export async function getContactsData() {

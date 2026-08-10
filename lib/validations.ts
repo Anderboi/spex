@@ -87,16 +87,20 @@ export type ContactInput = z.infer<typeof contactSchema>;
 // --- MATERIALS ---
 export const materialSchema = z.object({
   id: z.string().uuid().optional(),
-  supplier_id: z.string().uuid().optional().nullable(),
+  company_id: z.string().uuid().optional().nullable(),
+  contact_id: z.string().uuid().optional().nullable(),
   name: z.string().min(1, "Укажите наименование материала"),
   brand: z.string().optional().nullable(),
   category: z.string().min(1, "Выберите категорию"),
   article: z.string().optional().nullable(),
   unit: z.string().default("шт"),
-  price: z.number().min(0, "Цена не может быть отрицательной").default(0),
+  price: z
+    .number()
+    .min(0, "Цена не может быть отрицательной")
+    .optional()
+    .default(0),
   image_url: z.string().optional().nullable(),
-  tags: z.array(z.string()).default([]),
-  specifications: z.record(z.string(), z.any()).default({}),
+  tags: z.array(z.string()).optional().default([]),
 });
 
 export type MaterialInput = z.infer<typeof materialSchema>;
@@ -117,7 +121,8 @@ export const specItemSchema = z.object({
   id: z.string().uuid().optional(),
   project_id: z.string().uuid("Укажите ID проекта"),
   material_id: z.string().uuid().optional().nullable(),
-  supplier_id: z.string().uuid().optional().nullable(),
+  company_id: z.string().uuid().optional().nullable(),
+  contact_id: z.string().uuid().optional().nullable(),
   code: z.string().optional().nullable(), // например, "M-01", "PL-02"
   name: z.string().min(1, "Укажите наименование позиции"),
   brand: z.string().optional().nullable(),

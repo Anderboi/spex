@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/supabase/server";
 import { MaterialInput, materialSchema } from "@/lib/validations";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { auth } from "@/auth";
 
 type ActionResponse<T = any> = {
   success: boolean;
@@ -13,24 +15,25 @@ type ActionResponse<T = any> = {
 export async function upsertMaterial(
   input: MaterialInput,
 ): Promise<ActionResponse> {
+  const supabase = createAdminClient();
+  const session = await auth();
+  if (!session?.user?.id) {
+    return { success: false, error: "Неавторизованный доступ" };
+  }
+
   const parsed = materialSchema.safeParse(input);
   if (!parsed.success) {
     return { success: false, error: parsed.error.issues[0].message };
   }
 
-  const supabase = await createClient();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-
-  if (!user) {
-    return { success: false, error: "Неавторизованный доступ" };
-  }
-
   const payload = {
     ...parsed.data,
-    user_id: user.id,
+    user_id: session.user.id,
   };
+
+  if (!payload.id) {
+    delete payload.id;
+  }
 
   const { data, error } = await supabase
     .from("materials")
@@ -38,9 +41,7 @@ export async function upsertMaterial(
     .select()
     .single();
 
-  if (error) {
-    return { success: false, error: error.message };
-  }
+  if (error) return { success: false, error: error.message };
 
   revalidatePath("/materials");
   return { success: true, data };
