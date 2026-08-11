@@ -18,9 +18,9 @@ import {
   generateVerificationToken,
 } from "@/lib/tokens";
 import { z } from "zod/v3";
-import { createAdminClient } from '@/lib/supabase/admin';
-import { redirect } from 'next/navigation';
-import { revalidatePath } from 'next/cache';
+import { createAdminClient } from "@/lib/supabase/admin";
+import { redirect } from "next/navigation";
+import { revalidatePath } from "next/cache";
 
 // Используем Service Role Key для прямых операций с записью
 const supabaseAdmin = createClient(
@@ -358,55 +358,47 @@ export async function logout() {
   await signOut({ redirectTo: "/login" });
 }
 
-export async function createOrganization(formData: FormData) {
-  const { userId } = await requireSession();
-  const name = formData.get("name")?.toString().trim();
+const createOrganizationSchema = z.object({
+  name: z
+    .string()
+    .trim()
+    .min(2, "Название должно содержать минимум 2 символа")
+    .max(100, "Название слишком длинное"),
+});
 
-  if (!name || name.length < 2) {
-    return { error: "Название организации должно содержать минимум 2 символа" };
+export async function createOrganization(formData: FormData) {
+  const { userId } = await requireSession({ allowNoOrg: true });
+
+  const parsed = createOrganizationSchema.safeParse({
+    name: formData.get("name"),
+  });
+
+  if (!parsed.success) {
+    return {
+      error: parsed.error.issues[0]?.message ?? "Некорректное название",
+    };
   }
 
   const supabase = createAdminClient();
 
-  // 1. Создаем запись организации
-  const { data: org, error: orgError } = await supabase
-    .from("organizations")
-    .insert({ name })
-    .select("id")
-    .single();
+  const { data: orgId, error } = await supabase.rpc("create_organization", {
+    p_user_id: userId,
+    p_name: parsed.data.name,
+  });
 
-  if (orgError || !org) {
-    console.error(
-      "[createOrganization] Error creating org:",
-      orgError?.message,
-    );
-    return { error: "Не удалось создать организацию. Попробуйте еще раз." };
-  }
-
-  // 2. Добавляем пользователя как владельца (owner)
-  const { error: memberError } = await supabase
-    .from("organization_members")
-    .insert({
-      org_id: org.id,
-      user_id: userId,
-      role: "owner",
+  if (error || !orgId) {
+    console.error("[createOrganization]", {
+      code: error?.code,
+      message: error?.message,
     });
 
-  if (memberError) {
-    console.error(
-      "[createOrganization] Error adding member:",
-      memberError.message,
-    );
-    return { error: "Ошибка при назначении прав владельца." };
+    return {
+      error: "Не удалось создать организацию",
+    };
   }
 
-  // 3. Делаем созданную организацию активной для пользователя
-  await supabase
-    .from("profiles")
-    .update({ active_org_id: org.id })
-    .eq("id", userId);
-
   revalidatePath("/", "layout");
+
   redirect("/projects");
 }
 

@@ -1,5 +1,4 @@
 import { z } from "zod";
-import { TYPE_ORDER } from "./types";
 
 // --- AUTH ---
 export const loginSchema = z.object({
@@ -110,8 +109,15 @@ export const projectSchema = z.object({
   id: z.string().uuid().optional(),
   title: z.string().min(1, "Укажите название проекта"),
   client_name: z.string().optional().nullable(),
+  address: z.string().optional().nullable(),
+  budget: z.number().min(0, "Бюджет не может быть отрицательным").default(0),
   accent_color: z.string().default("#000000"),
   status: z.enum(["active", "archived", "completed"]).default("active"),
+  type: z.enum(["Интерьер", "Экстерьер", "Коммерческий"]).default("Интерьер"),
+  cover_url: z.string().optional().nullable(),
+  org_id: z.string().uuid().optional().nullable(),
+  created_at: z.string().optional().nullable(),
+  updated_at: z.string().optional().nullable(),
 });
 
 export type ProjectInput = z.infer<typeof projectSchema>;

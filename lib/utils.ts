@@ -1,10 +1,10 @@
-import { clsx, type ClassValue } from "clsx"
-import { twMerge } from "tailwind-merge"
-import { CatalogItem, PREFIX_MAP, SpecItem } from './types';
-import { BRAND_SITES } from './constants';
+import { clsx, type ClassValue } from "clsx";
+import { twMerge } from "tailwind-merge";
+import { CatalogItem, PREFIX_MAP, SpecItem } from "./types";
+import { BRAND_SITES } from "./constants";
 
 export function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs))
+  return twMerge(clsx(inputs));
 }
 
 // export const plural = (n: number, one: string, few: string, many: string) => {
@@ -29,12 +29,13 @@ export function plural(
   return many;
 }
 
-export const fmtRub = (n?: number | null) =>{
+export const fmtRub = (n?: number | null) => {
   if (n === undefined || n === null || isNaN(n)) {
     return "0 ₽";
   }
 
-  n.toLocaleString("ru-RU").replace(/,/g, "\u2009") + " ₽";}
+  n.toLocaleString("ru-RU").replace(/,/g, "\u2009") + " ₽";
+};
 
 export const fmtDate = (iso: string) =>
   new Date(iso).toLocaleDateString("ru-RU", {
@@ -43,7 +44,6 @@ export const fmtDate = (iso: string) =>
     year: "numeric",
   });
 
-  
 export function fmt(n: number | string): string {
   return Number(n || 0).toLocaleString("ru-RU");
 }
@@ -123,8 +123,6 @@ export function statusMeta(s: string, accent: string) {
   };
   return M[s] || M["Черновик"];
 }
-
-
 
 export function catKey(c: CatalogItem): string {
   return c.article || c.brand + "|" + c.name;

@@ -5,9 +5,9 @@ import Credentials from "next-auth/providers/credentials";
 import bcrypt from "bcryptjs";
 import { createClient } from "@supabase/supabase-js";
 import { authConfig } from "../auth.config";
-import { cache } from 'react';
-import { redirect } from 'next/navigation';
-import { createAdminClient } from './supabase/admin';
+import { cache } from "react";
+import { redirect } from "next/navigation";
+import { createAdminClient } from "./supabase/admin";
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -82,30 +82,67 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   },
 });
 
-export const requireSession = cache(async () => {
+interface RequireSessionOptions {
+  allowNoOrg?: boolean;
+}
+
+export const requireSession = cache(async (options?: RequireSessionOptions) => {
   const session = await auth();
 
   if (!session?.user?.id) redirect("/login");
+
   const userId = session.user.id;
   const supabase = createAdminClient();
-  
-  const { data: memberRecord } = await supabase
-    .from("organization_members")
-    .select("org_id, role")
-    .eq("user_id", userId)
-    .limit(1)
+
+  const { data: user } = await supabase
+    .from("users")
+    .select("active_org_id")
+    .eq("id", userId)
     .maybeSingle();
 
-  if (!memberRecord?.org_id) {
-    // Если у пользователя ещё нет организации, можно редиректить на онбординг / создание организации
-    redirect("/onboarding/create-org");
+  let activeOrgId = user?.active_org_id ?? null;
+  let userRole: string | null = null;
+
+  if (activeOrgId) {
+    // Получаем роль в активной организации
+    const { data: member } = await supabase
+      .from("organization_members")
+      .select("role")
+      .eq("user_id", userId)
+      .eq("org_id", activeOrgId)
+      .maybeSingle();
+
+    if (member) {
+      userRole = member.role;
+    } else {
+      // Если активной организации больше не существует в members, сбрасываем
+      activeOrgId = null;
+    }
+  }
+
+  if (!activeOrgId) {
+    if (!options?.allowNoOrg) {
+      redirect("/onboarding/create-org");
+    }
+
+    return {
+      session,
+      userId,
+      orgId: null,
+      role: null,
+      user: session.user,
+    };
+  }
+
+  if (options?.allowNoOrg) {
+    redirect("/projects");
   }
 
   return {
     session,
     userId,
-    orgId: memberRecord.org_id,
-    role: memberRecord.role,
+    orgId: activeOrgId,
+    role: userRole,
     user: session.user,
   };
 });
