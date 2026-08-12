@@ -1,24 +1,15 @@
 "use client";
 
 import { useRef, useState, useTransition } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { TYPE_ORDER } from "@/lib/types";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
 interface TypeChipsSectionProps {
-  /** Список типов (по умолчанию берется TYPE_ORDER из @/lib/types) */
   items?: readonly string[];
-
-  /** Название для первого пункта (по умолчанию "Все типы") */
   allLabel?: string;
-
-  /** 1. Controlled mode (через useState) */
   activeType?: string;
   setActiveType?: (type: string) => void;
-
-  /** 2. URL mode (автоматически через URL searchParams, например "type") */
-  paramName?: string;
 
   className?: string;
 }
@@ -26,76 +17,64 @@ interface TypeChipsSectionProps {
 export default function TypeChipsSection({
   items = TYPE_ORDER,
   allLabel = "Все типы",
-  activeType: controlledActive,
+  activeType:  controlledActive,
   setActiveType,
-  paramName,
   className = "",
 }: TypeChipsSectionProps) {
-  const router = useRouter();
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
+  // const router = useRouter();
+  // const pathname = usePathname();
+  // const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
-
   const allTypes = [allLabel, ...items];
 
   // Определяем активный тип: приоритет у prop -> затем paramName из URL -> по умолчанию "Все типы"
   let activeType = controlledActive;
-  if (paramName) {
-    activeType = searchParams.get(paramName) ?? allLabel;
-  }
-  if (!activeType) {
-    activeType = allLabel;
-  }
+ 
 
   // Обработчик переключения типа
   const handleSelect = (selectedType: string) => {
-    // Если передан внешний сеттер состояния (useState)
     if (setActiveType) {
       setActiveType(selectedType);
-    }
-
-    // Если используется фильтрация через URL SearchParams
-    if (paramName) {
-      const params = new URLSearchParams(searchParams.toString());
-      if (selectedType && selectedType !== allLabel) {
-        params.set(paramName, selectedType);
-      } else {
-        params.delete(paramName); // Сбрасываем параметр, если выбрано "Все типы"
-      }
-
-      startTransition(() => {
-        router.replace(`${pathname}?${params.toString()}`, { scroll: false });
-      });
     }
   };
 
   // Рефы и состояния для Drag-to-Scroll на десктопе
   const scrollRef = useRef<HTMLDivElement>(null);
+  const dragInfo = useRef({
+    isMouseDown: false,
+    startX: 0,
+    scrollLeft: 0,
+    isDragging: false,
+  });
   const [isMouseDown, setIsMouseDown] = useState(false);
-  const [startX, setStartX] = useState(0);
-  const [scrollLeft, setScrollLeft] = useState(0);
-  const [isDragging, setIsDragging] = useState(false);
 
   const handleMouseDown = (e: React.MouseEvent) => {
     if (!scrollRef.current) return;
-    setIsMouseDown(true);
-    setIsDragging(false);
-    setStartX(e.pageX - scrollRef.current.offsetLeft);
-    setScrollLeft(scrollRef.current.scrollLeft);
+    dragInfo.current = {
+      isMouseDown: true,
+      startX: e.pageX - scrollRef.current.offsetLeft,
+      scrollLeft: scrollRef.current.scrollLeft,
+      isDragging: false, // ✅ Сбрасываем флаг при новом нажатии
+    };
   };
 
   const handleMouseLeaveOrUp = () => {
-    setIsMouseDown(false);
+    dragInfo.current.isMouseDown = false;
   };
 
   const handleMouseMove = (e: React.MouseEvent) => {
+    const { isMouseDown, startX, scrollLeft } = dragInfo.current;
     if (!isMouseDown || !scrollRef.current) return;
-    e.preventDefault();
+
     const x = e.pageX - scrollRef.current.offsetLeft;
     const walk = (x - startX) * 1.5;
+
+    // Если сдвиг больше 5px — считаем это драгом (а не кликом)
     if (Math.abs(walk) > 5) {
-      setIsDragging(true);
+      dragInfo.current.isDragging = true;
     }
+
+    // Изменяем скролл напрямую в DOM без вызова setState
     scrollRef.current.scrollLeft = scrollLeft - walk;
   };
 
@@ -156,14 +135,14 @@ export default function TypeChipsSection({
                 <Button
                   key={label}
                   onClick={(e) => {
-                    if (isDragging) {
+                    if (dragInfo.current.isDragging) {
                       e.preventDefault();
                       return;
                     }
                     handleSelect(label);
                   }}
                   size="sm"
-                  className={`shrink-0 rounded-full px-4 font-sans transition-colors cursor-pointer ${
+                  className={`shrink-0 rounded-full px-4 text-sm font-sans transition-colors cursor-pointer ${
                     on
                       ? "bg-bg-accent text-bg border border-bg-accent hover:bg-bg-accent/90"
                       : "bg-bg-card text-fg-body border border-border hover:text-white hover:bg-bg-hover"

@@ -40,15 +40,14 @@ export function CategoryMultiSelect({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger>
-        <Button
-          variant="outline"
+        <span
           role="combobox"
           aria-expanded={open}
-          className="w-full min-h-10 h-auto justify-between px-3 py-1.5 font-normal bg-background hover:bg-background border-input"
+          className="w-full min-h-8 h-auto border flex rounded-lg items-center justify-between px-3 py-1.5 font-normal //bg-bg //hover:bg-bg border-border"
         >
           <div className="flex flex-wrap gap-1 items-center max-w-[calc(100%-20px)]">
             {selected.length === 0 ? (
-              <span className="text-muted-foreground text-sm">
+              <span className="text-fg-muted text-sm">
                 Выберите категории...
               </span>
             ) : (
@@ -56,7 +55,7 @@ export function CategoryMultiSelect({
                 <Badge
                   key={item}
                   variant="secondary"
-                  className="text-xs px-2 py-0.5 rounded-md gap-1 bg-secondary text-secondary-foreground"
+                  className="text-xs px-2 py-0.5 rounded-md gap-1 bg-bg-brand text-fg-secondary"
                 >
                   {item}
                   <X
@@ -68,7 +67,7 @@ export function CategoryMultiSelect({
             )}
           </div>
           <ChevronsUpDown className="size-4 shrink-0 opacity-50 ml-1" />
-        </Button>
+        </span>
       </PopoverTrigger>
 
       <PopoverContent className="w-[--radix-popover-trigger-width] p-1 max-h-56 overflow-y-auto">
@@ -83,8 +82,8 @@ export function CategoryMultiSelect({
                 className={cn(
                   "flex items-center justify-between w-full px-2.5 py-1.5 text-xs rounded-md transition-colors text-left",
                   isSelected
-                    ? "bg-accent text-accent-foreground font-medium"
-                    : "hover:bg-muted/60 text-foreground",
+                    ? "bg-bg-brand text-fg-secondary font-medium"
+                    : "hover:bg-muted/60 text-fg",
                 )}
               >
                 <span>{option}</span>

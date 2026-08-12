@@ -7,15 +7,6 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-// export const plural = (n: number, one: string, few: string, many: string) => {
-//   const v = n % 100;
-//   if (v >= 11 && v <= 19) return many;
-//   const d = v % 10;
-//   if (d === 1) return one;
-//   if (d >= 2 && d <= 4) return few;
-//   return many;
-// };
-
 export function plural(
   n: number,
   one: string,
@@ -265,3 +256,36 @@ export function initials(name: string) {
     .map((n) => n[0]?.toUpperCase())
     .join("");
 }
+
+export function normalizeWebsite(
+  raw?: string | null,
+): { href: string; label: string } | null {
+  if (!raw) return null;
+  const v = raw.trim();
+  if (!v) return null;
+
+  try {
+    const url = new URL(/^https?:\/\//i.test(v) ? v : `https://${v}`);
+    if (url.protocol !== "http:" && url.protocol !== "https:") return null;
+
+    const label =
+      url.host.replace(/^www\./, "") +
+      (url.pathname === "/" ? "" : url.pathname);
+
+    return { href: url.href, label };
+  } catch {
+    return null;
+  }
+}
+
+export function formatContactsCount(count: number): string {
+  const mod10 = count % 10;
+  const mod100 = count % 100;
+
+  if (mod100 >= 11 && mod100 <= 19) return `${count} контактов`;
+  if (mod10 === 1) return `${count} контакт`;
+  if (mod10 >= 2 && mod10 <= 4) return `${count} контакта`;
+  return `${count} контактов`;
+}
+
+export const telHref = (p: string) => `tel:${p.replace(/[^\d+]/g, "")}`;

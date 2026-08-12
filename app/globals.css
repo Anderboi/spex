@@ -15,8 +15,9 @@
   --color-bg: #f3efe7;
   --color-bg-sidebar: #f3efe7;
   --color-bg-card: #fcf9f3;
-  --color-bg-card2: #faf8f3;
+  --color-bg-card2: #f5f2eb;
   --color-bg-brand: #e8dbd1;
+  --color-bg-brand2: #e7e2d9;
   --color-bg-accent: #1b1a17;
   --color-bg-red: #bf5345;
   --color-bg-red-light: #f7e7e3;
@@ -52,7 +53,7 @@
   --color-fg-doc-pdf: #a23b2e;
   --color-fg-doc-other: #365a6b;
   --color-fg-disabled: #bcb7ab;
-  --color-border: #e6e1d5;
+  --color-border: #dbd6cd;
   --color-border-subtle: #e2ddd1;
   --color-border-muted: #d9d3c6;
   --color-border-accent: #d4dcc2;

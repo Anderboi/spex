@@ -16,7 +16,7 @@ export function PageHeader({
 }: PageHeaderProps) {
   return (
     <div
-      className={`flex flex-col sm:flex-row sm:items-center justify-between gap-4 ${className}`}
+      className={`flex flex-col sm:flex-row sm:items-center justify-between gap-4 pt-[clamp(28px,5vw,48px)] ${className}`}
     >
       <div className="space-y-4">
         <PageTitle>{title}</PageTitle>
