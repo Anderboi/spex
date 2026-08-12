@@ -12,16 +12,22 @@ import { Building2, Plus, Search, UserPlus } from "lucide-react";
 import { CompanyCard } from "./company-card";
 import { CompanyRow, ContactRow } from "@/lib/validations";
 import { deleteCompany, deleteContact } from "@/app/contacts/actions";
-import PageTitle from "../layout/page-title";
 import { CompanyDialog } from "./company-dialog";
 import { ContactDialog } from "./contact-dialog";
 import TypeChipsSection from "../spec-builder/components/TypeChipsSection";
 import { ContactCard } from "./contact-card";
+import { normPhone, normText } from "@/lib/utils";
+import { toast } from "sonner";
 
 interface ContactsViewProps {
   initialCompanies: CompanyRow[];
   initialContacts: ContactRow[];
 }
+
+type CompanyAction = { type: "DELETE"; id: string };
+type ContactAction =
+  | { type: "DELETE"; id: string }
+  | { type: "CASCADE_DELETE_BY_COMPANY"; companyId: string };
 
 export default function ContactsView({
   initialCompanies,
@@ -31,6 +37,10 @@ export default function ContactsView({
   const [query, setQuery] = useState("");
 
   const deferredQuery = useDeferredValue(query);
+
+  const qRaw = deferredQuery.trim();
+  const qText = useMemo(() => normText(qRaw), [qRaw]);
+  const qDigits = useMemo(() => normPhone(qRaw), [qRaw]);
 
   const [selectedCategory, setSelectedCategory] = useState("Все типы");
   const [, startTransition] = useTransition();
@@ -46,13 +56,32 @@ export default function ContactsView({
   // Optimistic UI для отзывчивого интерфейса при удалении
   const [optimisticCompanies, setOptimisticCompanies] = useOptimistic(
     initialCompanies,
-    (state, idToRemove: string) => state.filter((c) => c.id !== idToRemove),
+    (state, action: CompanyAction) => {
+      switch (action.type) {
+        case "DELETE":
+          return state.filter((c) => c.id !== action.id);
+        default:
+          return state;
+      }
+    },
   );
 
   const [optimisticContacts, setOptimisticContacts] = useOptimistic(
     initialContacts,
-    (state, idToRemove: string) => state.filter((c) => c.id !== idToRemove),
+    (state, action: ContactAction) => {
+      switch (action.type) {
+        case "DELETE":
+          return state.filter((c) => c.id !== action.id);
+        case "CASCADE_DELETE_BY_COMPANY":
+          // Удаляем контакты привязанные к удаляемой компании
+          return state.filter((c) => c.company_id !== action.companyId);
+        default:
+          return state;
+      }
+    },
   );
+
+  const expandByDefault = optimisticCompanies.length <= 5;
 
   const managersByCompanyId = useMemo(() => {
     const map = new Map<string, ContactRow[]>();
@@ -76,105 +105,154 @@ export default function ContactsView({
   // Фильтрация поиска по компаниям и контактам
   const q = deferredQuery.trim().toLowerCase();
 
+  const indexedCompanies = useMemo(() => {
+    return optimisticCompanies.map((c) => {
+      const companyManagers = managersByCompanyId.get(c.id) || [];
+
+      // Собираем весь текстовый контент компании и ее менеджеров в один массив
+      const textParts = [
+        c.name,
+        c.address,
+        c.note,
+        Array.isArray(c.category) ? c.category.join(" ") : c.category,
+        ...companyManagers.flatMap((m) => [m.name, m.title, m.email, m.note]),
+      ];
+
+      // Собираем все телефоны (компании + менеджеров)
+      const phoneParts = [c.phone, ...companyManagers.map((m) => m.phone)];
+
+      return {
+        company: c,
+        // Предрассчитанная нормализованная текстовая строка поиска
+        searchText: normText(textParts.filter(Boolean).join(" ")),
+        // Предрассчитанный массив из чистых цифр для всех связанных телефонов
+        searchPhones: phoneParts.map(normPhone).filter(Boolean),
+      };
+    });
+  }, [optimisticCompanies, managersByCompanyId]);
+
   // Фильтрация компаний
   const filteredCompanies = useMemo(() => {
-    return optimisticCompanies.filter((c) => {
-      // 1. Проверка категории
-      const isAllSelected =
-        !selectedCategory ||
-        selectedCategory === "" ||
-        selectedCategory === "Все типы";
+    const isAllCategories =
+      !selectedCategory ||
+      selectedCategory === "" ||
+      selectedCategory === "Все типы";
 
-      const matchesCategory =
-        isAllSelected ||
-        (Array.isArray(c.category) && c.category.includes(selectedCategory)) ||
-        (typeof c.category === "string" &&
-          (c.category as string) === selectedCategory);
+    return indexedCompanies
+      .filter(({ company, searchText, searchPhones }) => {
+        // Проверка категории
+        if (!isAllCategories) {
+          const categories = Array.isArray(company.category)
+            ? company.category
+            : [company.category];
+          if (!categories.includes(selectedCategory)) return false;
+        }
 
-      if (!matchesCategory) return false;
+        // Если поискового запроса нет — отдаем результат
+        if (!qText && !qDigits) return true;
 
-      // Если поисковый запрос пустой — показываем компанию
-      if (!q) return true;
+        // Поиск по тексту (буквы, ё/е, email и т.д.)
+        const matchesText = qText ? searchText.includes(qText) : false;
 
-      // 2. Проверка самой компании
-      const matchesCompanySelf =
-        c.name.toLowerCase().includes(q) ||
-        c.address?.toLowerCase().includes(q) ||
-        (Array.isArray(c.category) &&
-          c.category.some((cat) => cat.toLowerCase().includes(q))) ||
-        (typeof c.category === "string" &&
-          (c.category as string).toLowerCase().includes(q));
+        // Поиск по цифрам телефона (если в поиске ввели хотя бы одну цифру)
+        const matchesPhone = qDigits
+          ? searchPhones.some((phoneDigits) => phoneDigits.includes(qDigits))
+          : false;
 
-      if (matchesCompanySelf) return true;
-
-      // 3. Проверка сотрудников этой компании
-      const companyManagers = managersByCompanyId.get(c.id) || [];
-      return companyManagers.some((m) => {
-        return (
-          m.name.toLowerCase().includes(q) ||
-          m.title?.toLowerCase().includes(q) ||
-          m.email?.toLowerCase().includes(q) ||
-          m.phone?.toLowerCase().includes(q)
-        );
-      });
-    });
-  }, [optimisticCompanies, q, selectedCategory, managersByCompanyId]);
+        return matchesText || matchesPhone;
+      })
+      .map((item) => item.company);
+  }, [indexedCompanies, selectedCategory, qText, qDigits]);
 
   // Фильтрация специалистов
-  const filteredIndependent = useMemo(() => {
-    return independentContacts.filter((m) => {
-      const isAllSelected =
-        !selectedCategory ||
-        selectedCategory === "" ||
-        selectedCategory === "Все типы";
+  const indexedIndependent = useMemo(() => {
+    return independentContacts.map((m) => {
+      const textParts = [
+        m.name,
+        m.title,
+        m.email,
+        m.note,
+        Array.isArray(m.category) ? m.category.join(" ") : m.category,
+      ];
 
-      const matchesCategory =
-        isAllSelected ||
-        (Array.isArray(m.category) && m.category.includes(selectedCategory)) ||
-        (typeof m.category === "string" &&
-          (m.category as string) === selectedCategory);
-
-      const matchesQuery =
-        !q ||
-        m.name.toLowerCase().includes(q) ||
-        m.title?.toLowerCase().includes(q) ||
-        m.email?.toLowerCase().includes(q) ||
-        (Array.isArray(m.category) &&
-          m.category.some((cat) => cat.toLowerCase().includes(q))) ||
-        (typeof m.category === "string" &&
-          (m.category as string).toLowerCase().includes(q));
-
-      return matchesCategory && matchesQuery;
+      return {
+        contact: m,
+        searchText: normText(textParts.filter(Boolean).join(" ")),
+        searchPhone: normPhone(m.phone),
+      };
     });
-  }, [independentContacts, q, selectedCategory]);
+  }, [independentContacts]);
 
+  const filteredIndependent = useMemo(() => {
+    const isAllCategories =
+      !selectedCategory ||
+      selectedCategory === "" ||
+      selectedCategory === "Все типы";
+
+    return indexedIndependent
+      .filter(({ contact, searchText, searchPhone }) => {
+        if (!isAllCategories) {
+          const categories = Array.isArray(contact.category)
+            ? contact.category
+            : [contact.category];
+          if (!categories.includes(selectedCategory)) return false;
+        }
+
+        if (!qText && !qDigits) return true;
+
+        const matchesText = qText ? searchText.includes(qText) : false;
+        const matchesPhone = qDigits ? searchPhone.includes(qDigits) : false;
+
+        return matchesText || matchesPhone;
+      })
+      .map((item) => item.contact);
+  }, [indexedIndependent, selectedCategory, qText, qDigits]);
   // Обработчики удаления с оптимистичным обновлением
   const handleRemoveCompany = (id: string) => {
     startTransition(async () => {
-      setOptimisticCompanies(id);
-      await deleteCompany(id);
+      // Оптимистично удаляем компанию и связку ее контактов
+      setOptimisticCompanies({ type: "DELETE", id });
+      setOptimisticContacts({
+        type: "CASCADE_DELETE_BY_COMPANY",
+        companyId: id,
+      });
+
+      try {
+        await deleteCompany(id);
+        toast.success("Компания удалена");
+      } catch (error) {
+        toast.error("Не удалось удалить компанию. Попробуйте снова.");
+        console.error("Failed to delete company:", error);
+      }
     });
   };
 
   const handleRemoveContact = (id: string) => {
     startTransition(async () => {
-      setOptimisticContacts(id);
-      await deleteContact(id);
+      setOptimisticContacts({ type: "DELETE", id });
+
+      try {
+        await deleteContact(id);
+        toast.success("Контакт удален");
+      } catch (error) {
+        toast.error("Не удалось удалить контакт.");
+        console.error("Failed to delete contact:", error);
+      }
     });
   };
 
   return (
-    <div className="min-h-screen w-full min-w-0 bg-bg text-fg px-4 sm:px-6 md:px-10 pb-35 relative overflow-x-hidden">
-      <header className="flex flex-col gap-4 pt-[clamp(28px,5vw,48px)]">
-        <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between sm:gap-4">
+    <>
+      <div role="toolbar" className="flex flex-col gap-4 ">
+        <div className="flex flex-col gap-4 sm:flex-row sm:flex-wrap sm:items-end sm:justify-between">
           {/* title n description */}
-          <div>
+          {/* <div>
             <PageTitle>Контакты</PageTitle>
             <p className="text-base text-pretty text-fg-secondary mt-2 font-normal">
               Компании, поставщики и представители. Управляйте справочником и
               привязывайте их к позициям спецификации.
             </p>
-          </div>
+          </div> */}
           <div className="flex flex-wrap w-full justify-end items-center gap-2">
             <Button
               variant="outline"
@@ -234,10 +312,10 @@ export default function ContactsView({
             <Count>{independentContacts.length}</Count>
           </TabButton>
         </div>
-      </header>
+      </div>
 
       {/* Основной контент */}
-      <article>
+      <ul>
         {tab === "companies" ? (
           filteredCompanies.length === 0 ? (
             <EmptyState
@@ -257,7 +335,7 @@ export default function ContactsView({
               }
             />
           ) : (
-            <div className="flex flex-col gap-4">
+            <li className="flex flex-col gap-4">
               {filteredCompanies.map((c) => (
                 <CompanyCard
                   key={c.id}
@@ -268,10 +346,10 @@ export default function ContactsView({
                   }
                   onRemoveManager={handleRemoveContact}
                   onRemoveCompany={handleRemoveCompany}
-                  defaultOpen={filteredCompanies.length <= 5}
+                  defaultOpen={expandByDefault}
                 />
               ))}
-            </div>
+            </li>
           )
         ) : filteredIndependent.length === 0 ? (
           <EmptyState
@@ -305,7 +383,7 @@ export default function ContactsView({
             ))}
           </ul>
         )}
-      </article>
+      </ul>
 
       {/* Диалоговые окна */}
       {companyDialogOpen && (
@@ -323,7 +401,7 @@ export default function ContactsView({
           onClose={() => setManagerDialog({ open: false })}
         />
       )}
-    </div>
+    </>
   );
 }
 

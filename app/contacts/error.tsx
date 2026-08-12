@@ -2,7 +2,7 @@
 
 import { useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { ShieldAlert, RotateCcw } from "lucide-react";
+import { AlertTriangle, RefreshCw } from "lucide-react";
 
 export default function ContactsError({
   error,
@@ -12,28 +12,24 @@ export default function ContactsError({
   reset: () => void;
 }) {
   useEffect(() => {
-    console.error("[Contacts Error Boundary]:", error);
+    // Можно логировать ошибку в Sentry / LogRocket
+    console.error("Ошибка при загрузке контактов:", error);
   }, [error]);
 
   return (
-    <div className="min-h-[400px] flex flex-col items-center justify-center text-center p-6 space-y-4 rounded-xl border border-border bg-card/50">
-      <div className="p-3 bg-destructive/10 text-destructive rounded-full">
-        <ShieldAlert className="size-8" />
+    <div className="flex min-h-[60vh] flex-col items-center justify-center text-center px-4">
+      <div className="flex size-12 items-center justify-center rounded-full bg-destructive/10 text-destructive mb-4">
+        <AlertTriangle className="size-6" />
       </div>
-
-      <div className="space-y-1 max-w-md">
-        <h2 className="text-xl font-semibold tracking-tight">
-          Не удалось загрузить контрагентов
-        </h2>
-        <p className="text-sm text-muted-foreground">
-          {error.message ||
-            "Ошибка при получении списка компаний или контактов."}
-        </p>
-      </div>
-
-      <Button onClick={() => reset()} variant="outline" className="gap-2">
-        <RotateCcw className="size-4" />
-        Перезагрузить
+      <h2 className="font-serif text-xl font-semibold text-fg">
+        Не удалось загрузить контакты
+      </h2>
+      <p className="mt-2 text-sm text-fg-muted max-w-md">
+        Произошла ошибка при получении данных с сервера. Попробуйте обновить
+        страницу.
+      </p>
+      <Button onClick={() => reset()} className="mt-6 gap-2" variant="outline">
+        <RefreshCw className="size-4" /> Повторить попытку
       </Button>
     </div>
   );

@@ -289,3 +289,13 @@ export function formatContactsCount(count: number): string {
 }
 
 export const telHref = (p: string) => `tel:${p.replace(/[^\d+]/g, "")}`;
+
+export const normText = (s?: string | null): string => {
+  if (!s) return "";
+  return s.toLocaleLowerCase("ru").replace(/ё/g, "е");
+};
+
+export const normPhone = (s?: string | null): string => {
+  if (!s) return "";
+  return s.replace(/\D/g, "");
+};

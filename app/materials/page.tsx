@@ -1,16 +1,10 @@
-import {
-  getCounterparties,
-  getMaterials,
-} from "@/lib/queries";
+import { getCounterparties, getMaterials } from "@/lib/queries";
 import { SearchSortBar } from "@/components/layout/search-sort-bar";
-import { Suspense } from "react";
 import { MaterialsClient } from "@/components/materials/materials-client";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
 import Link from "next/link";
-
-
 
 interface MaterialsPageProps {
   searchParams: Promise<{
@@ -32,7 +26,7 @@ export default async function MaterialsLibraryPage({
   ]);
 
   return (
-    <div className="px-4 sm:px-6 md:px-10 pb-35 max-w-7xl mx-auto min-w-0 space-y-6">
+    <>
       <PageHeader
         title="Библиотека материалов"
         description="Сохраненные позиции и образцы для быстрого добавления в проекты"
@@ -47,24 +41,22 @@ export default async function MaterialsLibraryPage({
         </Button>
       </PageHeader>
 
-      <Suspense
-        fallback={<div className="h-10 bg-muted/30 rounded-lg animate-pulse" />}
-      >
-        <SearchSortBar
-          placeholder="Поиск по материалам, артикулам, брендам…"
-          sortOptions={[
-            { label: "По названию (А-Я)", value: "name_asc" },
-            { label: "По цене (сначала дешевле)", value: "price_asc" },
-            { label: "По цене (сначала дороже)", value: "price_desc" },
-          ]}
-        />
-      </Suspense>
+      <SearchSortBar
+        placeholder="Поиск по материалам, артикулам, брендам…"
+        sortOptions={[
+          { label: "По названию (А-Я)", value: "name_asc" },
+          { label: "По цене (сначала дешевле)", value: "price_asc" },
+          { label: "По цене (сначала дороже)", value: "price_desc" },
+        ]}
+      />
+
       <MaterialsClient
         initialMaterials={materials ?? []}
         companies={counterparties.companies}
         contacts={counterparties.contacts}
         searchParams={resolvedParams}
       />
-    </div>
+      
+    </>
   );
 }
