@@ -1,4 +1,3 @@
-// components/ui/type-chips-section.tsx
 "use client";
 
 import { useRef, useState, useTransition } from "react";

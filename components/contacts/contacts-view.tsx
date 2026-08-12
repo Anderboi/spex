@@ -1,31 +1,26 @@
 "use client";
 
-import React, { useState, useTransition, useOptimistic, useMemo } from "react";
+import React, {
+  useState,
+  useTransition,
+  useOptimistic,
+  useMemo,
+  useDeferredValue,
+} from "react";
 import { Button } from "@/components/ui/button";
-import {
-  Building2,
-  Plus,
-  Search,
-  Trash2,
-  UserPlus,
-  Users,
-  Loader2,
-  Contact,
-} from "lucide-react";
+import { Building2, Plus, Search, Trash2, UserPlus } from "lucide-react";
 import { CompanyCard } from "./company-card";
-// import { CompanyDialog, ManagerDialog } from "./contact-dialogs";
 import { initials } from "@/lib/utils";
-import { CompanyInput, ContactInput } from "@/lib/validations";
+import { CompanyRow, ContactRow } from "@/lib/validations";
 import { deleteCompany, deleteContact } from "@/app/contacts/actions";
 import PageTitle from "../layout/page-title";
 import { CompanyDialog } from "./company-dialog";
 import { ContactDialog } from "./contact-dialog";
 import TypeChipsSection from "../spec-builder/components/TypeChipsSection";
-import { useSearchParams } from "next/navigation";
 
 interface ContactsViewProps {
-  initialCompanies: CompanyInput[];
-  initialContacts: ContactInput[];
+  initialCompanies: CompanyRow[];
+  initialContacts: ContactRow[];
 }
 
 export default function ContactsView({
@@ -34,10 +29,11 @@ export default function ContactsView({
 }: ContactsViewProps) {
   const [tab, setTab] = useState<"companies" | "independent">("companies");
   const [query, setQuery] = useState("");
-  const [isPending, startTransition] = useTransition();
 
-  const searchParams = useSearchParams();
-  const selectedCategory = searchParams.get("type");
+  const deferredQuery = useDeferredValue(query);
+
+  const [selectedCategory, setSelectedCategory] = useState("Все типы");
+  const [isPending, startTransition] = useTransition();
 
   // Состояния диалогов
   const [companyDialogOpen, setCompanyDialogOpen] = useState(false);
@@ -58,19 +54,32 @@ export default function ContactsView({
     (state, idToRemove: string) => state.filter((c) => c.id !== idToRemove),
   );
 
-  // Группировка независимых контактов
+  const managersByCompanyId = useMemo(() => {
+    const map = new Map<string, ContactRow[]>();
+
+    for (const contact of optimisticContacts) {
+      if (contact.company_id) {
+        const list = map.get(contact.company_id) || [];
+        list.push(contact);
+        map.set(contact.company_id, list);
+      }
+    }
+
+    return map;
+  }, [optimisticContacts]);
+
   const independentContacts = useMemo(
     () => optimisticContacts.filter((m) => !m.company_id),
     [optimisticContacts],
   );
 
   // Фильтрация поиска по компаниям и контактам
-  const q = query.trim().toLowerCase();
+  const q = deferredQuery.trim().toLowerCase();
 
   // Фильтрация компаний
   const filteredCompanies = useMemo(() => {
     return optimisticCompanies.filter((c) => {
-      // 1. Проверяем выбор в чипсах
+      // 1. Проверка категории
       const isAllSelected =
         !selectedCategory ||
         selectedCategory === "" ||
@@ -82,9 +91,13 @@ export default function ContactsView({
         (typeof c.category === "string" &&
           (c.category as string) === selectedCategory);
 
-      // 2. Проверяем поисковый запрос
-      const matchesQuery =
-        !q ||
+      if (!matchesCategory) return false;
+
+      // Если поисковый запрос пустой — показываем компанию
+      if (!q) return true;
+
+      // 2. Проверка самой компании
+      const matchesCompanySelf =
         c.name.toLowerCase().includes(q) ||
         c.address?.toLowerCase().includes(q) ||
         (Array.isArray(c.category) &&
@@ -92,14 +105,26 @@ export default function ContactsView({
         (typeof c.category === "string" &&
           (c.category as string).toLowerCase().includes(q));
 
-      return matchesCategory && matchesQuery;
+      if (matchesCompanySelf) return true;
+
+      // 3. Проверка сотрудников этой компании
+      const companyManagers = managersByCompanyId.get(c.id) || [];
+      const matchesManager = companyManagers.some((m) => {
+        return (
+          m.name.toLowerCase().includes(q) ||
+          m.title?.toLowerCase().includes(q) ||
+          m.email?.toLowerCase().includes(q) ||
+          m.phone?.toLowerCase().includes(q)
+        );
+      });
+
+      return matchesManager;
     });
-  }, [optimisticCompanies, q, selectedCategory]);
+  }, [optimisticCompanies, q, selectedCategory, managersByCompanyId]);
 
   // Фильтрация специалистов
   const filteredIndependent = useMemo(() => {
     return independentContacts.filter((m) => {
-      // 1. Проверяем категорию
       const isAllSelected =
         !selectedCategory ||
         selectedCategory === "" ||
@@ -111,7 +136,6 @@ export default function ContactsView({
         (typeof m.category === "string" &&
           (m.category as string) === selectedCategory);
 
-      // 2. Проверяем поисковый запрос
       const matchesQuery =
         !q ||
         m.name.toLowerCase().includes(q) ||
@@ -190,7 +214,10 @@ export default function ContactsView({
           </div>
         </div>
 
-        <TypeChipsSection paramName="type" />
+        <TypeChipsSection
+          activeType={selectedCategory}
+          setActiveType={setSelectedCategory}
+        />
 
         {/* Табы */}
         <div role="tablist" className="flex gap-1 border-b border-border">
@@ -212,7 +239,7 @@ export default function ContactsView({
       </header>
 
       {/* Основной контент */}
-      <main className="">
+      <article>
         {tab === "companies" ? (
           filteredCompanies.length === 0 ? (
             <EmptyState
@@ -237,9 +264,7 @@ export default function ContactsView({
                 <CompanyCard
                   key={c.id}
                   company={c}
-                  managers={optimisticContacts.filter(
-                    (m) => m.company_id === c.id,
-                  )}
+                  managers={managersByCompanyId.get(c.id) || []}
                   onAddManager={(companyId) =>
                     setManagerDialog({ open: true, companyId })
                   }
@@ -328,20 +353,24 @@ export default function ContactsView({
             ))}
           </ul>
         )}
-      </main>
+      </article>
 
       {/* Диалоговые окна */}
-      <CompanyDialog
-        open={companyDialogOpen}
-        onClose={() => setCompanyDialogOpen(false)}
-      />
-      <ContactDialog
-        open={managerDialog.open}
-        companies={optimisticCompanies}
-        fixedCompanyId={managerDialog.companyId}
-        independentOnly={managerDialog.independent}
-        onClose={() => setManagerDialog({ open: false })}
-      />
+      {companyDialogOpen && (
+        <CompanyDialog
+          open={companyDialogOpen}
+          onClose={() => setCompanyDialogOpen(false)}
+        />
+      )}
+      {managerDialog.open && (
+        <ContactDialog
+          open={managerDialog.open}
+          companies={optimisticCompanies}
+          fixedCompanyId={managerDialog.companyId}
+          independentOnly={managerDialog.independent}
+          onClose={() => setManagerDialog({ open: false })}
+        />
+      )}
     </div>
   );
 }
