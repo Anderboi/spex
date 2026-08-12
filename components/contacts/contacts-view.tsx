@@ -8,15 +8,15 @@ import React, {
   useDeferredValue,
 } from "react";
 import { Button } from "@/components/ui/button";
-import { Building2, Plus, Search, Trash2, UserPlus } from "lucide-react";
+import { Building2, Plus, Search, UserPlus } from "lucide-react";
 import { CompanyCard } from "./company-card";
-import { initials } from "@/lib/utils";
 import { CompanyRow, ContactRow } from "@/lib/validations";
 import { deleteCompany, deleteContact } from "@/app/contacts/actions";
 import PageTitle from "../layout/page-title";
 import { CompanyDialog } from "./company-dialog";
 import { ContactDialog } from "./contact-dialog";
 import TypeChipsSection from "../spec-builder/components/TypeChipsSection";
+import { ContactCard } from "./contact-card";
 
 interface ContactsViewProps {
   initialCompanies: CompanyRow[];
@@ -33,7 +33,7 @@ export default function ContactsView({
   const deferredQuery = useDeferredValue(query);
 
   const [selectedCategory, setSelectedCategory] = useState("Все типы");
-  const [isPending, startTransition] = useTransition();
+  const [, startTransition] = useTransition();
 
   // Состояния диалогов
   const [companyDialogOpen, setCompanyDialogOpen] = useState(false);
@@ -109,7 +109,7 @@ export default function ContactsView({
 
       // 3. Проверка сотрудников этой компании
       const companyManagers = managersByCompanyId.get(c.id) || [];
-      const matchesManager = companyManagers.some((m) => {
+      return companyManagers.some((m) => {
         return (
           m.name.toLowerCase().includes(q) ||
           m.title?.toLowerCase().includes(q) ||
@@ -117,8 +117,6 @@ export default function ContactsView({
           m.phone?.toLowerCase().includes(q)
         );
       });
-
-      return matchesManager;
     });
   }, [optimisticCompanies, q, selectedCategory, managersByCompanyId]);
 
@@ -298,52 +296,12 @@ export default function ContactsView({
           />
         ) : (
           <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            {filteredIndependent.map((m) => (
-              <li
-                key={m.id}
-                className="flex items-start gap-3 rounded-xl border border-border bg-bg-card p-4"
-              >
-                <div className="flex size-10 shrink-0 items-center bg-bg-brand2 justify-center rounded-full text-sm font-medium text-fg-body">
-                  {initials(m.name)}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <div className="flex flex-wrap items-baseline gap-x-2">
-                    <span className="font-medium text-fg-body">
-                      {m.name}
-                    </span>
-                    {m.title && (
-                      <span className="text-xs text-fg-muted">{m.title}</span>
-                    )}
-                  </div>
-                  <div className="mt-1 flex flex-col gap-0.5 text-xs text-fg-muted">
-                    {m.email && (
-                      <a href={`mailto:${m.email}`} className="hover:text-fg">
-                        {m.email}
-                      </a>
-                    )}
-                    {m.phone && (
-                      <a
-                        href={`tel:${m.phone}`}
-                        className="hover:text-fg-muted"
-                      >
-                        {m.phone}
-                      </a>
-                    )}
-                  </div>
-                  {m.note && (
-                    <p className="mt-2 text-xs text-fg-muted">{m.note}</p>
-                  )}
-                </div>
-                <Button
-                  variant="ghost"
-                  size="icon-xs"
-                  aria-label={`Удалить ${m.name}`}
-                  onClick={() => handleRemoveContact(m.id!)}
-                  className="text-fg-muted hover:text-destructive"
-                >
-                  <Trash2 className="size-4" />
-                </Button>
-              </li>
+            {filteredIndependent.map((contact) => (
+              <ContactCard
+                key={contact.id}
+                contact={contact}
+                onRemove={handleRemoveContact}
+              />
             ))}
           </ul>
         )}
