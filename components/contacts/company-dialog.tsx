@@ -97,7 +97,7 @@ export function CompanyDialog({
 
   return (
     <Dialog open={open} onOpenChange={(val) => !val && onClose()}>
-      <DialogContent className="sm:max-w-125">
+      <DialogContent className="sm:max-w-125 bg-bg-card">
         <DialogHeader className="border-b border-border-subtle py-2">
           <DialogTitle>Добавить компанию</DialogTitle>
           <DialogDescription>
@@ -237,7 +237,7 @@ export function CompanyDialog({
                   <FormLabel>Заметки</FormLabel>
                   <FormControl>
                     <textarea
-                      className="w-full min-h-[70px] border border-input bg-background rounded-lg p-2 text-sm focus:outline-none focus:ring-1 focus:ring-border"
+                      className="w-full min-h-16 border border-input bg-bg-card rounded-lg p-2 text-sm focus:outline-none focus:ring-1 focus:ring-border"
                       placeholder="Особые условия, персональные скидки..."
                       {...field}
                       value={field.value || ""}

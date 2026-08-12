@@ -13,8 +13,8 @@ export function ManagerRow({
   onRemove: (id: string) => void;
 }) {
   return (
-    <li className="group flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors hover:bg-card">
-      <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-bg text-xs font-medium text-fg">
+    <li className="group flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors hover:bg-bg-card">
+      <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-bg-brand2 text-xs font-medium text-fg">
         {initials(manager.name)}
       </div>
       <div className="min-w-0 flex-1">

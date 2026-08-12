@@ -172,16 +172,16 @@ export default function ContactsView({
           {/* title n description */}
           <div>
             <PageTitle>Контакты</PageTitle>
-            <p className="text-[15px] text-pretty text-fg-secondary mt-2 font-normal">
+            <p className="text-base text-pretty text-fg-secondary mt-2 font-normal">
               Компании, поставщики и представители. Управляйте справочником и
               привязывайте их к позициям спецификации.
             </p>
           </div>
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap w-full justify-end items-center gap-2">
             <Button
               variant="outline"
               size="lg"
-              className="flex-1 whitespace-nowrap sm:flex-none"
+              className="flex-1 whitespace-nowrap bg-bg sm:flex-none"
               onClick={() =>
                 setManagerDialog({ open: true, independent: true })
               }
@@ -209,7 +209,7 @@ export default function ContactsView({
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Поиск по названию, категории, имени..."
-              className="h-10 w-full rounded-lg border border-input bg-card pl-9 pr-3 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30"
+              className="h-10 w-full rounded-lg border border-input bg-bg-card pl-9 pr-3 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30"
             />
           </div>
         </div>
@@ -220,7 +220,7 @@ export default function ContactsView({
         />
 
         {/* Табы */}
-        <div role="tablist" className="flex gap-1 border-b border-border">
+        <div role="tablist" className="mb-4 flex gap-1 border-b border-border">
           <TabButton
             active={tab === "companies"}
             onClick={() => setTab("companies")}
@@ -270,6 +270,7 @@ export default function ContactsView({
                   }
                   onRemoveManager={handleRemoveContact}
                   onRemoveCompany={handleRemoveCompany}
+                  defaultOpen={filteredCompanies.length <= 5}
                 />
               ))}
             </div>
@@ -300,44 +301,37 @@ export default function ContactsView({
             {filteredIndependent.map((m) => (
               <li
                 key={m.id}
-                className="flex items-start gap-3 rounded-xl border border-border bg-card p-4"
+                className="flex items-start gap-3 rounded-xl border border-border bg-bg-card p-4"
               >
-                <div className="flex size-10 shrink-0 items-center bg-bg justify-center rounded-full text-sm font-medium text-secondary-foreground">
+                <div className="flex size-10 shrink-0 items-center bg-bg-brand2 justify-center rounded-full text-sm font-medium text-fg-body">
                   {initials(m.name)}
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-wrap items-baseline gap-x-2">
-                    <span className="font-medium text-foreground">
+                    <span className="font-medium text-fg-body">
                       {m.name}
                     </span>
                     {m.title && (
-                      <span className="text-xs text-muted-foreground">
-                        {m.title}
-                      </span>
+                      <span className="text-xs text-fg-muted">{m.title}</span>
                     )}
                   </div>
-                  <div className="mt-1 flex flex-col gap-0.5 text-xs text-muted-foreground">
+                  <div className="mt-1 flex flex-col gap-0.5 text-xs text-fg-muted">
                     {m.email && (
-                      <a
-                        href={`mailto:${m.email}`}
-                        className="hover:text-foreground"
-                      >
+                      <a href={`mailto:${m.email}`} className="hover:text-fg">
                         {m.email}
                       </a>
                     )}
                     {m.phone && (
                       <a
                         href={`tel:${m.phone}`}
-                        className="hover:text-foreground"
+                        className="hover:text-fg-muted"
                       >
                         {m.phone}
                       </a>
                     )}
                   </div>
                   {m.note && (
-                    <p className="mt-2 text-xs text-muted-foreground">
-                      {m.note}
-                    </p>
+                    <p className="mt-2 text-xs text-fg-muted">{m.note}</p>
                   )}
                 </div>
                 <Button
@@ -345,7 +339,7 @@ export default function ContactsView({
                   size="icon-xs"
                   aria-label={`Удалить ${m.name}`}
                   onClick={() => handleRemoveContact(m.id!)}
-                  className="text-muted-foreground hover:text-destructive"
+                  className="text-fg-muted hover:text-destructive"
                 >
                   <Trash2 className="size-4" />
                 </Button>

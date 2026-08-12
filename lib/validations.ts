@@ -83,6 +83,9 @@ export const contactSchema = z.object({
 
 export type ContactInput = z.infer<typeof contactSchema>;
 
+export type CompanyRow = CompanyInput & { id: string };
+export type ContactRow = ContactInput & { id: string };
+
 // --- MATERIALS ---
 export const materialSchema = z.object({
   id: z.string().uuid().optional(),
