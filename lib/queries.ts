@@ -1,26 +1,14 @@
-import { requireSession } from "@/lib/auth";
 import { createAdminClient } from "./supabase/admin";
-import { CompanyInput, ContactInput, MaterialInput } from "./validations";
-
-/**
- * ==========================================
- * MATERIALS QUERIES
- * ==========================================
- */
-// export type MaterialListItem = {
-//   id: string;
-//   name: string;
-//   category: string;
-//   brand: string | null;
-//   article: string | null;
-//   price: number | null;
-//   unit: string;
-//   image_url: string | null;
-//   created_at: string;
-//   companies: { id: string; name: string } | null;
-//   contacts: { id: string; name: string } | null;
-//   tags: string[];
-// };
+import {
+  CompanyInput,
+  CompanyRow,
+  ContactInput,
+  ContactRow,
+  MaterialInput,
+  type ProjectStatus,
+} from "./validations";
+import { cache } from "react";
+import { OrgRole, requireOrg } from "./auth/session";
 
 const MATERIAL_LIST_SELECT = `
   id,
@@ -40,21 +28,28 @@ export async function getMaterials(options?: {
   search?: string;
   category?: string;
 }) {
-  const { orgId } = await requireSession();
+  const { orgId } = await requireOrg();
   const supabase = createAdminClient();
 
-  // Делаем JOIN с таблицей suppliers, чтобы сразу получать данные о поставщике
   let query = supabase
     .from("materials")
     .select(MATERIAL_LIST_SELECT)
     .eq("org_id", orgId)
+    .is("deleted_at", null)
     .order("created_at", { ascending: false });
 
-  if (options?.search && options.search.trim() !== "") {
-    const s = options.search.trim();
-    query = query.or(
-      `name.ilike.%${s}%,brand.ilike.%${s}%,article.ilike.%${s}%`,
-    );
+  if (options?.search?.trim()) {
+    // убираем всё, что имеет значение в грамматике PostgREST
+    const s = options.search
+      .trim()
+      .replace(/[,.()"\\%]/g, " ")
+      .slice(0, 100)
+      .trim();
+    if (s) {
+      query = query.or(
+        `name.ilike."%${s}%",brand.ilike."%${s}%",article.ilike."%${s}%"`,
+      );
+    }
   }
 
   const cleanCategory = options?.category?.trim();
@@ -73,7 +68,7 @@ export async function getMaterials(options?: {
 }
 
 export async function getMaterialById(id: string) {
-  const { orgId } = await requireSession();
+  const { orgId } = await requireOrg();
   const supabase = createAdminClient();
 
   const { data, error } = await supabase
@@ -81,7 +76,8 @@ export async function getMaterialById(id: string) {
     .select(MATERIAL_LIST_SELECT)
     .eq("org_id", orgId)
     .eq("id", id)
-    .single();
+    .is("deleted_at", null)
+    .maybeSingle();
 
   if (error) {
     console.error(`Error fetching material ${id}:`, error.message);
@@ -96,34 +92,18 @@ export async function getMaterialById(id: string) {
  * PROJECTS QUERIES
  * ==========================================
  */
-const PROJECT_STATUSES = ["active", "archived", "completed"] as const;
-
-export type ProjectStatus = (typeof PROJECT_STATUSES)[number];
-
-// export type ProjectListItem = {
-//   id: string;
-//   title: string;
-//   accent_color: string | null;
-//   client_name: string | null;
-//   status: "active" | "archived" | "completed";
-//   cover_url: string | null;
-//   updated_at: string;
-//   created_at: string;
-//   org_id: string;
-//   budget: number | null;
-//   address: string | null;
-// };
 const PROJECT_LIST_SELECT =
   "id, title, client_name, accent_color, status, cover_url, updated_at, created_at, org_id, budget, address, type";
 
-export async function getProjects(status?: ProjectStatus) {
-  const { orgId } = await requireSession();
+export const getProjects = cache(async (status?: ProjectStatus) => {
+  const { orgId } = await requireOrg();
   const supabase = createAdminClient();
 
   let query = supabase
     .from("projects")
     .select(PROJECT_LIST_SELECT)
     .eq("org_id", orgId)
+    .is("deleted_at", null)
     .order("updated_at", { ascending: false });
 
   if (status) {
@@ -137,11 +117,11 @@ export async function getProjects(status?: ProjectStatus) {
     throw new Error(`Failed to fetch projects: ${error.message}`);
   }
 
-  return data ?? [];
-}
+  return data;
+});
 
 export async function getProjectById(projectId: string) {
-  const { orgId } = await requireSession();
+  const { orgId } = await requireOrg();
 
   const supabase = createAdminClient();
 
@@ -150,7 +130,8 @@ export async function getProjectById(projectId: string) {
     .select(PROJECT_LIST_SELECT)
     .eq("org_id", orgId)
     .eq("id", projectId)
-    .single();
+    .is("deleted_at", null)
+    .maybeSingle();
 
   if (error) {
     console.error(`Error fetching project ${projectId}:`, error.message);
@@ -160,34 +141,31 @@ export async function getProjectById(projectId: string) {
   return data;
 }
 
-/**
- * Получение всех элементов спецификации для конкретного проекта
- * Включает связанные данные поставщика и оригинального материала
- */
 export async function getProjectSpecItems(projectId: string) {
+  const { orgId } = await requireOrg();
   const supabase = createAdminClient();
+
+  const { data: project } = await supabase
+    .from("projects")
+    .select("id")
+    .eq("id", projectId)
+    .eq("org_id", orgId)
+    .maybeSingle();
+  if (!project) return []; // чужой проект — пусто, без намёков
 
   const { data, error } = await supabase
     .from("spec_items")
     .select(
-      `
-      *,
-      supplier:suppliers(*),
-      material:materials(*)
-    `,
+      `*, company:company_id (id, name), contact:contact_id (id, name), material:material_id (id, name, image_url)`,
     )
     .eq("project_id", projectId)
     .order("position", { ascending: true });
 
   if (error) {
-    console.error(
-      `Error fetching spec items for project ${projectId}:`,
-      error.message,
-    );
-    throw new Error(`Failed to fetch spec items: ${error.message}`);
+    console.error("[getProjectSpecItems]", error.message);
+    throw new Error("Не удалось загрузить спецификацию");
   }
-
-  return data;
+  return data ?? [];
 }
 
 export type CompanyListItem = {
@@ -201,8 +179,8 @@ export type CompanyListItem = {
   note: string | null;
 };
 
-export async function getCompanies() {
-  const { orgId } = await requireSession();
+export async function getCompanies(): Promise<CompanyRow[]> {
+  const { orgId } = await requireOrg();
   const supabase = createAdminClient();
 
   const { data, error } = await supabase
@@ -216,11 +194,11 @@ export async function getCompanies() {
     throw new Error(`Failed to fetch companies: ${error.message}`);
   }
 
-  return (data as CompanyListItem[]) ?? [];
+  return (data as CompanyRow[]) ?? [];
 }
 
-export async function getContacts() {
-  const { orgId } = await requireSession();
+export async function getContacts(): Promise<ContactRow[]> {
+  const { orgId } = await requireOrg();
   const supabase = createAdminClient();
 
   const { data, error } = await supabase
@@ -234,7 +212,7 @@ export async function getContacts() {
     throw new Error(`Failed to fetch contacts: ${error.message}`);
   }
 
-  return data;
+  return (data as ContactRow[]) ?? [];
 }
 
 export type CounterpartyData = {
@@ -243,7 +221,7 @@ export type CounterpartyData = {
 };
 
 export async function getCounterparties(): Promise<CounterpartyData> {
-  const { orgId } = await requireSession();
+  const { orgId } = await requireOrg();
   const supabase = createAdminClient();
 
   const [companiesRes, contactsRes] = await Promise.all([
@@ -295,13 +273,14 @@ export type UserOrganization = {
   id: string;
   name: string;
   role: "owner" | "admin" | "member";
+  slug: string;
   is_active: boolean;
 };
 
 //* Teams */
 
 export async function getUserOrganizations(): Promise<UserOrganization[]> {
-  const { userId, orgId: activeOrgId } = await requireSession();
+  const { userId, orgId: activeOrgId } = await requireOrg();
   const supabase = createAdminClient();
 
   const { data, error } = await supabase
@@ -326,19 +305,20 @@ export async function getUserOrganizations(): Promise<UserOrganization[]> {
     id: item.organizations.id,
     name: item.organizations.name,
     role: item.role,
+    slug: item.organizations.slug,
     is_active: item.organizations.id === activeOrgId,
   }));
 }
 
 export type TeamMember = {
-  id: string; // ID записи в organization_members
   user_id: string;
-  role: "owner" | "admin" | "member";
+  role: OrgRole;
   created_at: string;
+  is_me: boolean;
   profile: {
-    full_name: string | null;
+    name: string | null;
     email: string | null;
-    avatar_url: string | null;
+    image: string | null;
   } | null;
 };
 
@@ -350,76 +330,60 @@ export type ActiveInvite = {
   expires_at: string;
 };
 
-export async function getTeamData(): Promise<{
-  members: TeamMember[];
-  invites: ActiveInvite[];
-  currentUserRole: "owner" | "admin" | "member";
-  currentUserId: string;
-}> {
-  const { userId, orgId } = await requireSession();
+export async function getTeamData() {
+  const { userId, orgId, role } = await requireOrg();
   const supabase = createAdminClient();
 
   // 1. Получаем список всех участников
-  const { data: membersData, error: membersError } = await supabase
-    .from("organization_members")
-    .select(
-      `
-      id,
-      user_id,
-      role,
-      created_at,
-      profiles:user_id (
-        full_name,
-        email,
-        avatar_url
+  const [
+    { data: membersData, error: mErr },
+    { data: invitesData, error: iErr },
+  ] = await Promise.all([
+    supabase
+      .from("organization_members")
+      .select(
+        `user_id, role, created_at, users:user_id ( id, name, email, image )`,
       )
-    `,
-    )
-    .eq("org_id", orgId)
-    .order("created_at", { ascending: true });
+      .eq("org_id", orgId)
+      .order("created_at", { ascending: true }),
+    supabase
+      .from("organization_invites")
+      .select("id, email, role, created_at, expires_at")
+      .eq("org_id", orgId)
+      .gt("expires_at", new Date().toISOString())
+      .order("created_at", { ascending: false }),
+  ]);
 
-  if (membersError) {
-    console.error("[getTeamData] Members Error:", membersError.message);
-    throw new Error("Не удалось загрузить список участников");
+  if (mErr) {
+    console.error("[getTeamData] members", mErr.message);
+    throw new Error("Не удалось загрузить участников");
   }
-
-  // 2. Получаем активные приглашения
-  const { data: invitesData, error: invitesError } = await supabase
-    .from("organization_invites")
-    .select("id, email, role, created_at, expires_at")
-    .eq("org_id", orgId)
-    .gt("expires_at", new Date().toISOString())
-    .order("created_at", { ascending: false });
-
-  if (invitesError) {
-    console.error("[getTeamData] Invites Error:", invitesError.message);
+  if (iErr) {
+    console.error("[getTeamData] invites", iErr.message);
     throw new Error("Не удалось загрузить приглашения");
   }
 
-  // 3. Находим роль текущего пользователя
-  const currentMember = membersData?.find((m: any) => m.user_id === userId);
-  if (!currentMember) {
-    throw new Error("У вас нет доступа к этой организации");
-  }
-
-  const members: TeamMember[] = (membersData ?? []).map((m: any) => ({
-    id: m.id,
-    user_id: m.user_id,
-    role: m.role,
-    created_at: m.created_at,
-    profile: m.profiles
-      ? {
-          full_name: m.profiles.full_name,
-          email: m.profiles.email,
-          avatar_url: m.profiles.avatar_url,
-        }
-      : null,
-  }));
+  const members = (membersData ?? []).map((m: any) => {
+    const u = Array.isArray(m.users) ? m.users[0] : m.users;
+    return {
+      user_id: m.user_id,
+      role: m.role as OrgRole,
+      created_at: m.created_at,
+      is_me: m.user_id === userId,
+      profile: u
+        ? {
+            name: u.name ?? null,
+            email: u.email ?? null,
+            image: u.image ?? null,
+          }
+        : null,
+    };
+  });
 
   return {
     members,
-    invites: (invitesData as ActiveInvite[]) ?? [],
-    currentUserRole: currentMember.role as "owner" | "admin" | "member",
+    invites: invitesData ?? [],
+    currentUserRole: role,
     currentUserId: userId,
   };
 }

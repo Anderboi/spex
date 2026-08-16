@@ -6,10 +6,12 @@ import {
   canRemoveMember,
   canChangeRole,
   OrgRole,
+  can,
 } from "@/lib/permissions";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireSession } from "@/lib/auth";
+import { requireOrg } from "@/lib/auth/session";
 
 /**
  * Получение роли текущего пользователя в активной организации
@@ -34,7 +36,7 @@ async function getCurrentUserRole(
  * 1. Создание приглашения (Generate Invite)
  */
 export async function createInvite(formData: FormData) {
-  const { userId, orgId } = await requireSession();
+  const { orgId, userId, role: currentUserRole } = await requireOrg();
   const email = formData.get("email")?.toString().trim().toLowerCase();
   const role = (formData.get("role")?.toString() || "member") as OrgRole;
 
@@ -42,7 +44,6 @@ export async function createInvite(formData: FormData) {
     return { error: "Укажите корректный email" };
   }
 
-  const currentUserRole = await getCurrentUserRole(orgId, userId);
   if (!canManageMembers(currentUserRole)) {
     return { error: "Недостаточно прав для приглашения участников" };
   }
@@ -160,39 +161,67 @@ export async function acceptInvite(token: string) {
 /**
  * 3. Изменение роли участника
  */
-export async function updateMemberRole(
-  memberId: string,
-  targetUserId: string,
-  targetRole: OrgRole,
-  newRole: OrgRole,
-) {
-  const { userId, orgId } = await requireSession();
-  const currentUserRole = await getCurrentUserRole(orgId, userId);
+export async function updateMemberRole(targetUserId: string, newRole: OrgRole) {
+  const { userId, orgId, role } = await requireOrg();
 
-  if (!canChangeRole(currentUserRole, targetRole, newRole)) {
-    throw new Error("Недостаточно прав для изменения роли этого участника");
+  if (!can(role, "member:role:change")) {
+    return {
+      success: false as const,
+      error: "Менять роли может только владелец",
+    };
+  }
+  if (targetUserId === userId) {
+    return {
+      success: false as const,
+      error: "Нельзя изменить собственную роль",
+    };
   }
 
   const supabase = createAdminClient();
+  const { data: target } = await supabase
+    .from("organization_members")
+    .select("user_id, role")
+    .eq("org_id", orgId)
+    .eq("user_id", targetUserId)
+    .maybeSingle();
+
+  if (!target) return { success: false as const, error: "Участник не найден" };
+
+  if (target.role === "owner" && newRole !== "owner") {
+    const { count } = await supabase
+      .from("organization_members")
+      .select("user_id", { count: "exact", head: true })
+      .eq("org_id", orgId)
+      .eq("role", "owner");
+
+    if ((count ?? 0) <= 1) {
+      return {
+        success: false as const,
+        error: "В организации должен остаться хотя бы один владелец",
+      };
+    }
+  }
+
   const { error } = await supabase
     .from("organization_members")
     .update({ role: newRole })
-    .eq("id", memberId)
-    .eq("org_id", orgId);
+    .eq("org_id", orgId)
+    .eq("user_id", targetUserId);
 
   if (error) {
-    throw new Error("Ошибка при обновлении роли");
+    console.error("[updateMemberRole]", error.message);
+    return { success: false as const, error: "Не удалось изменить роль" };
   }
 
   revalidatePath("/settings/team");
+  return { success: true as const };
 }
 
 /**
  * 4. Удаление участника из организации
  */
 export async function removeMember(memberId: string, targetRole: OrgRole) {
-  const { userId, orgId } = await requireSession();
-  const currentUserRole = await getCurrentUserRole(orgId, userId);
+  const { orgId, role: currentUserRole } = await requireOrg();
 
   if (!canRemoveMember(currentUserRole, targetRole)) {
     throw new Error("У вас нет прав на исключение этого участника");

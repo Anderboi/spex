@@ -1,4 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
+import { createAdminClient } from "./supabase/admin";
+import { randomBytes } from "crypto";
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -32,27 +34,24 @@ export async function generateVerificationToken(email: string) {
 }
 
 export async function generatePasswordResetToken(email: string) {
-  const token = crypto.randomUUID();
-  const expires = new Date(new Date().getTime() + 3600 * 1000); // Действителен 1 час
+  const supabase = createAdminClient();
+  const token = randomBytes(32).toString("hex");
+  const expires = new Date(Date.now() + 3600_000).toISOString(); // Действителен 1 час
 
   // Удаляем старые токены сброса для этого email
-  await supabaseAdmin
-    .from("password_reset_tokens")
-    .delete()
-    .eq("email", email);
+  await supabase.from("password_reset_tokens").delete().eq("email", email);
 
   // Создаем новый токен
-  const { data, error } = await supabaseAdmin
+  const { data, error } = await supabase
     .from("password_reset_tokens")
     .insert({
       email,
       token,
-      expires: expires.toISOString(),
+      expires,
     })
-    .select()
+    .select("email, token")
     .single();
 
-  if (error) throw new Error("Не удалось сгенерировать токен сброса");
-
+  if (error) throw new Error(`Не удалось создать токен: ${error.message}`);
   return data;
 }

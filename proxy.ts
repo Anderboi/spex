@@ -1,13 +1,10 @@
-import NextAuth from 'next-auth';
-import { NextRequest, NextResponse } from "next/server";
-import { authConfig } from './auth.config';
+import NextAuth from "next-auth";
+import { authConfig } from "./auth.config";
 
-const { auth } = NextAuth(authConfig);
+const { auth: middleware } = NextAuth(authConfig);
 
-export default auth;
+export default middleware;
 
 export const config = {
-  matcher: [
-    "/((?!api|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
-  ],
+  matcher: ["/((?!api|_next/static|_next/image|favicon.ico).*)"],
 };

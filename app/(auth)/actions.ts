@@ -1,9 +1,9 @@
 "use server";
 
-import { requireSession, signIn, signOut } from "@/lib/auth";
+import "server-only";
+import { signIn, signOut } from "@/lib/auth";
 import { AuthError } from "next-auth";
 import bcrypt from "bcryptjs";
-import { createClient } from "@supabase/supabase-js";
 import {
   NewPasswordInput,
   newPasswordSchema,
@@ -19,16 +19,16 @@ import {
 } from "@/lib/tokens";
 import { z } from "zod/v3";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { redirect } from "next/navigation";
 import { revalidatePath } from "next/cache";
+import { requireAuth } from "@/lib/auth/session";
+import { MessageResult } from '@/lib/types';
 
 // Используем Service Role Key для прямых операций с записью
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-);
+const supabaseAdmin = createAdminClient();
 
-export async function registerWithCredentials(data: RegisterInput) {
+export async function registerWithCredentials(
+  data: RegisterInput,
+): Promise<MessageResult> {
   const validated = registerSchema.safeParse(data);
   if (!validated.success) return { error: "Неверно заполнены поля формы" };
 
@@ -39,7 +39,7 @@ export async function registerWithCredentials(data: RegisterInput) {
       .from("users")
       .select("id, email_verified")
       .eq("email", email)
-      .single();
+      .maybeSingle();
 
     if (existingUser) {
       return { error: "Пользователь с таким Email уже зарегистрирован" };
@@ -48,15 +48,25 @@ export async function registerWithCredentials(data: RegisterInput) {
     const hashedPassword = await bcrypt.hash(password, 10);
 
     // 1. Создаем пользователя (email_verified по умолчанию NULL)
-    const { error: insertError } = await supabaseAdmin.from("users").insert({
-      name,
-      email,
-      password: hashedPassword,
-    });
+    const { data: newUser, error: insertError } = await supabaseAdmin
+      .from("users")
+      .insert({
+        name,
+        email: email.toLowerCase().trim(),
+        password: hashedPassword,
+      })
+      .select("id")
+      .single();
 
-    if (insertError) {
+    if (insertError || !newUser) {
+      console.error("[registerWithCredentials]", insertError?.message);
       return { error: "Не удалось создать аккаунт. Попробуйте позже." };
     }
+
+    const { error: orgError } = await supabaseAdmin.rpc("ensure_personal_org", {
+      p_user_id: newUser.id,
+    });
+    if (orgError) console.error("[ensure_personal_org]", orgError.message);
 
     // 2. Генерируем токен и отправляем письмо
     const verificationToken = await generateVerificationToken(email);
@@ -129,7 +139,7 @@ export async function registerUser(data: RegisterInput) {
   }
 }
 
-export async function verifyEmailToken(token: string) {
+export async function verifyEmailToken(token: string): Promise<MessageResult> {
   // 1. Находим токен в базе
   const { data: existingToken } = await supabaseAdmin
     .from("verification_tokens")
@@ -171,7 +181,7 @@ export async function verifyEmailToken(token: string) {
 
 const emailSchema = z.string().email("Введите корректный email");
 
-export async function resendVerificationEmail(email: string) {
+export async function resendVerificationEmail(email: string): Promise<MessageResult> {
   // 1. Валидация Email
   const parsed = emailSchema.safeParse(email);
   if (!parsed.success) {
@@ -186,7 +196,7 @@ export async function resendVerificationEmail(email: string) {
       .from("users")
       .select("id, email_verified")
       .eq("email", cleanEmail)
-      .single();
+      .maybeSingle();
 
     if (!user) {
       // Для защиты от перебора пользователей возвращаем одинаковый ответ
@@ -235,34 +245,35 @@ export async function resendVerificationEmail(email: string) {
   }
 }
 
-export async function requestPasswordReset(data: ResetPasswordRequestInput) {
+export async function requestPasswordReset(
+  data: ResetPasswordRequestInput,
+): Promise<MessageResult> {
   const parsed = resetPasswordRequestSchema.safeParse(data);
   if (!parsed.success) return { error: "Некорректный Email" };
 
-  const { email } = parsed.data;
+  const email = parsed.data.email.toLowerCase().trim();
+  // одинаковый ответ в любом случае — иначе форма станет инструментом перебора
+  const neutral = {
+    success: "Если аккаунт существует, мы отправили ссылку для сброса.",
+  };
 
   try {
-    const { data: user } = await supabaseAdmin
+    const supabase = createAdminClient();
+    const { data: user } = await supabase
       .from("users")
-      .select("id")
+      .select("id, password")
       .eq("email", email)
-      .single();
+      .maybeSingle();
 
-    // Защита от перебора пользователей: если пользователя нет, вернем успех
-    if (!user) {
-      return {
-        success:
-          "Если аккаунт с таким Email существует, мы отправили ссылку для сброса.",
-      };
-    }
+    // нет пользователя или он входит только через Google — молча выходим
+    if (!user?.password) return neutral;
 
     const resetToken = await generatePasswordResetToken(email);
     await sendPasswordResetEmail(resetToken.email, resetToken.token);
-
-    return { success: "Инструкции по сбросу пароля отправлены на ваш Email." };
+    return neutral;
   } catch (err) {
-    console.error("Reset password request error:", err);
-    return { error: "Произошла ошибка при отправке запроса" };
+    console.error("[requestPasswordReset]", err);
+    return { error: "Произошла ошибка. Попробуйте позже." };
   }
 }
 
@@ -270,7 +281,7 @@ export async function requestPasswordReset(data: ResetPasswordRequestInput) {
 export async function resetPasswordWithToken(
   token: string,
   data: NewPasswordInput,
-) {
+): Promise<MessageResult> {
   const parsed = newPasswordSchema.safeParse(data);
   if (!parsed.success) return { error: "Неверно заполнены пароли" };
 
@@ -306,6 +317,11 @@ export async function resetPasswordWithToken(
       return { error: "Не удалось обновить пароль. Попробуйте позже." };
     }
 
+    await supabaseAdmin
+      .from("sessions")
+      .delete()
+      .eq("user_id", existingToken.id);
+
     // Удаляем использованный токен
     await supabaseAdmin
       .from("password_reset_tokens")
@@ -320,7 +336,7 @@ export async function resetPasswordWithToken(
 }
 
 export async function authenticateWithGoogle() {
-  await signIn("google", { redirectTo: "/contacts" });
+  await signIn("google", { redirectTo: "/projects" });
 }
 
 export async function loginWithCredentials(formData: FormData) {
@@ -335,7 +351,8 @@ export async function loginWithCredentials(formData: FormData) {
   } catch (error) {
     if (error instanceof AuthError) {
       // Проверяем, не вызвана ли ошибка не подтвержденным email
-      if (error.cause?.err?.message === "EmailNotVerified") {
+      const cause = (error as AuthError).cause as { err?: Error } | undefined;
+      if (cause?.err?.message === "EmailNotVerified") {
         return {
           error: "Ваш Email еще не подтвержден. Пожалуйста, проверьте почту.",
         };
@@ -362,78 +379,77 @@ const createOrganizationSchema = z.object({
   name: z
     .string()
     .trim()
-    .min(2, "Название должно содержать минимум 2 символа")
-    .max(100, "Название слишком длинное"),
+    .min(2, "Минимум 2 символа")
+    .max(80, "Слишком длинное название"),
 });
 
-export async function createOrganization(formData: FormData) {
-  const { userId } = await requireSession({ allowNoOrg: true });
-
-  const parsed = createOrganizationSchema.safeParse({
-    name: formData.get("name"),
-  });
+export async function createOrganization(input: {
+  name: string;
+}): Promise<
+  { success: true; slug: string } | { success: false; error: string }
+> {
+  const parsed = createOrganizationSchema.safeParse(input);
 
   if (!parsed.success) {
-    return {
-      error: parsed.error.issues[0]?.message ?? "Некорректное название",
-    };
+    return { success: false, error: parsed.error.issues[0].message };
   }
 
+  const { userId, user } = await requireAuth();
   const supabase = createAdminClient();
 
-  const { data: orgId, error } = await supabase.rpc("create_organization", {
-    p_user_id: userId,
-    p_name: parsed.data.name,
-  });
+  const { data, error } = await supabase
+    .rpc("create_organization", {
+      p_user_id: userId,
+      p_name: parsed.data.name,
+      p_slug_base: user.name ?? null,
+    })
+    .maybeSingle();
 
-  if (error || !orgId) {
-    console.error("[createOrganization]", {
-      code: error?.code,
-      message: error?.message,
-    });
-
-    return {
-      error: "Не удалось создать организацию",
-    };
+  if (error || !data) {
+    console.error("[createOrganization]", error?.message, error?.details);
+    return { success: false, error: "Не удалось создать организацию" };
   }
 
   revalidatePath("/", "layout");
-
-  redirect("/projects");
+  return { success: true, slug: (data as { org_slug: string }).org_slug };
 }
 
 /**
  * Переключение активной организации
  */
 export async function switchOrganization(orgId: string) {
-  const { userId } = await requireSession();
+  const { userId } = await requireAuth();
   const supabase = createAdminClient();
 
   // Проверяем, состоит ли пользователь в этой организации
-  const { data: membership, error: checkError } = await supabase
+  const { data: membership } = await supabase
     .from("organization_members")
-    .select("id")
+    .select("org_id")
     .eq("org_id", orgId)
     .eq("user_id", userId)
     .maybeSingle();
 
-  if (checkError || !membership) {
-    throw new Error("У вас нет доступа к этой организации");
+  if (!membership) {
+    return {
+      success: false as const,
+      error: "У вас нет доступа к этой организации",
+    };
   }
 
   // Обновляем активную организацию в профиле
-  const { error: updateError } = await supabase
-    .from("profiles")
+  const { error } = await supabase
+    .from("users")
     .update({ active_org_id: orgId })
     .eq("id", userId);
 
-  if (updateError) {
-    console.error(
-      "[switchOrganization] Error updating active org:",
-      updateError.message,
-    );
-    throw new Error("Не удалось переключить организацию");
+  if (error) {
+    console.error("[switchOrganization]", error.message);
+    return {
+      success: false as const,
+      error: "Не удалось переключить организацию",
+    };
   }
 
   revalidatePath("/", "layout");
+  return { success: true as const };
 }

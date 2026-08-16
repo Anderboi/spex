@@ -1,7 +1,7 @@
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
-import { CatalogItem, PREFIX_MAP, SpecItem } from "./types";
-import { BRAND_SITES } from "./constants";
+import { CatalogItem, SpecItem } from "./types";
+import { BRAND_SITES, PREFIX_MAP } from "./constants";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));

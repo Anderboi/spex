@@ -1,4 +1,6 @@
-export type ProjectStatus = "В работе" | "Завершен" | "Черновик" | "На паузе";
+import { TYPE_ORDER } from "./constants";
+import { ProjectStatus } from './validations';
+
 export type ProjectType = "Интерьер" | "Экстерьер" | "Коммерческий";
 
 export interface Project {
@@ -102,56 +104,7 @@ export interface SupplierOption {
   company_name?: string | null; // Название компании (для подписи контактов)
 }
 
-export const TYPE_ORDER = [
-  "Отделка",
-  "Мебель",
-  "Оборудование",
-  "Сантехника",
-  "Освещение",
-  "Текстиль",
-  "Инженерное оборудование",
-  "Декор",
-  "Двери",
-  "Электрика",
-  "Другое",
-] as const;
-
 export type CompanyCategory = (typeof TYPE_ORDER)[number];
-
-export const STATUS_FLOW = [
-  "Не выбрано",
-  "Подобрано",
-  "Согласовано",
-  "Приобретено",
-  "Доставлено",
-  "Заменить",
-];
-
-export const UNIT_OPTIONS = [
-  "шт",
-  "м²",
-  "м³",
-  "м.п.",
-  "компл.",
-  "пара",
-  "л",
-  "кг",
-  "рул.",
-  "уп.",
-];
-
-export const PREFIX_MAP: Record<string, string> = {
-  Отделка: "От",
-  Мебель: "М",
-  Оборудование: "Об",
-  Сантехника: "С",
-  Освещение: "О",
-  Текстиль: "Т",
-  "Инженерное оборудование": "ИО",
-  Декор: "Д",
-  Двери: "Дв",
-  Электрика: "Э",
-};
 
 export interface SupplierContact {
   id: string;
@@ -166,4 +119,4 @@ export interface SupplierContact {
   note?: string; // Доп. заметки (например, "Скидка студии 15%")
 }
 
-
+export type MessageResult = { success?: string; error?: string };

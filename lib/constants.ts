@@ -1,4 +1,5 @@
-import { ProjectStatus, ProjectType } from "./types";
+import { ProjectType } from "./types";
+import { ProjectStatus } from './validations';
 
 export const COVER_PALETTE: string[] = [
   "bg-bg-gold",
@@ -16,13 +17,16 @@ export const TYPE_COLORS: Record<ProjectType, string> = {
 
 export const STATUS_CONFIG: Record<
   ProjectStatus,
-  { dot: string; label: string }
+  { label: string; dot: string }
 > = {
-  "В работе": { dot: "bg-bg-green", label: "В работе" },
-  Завершен: { dot: "bg-bg-accent", label: "Завершен" },
-  Черновик: { dot: "bg-fg-muted", label: "Черновик" },
-  "На паузе": { dot: "bg-bg-amber", label: "На паузе" },
+  draft: { label: "Черновик", dot: "bg-fg-muted" },
+  active: { label: "В работе", dot: "bg-bg-green" },
+  on_hold: { label: "На паузе", dot: "bg-amber-500" },
+  completed: { label: "Завершён", dot: "bg-blue-500" },
+  archived: { label: "В архиве", dot: "bg-neutral-400" },
 };
+
+// const st = STATUS_CONFIG[currentStatus] ?? STATUS_CONFIG.active;
 
 export const STORAGE_KEY = "spec_items_v1";
 
@@ -84,3 +88,52 @@ export const MAP_OPTIONS = [
   "Opacity",
   "Gloss",
 ];
+
+export const STATUS_FLOW = [
+  "Не выбрано",
+  "Подобрано",
+  "Согласовано",
+  "Приобретено",
+  "Доставлено",
+  "Заменить",
+];
+
+export const UNIT_OPTIONS = [
+  "шт",
+  "м²",
+  "м³",
+  "м.п.",
+  "компл.",
+  "пара",
+  "л",
+  "кг",
+  "рул.",
+  "уп.",
+];
+
+export const PREFIX_MAP: Record<string, string> = {
+  Отделка: "От",
+  Мебель: "М",
+  Оборудование: "Об",
+  Сантехника: "С",
+  Освещение: "О",
+  Текстиль: "Т",
+  "Инженерное оборудование": "ИО",
+  Декор: "Д",
+  Двери: "Дв",
+  Электрика: "Э",
+};
+
+export const TYPE_ORDER = [
+  "Отделка",
+  "Мебель",
+  "Оборудование",
+  "Сантехника",
+  "Освещение",
+  "Текстиль",
+  "Инженерное оборудование",
+  "Декор",
+  "Двери",
+  "Электрика",
+  "Другое",
+] as const;

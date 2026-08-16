@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -14,26 +14,40 @@ import {
 } from "@/components/ui/dialog";
 import { Plus, Building2, Loader2 } from "lucide-react";
 import { createOrganization } from "@/app/(auth)/actions";
+import { useRouter } from "next/navigation";
 
-export function CreateOrgDialog() {
+export async function createOrganizationFromForm(formData: FormData) {
+  return createOrganization({ name: String(formData.get("name") ?? "") });
+}
+export function CreateOrgDialog({
+  onOpenChange,
+}: {
+  onOpenChange?: (v: boolean) => void;
+}) {
+  const router = useRouter();
   const [open, setOpen] = useState(false);
+  
+  const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
 
-  async function handleSubmit(formData: FormData) {
-    setLoading(true);
+  const onSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    // ← 'e' объявлен здесь
+    e.preventDefault();
     setError(null);
+    const name = String(new FormData(e.currentTarget).get("name") ?? "");
 
-    const result = await createOrganization(formData);
+    startTransition(async () => {
+      const result = await createOrganization({ name });
 
-    if (result?.error) {
-      setError(result.error);
-      setLoading(false);
-    } else {
-      setOpen(false);
-      setLoading(false);
-    }
-  }
+      if (!result.success) {
+        setError(result.error);
+        return;
+      }
+
+      onOpenChange?.(false);
+      router.refresh();
+    });
+  };
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -47,7 +61,7 @@ export function CreateOrgDialog() {
           <span>Новая организация</span>
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-106">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Building2 className="size-5 text-primary" />
@@ -58,7 +72,7 @@ export function CreateOrgDialog() {
           </DialogDescription>
         </DialogHeader>
 
-        <form action={handleSubmit} className="space-y-4 pt-2">
+        <form onSubmit={onSubmit} className="space-y-4 pt-2">
           <div className="space-y-2">
             <Label htmlFor="name">Название</Label>
             <Input
@@ -66,7 +80,7 @@ export function CreateOrgDialog() {
               name="name"
               placeholder="Например: Studio Minimal"
               required
-              disabled={loading}
+              disabled={isPending}
             />
           </div>
 
@@ -79,12 +93,12 @@ export function CreateOrgDialog() {
               type="button"
               variant="ghost"
               onClick={() => setOpen(false)}
-              disabled={loading}
+              disabled={isPending}
             >
               Отмена
             </Button>
-            <Button type="submit" disabled={loading}>
-              {loading && <Loader2 className="mr-2 size-4 animate-spin" />}
+            <Button type="submit" disabled={isPending}>
+              {isPending && <Loader2 className="mr-2 size-4 animate-spin" />}
               Создать
             </Button>
           </div>

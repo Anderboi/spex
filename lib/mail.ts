@@ -1,35 +1,56 @@
 import { Resend } from "resend";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
-const domain = process.env.NEXT_PUBLIC_APP_URL;
+const FROM = process.env.EMAIL_FROM ?? "Balans <onboarding@resend.dev>";
+const DEV_INBOX = process.env.DEV_EMAIL_INBOX;
 
-export async function sendVerificationEmail(email: string, token: string) {
-  const confirmLink = `${domain}/verify-email?token=${token}`;
+// const domain = process.env.NEXT_PUBLIC_APP_URL;
 
-  await resend.emails.send({
-    from: "onboarding@resend.dev", // После верификации домена замените на свой (например, auth@yourdomain.com)
-    to: email,
-    subject: "Подтверждение регистрации",
+export async function sendVerificationEmail(to: string, token: string) {
+  const url = `${process.env.AUTH_URL ?? "http://localhost:3000"}/verify-email?token=${token}`;
+
+  if (process.env.NODE_ENV !== "production") {
+    console.log("\n─────────────────────────────────────────");
+    console.log("📧 Подтверждение email");
+    console.log("   Кому:", to);
+    console.log("   Ссылка:", url);
+    console.log("─────────────────────────────────────────\n");
+
+    // если хочется увидеть реальное письмо — только на свой ящик
+    if (!DEV_INBOX || to.toLowerCase() !== DEV_INBOX.toLowerCase()) {
+      return { ok: true as const, skipped: true as const };
+    }
+  }
+
+  const { error } = await resend.emails.send({
+    from: FROM,
+    to,
+    subject: "Подтвердите email — Spex",
     html: `
-      <div style="font-family: sans-serif; max-width: 600px; margin: 0 auto;">
-        <h2>Подтверждение Email</h2>
-        <p>Для завершения регистрации и активации аккаунта перейдите по ссылке ниже:</p>
-        <a href="${confirmLink}" style="display: inline-block; padding: 10px 20px; color: #fff; background-color: #0070f3; border-radius: 5px; text-decoration: none;">
-          Подтвердить Email
-        </a>
-        <p style="margin-top: 20px; font-size: 12px; color: #666;">
-          Ссылка действительна в течение 1 часа. Если вы не регистрировались на нашем сайте, просто проигнорируйте это письмо.
+      <div style="font-family:system-ui,sans-serif;max-width:480px">
+        <h2 style="font-weight:600">Подтвердите ваш email</h2>
+        <p style="color:#555">Нажмите кнопку, чтобы активировать аккаунт. Ссылка действует 24 часа.</p>
+        <a href="${url}" style="display:inline-block;background:#111;color:#fff;
+           padding:12px 20px;border-radius:8px;text-decoration:none">Подтвердить email</a>
+        <p style="color:#888;font-size:13px;margin-top:24px">
+          Если кнопка не работает, откройте ссылку:<br>
+          <a href="${url}" style="color:#555">${url}</a>
         </p>
-      </div>
-    `,
+      </div>`,
   });
+
+  if (error) {
+    console.error("[sendVerificationEmail]", error);
+    return { ok: false as const, error: "Не удалось отправить письмо" };
+  }
+  return { ok: true as const };
 }
 
 export async function sendPasswordResetEmail(email: string, token: string) {
-  const resetLink = `${domain}/reset-password?token=${token}`;
+  const resetLink = `${process.env.AUTH_URL ?? "http://localhost:3000"}/reset-password?token=${token}`;
 
   await resend.emails.send({
-    from: "onboarding@resend.dev",
+    from: FROM,
     to: email,
     subject: "Сброс пароля",
     html: `

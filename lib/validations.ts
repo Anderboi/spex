@@ -46,39 +46,35 @@ const categoriesSchema = z.array(z.string()).default([]);
 // --- SUPPLIERS / CONTACTS ---
 export const companySchema = z.object({
   id: z.string().uuid().optional(),
-  name: z.string().min(1, "Укажите название компании"),
-  user_id: z.string().optional().nullable(),
-  phone: z.string().optional().nullable(),
+  name: z.string().trim().min(1, "Укажите название компании").max(200),
+  // created_by: z.string().optional().nullable(),
+  phone: z.string().trim().max(50).optional().nullable(),
   email: z
-    .string()
-    .email("Некорректный E-mail")
+    .union([z.string().email("Некорректный E-mail"), z.literal("")])
     .optional()
-    .or(z.literal(""))
     .nullable(),
-  website: z.string().optional().nullable(),
-  address: z.string().optional().or(z.literal("")).nullable(),
-  city: z.string().optional().or(z.literal("")).nullable(),
+  website: z.string().trim().max(300).optional().nullable(),
+  address: z.string().trim().max(300).optional().nullable(),
+  city: z.string().trim().max(120).optional().nullable(),
   category: categoriesSchema,
-  note: z.string().optional().nullable(),
+  note: z.string().max(2000).optional().nullable(),
 });
 
 export type CompanyInput = z.infer<typeof companySchema>;
 
 export const contactSchema = z.object({
   id: z.string().uuid().optional(),
-  name: z.string().min(1, "Укажите имя контакта"),
-  phone: z.string().optional().nullable(),
-  title: z.string().optional().nullable(),
+  name: z.string().trim().min(1, "Укажите имя контакта").max(200),
+  phone: z.string().trim().max(50).optional().nullable(),
+  title: z.string().trim().max(200).optional().nullable(),
   email: z
-    .string()
-    .email("Некорректный E-mail")
+    .union([z.string().email("Некорректный E-mail"), z.literal("")])
     .optional()
-    .or(z.literal(""))
     .nullable(),
   category: categoriesSchema,
-  note: z.string().optional().nullable(),
+  note: z.string().max(2000).optional().nullable(),
   company_id: z.string().uuid().optional().nullable(),
-  user_id: z.string().uuid().optional().nullable(),
+  // created_by: z.string().optional().nullable(),
 });
 
 export type ContactInput = z.infer<typeof contactSchema>;
@@ -108,19 +104,31 @@ export const materialSchema = z.object({
 export type MaterialInput = z.infer<typeof materialSchema>;
 
 // --- PROJECTS ---
+export const PROJECT_STATUSES = [
+  "draft",
+  "active",
+  "on_hold",
+  "completed",
+  "archived",
+] as const;
+export type ProjectStatus = (typeof PROJECT_STATUSES)[number];
+
 export const projectSchema = z.object({
   id: z.string().uuid().optional(),
-  title: z.string().min(1, "Укажите название проекта"),
-  client_name: z.string().optional().nullable(),
-  address: z.string().optional().nullable(),
+  title: z.string().trim().min(1, "Укажите название проекта").max(200),
+  client_name: z.string().trim().max(200).optional().nullable(),
+  address: z.string().trim().max(300).optional().nullable(),
   budget: z.number().min(0, "Бюджет не может быть отрицательным").default(0),
-  accent_color: z.string().default("#000000"),
-  status: z.enum(["active", "archived", "completed"]).default("active"),
+  accent_color: z
+    .string()
+    .regex(/^#[0-9a-fA-F]{6}$/, "Некорректный цвет")
+    .default("#000000"),
+  status: z.enum(PROJECT_STATUSES).default("draft"),
   type: z.enum(["Интерьер", "Экстерьер", "Коммерческий"]).default("Интерьер"),
-  cover_url: z.string().optional().nullable(),
-  org_id: z.string().uuid().optional().nullable(),
-  created_at: z.string().optional().nullable(),
-  updated_at: z.string().optional().nullable(),
+  cover_url: z.string().trim().max(500).optional().nullable(),
+  // org_id: z.string().uuid().optional().nullable(),
+  // created_at: z.string().optional().nullable(),
+  // updated_at: z.string().optional().nullable(),
 });
 
 export type ProjectInput = z.infer<typeof projectSchema>;
@@ -140,7 +148,7 @@ export const specItemSchema = z.object({
   unit: z.string().default("шт"),
   price: z.number().min(0, "Цена не может быть отрицательной").default(0),
   status: z
-    .enum(["draft", "approved", "ordered", "delivered"])
+    .enum(["draft", "approved", "ordered", "delivered", "archived"])
     .default("draft"),
   is_placeholder: z.boolean().default(false),
   position: z.number().int().default(0),
@@ -159,4 +167,3 @@ export const reorderSpecItemsSchema = z.object({
 });
 
 export type ReorderSpecItemsInput = z.infer<typeof reorderSpecItemsSchema>;
-
