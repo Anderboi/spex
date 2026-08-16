@@ -65,7 +65,7 @@ export function InviteDialog() {
           Пригласить участника
         </Button>
       </DialogTrigger>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-120 bg-bg-card">
         <DialogHeader>
           <DialogTitle>Приглашение в команду</DialogTitle>
         </DialogHeader>
@@ -80,20 +80,21 @@ export function InviteDialog() {
                 type="email"
                 placeholder="colleague@studio.com"
                 required
+                className="h-10"
               />
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="role">Роль</Label>
               <Select name="role" defaultValue="member">
-                <SelectTrigger>
+                <SelectTrigger className="w-full h-10!">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="member">
+                <SelectContent className="w-fit bg-bg-card">
+                  <SelectItem value="member" className="h-10">
                     Участник (Просмотр и редактирование)
                   </SelectItem>
-                  <SelectItem value="admin">
+                  <SelectItem value="admin" className="h-10">
                     Администратор (Управление проектами и командой)
                   </SelectItem>
                 </SelectContent>
@@ -105,7 +106,7 @@ export function InviteDialog() {
             )}
 
             <div className="flex justify-end gap-2 pt-2">
-              <Button type="submit" disabled={loading}>
+              <Button type="submit" disabled={loading} size='lg'>
                 {loading && <Loader2 className="mr-2 size-4 animate-spin" />}
                 Создать ссылку
               </Button>
@@ -113,7 +114,7 @@ export function InviteDialog() {
           </form>
         ) : (
           <div className="space-y-4 pt-2">
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-fg-muted">
               Приглашение создано. Передайте эту ссылку сотруднику:
             </p>
             <div className="flex items-center gap-2">

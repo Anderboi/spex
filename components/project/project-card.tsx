@@ -1,7 +1,7 @@
 "use client";
 
 import { COVER_PALETTE, STATUS_CONFIG, TYPE_COLORS } from "@/lib/constants";
-import { fmtDate, fmtRub } from "@/lib/utils";
+// import { fmtDate, fmtRub, plural } from "@/lib/utils";
 import { ProjectInput, ProjectStatus } from "@/lib/validations";
 import Link from "next/link";
 import { MouseEvent } from "react";
@@ -13,7 +13,6 @@ export function ProjectCard({
   project: ProjectInput;
   index: number;
 }) {
-  
   const coverBg = COVER_PALETTE[index % COVER_PALETTE.length];
   const currentStatus: ProjectStatus = project.status ?? "active";
   const st = STATUS_CONFIG[currentStatus] ??
@@ -104,25 +103,28 @@ export function ProjectCard({
 
         {/* Stats */}
         <div className="grid grid-cols-3 gap-2 mb-4">
-          <div>
-            {/* <div className="font-mono text-[17px] font-semibold text-fg leading-none">
+          {/* <div> //TODO: add items
+            <div className="font-mono text-[17px] font-semibold text-fg leading-none">
               {project.items ?? 0}
             </div>
             <div className="text-[11.5px] text-fg-muted mt-1 leading-tight">
               {plural(project.items ?? 0, "позиция", "позиции", "позиций")}
-            </div> */}
-          </div>
-          <div>
-            {/* <div className="font-mono text-[17px] font-semibold text-fg leading-none">
+            </div>
+          </div> */}
+          {/* //?Rooms block */}
+          {/* <div> //TODO: add rooms
+            <div className="font-mono text-[17px] font-semibold text-fg leading-none">
               {project.rooms ?? 0}
             </div>
             <div className="text-[11.5px] text-fg-muted mt-1 leading-tight">
               {plural(project.rooms ?? 0, "комната", "комнаты", "комнат")}
-            </div> */}
-          </div>
+            </div>
+          </div> */}
           <div>
             <div className="font-mono text-[17px] font-semibold text-fg leading-none truncate">
-              {fmtRub(project.budget)}
+              {/* {fmtRub(project.budget)} */}
+              {project.budget.toLocaleString("ru-RU").replace(/,/g, "\u2009") +
+                "₽"}
             </div>
             <div className="text-[11.5px] text-fg-muted mt-1 leading-tight">
               Бюджет
@@ -138,6 +140,7 @@ export function ProjectCard({
               {st.label}
             </span>
           </div>
+          {/* //TODO: add date */}
           {/* <span className="font-mono text-[11.5px] text-fg-muted tracking-[.02em]">
             {project.updated_at ? fmtDate(project.updated_at) : "—"}
           </span> */}

@@ -2,10 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 import { Geist, JetBrains_Mono, Unbounded } from "next/font/google";
 import { cn } from "@/lib/utils";
-import { SidebarProvider } from "@/components/ui/sidebar";
-import { AppSidebar } from "@/components/app-sidebar";
 import { ThemeProvider } from "@/components/theme-provider";
-import { auth } from "@/lib/auth";
+import { SessionProvider } from "next-auth/react";
 
 export const metadata: Metadata = {
   title: { default: "Balans Design", template: "%s | Balans" },
@@ -40,7 +38,6 @@ export default async function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  const session = await auth();
   return (
     <html
       lang="ru"
@@ -56,19 +53,16 @@ export default async function RootLayout({
         suppressHydrationWarning
         className="antialiased min-h-screen bg-bg text-fg"
       >
-        <ThemeProvider
-          attribute="class"
-          defaultTheme="light"
-          enableSystem={false}
-          disableTransitionOnChange
-        >
-          <SidebarProvider>
-            <AppSidebar session={session} />
-            <div className="relative flex min-h-svh flex-1 min-w-0 w-full bg-bg overflow-x-hidden">
-              <main className="flex-1 w-full min-w-0">{children}</main>
-            </div>
-          </SidebarProvider>
-        </ThemeProvider>
+        <SessionProvider>
+          <ThemeProvider
+            attribute="class"
+            defaultTheme="light"
+            enableSystem={false}
+            disableTransitionOnChange
+          >
+            <main>{children}</main>
+          </ThemeProvider>
+        </SessionProvider>
       </body>
     </html>
   );

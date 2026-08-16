@@ -1,8 +1,6 @@
 "use client";
 
-import { useTransition } from "react";
-import type { UserOrganization } from "@/lib/queries";
-import { CreateOrgDialog } from "./create-org-dialog";
+import { useState, useTransition } from "react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -10,63 +8,103 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
+  DropdownMenuGroup,
 } from "@/components/ui/dropdown-menu";
-import { Button } from "@/components/ui/button";
-import { Building2, Check, ChevronsUpDown, Loader2 } from "lucide-react";
+import { Building2, Check, ChevronsUpDown, Loader2, Plus } from "lucide-react";
 import { switchOrganization } from "@/app/(auth)/actions";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 
-export function OrgSwitcher({ orgs }: { orgs: UserOrganization[] }) {
+export type UserOrgItem = {
+  id: string;
+  name: string;
+  role: string;
+};
+
+interface OrgSwitcherProps {
+  currentOrgId: string | null;
+  organizations: UserOrgItem[];
+}
+
+export function OrgSwitcher({
+  currentOrgId,
+  organizations = [],
+}: OrgSwitcherProps) {
   const [isPending, startTransition] = useTransition();
-  const activeOrg = orgs.find((o) => o.is_active) || orgs[0];
+  const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
+  const currentOrg =
+    organizations.find((org) => org.id === currentOrgId) || organizations[0];
+  const handleSwitch = (orgId: string) => {
+    if (orgId === currentOrgId) return;
 
-  const handleSelect = (orgId: string) => {
-    if (orgId === activeOrg?.id) return;
     startTransition(async () => {
-      await switchOrganization(orgId);
+      const res = await switchOrganization(orgId);
+      if (!res.success) {
+        setError(res.error);
+        return;
+      }
+      router.refresh();
     });
   };
 
   return (
-    <div className="space-y-2 w-full">
-      <DropdownMenu>
-        <DropdownMenuTrigger disabled={isPending}>
-          <Button
-            variant="outline"
-            className="w-full justify-between px-3 font-normal"
-          >
-            <div className="flex items-center gap-2 truncate">
-              {isPending ? (
-                <Loader2 className="size-4 animate-spin text-muted-foreground" />
-              ) : (
-                <Building2 className="size-4 text-muted-foreground" />
-              )}
-              <span className="truncate font-medium">
-                {activeOrg?.name || "Выберите организацию"}
-              </span>
-            </div>
-            <ChevronsUpDown className="size-4 opacity-50 shrink-0" />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="w-[240px]">
-          <DropdownMenuLabel className="text-xs text-muted-foreground">
+    <DropdownMenu>
+      <DropdownMenuTrigger
+        disabled={isPending}
+        className="w-full bg-bg-card rounded-lg"
+      >
+        <span
+          role="button"
+          className="justify-between items-center flex h-10 px-3"
+        >
+          <div className="flex items-center gap-2 truncate">
+            {isPending ? (
+              <Loader2 className="size-4 animate-spin text-fg-muted shrink-0" />
+            ) : (
+              <Building2 className="size-4 shrink-0 text-fg-muted" />
+            )}
+            <span className="truncate font-medium text-xs">
+              {currentOrg ? currentOrg.name : "Выберите компанию"}
+            </span>
+          </div>
+          <ChevronsUpDown className="size-3 shrink-0 opacity-50" />
+        </span>
+      </DropdownMenuTrigger>
+
+      <DropdownMenuContent align="start" className="//w-50 bg-bg-card">
+        <DropdownMenuGroup>
+          <DropdownMenuLabel className="text-xs text-fg-muted">
             Организации
           </DropdownMenuLabel>
-          {orgs.map((org) => (
-            <DropdownMenuItem
-              key={org.id}
-              onClick={() => handleSelect(org.id)}
-              className="flex items-center justify-between cursor-pointer"
+
+          {organizations.map((org) => {
+            const isSelected = org.id === currentOrgId;
+            return (
+              <DropdownMenuItem
+                key={org.id}
+                onClick={() => handleSwitch(org.id)}
+                className="flex items-center justify-between text-xs cursor-pointer "
+              >
+                <span className="truncate">{org.name}</span>
+                {isSelected && <Check className="size-3.5 text-fg-brand" />}
+              </DropdownMenuItem>
+            );
+          })}
+        </DropdownMenuGroup>
+        <DropdownMenuSeparator />
+        <DropdownMenuGroup>
+          <DropdownMenuItem className="text-xs cursor-pointer">
+            <Link
+              href="/onboarding/create-org"
+              className="flex items-center gap-2"
             >
-              <span className="truncate">{org.name}</span>
-              {org.is_active && <Check className="size-4 text-primary" />}
-            </DropdownMenuItem>
-          ))}
-          <DropdownMenuSeparator />
-          <div className="p-1">
-            <CreateOrgDialog />
-          </div>
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </div>
+              <Plus className="size-3.5" />
+              <span>Создать компанию</span>
+            </Link>
+          </DropdownMenuItem>
+        </DropdownMenuGroup>
+      </DropdownMenuContent>
+    </DropdownMenu>
   );
 }

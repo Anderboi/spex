@@ -2,8 +2,8 @@
 
 import { useRef, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
-import { TYPE_ORDER } from "@/lib/types";
 import { ChevronLeft, ChevronRight } from "lucide-react";
+import { TYPE_ORDER } from "@/lib/constants";
 
 interface TypeChipsSectionProps {
   items?: readonly string[];
@@ -17,7 +17,7 @@ interface TypeChipsSectionProps {
 export default function TypeChipsSection({
   items = TYPE_ORDER,
   allLabel = "Все типы",
-  activeType:  controlledActive,
+  activeType: controlledActive,
   setActiveType,
   className = "",
 }: TypeChipsSectionProps) {
@@ -29,7 +29,6 @@ export default function TypeChipsSection({
 
   // Определяем активный тип: приоритет у prop -> затем paramName из URL -> по умолчанию "Все типы"
   let activeType = controlledActive;
- 
 
   // Обработчик переключения типа
   const handleSelect = (selectedType: string) => {

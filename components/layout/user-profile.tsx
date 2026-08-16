@@ -6,6 +6,7 @@ import { logout } from "@/app/(auth)/actions";
 import { LogoutDialog } from "../auth/logout-dialog";
 import { initials } from "@/lib/utils";
 import { ChevronDown } from "lucide-react";
+import { redirect } from 'next/navigation';
 
 interface UserProfileProps {
   user?: {
@@ -90,7 +91,7 @@ export function UserProfile({ user }: UserProfileProps) {
             </div>
 
             <button
-              onClick={() => setIsPopoverOpen(false)}
+              onClick={() => {setIsPopoverOpen(false); redirect('/settings/team')}}
               className="w-full flex items-center gap-2.5 px-2.5 py-2 text-[13px] font-medium text-fg-secondary rounded-[8px] hover:bg-bg-select hover:text-fg transition-colors cursor-pointer text-left"
             >
               Профиль и студия

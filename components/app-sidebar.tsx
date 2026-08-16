@@ -13,11 +13,11 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { cn } from "@/lib/utils";
-import { BookUser, Folder, Layers, Settings, User2 } from "lucide-react";
+import { BookUser, Folder, Layers } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { UserProfile } from "./layout/user-profile";
-import { OrgSwitcher } from './orgs/org-switcher';
+import { OrgSwitcher, UserOrgItem } from './orgs/org-switcher';
 
 const NAV_ITEMS = [
   { href: "/projects", label: "Проекты", icon: Folder },
@@ -25,13 +25,19 @@ const NAV_ITEMS = [
   { href: "/contacts", label: "Контакты", icon: BookUser },
 ];
 
-const BOTTOM_ITEMS = [
-  { href: "/profile", label: "Профиль", icon: User2 },
-  { href: "/settings", label: "Настройки", icon: Settings },
-];
+interface AppSidebarProps {
+  session?: any;
+  currentOrgId?: string | null;
+  organizations?: UserOrgItem[];
+}
 
-export function AppSidebar({ session }: { session?: any }) {
+export function AppSidebar({
+  session,
+  currentOrgId = null,
+  organizations = [],
+}: AppSidebarProps) {
   const pathname = usePathname();
+
   return (
     <Sidebar variant="sidebar" collapsible="icon">
       <SidebarHeader className="font-heading text-xl flex flex-row items-center justify-between">
@@ -53,7 +59,7 @@ export function AppSidebar({ session }: { session?: any }) {
                     size={"default"}
                     tooltip={item.label}
                     className={cn(
-                      "cursor-pointer hover:bg-bg-brand/50 h-9 px-4 text-fg-secondary/80 hover:text-fg-body ",
+                      "cursor-pointer hover:bg-bg-brand/50 h-10 px-4 text-fg-secondary/80 hover:text-fg-body ",
                       isActive && "bg-bg-brand text-fg hover:bg-bg-select",
                     )}
                   >
@@ -72,11 +78,15 @@ export function AppSidebar({ session }: { session?: any }) {
             })}
           </SidebarMenu>
         </SidebarGroup>
-        <SidebarGroup />
       </SidebarContent>
       <SidebarSeparator />
       <SidebarFooter>
-        <OrgSwitcher orgs={[]} />
+        <div className="group-data-[collapsible=icon]:hidden">
+          <OrgSwitcher
+            currentOrgId={currentOrgId ?? session?.user?.org_id ?? null}
+            organizations={organizations}
+          />
+        </div>
         <UserProfile user={session?.user} />
       </SidebarFooter>
     </Sidebar>

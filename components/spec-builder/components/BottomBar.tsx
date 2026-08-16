@@ -1,8 +1,8 @@
-'use client';
+"use client";
 
-import { STATUS_FLOW } from '@/lib/types';
 import { statusMeta } from "@/lib/utils";
 import { useSidebar } from "@/components/ui/sidebar";
+import { STATUS_FLOW } from "@/lib/constants";
 
 interface BottomBarProps {
   totalCount: number;
@@ -22,9 +22,20 @@ interface BottomBarProps {
 }
 
 export default function BottomBar({
-  totalCount, totalSum, selectionActive, selCount, selSumStr,
-  allVisibleSelected, visIds, selected, bulkMenuOpen, setBulkMenuOpen,
-  onClearSel, onSelectAllVisible, onBulkDelete, bulkStatus
+  totalCount,
+  totalSum,
+  selectionActive,
+  selCount,
+  selSumStr,
+  allVisibleSelected,
+  visIds,
+  selected,
+  bulkMenuOpen,
+  setBulkMenuOpen,
+  onClearSel,
+  onSelectAllVisible,
+  onBulkDelete,
+  bulkStatus,
 }: BottomBarProps) {
   const { state, isMobile } = useSidebar();
   const isCollapsed = state === "collapsed" || isMobile;

@@ -4,7 +4,7 @@ import React, { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import { SpecItem, TYPE_ORDER, UNIT_OPTIONS } from "@/lib/types";
+import { SpecItem } from "@/lib/types";
 import { fmt, catKey } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -21,6 +21,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { TYPE_ORDER, UNIT_OPTIONS } from '@/lib/constants';
 
 const manualSchema = z.object({
   name: z.string().min(1, "Required"),

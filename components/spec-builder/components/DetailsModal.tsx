@@ -1,5 +1,5 @@
-import { FILE_CATS, MAP_OPTIONS } from '@/lib/constants';
-import { SpecItem, STATUS_FLOW, UNIT_OPTIONS } from '@/lib/types';
+import { FILE_CATS, MAP_OPTIONS, STATUS_FLOW, UNIT_OPTIONS } from '@/lib/constants';
+import { SpecItem } from '@/lib/types';
 import { availMeta, brandSite, fmt, humanSize, plural, statusMeta } from '@/lib/utils';
 
 // ─── DetailModal ─────────────────────────────────────────────────
@@ -83,13 +83,13 @@ export function DetailModal({
                   </span>;
                 })}
               </div>
-              <div className="flex gap-[10px] mt-[14px] items-stretch">
+              <div className="flex gap-2 mt-3 items-stretch">
                 <div className="flex-1 bg-bg-card border border-border rounded-[12px] py-[13px] px-[14px]">
                   <div className="font-mono text-[9px] tracking-[.08em] uppercase text-fg-muted">Кол-во</div>
-                  <div className="flex items-center gap-3 mt-[7px]">
-                    <span onClick={onMinus} className="w-[26px] h-[26px] rounded-[7px] border border-border-muted flex items-center justify-center cursor-pointer text-[16px] select-none">−</span>
+                  <div className="flex items-center gap-3 mt-2">
+                    <span onClick={onMinus} className="w-6 h-6 rounded-[7px] border border-border-muted flex items-center justify-center cursor-pointer text-[16px] select-none">−</span>
                     <span className="font-mono text-[18px] font-semibold">{item.qty}</span>
-                    <span onClick={onPlus} className="w-[26px] h-[26px] rounded-[7px] border border-border-muted flex items-center justify-center cursor-pointer text-[16px] select-none">+</span>
+                    <span onClick={onPlus} className="w-6 h-6 rounded-[7px] border border-border-muted flex items-center justify-center cursor-pointer text-[16px] select-none">+</span>
                     <select value={item.unit} onChange={(e) => onUnit(e.target.value)} className="ml-auto h-[30px] px-2 border border-border-muted rounded-[7px] bg-bg-white font-mono text-[12px] text-fg-body cursor-pointer">
                       {UNIT_OPTIONS.map(u => <option key={u} value={u}>{u}</option>)}
                     </select>
