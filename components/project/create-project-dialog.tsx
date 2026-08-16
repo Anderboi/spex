@@ -25,7 +25,7 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { upsertProject } from "@/app/projects/actions";
+import { upsertProject } from "@/app/(protected)/projects/actions";
 
 interface CreateProjectDialogProps {
   trigger?: React.ReactNode;
@@ -52,6 +52,10 @@ export function CreateProjectDialog({ trigger }: CreateProjectDialogProps) {
       client_name: "",
       accent_color: "#000000",
       status: "active",
+      cover_url: null,
+      address: "",
+      budget: 0,
+      type: "Интерьер",
     },
   });
 
@@ -75,12 +79,12 @@ export function CreateProjectDialog({ trigger }: CreateProjectDialogProps) {
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger>
         {trigger || (
-          <div
+          <span
             role="button"
-            className="flex items-center gap-2 bg-bg-accent text-bg border-none rounded-[13px] py-4 px-6 font-sans text-[15px] font-semibold cursor-pointer"
+            className="flex h-10 items-center gap-2 bg-bg-accent text-bg border-none rounded-lg px-6 text-[15px] font-semibold cursor-pointer"
           >
             <Plus className="size-4" /> Новый проект
-          </div>
+          </span>
         )}
       </DialogTrigger>
 
@@ -142,6 +146,50 @@ export function CreateProjectDialog({ trigger }: CreateProjectDialogProps) {
                       className="bg-bg border-border-muted rounded-[12px] h-11 text-fg placeholder:text-fg-muted focus:border-border-dash-input"
                       value={field.value || ""}
                       onChange={field.onChange}
+                    />
+                  </FormControl>
+                  <FormMessage className="text-xs text-red-500" />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="address"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-xs font-semibold uppercase tracking-wider text-fg-muted">
+                    Адрес
+                  </FormLabel>
+                  <FormControl>
+                    <Input
+                      placeholder="Адрес объекта"
+                      className="bg-bg border-border-muted rounded-[12px] h-11 text-fg placeholder:text-fg-muted focus:border-border-dash-input"
+                      value={field.value || ""}
+                      onChange={field.onChange}
+                    />
+                  </FormControl>
+                  <FormMessage className="text-xs text-red-500" />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="budget"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-xs font-semibold uppercase tracking-wider text-fg-muted">
+                    Ориентировочный бюджет
+                  </FormLabel>
+                  <FormControl>
+                    <Input
+                      type="number"
+                      placeholder="10 000 000 ₽"
+                      className="bg-bg border-border-muted rounded-[12px] h-11 text-fg placeholder:text-fg-muted focus:border-border-dash-input"
+                      value={field.value ?? 0}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        field.onChange(val === "" ? 0 : Number(val));
+                      }}
                     />
                   </FormControl>
                   <FormMessage className="text-xs text-red-500" />

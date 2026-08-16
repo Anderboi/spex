@@ -1,8 +1,8 @@
-"use client"; 
+"use client";
 
 import { COVER_PALETTE, STATUS_CONFIG, TYPE_COLORS } from "@/lib/constants";
-import { Project } from "@/lib/types";
-import { fmtDate, fmtRub, plural } from "@/lib/utils";
+import { fmtDate, fmtRub } from "@/lib/utils";
+import { ProjectInput, ProjectStatus } from "@/lib/validations";
 import Link from "next/link";
 import { MouseEvent } from "react";
 
@@ -10,13 +10,14 @@ export function ProjectCard({
   project,
   index,
 }: {
-  project: Project;
+  project: ProjectInput;
   index: number;
 }) {
+  
   const coverBg = COVER_PALETTE[index % COVER_PALETTE.length];
-  const currentStatus = project.status ?? "В работе";
+  const currentStatus: ProjectStatus = project.status ?? "active";
   const st = STATUS_CONFIG[currentStatus] ??
-    STATUS_CONFIG["В работе"] ?? {
+    STATUS_CONFIG.active ?? {
       label: currentStatus,
       dot: "bg-bg-green",
     };
@@ -104,20 +105,20 @@ export function ProjectCard({
         {/* Stats */}
         <div className="grid grid-cols-3 gap-2 mb-4">
           <div>
-            <div className="font-mono text-[17px] font-semibold text-fg leading-none">
+            {/* <div className="font-mono text-[17px] font-semibold text-fg leading-none">
               {project.items ?? 0}
             </div>
             <div className="text-[11.5px] text-fg-muted mt-1 leading-tight">
               {plural(project.items ?? 0, "позиция", "позиции", "позиций")}
-            </div>
+            </div> */}
           </div>
           <div>
-            <div className="font-mono text-[17px] font-semibold text-fg leading-none">
+            {/* <div className="font-mono text-[17px] font-semibold text-fg leading-none">
               {project.rooms ?? 0}
             </div>
             <div className="text-[11.5px] text-fg-muted mt-1 leading-tight">
               {plural(project.rooms ?? 0, "комната", "комнаты", "комнат")}
-            </div>
+            </div> */}
           </div>
           <div>
             <div className="font-mono text-[17px] font-semibold text-fg leading-none truncate">
@@ -137,9 +138,9 @@ export function ProjectCard({
               {st.label}
             </span>
           </div>
-          <span className="font-mono text-[11.5px] text-fg-muted tracking-[.02em]">
-            {project.updatedAt ? fmtDate(project.updatedAt) : "—"}
-          </span>
+          {/* <span className="font-mono text-[11.5px] text-fg-muted tracking-[.02em]">
+            {project.updated_at ? fmtDate(project.updated_at) : "—"}
+          </span> */}
         </div>
 
         {/* Hover actions — заменены теги <button> на роли role="button" в <div> */}
