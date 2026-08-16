@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { SupplierOption, TYPE_ORDER, UNIT_OPTIONS } from "@/lib/types";
 import {
   Dialog,
   DialogContent,
@@ -10,7 +9,6 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { upsertMaterial } from "@/app/materials/actions";
 import {
   CompanyInput,
   ContactInput,
@@ -46,6 +44,7 @@ import {
   CommandItem,
   CommandList,
 } from "../ui/command";
+import { TYPE_ORDER, UNIT_OPTIONS } from '@/lib/constants';
 
 interface MaterialDialogProps {
   open: boolean;

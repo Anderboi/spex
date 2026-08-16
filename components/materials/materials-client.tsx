@@ -8,7 +8,10 @@ import {
   useTransition,
 } from "react";
 import { CompanyInput, ContactInput, MaterialInput } from "@/lib/validations";
-import { deleteMaterial, upsertMaterial } from "@/app/materials/actions";
+import {
+  deleteMaterial,
+  upsertMaterial,
+} from "@/app/(protected)/materials/actions";
 import { MaterialDialog } from "./material-dialog";
 import { usePathname, useRouter } from "next/navigation";
 import MaterialCard from "./material-card";

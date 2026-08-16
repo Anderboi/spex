@@ -5,6 +5,8 @@ import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
 import Link from "next/link";
+import { Suspense } from "react";
+import { MaterialsSkeleton } from "@/components/materials/materials-skeleton";
 
 interface MaterialsPageProps {
   searchParams: Promise<{
@@ -18,13 +20,6 @@ interface MaterialsPageProps {
 export default async function MaterialsLibraryPage({
   searchParams,
 }: MaterialsPageProps) {
-  const resolvedParams = await searchParams;
-
-  const [materials, counterparties] = await Promise.all([
-    getMaterials(),
-    getCounterparties(),
-  ]);
-
   return (
     <>
       <PageHeader
@@ -40,7 +35,22 @@ export default async function MaterialsLibraryPage({
           </Link>
         </Button>
       </PageHeader>
+      <Suspense fallback={<MaterialsSkeleton />}>
+        <MaterialsData searchParams={searchParams} />
+      </Suspense>
+    </>
+  );
+}
 
+async function MaterialsData({ searchParams }: MaterialsPageProps) {
+  const resolvedParams = await searchParams;
+
+  const [materials, counterparties] = await Promise.all([
+    getMaterials(),
+    getCounterparties(),
+  ]);
+  return (
+    <>
       <SearchSortBar
         placeholder="Поиск по материалам, артикулам, брендам…"
         sortOptions={[
@@ -56,7 +66,6 @@ export default async function MaterialsLibraryPage({
         contacts={counterparties.contacts}
         searchParams={resolvedParams}
       />
-      
     </>
   );
 }
