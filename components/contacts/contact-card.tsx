@@ -36,11 +36,25 @@ export const ContactCard = memo(
           <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-bg-brand2 text-sm font-medium text-fg-body">
             {initials(contact.name)}
           </div>
-          <div className="min-w-0 flex-1">
+          <div className="min-w-0 flex-1 space-y-2">
             <div className="flex flex-wrap items-baseline gap-x-2">
               <span className="font-medium text-fg-body">{contact.name}</span>
               {contact.title && (
                 <span className="text-xs text-fg-muted">{contact.title}</span>
+              )}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {contact.category.length > 0 ? (
+                contact.category.map((cat) => (
+                  <span
+                    key={cat}
+                    className="rounded-full border border-fg-brand/50 bg-bg-brand/30 text-fg-brand px-2 py-0.5 text-xs font-medium"
+                  >
+                    {cat}
+                  </span>
+                ))
+              ) : (
+                <span className="text-xs text-fg-muted">Без категории</span>
               )}
             </div>
             <div className="mt-1 flex flex-col gap-0.5 text-xs text-fg-muted">
@@ -58,6 +72,7 @@ export const ContactCard = memo(
                 </a>
               )}
             </div>
+
             {contact.note && (
               <p className="mt-2 text-xs text-fg-muted">{contact.note}</p>
             )}

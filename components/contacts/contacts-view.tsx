@@ -6,12 +6,16 @@ import React, {
   useOptimistic,
   useMemo,
   useDeferredValue,
+  useCallback,
 } from "react";
 import { Button } from "@/components/ui/button";
 import { Building2, Plus, Search, UserPlus } from "lucide-react";
 import { CompanyCard } from "./company-card";
 import { CompanyRow, ContactRow } from "@/lib/validations";
-import { deleteCompany, deleteContact } from "@/app/contacts/actions";
+import {
+  deleteCompany,
+  deleteContact,
+} from "@/app/(protected)/contacts/actions";
 import { CompanyDialog } from "./company-dialog";
 import { ContactDialog } from "./contact-dialog";
 import TypeChipsSection from "../spec-builder/components/TypeChipsSection";
@@ -24,10 +28,10 @@ interface ContactsViewProps {
   initialContacts: ContactRow[];
 }
 
-type CompanyAction = { type: "DELETE"; id: string };
+type CompanyAction = { type: "remove"; id: string };
 type ContactAction =
-  | { type: "DELETE"; id: string }
-  | { type: "CASCADE_DELETE_BY_COMPANY"; companyId: string };
+  | { type: "remove"; id: string }
+  | { type: "detachFromCompany"; companyId: string };
 
 export default function ContactsView({
   initialCompanies,
@@ -58,7 +62,7 @@ export default function ContactsView({
     initialCompanies,
     (state, action: CompanyAction) => {
       switch (action.type) {
-        case "DELETE":
+        case "remove":
           return state.filter((c) => c.id !== action.id);
         default:
           return state;
@@ -70,15 +74,25 @@ export default function ContactsView({
     initialContacts,
     (state, action: ContactAction) => {
       switch (action.type) {
-        case "DELETE":
+        case "remove":
           return state.filter((c) => c.id !== action.id);
-        case "CASCADE_DELETE_BY_COMPANY":
+        case "detachFromCompany":
           // Удаляем контакты привязанные к удаляемой компании
           return state.filter((c) => c.company_id !== action.companyId);
         default:
           return state;
       }
     },
+  );
+
+  const [contacts, applyContact] = useOptimistic(
+    initialContacts,
+    (state, a: ContactAction) =>
+      a.type === "remove"
+        ? state.filter((c) => c.id !== a.id)
+        : state.map((c) =>
+            c.company_id === a.companyId ? { ...c, company_id: null } : c,
+          ),
   );
 
   const expandByDefault = optimisticCompanies.length <= 5;
@@ -208,28 +222,29 @@ export default function ContactsView({
       .map((item) => item.contact);
   }, [indexedIndependent, selectedCategory, qText, qDigits]);
   // Обработчики удаления с оптимистичным обновлением
-  const handleRemoveCompany = (id: string) => {
-    startTransition(async () => {
-      // Оптимистично удаляем компанию и связку ее контактов
-      setOptimisticCompanies({ type: "DELETE", id });
-      setOptimisticContacts({
-        type: "CASCADE_DELETE_BY_COMPANY",
-        companyId: id,
-      });
+  const handleRemoveCompany = useCallback(
+    (id: string) => {
+      startTransition(async () => {
+        // Оптимистично удаляем компанию и связку ее контактов
+        setOptimisticContacts({ type: "remove", id });
+        applyContact({
+          type: "detachFromCompany",
+          companyId: id,
+        });
 
-      try {
-        await deleteCompany(id);
-        toast.success("Компания удалена");
-      } catch (error) {
-        toast.error("Не удалось удалить компанию. Попробуйте снова.");
-        console.error("Failed to delete company:", error);
-      }
-    });
-  };
+        const res = await deleteCompany(id);
+        if (!res?.success)
+          toast.error("Не удалось удалить компанию", {
+            description: res.error,
+          });
+      });
+    },
+    [setOptimisticContacts, applyContact],
+  );
 
   const handleRemoveContact = (id: string) => {
     startTransition(async () => {
-      setOptimisticContacts({ type: "DELETE", id });
+      setOptimisticContacts({ type: "remove", id });
 
       try {
         await deleteContact(id);

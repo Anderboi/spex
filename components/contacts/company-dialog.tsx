@@ -6,7 +6,6 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import { Loader2 } from "lucide-react";
 
 import { companySchema, CompanyInput } from "@/lib/validations";
-import { TYPE_ORDER } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -24,9 +23,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { upsertCompany } from "@/app/contacts/actions";
-import z from 'zod';
-import { CategoryMultiSelect } from '../layout/category-multiselect';
+import { upsertCompany } from "@/app/(protected)/contacts/actions";
+import z from "zod";
+import { CategoryMultiSelect } from "../layout/category-multiselect";
+import { TYPE_ORDER } from "@/lib/constants";
 
 interface CompanyDialogProps {
   open: boolean;
@@ -89,10 +89,11 @@ export function CompanyDialog({
       );
     } else {
       // Добавляем категорию в массив
-     setValue("category", [...current, type], {
-       shouldValidate: true,
-       shouldDirty: true,
-     });}
+      setValue("category", [...current, type], {
+        shouldValidate: true,
+        shouldDirty: true,
+      });
+    }
   };
 
   return (

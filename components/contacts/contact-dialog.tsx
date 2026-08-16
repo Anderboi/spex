@@ -23,10 +23,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { upsertContact } from "@/app/contacts/actions"; // Импорт вашей Server Action
+import { upsertContact } from "@/app/(protected)/contacts/actions"; // Импорт вашей Server Action
 import z from "zod";
-import { TYPE_ORDER } from "@/lib/types";
 import { CategoryMultiSelect } from "../layout/category-multiselect";
+import { TYPE_ORDER } from "@/lib/constants";
 
 interface ContactDialogProps {
   open: boolean;
@@ -66,7 +66,6 @@ export function ContactDialog({
       note: "",
       company_id: defaultCompanyId,
       category: [],
-      user_id: null,
     },
   });
 

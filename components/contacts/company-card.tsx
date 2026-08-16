@@ -226,16 +226,10 @@ export const CompanyCard = memo(
                 Удалить компанию «{company.name}»?
               </AlertDialogTitle>
               <AlertDialogDescription>
-                {managers.length > 0 ? (
-                  <>
-                    У этой компании есть{" "}
-                    <strong>{formatContactsCount(managers.length)}</strong>. Они
-                    не будут удалены, а перейдут в список{" "}
-                    <strong>«Специалисты»</strong> (как независимые контакты).
-                  </>
-                ) : (
-                  "Это действие нельзя будет отменить."
-                )}
+                {managers.length > 0
+                  ? `Компания будет удалена. Её контакты (${pluralizeContacts(managers.length)}) ` +
+                    `останутся в справочнике как независимые специалисты. Материалы этого поставщика сохранятся.`
+                  : "Компания будет удалена. Материалы этого поставщика сохранятся."}
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
