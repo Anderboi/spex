@@ -161,7 +161,11 @@ export async function acceptInvite(token: string) {
 /**
  * 3. Изменение роли участника
  */
-export async function updateMemberRole(targetUserId: string, newRole: OrgRole) {
+export async function updateMemberRole(
+  orgSlug: string,
+  targetUserId: string,
+  newRole: OrgRole,
+) {
   const { userId, orgId, role } = await requireOrg();
 
   if (!can(role, "member:role:change")) {
@@ -213,14 +217,18 @@ export async function updateMemberRole(targetUserId: string, newRole: OrgRole) {
     return { success: false as const, error: "Не удалось изменить роль" };
   }
 
-  revalidatePath("/settings/team");
+  revalidatePath(`/${orgSlug}/settings/team`);
   return { success: true as const };
 }
 
 /**
  * 4. Удаление участника из организации
  */
-export async function removeMember(memberId: string, targetRole: OrgRole) {
+export async function removeMember(
+  orgSlug: string,
+  memberId: string,
+  targetRole: OrgRole,
+) {
   const { orgId, role: currentUserRole } = await requireOrg();
 
   if (!canRemoveMember(currentUserRole, targetRole)) {
@@ -238,7 +246,7 @@ export async function removeMember(memberId: string, targetRole: OrgRole) {
     throw new Error("Не удалось исключить участника");
   }
 
-  revalidatePath("/settings/team");
+  revalidatePath(`/${orgSlug}/settings/team`);
 }
 
 export async function switchActiveOrg(targetOrgId: string) {

@@ -7,14 +7,12 @@ import {
   CompanyInput,
   ContactInput,
 } from "@/lib/validations";
-import { createAdminClient } from "@/lib/supabase/admin";
-import { auth } from "@/lib/auth";
-import { assertCanMutate, forbidden, scoped } from '@/lib/db/guard';
-import { can } from '@/lib/permissions';
+import { assertCanMutate, forbidden, scoped } from "@/lib/db/guard";
+import { can } from "@/lib/permissions";
 
 // --- КОМПАНИИ ---
 
-export async function upsertCompany(input: CompanyInput) {
+export async function upsertCompany(orgSlug: string, input: CompanyInput) {
   const parsed = companySchema.safeParse(input);
   if (!parsed.success) {
     return { success: false as const, error: parsed.error.issues[0].message };
@@ -24,7 +22,7 @@ export async function upsertCompany(input: CompanyInput) {
 
   // ── обновление
   if (id) {
-    const guard = await assertCanMutate("companies", id);
+    const guard = await assertCanMutate(orgSlug,"companies", id);
     if (!guard.ok) return guard.response;
 
     const { data, error } = await guard.ctx.supabase
@@ -42,12 +40,12 @@ export async function upsertCompany(input: CompanyInput) {
         error: "Не удалось сохранить компанию",
       };
     }
-    revalidatePath("/contacts");
+    revalidatePath(`/${orgSlug}/contacts`);
     return { success: true as const, data };
   }
 
   // ── создание
-  const ctx = await scoped();
+  const ctx = await scoped(orgSlug);
   if (!can(ctx.role, "record:create")) return forbidden();
 
   const { data, error } = await ctx.supabase
@@ -61,12 +59,12 @@ export async function upsertCompany(input: CompanyInput) {
     return { success: false as const, error: "Не удалось создать компанию" };
   }
 
-  revalidatePath("/contacts");
+  revalidatePath(`/${orgSlug}/contacts`);
   return { success: true as const, data };
 }
 
-export async function deleteCompany(id: string) {
-  const guard = await assertCanMutate("companies", id);
+export async function deleteCompany(orgSlug: string, id: string) {
+  const guard = await assertCanMutate(orgSlug,"companies", id);
   if (!guard.ok) return guard.response;
 
   // FK: contacts.company_id → SET NULL, materials.company_id → SET NULL
@@ -82,15 +80,15 @@ export async function deleteCompany(id: string) {
     return { success: false as const, error: "Не удалось удалить компанию" };
   }
 
-  revalidatePath("/contacts");
-  revalidatePath("/materials"); // ← у материалов пропал поставщик
+  revalidatePath(`/${orgSlug}/contacts`);
+  revalidatePath(`/${orgSlug}/materials`); // ← у материалов пропал поставщик
   return { success: true as const };
 }
-
 
 // --- КОНТАКТЫ / МЕНЕДЖЕРЫ ---
 
 export async function upsertContact(
+  orgSlug: string,
   input: ContactInput & { company_id?: string | null },
 ) {
   const parsed = contactSchema.safeParse(input);
@@ -103,7 +101,7 @@ export async function upsertContact(
   const companyId = input.company_id ?? null;
 
   if (id) {
-    const guard = await assertCanMutate("contacts", id);
+    const guard = await assertCanMutate(orgSlug,"contacts", id);
     if (!guard.ok) return guard.response;
 
     // компания обязана быть из той же организации
@@ -129,11 +127,11 @@ export async function upsertContact(
       console.error("[upsertContact:update]", error.message);
       return { success: false as const, error: "Не удалось сохранить контакт" };
     }
-    revalidatePath("/contacts");
+    revalidatePath(`/${orgSlug}/contacts`);
     return { success: true as const, data };
   }
 
-  const ctx = await scoped();
+  const ctx = await scoped(orgSlug);
   if (!can(ctx.role, "record:create")) return forbidden();
 
   if (companyId) {
@@ -162,12 +160,12 @@ export async function upsertContact(
     return { success: false as const, error: "Не удалось создать контакт" };
   }
 
-  revalidatePath("/contacts");
+  revalidatePath(`/${orgSlug}/contacts`);
   return { success: true as const, data };
 }
 
-export async function deleteContact(id: string) {
-  const guard = await assertCanMutate("contacts", id);
+export async function deleteContact(orgSlug: string, id: string) {
+  const guard = await assertCanMutate(orgSlug,"contacts", id);
   if (!guard.ok) return guard.response;
 
   const { error } = await guard.ctx.supabase
@@ -181,7 +179,7 @@ export async function deleteContact(id: string) {
     return { success: false as const, error: "Не удалось удалить контакт" };
   }
 
-  revalidatePath("/contacts");
-  revalidatePath("/materials");
+  revalidatePath(`/${orgSlug}/contacts`);
+  revalidatePath(`/${orgSlug}/materials`);
   return { success: true as const };
 }

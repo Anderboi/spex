@@ -2,10 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 import { MaterialInput, materialSchema } from "@/lib/validations";
-import { createAdminClient } from "@/lib/supabase/admin";
-import { auth } from "@/lib/auth";
 import { assertCanMutate, forbidden, scoped } from "@/lib/db/guard";
 import { can } from "@/lib/permissions";
+import { requireOrgBySlug } from "@/lib/auth/session";
 
 type ActionResponse<T = any> = {
   success: boolean;
@@ -14,8 +13,10 @@ type ActionResponse<T = any> = {
 };
 
 export async function upsertMaterial(
+  orgSlug: string,
   input: MaterialInput,
 ): Promise<ActionResponse> {
+  const { userId, orgId, role } = await requireOrgBySlug(orgSlug);
   const parsed = materialSchema.safeParse(input);
   if (!parsed.success) {
     return { success: false as const, error: parsed.error.issues[0].message };
@@ -24,7 +25,7 @@ export async function upsertMaterial(
   const { id, ...fields } = parsed.data as MaterialInput & { id?: string };
 
   if (id) {
-    const guard = await assertCanMutate("materials", id);
+    const guard = await assertCanMutate(orgSlug, "materials", id);
     if (!guard.ok) return guard.response;
 
     const { data, error } = await guard.ctx.supabase
@@ -42,12 +43,12 @@ export async function upsertMaterial(
         error: "Не удалось сохранить материал",
       };
     }
-    revalidatePath("/materials");
+    revalidatePath(`/${orgSlug}/materials`);
     return { success: true as const, data };
   }
 
   //* ── создание
-  const ctx = await scoped();
+  const ctx = await scoped(orgSlug);
   if (!can(ctx.role, "record:create")) return forbidden();
 
   const { data, error } = await ctx.supabase
@@ -61,12 +62,12 @@ export async function upsertMaterial(
     return { success: false as const, error: "Не удалось создать материал" };
   }
 
-  revalidatePath("/materials");
+  revalidatePath(`/${orgSlug}/materials`);
   return { success: true as const, data };
 }
 
-export async function deleteMaterial(id: string) {
-  const guard = await assertCanMutate("materials", id);
+export async function deleteMaterial(orgSlug: string, id: string) {
+  const guard = await assertCanMutate(orgSlug, "materials", id);
   if (!guard.ok) return guard.response;
 
   // мягкое удаление: материал может стоять в спецификациях сданных проектов
@@ -81,7 +82,7 @@ export async function deleteMaterial(id: string) {
     return { success: false as const, error: "Не удалось удалить материал" };
   }
 
-  revalidatePath("/materials");
+  revalidatePath(`/${orgSlug}/materials`);
   return { success: true as const };
 }
 
@@ -89,10 +90,11 @@ export async function deleteMaterial(id: string) {
  * Вспомогательный Action для импорта материала напрямую в специфическую таблицу проекта
  */
 export async function addMaterialToProject(
+  orgSlug: string,
   materialId: string,
   projectId: string,
 ) {
-  const ctx = await scoped();
+  const ctx = await scoped(orgSlug);
   if (!can(ctx.role, "record:create")) return forbidden();
 
   // обе сущности обязаны принадлежать нашей организации
@@ -143,6 +145,6 @@ export async function addMaterialToProject(
     };
   }
 
-  revalidatePath(`/projects/${projectId}`);
+  revalidatePath(`/${orgSlug}/projects/${projectId}`);
   return { success: true as const, data };
 }

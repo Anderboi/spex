@@ -3,9 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { projectSchema, ProjectInput } from "@/lib/validations";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { requireOrg } from "@/lib/auth/session";
+import { requireOrg, requireOrgBySlug } from "@/lib/auth/session";
 import { canMutateRecord } from "@/lib/permissions";
 import { assertCanMutate } from "@/lib/db/guard";
+import { ActionResult, ok } from "@/lib/action-result";
 
 type ActionResponse<T = unknown> = {
   success: boolean;
@@ -14,14 +15,15 @@ type ActionResponse<T = unknown> = {
 };
 
 export async function upsertProject(
+  orgSlug: string,
   input: ProjectInput,
-): Promise<ActionResponse> {
+): Promise<ActionResult<{ id: string }>> {
   const parsed = projectSchema.safeParse(input);
   if (!parsed.success) {
     return { success: false, error: parsed.error.issues[0].message };
   }
 
-  const { userId, orgId } = await requireOrg();
+  const { userId, orgId, role } = await requireOrgBySlug(orgSlug);
   const supabase = createAdminClient();
 
   // никогда не доверяем клиенту в этих полях
@@ -34,7 +36,7 @@ export async function upsertProject(
   } = parsed.data as any;
 
   if (id) {
-    const guard = await assertCanMutate("projects", id);
+    const guard = await assertCanMutate(orgSlug, "projects", id);
     if (!guard.ok) return guard.response;
 
     const { data, error } = await guard.ctx.supabase
@@ -51,8 +53,7 @@ export async function upsertProject(
     }
     if (!data) return { success: false, error: "Проект не найден" }; // чужой org_id
 
-    revalidatePath("/projects");
-    revalidatePath(`/projects/${id}`);
+    revalidatePath(`/${orgSlug}/projects`);
     return { success: true, data };
   }
 
@@ -68,10 +69,13 @@ export async function upsertProject(
   }
 
   revalidatePath("/projects");
-  return { success: true, data };
+  return ok({ id: data.id as string });
 }
 
-export async function deleteProject(id: string): Promise<ActionResponse> {
+export async function deleteProject(
+  orgSlug: string,
+  id: string,
+): Promise<ActionResponse> {
   if (!id) return { success: false, error: "ID не указан" };
 
   const { userId, orgId, role } = await requireOrg();
@@ -93,7 +97,7 @@ export async function deleteProject(id: string): Promise<ActionResponse> {
     };
   }
 
-  const guard = await assertCanMutate("projects", id);
+  const guard = await assertCanMutate(orgSlug, "projects", id);
   if (!guard.ok) return guard.response;
 
   const { error } = await guard.ctx.supabase
@@ -107,6 +111,6 @@ export async function deleteProject(id: string): Promise<ActionResponse> {
     return { success: false, error: "Не удалось удалить проект" };
   }
 
-  revalidatePath("/projects");
+  revalidatePath(`/${orgSlug}/projects`);
   return { success: true };
 }

@@ -19,8 +19,6 @@ import {
 } from "@/lib/tokens";
 import { z } from "zod/v3";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { revalidatePath } from "next/cache";
-import { requireAuth } from "@/lib/auth/session";
 import { MessageResult } from '@/lib/types';
 
 // Используем Service Role Key для прямых операций с записью
@@ -375,81 +373,4 @@ export async function logout() {
   await signOut({ redirectTo: "/login" });
 }
 
-const createOrganizationSchema = z.object({
-  name: z
-    .string()
-    .trim()
-    .min(2, "Минимум 2 символа")
-    .max(80, "Слишком длинное название"),
-});
 
-export async function createOrganization(input: {
-  name: string;
-}): Promise<
-  { success: true; slug: string } | { success: false; error: string }
-> {
-  const parsed = createOrganizationSchema.safeParse(input);
-
-  if (!parsed.success) {
-    return { success: false, error: parsed.error.issues[0].message };
-  }
-
-  const { userId, user } = await requireAuth();
-  const supabase = createAdminClient();
-
-  const { data, error } = await supabase
-    .rpc("create_organization", {
-      p_user_id: userId,
-      p_name: parsed.data.name,
-      p_slug_base: user.name ?? null,
-    })
-    .maybeSingle();
-
-  if (error || !data) {
-    console.error("[createOrganization]", error?.message, error?.details);
-    return { success: false, error: "Не удалось создать организацию" };
-  }
-
-  revalidatePath("/", "layout");
-  return { success: true, slug: (data as { org_slug: string }).org_slug };
-}
-
-/**
- * Переключение активной организации
- */
-export async function switchOrganization(orgId: string) {
-  const { userId } = await requireAuth();
-  const supabase = createAdminClient();
-
-  // Проверяем, состоит ли пользователь в этой организации
-  const { data: membership } = await supabase
-    .from("organization_members")
-    .select("org_id")
-    .eq("org_id", orgId)
-    .eq("user_id", userId)
-    .maybeSingle();
-
-  if (!membership) {
-    return {
-      success: false as const,
-      error: "У вас нет доступа к этой организации",
-    };
-  }
-
-  // Обновляем активную организацию в профиле
-  const { error } = await supabase
-    .from("users")
-    .update({ active_org_id: orgId })
-    .eq("id", userId);
-
-  if (error) {
-    console.error("[switchOrganization]", error.message);
-    return {
-      success: false as const,
-      error: "Не удалось переключить организацию",
-    };
-  }
-
-  revalidatePath("/", "layout");
-  return { success: true as const };
-}
