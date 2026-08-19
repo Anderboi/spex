@@ -1,5 +1,5 @@
 import { getTeamData } from "@/lib/queries";
-import { canManageMembers } from "@/lib/permissions";
+import { can } from "@/lib/permissions";
 import { InviteDialog } from "@/components/team/invite-dialog";
 import { MemberRow } from "@/components/team/member-row";
 import {
@@ -14,14 +14,15 @@ import { Users, Mail, Clock } from "lucide-react";
 import PageContainer from "@/components/layout/page-container";
 import { PageHeader } from "@/components/layout/page-header";
 
-export const metadata = {
-  title: "Управление командой | Spex",
-};
+export const metadata = { title: "Команда" };
 
-export default async function TeamSettingsPage() {
+type Props = { params: Promise<{ orgSlug: string }> };
+
+export default async function TeamSettingsPage({ params }: Props) {
+  const { orgSlug } = await params;
   const { members, invites, currentUserRole, currentUserId } =
-    await getTeamData();
-  const hasAdminAccess = canManageMembers(currentUserRole);
+    await getTeamData(orgSlug);
+  const hasAdminAccess = can(currentUserRole, "member:invite");
 
   return (
     <PageContainer>
@@ -31,7 +32,7 @@ export default async function TeamSettingsPage() {
           description="Управляйте составом вашей организации, ролями и доступами
               сотрудников"
         >
-          {hasAdminAccess && <InviteDialog />}
+          {hasAdminAccess && <InviteDialog orgSlug={orgSlug} />}
         </PageHeader>
 
         {/* Список участников */}
@@ -51,6 +52,7 @@ export default async function TeamSettingsPage() {
             {members.map((member) => (
               <MemberRow
                 key={member.user_id}
+                orgSlug={orgSlug}
                 member={member}
                 currentUserRole={currentUserRole}
                 currentUserId={currentUserId}

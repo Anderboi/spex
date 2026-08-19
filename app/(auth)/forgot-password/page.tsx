@@ -21,7 +21,7 @@ import {
   ResetPasswordRequestInput,
   resetPasswordRequestSchema,
 } from "@/lib/validations";
-import { requestPasswordReset } from '../actions';
+import { requestPasswordReset } from "../../../actions/auth";
 
 export default function ForgotPasswordPage() {
   const [status, setStatus] = React.useState<{

@@ -3,22 +3,22 @@ import { getProjectById, getProjectSpecItems } from "@/lib/queries";
 import { notFound } from "next/navigation";
 
 interface ProjectPageProps {
-  params: Promise<{ id: string }>;
+  params: Promise<{ orgSlug: string; id: string }>;
 }
 
 export default async function ProjectSpecification({
   params,
 }: ProjectPageProps) {
-  const { id } = await params;
+  const { id, orgSlug } = await params;
 
   const [project, specItems] = await Promise.all([
-    getProjectById(id),
-    getProjectSpecItems(id),
+    getProjectById(orgSlug, id),
+    getProjectSpecItems(orgSlug, id),
   ]);
 
   if (!project) {
     notFound();
   }
 
-  return <SpecBuilder projectId={id} initialItems={specItems} />;
+  return <SpecBuilder orgSlug={orgSlug} projectId={id} project={project} initialItems={specItems}  />;
 }

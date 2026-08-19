@@ -6,8 +6,8 @@ import Link from "next/link";
 import { Loader2, CheckCircle2, XCircle } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { verifyEmailToken } from '../actions';
-import { ResendVerificationButton } from '@/components/auth/resend-verification-button';
+import { verifyEmailToken } from "../../../actions/auth";
+import { ResendVerificationButton } from "@/components/auth/resend-verification-button";
 
 export default function VerifyEmailPage() {
   const searchParams = useSearchParams();

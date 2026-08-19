@@ -18,7 +18,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { NewPasswordInput, newPasswordSchema } from "@/lib/validations";
-import { resetPasswordWithToken } from "../actions";
+import { resetPasswordWithToken } from "../../../actions/auth";
 
 export default function ResetPasswordPage() {
   const searchParams = useSearchParams();
