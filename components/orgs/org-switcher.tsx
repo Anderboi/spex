@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useTransition } from "react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -9,102 +9,119 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
   DropdownMenuGroup,
+  DropdownMenuShortcut,
 } from "@/components/ui/dropdown-menu";
 import { Building2, Check, ChevronsUpDown, Loader2, Plus } from "lucide-react";
-import { switchOrganization } from "@/app/(auth)/actions";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { usePathname } from "next/navigation";
+import { OrgRole, ROLE_LABELS } from "@/lib/permissions";
+import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "../ui/sidebar";
 
 export type UserOrgItem = {
   id: string;
   name: string;
-  role: string;
+  slug: string;
+  role: OrgRole;
 };
 
 interface OrgSwitcherProps {
-  currentOrgId: string | null;
+  currentSlug: string;
   organizations: UserOrgItem[];
 }
-
 export function OrgSwitcher({
-  currentOrgId,
+  currentSlug,
   organizations = [],
 }: OrgSwitcherProps) {
   const [isPending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
-  const router = useRouter();
-  const currentOrg =
-    organizations.find((org) => org.id === currentOrgId) || organizations[0];
-  const handleSwitch = (orgId: string) => {
-    if (orgId === currentOrgId) return;
+  const pathname = usePathname();
 
-    startTransition(async () => {
-      const res = await switchOrganization(orgId);
-      if (!res.success) {
-        setError(res.error);
-        return;
-      }
-      router.refresh();
-    });
-  };
+  const currentOrg =
+    organizations.find((o) => o.slug === currentSlug) ?? organizations[0];
+
+  const section = pathname.split("/").slice(2).join("/") || "projects";
 
   return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        disabled={isPending}
-        className="w-full bg-bg-card rounded-lg"
-      >
-        <span
-          role="button"
-          className="justify-between items-center flex h-10 px-3"
-        >
-          <div className="flex items-center gap-2 truncate">
-            {isPending ? (
-              <Loader2 className="size-4 animate-spin text-fg-muted shrink-0" />
-            ) : (
-              <Building2 className="size-4 shrink-0 text-fg-muted" />
-            )}
-            <span className="truncate font-medium text-xs">
-              {currentOrg ? currentOrg.name : "Выберите компанию"}
+    <SidebarMenu>
+      <SidebarMenuItem>
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            disabled={isPending}
+            className="w-full bg-bg-card rounded-lg"
+            render={
+              <SidebarMenuButton
+                size="lg"
+                aria-label="Переключить организацию"
+              />
+            }
+          >
+            {/* //TODO: add company icon */}
+            <div className="flex aspect-square size-8 items-center justify-center rounded-lg bg-bg-sidebar text-fg-muted gap-2">
+              {isPending ? (
+                <Loader2 className="size-4 animate-spin text-fg-muted shrink-0" />
+              ) : (
+                <Building2 className="size-4 shrink-0 text-fg-muted" />
+              )}
+            </div>
+            <span className="grid flex-1 truncate text-left font-sans text-sm leading-tight">
+              {currentOrg?.name ?? "Выберите студию"}
             </span>
-          </div>
-          <ChevronsUpDown className="size-3 shrink-0 opacity-50" />
-        </span>
-      </DropdownMenuTrigger>
+            <ChevronsUpDown className="ml-auto" />
+          </DropdownMenuTrigger>
 
-      <DropdownMenuContent align="start" className="//w-50 bg-bg-card">
-        <DropdownMenuGroup>
-          <DropdownMenuLabel className="text-xs text-fg-muted">
-            Организации
-          </DropdownMenuLabel>
+          <DropdownMenuContent
+            align="start"
+            className="bg-bg-card w-(--radix-dropdown-menu-trigger-width) min-w-56 rounded-lg"
+            // side={isMobile ? "bottom" : "right"} //TODO: add isMobile
+            sideOffset={4}
+          >
+            <DropdownMenuGroup>
+              <DropdownMenuLabel className="text-xs text-fg-muted">
+                Компании
+              </DropdownMenuLabel>
+              {organizations.map((org) => (
+                <DropdownMenuItem
+                  key={org.id}
+                  render={
+                    <Link href={`/${org.slug}/${section}`} prefetch={false} />
+                  }
+                  className="gap-2 p-2 text-xs"
+                >
+                  <div className="flex size-6 items-center justify-center rounded-md border">
+                    <Building2 className="size-3.5 shrink-0 text-fg-muted" />{" "}
+                    {/* //TODO: add company icon */}
+                  </div>
+                  <span className="flex min-w-0 flex-col">
+                    <span className="truncate">{org.name}</span>
+                    <span className="text-[10px] text-fg-muted">
+                      {ROLE_LABELS[org.role]}
+                    </span>
+                  </span>
+                  {org.slug === currentSlug && (
+                    <DropdownMenuShortcut>
+                      <Check className="size-4 shrink-0 text-fg-brand" />
+                    </DropdownMenuShortcut>
+                  )}
+                </DropdownMenuItem>
+              ))}
+            </DropdownMenuGroup>
+            <DropdownMenuSeparator />
 
-          {organizations.map((org) => {
-            const isSelected = org.id === currentOrgId;
-            return (
-              <DropdownMenuItem
-                key={org.id}
-                onClick={() => handleSwitch(org.id)}
-                className="flex items-center justify-between text-xs cursor-pointer "
+            <DropdownMenuItem className="text-xs cursor-pointer p-2">
+              <Link
+                href="/onboarding/create-org"
+                className="flex items-center gap-2"
               >
-                <span className="truncate">{org.name}</span>
-                {isSelected && <Check className="size-3.5 text-fg-brand" />}
-              </DropdownMenuItem>
-            );
-          })}
-        </DropdownMenuGroup>
-        <DropdownMenuSeparator />
-        <DropdownMenuGroup>
-          <DropdownMenuItem className="text-xs cursor-pointer">
-            <Link
-              href="/onboarding/create-org"
-              className="flex items-center gap-2"
-            >
-              <Plus className="size-3.5" />
-              <span>Создать компанию</span>
-            </Link>
-          </DropdownMenuItem>
-        </DropdownMenuGroup>
-      </DropdownMenuContent>
-    </DropdownMenu>
+                <div className="flex size-6 items-center justify-center rounded-md border bg-transparent">
+                  <Plus className="size-3.5 text-fg-muted" />
+                </div>
+                <span className="font-medium text-fg-muted">
+                  Создать компанию
+                </span>
+              </Link>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </SidebarMenuItem>
+    </SidebarMenu>
   );
 }

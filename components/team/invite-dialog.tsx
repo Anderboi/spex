@@ -21,7 +21,7 @@ import {
 import { UserPlus, Copy, Check, Loader2 } from "lucide-react";
 import { createInvite } from "@/actions/teams";
 
-export function InviteDialog() {
+export function InviteDialog({ orgSlug }: { orgSlug: string }) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -59,11 +59,9 @@ export function InviteDialog() {
         if (!val) setInviteUrl(null);
       }}
     >
-      <DialogTrigger>
-        <Button className="gap-2">
-          <UserPlus className="size-4" />
-          Пригласить участника
-        </Button>
+      <DialogTrigger render={<Button className="gap-2" size="lg" />}>
+        <UserPlus className="size-4" />
+        Пригласить участника
       </DialogTrigger>
       <DialogContent className="sm:max-w-120 bg-bg-card">
         <DialogHeader>
@@ -106,7 +104,7 @@ export function InviteDialog() {
             )}
 
             <div className="flex justify-end gap-2 pt-2">
-              <Button type="submit" disabled={loading} size='lg'>
+              <Button type="submit" disabled={loading} size="lg">
                 {loading && <Loader2 className="mr-2 size-4 animate-spin" />}
                 Создать ссылку
               </Button>

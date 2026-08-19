@@ -6,12 +6,12 @@ import { ThemeProvider } from "@/components/theme-provider";
 import { SessionProvider } from "next-auth/react";
 
 export const metadata: Metadata = {
-  title: { default: "Balans Design", template: "%s | Balans" },
+  title: { default: "Spex", template: "%s | Spex" },
   description: "Приложение для управления материалами для дизайна интерьера",
   openGraph: {
     type: "website",
     locale: "ru_RU",
-    siteName: "Balans App",
+    siteName: "Spex",
   },
 };
 
@@ -21,7 +21,7 @@ const geist = Geist({
   variable: "--font-sans",
 });
 
-const spaceGrotesk = Unbounded({
+const unbounded = Unbounded({
   subsets: ["latin", "cyrillic"],
   variable: "--font-unbounded",
   display: "swap",
@@ -43,7 +43,7 @@ export default async function RootLayout({
       lang="ru"
       className={cn(
         geist.variable,
-        spaceGrotesk.variable,
+        unbounded.variable,
         jetbrainsMono.variable,
         "font-sans",
       )}
@@ -60,7 +60,7 @@ export default async function RootLayout({
             enableSystem={false}
             disableTransitionOnChange
           >
-            <main>{children}</main>
+            {children}
           </ThemeProvider>
         </SessionProvider>
       </body>

@@ -2,11 +2,11 @@
 
 import { useState, useRef, useEffect, useTransition } from "react";
 import { STORAGE_KEY } from "@/lib/constants";
-import { logout } from "@/app/(auth)/actions";
+import { logout } from "@/actions/auth";
 import { LogoutDialog } from "../auth/logout-dialog";
 import { initials } from "@/lib/utils";
 import { ChevronDown } from "lucide-react";
-import { redirect } from 'next/navigation';
+import { redirect } from "next/navigation";
 
 interface UserProfileProps {
   user?: {
@@ -14,9 +14,10 @@ interface UserProfileProps {
     email?: string | null;
     image?: string | null;
   };
+  orgSlug: string;
 }
 
-export function UserProfile({ user }: UserProfileProps) {
+export function UserProfile({ user, orgSlug }: UserProfileProps) {
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
   const [isLogoutDialogOpen, setIsLogoutDialogOpen] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
@@ -91,7 +92,10 @@ export function UserProfile({ user }: UserProfileProps) {
             </div>
 
             <button
-              onClick={() => {setIsPopoverOpen(false); redirect('/settings/team')}}
+              onClick={() => {
+                setIsPopoverOpen(false);
+                redirect(`${orgSlug}/settings/team`);
+              }}
               className="w-full flex items-center gap-2.5 px-2.5 py-2 text-[13px] font-medium text-fg-secondary rounded-[8px] hover:bg-bg-select hover:text-fg transition-colors cursor-pointer text-left"
             >
               Профиль и студия
