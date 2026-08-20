@@ -1,0 +1,930 @@
+"use client";
+
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  useTransition,
+} from "react";
+import { useSpecPersistence } from "./use-spec-persistence";
+import { useSpecFilters } from "./use-spec-filters";
+import { fmt, plural, prefixFor } from "@/lib/utils";
+import { SpecItem, SpecItemPatch } from "@/lib/types";
+import {
+  PICKING_FLOW,
+  PROCUREMENT_FLOW,
+  SpecStatus,
+  SpecType,
+  TYPE_ORDER,
+} from "@/lib/constants";
+import {
+  createSpecItems,
+  deleteSpecItems,
+  restoreSpecItems,
+  setSpecItemCode,
+} from "@/actions/specifications";
+import { SPEC_STATUS_CONFIG } from "@/lib/spec/status";
+
+/* ------------------------------------------------------------------ */
+/*  Типы                                                               */
+/* ------------------------------------------------------------------ */
+
+export type Toast = {
+  id: number;
+  msg: string;
+  actionLabel?: string;
+  action?: () => void;
+};
+
+export type Modal =
+  | { kind: "none" }
+  | { kind: "detail"; id: string }
+  | { kind: "add"; editId: string | null }
+  | { kind: "delete"; ids: string[] }
+  | { kind: "procure" }
+  | { kind: "summary" };
+
+export type CodeConflict = {
+  itemId: string;
+  code: string;
+  occupantName: string;
+};
+
+export type LibraryMaterial = {
+  id: string;
+  name: string;
+  brand: string | null;
+  spec: string | null;
+  article: string | null;
+  unit: string | null;
+  price: number | null;
+  type: string | null;
+  company_id: string | null;
+};
+
+type StatusBucket = { items: SpecItem[]; count: number; sum: number };
+
+export type UseSpecBuilderArgs = {
+  orgSlug: string;
+  projectId: string;
+  initialItems: SpecItem[];
+};
+
+/* ------------------------------------------------------------------ */
+
+export function useSpecBuilder({
+  orgSlug,
+  projectId,
+  initialItems,
+}: UseSpecBuilderArgs) {
+  const [items, setItems] = useState<SpecItem[]>(initialItems);
+  const [selected, setSelected] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
+  const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(
+    () => new Set(),
+  );
+  const [modal, setModal] = useState<Modal>({ kind: "none" });
+  const [toast, setToast] = useState<Toast | null>(null);
+  const [codeConflict, setCodeConflict] = useState<CodeConflict | null>(null);
+  const [replaceHidden, setReplaceHidden] = useState(false);
+  const [isPending, startTransition] = useTransition();
+
+  const filters = useSpecFilters();
+  const persist = useSpecPersistence(orgSlug, projectId);
+
+  /** Актуальный список без ожидания ре-рендера — нужен для вычисления патчей. */
+  const itemsRef = useRef(items);
+  useEffect(() => {
+    itemsRef.current = items;
+  }, [items]);
+
+  const toastTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const toastSeq = useRef(0);
+
+  useEffect(() => () => clearTimeout(toastTimer.current), []);
+
+  const showToast = useCallback(
+    (msg: string, actionLabel?: string, action?: () => void) => {
+      clearTimeout(toastTimer.current);
+      setToast({ id: ++toastSeq.current, msg, actionLabel, action });
+      toastTimer.current = setTimeout(
+        () => setToast(null),
+        actionLabel ? 7000 : 2600,
+      );
+    },
+    [],
+  );
+
+  const dismissToast = useCallback(() => {
+    clearTimeout(toastTimer.current);
+    setToast(null);
+  }, []);
+
+  /* ---------------------------------------------------------------- */
+  /*  Запись: локально + очередь на сервер                             */
+  /* ---------------------------------------------------------------- */
+
+  /**
+   * Единственный путь изменения позиции.
+   * Патч вычисляется вне setItems — побочные эффекты в updater-функции
+   * дублируются в StrictMode и при конкурентном рендере.
+   */
+  const updateItem = useCallback(
+    (id: string, patch: SpecItemPatch | ((it: SpecItem) => SpecItemPatch)) => {
+      const current = itemsRef.current.find((i) => i.id === id);
+      if (!current) return;
+
+      const p = typeof patch === "function" ? patch(current) : patch;
+      if (Object.keys(p).length === 0) return;
+
+      setItems((prev) => prev.map((i) => (i.id === id ? { ...i, ...p } : i)));
+      persist.push(id, p);
+    },
+    [persist],
+  );
+
+  /** Несколько позиций разом (групповые операции). */
+  const updateMany = useCallback(
+    (ids: string[], patch: SpecItemPatch) => {
+      if (ids.length === 0 || Object.keys(patch).length === 0) return;
+      const set = new Set(ids);
+      setItems((prev) =>
+        prev.map((i) => (set.has(i.id) ? { ...i, ...patch } : i)),
+      );
+      ids.forEach((id) => persist.push(id, patch));
+    },
+    [persist],
+  );
+
+  const setStatus = useCallback(
+    (id: string, status: SpecStatus) => {
+      updateItem(id, { status });
+      void persist.flush(); // статус — сразу, пользователь может закрыть вкладку
+    },
+    [updateItem, persist],
+  );
+
+  const incQty = useCallback(
+    (id: string, delta: number) => {
+      updateItem(id, (it) => ({
+        qty: Math.max(0.01, Math.round((it.qty + delta) * 100) / 100),
+      }));
+    },
+    [updateItem],
+  );
+
+  const setQty = useCallback(
+    (id: string, raw: string) => {
+      const n = Number(raw.replace(/\s/g, "").replace(",", "."));
+      if (!Number.isFinite(n) || n <= 0) return;
+      updateItem(id, { qty: Math.round(n * 100) / 100 });
+    },
+    [updateItem],
+  );
+
+  /** Принимает «1 234,56» и «1234.5». parseInt здесь съедал бы копейки. */
+  const setPrice = useCallback(
+    (id: string, raw: string) => {
+      const n = Number(raw.replace(/[^\d.,-]/g, "").replace(",", "."));
+      updateItem(id, {
+        price: Number.isFinite(n) ? Math.max(0, Math.round(n * 100) / 100) : 0,
+      });
+    },
+    [updateItem],
+  );
+
+  const setUnit = useCallback(
+    (id: string, unit: string) => updateItem(id, { unit }),
+    [updateItem],
+  );
+  const setNotes = useCallback(
+    (id: string, notes: string) => updateItem(id, { notes }),
+    [updateItem],
+  );
+  const setSupplier = useCallback(
+    (id: string, companyId: string | null, contactId: string | null) =>
+      updateItem(id, { companyId, contactId }),
+    [updateItem],
+  );
+
+  const setAttr = useCallback(
+    (id: string, key: string, value: string) => {
+      updateItem(id, (it) => {
+        const attrs = { ...it.attrs };
+        if (value.trim()) attrs[key] = value;
+        else delete attrs[key];
+        return { attrs };
+      });
+    },
+    [updateItem],
+  );
+
+  const addRoom = useCallback(
+    (id: string, room: string) => {
+      const r = room.trim();
+      if (!r) return;
+      updateItem(id, (it) =>
+        it.rooms.includes(r) ? {} : { rooms: [...it.rooms, r] },
+      );
+    },
+    [updateItem],
+  );
+
+  const removeRoom = useCallback(
+    (id: string, room: string) => {
+      updateItem(id, (it) => ({ rooms: it.rooms.filter((x) => x !== room) }));
+    },
+    [updateItem],
+  );
+
+  /* ---------------------------------------------------------------- */
+  /*  Марка                                                            */
+  /* ---------------------------------------------------------------- */
+
+  const applyCode = useCallback(
+    async (itemId: string, code: string, allowSwap: boolean) => {
+      // сначала долить очередь: иначе отложенный патч перезапишет результат обмена
+      await persist.flush();
+
+      const res = await setSpecItemCode(
+        orgSlug,
+        projectId,
+        itemId,
+        code,
+        allowSwap,
+      );
+
+      if (!res.success) {
+        if (res.error.startsWith("CODE_TAKEN:")) {
+          setCodeConflict({
+            itemId,
+            code,
+            occupantName:
+              res.error.slice("CODE_TAKEN:".length) || "другой позицией",
+          });
+          return;
+        }
+        showToast(res.error);
+        return;
+      }
+
+      setCodeConflict(null);
+
+      if (res.data.result === "swapped") {
+        setItems((prev) => {
+          const mine = prev.find((i) => i.id === itemId);
+          const theirs = prev.find((i) => i.code === code && i.id !== itemId);
+          if (!mine || !theirs) return prev;
+          const oldCode = mine.code;
+          return prev.map((i) =>
+            i.id === mine.id
+              ? { ...i, code }
+              : i.id === theirs.id
+                ? { ...i, code: oldCode }
+                : i,
+          );
+        });
+        showToast(`Марки обменены с «${res.data.swappedName}»`);
+      } else if (res.data.result === "ok") {
+        setItems((prev) =>
+          prev.map((i) => (i.id === itemId ? { ...i, code } : i)),
+        );
+        showToast(`Марка изменена на ${code}`);
+      }
+    },
+    [orgSlug, projectId, persist, showToast],
+  );
+
+  /** Вызывается из таблицы и карточки. Конфликт → codeConflict → диалог обмена. */
+  const setItemCode = useCallback(
+    (itemId: string, code: string) => {
+      const next = code.trim().toUpperCase();
+      if (!next) return;
+      startTransition(() => {
+        void applyCode(itemId, next, false);
+      });
+    },
+    [applyCode],
+  );
+
+  const confirmCodeSwap = useCallback(() => {
+    if (!codeConflict) return;
+    const { itemId, code } = codeConflict;
+    setCodeConflict(null);
+    startTransition(() => {
+      void applyCode(itemId, code, true);
+    });
+  }, [codeConflict, applyCode]);
+
+  const dismissCodeConflict = useCallback(() => setCodeConflict(null), []);
+
+  /* ---------------------------------------------------------------- */
+  /*  Создание                                                         */
+  /* ---------------------------------------------------------------- */
+
+  /**
+   * Следующие свободные номера для типа.
+   * Дыры не заполняются: нумерация монотонна, марка из чертежа не переиспользуется.
+   */
+  const nextCodes = useCallback((type: string, count: number): string[] => {
+    const p = prefixFor(type);
+    const max = itemsRef.current
+      .filter((i) => i.code.startsWith(`${p}-`))
+      .reduce(
+        (m, i) => Math.max(m, parseInt(i.code.slice(p.length + 1), 10) || 0),
+        0,
+      );
+    return Array.from(
+      { length: count },
+      (_, k) => `${p}-${String(max + 1 + k).padStart(2, "0")}`,
+    );
+  }, []);
+
+  const blank = useCallback(
+    (type: SpecType, code: string, over: Partial<SpecItem> = {}): SpecItem => ({
+      id: crypto.randomUUID(),
+      projectId,
+      materialId: null,
+      companyId: null,
+      contactId: null,
+      companyName: "",
+      contactName: "",
+      contactPhone: "",
+      contactEmail: "",
+      imageUrl: null,
+      code,
+      type,
+      name: "",
+      brand: "",
+      spec: "",
+      article: "",
+      qty: 1,
+      unit: "шт",
+      price: 0,
+      status: "draft",
+      isPlaceholder: true,
+      position: itemsRef.current.length,
+      rooms: [],
+      notes: "",
+      leadTime: "",
+      avail: "",
+      attrs: {},
+      updatedAt: new Date().toISOString(),
+      ...over,
+    }),
+    [projectId],
+  );
+
+  /** Оптимистичная вставка с откатом при ошибке сервера. */
+  const commitNew = useCallback(
+    (created: SpecItem[], successMsg: string) => {
+      if (created.length === 0) return;
+      setItems((prev) => [...prev, ...created]);
+
+      startTransition(async () => {
+        const res = await createSpecItems(orgSlug, projectId, created);
+        if (!res.success) {
+          const ids = new Set(created.map((c) => c.id));
+          setItems((prev) => prev.filter((i) => !ids.has(i.id)));
+          showToast(res.error);
+          return;
+        }
+        showToast(successMsg);
+      });
+    },
+    [orgSlug, projectId, showToast],
+  );
+
+  const addPlaceholder = useCallback(
+    (type: SpecType) => {
+      const [code] = nextCodes(type, 1);
+      commitNew([blank(type, code)], `Добавлена пустая позиция · ${code}`);
+    },
+    [nextCodes, blank, commitNew],
+  );
+
+  /** Добавление из библиотеки материалов. Снапшот поставщика проставит сервер. */
+  const addFromLibrary = useCallback(
+    (materials: LibraryMaterial[]) => {
+      if (materials.length === 0) return;
+
+      const byType = new Map<SpecType, LibraryMaterial[]>();
+      for (const m of materials) {
+        const t: SpecType = TYPE_ORDER.includes(m.type as SpecType)
+          ? (m.type as SpecType)
+          : "Прочее";
+        byType.set(t, [...(byType.get(t) ?? []), m]);
+      }
+
+      const created: SpecItem[] = [];
+      for (const [type, list] of byType) {
+        const codes = nextCodes(type, list.length);
+        list.forEach((m, i) => {
+          created.push(
+            blank(type, codes[i], {
+              materialId: m.id,
+              name: m.name,
+              brand: m.brand ?? "",
+              spec: m.spec ?? "",
+              article: m.article ?? "",
+              unit: m.unit ?? "шт",
+              price: Number(m.price ?? 0),
+              companyId: m.company_id ?? null,
+              status: "picked",
+              isPlaceholder: false,
+            }),
+          );
+        });
+      }
+
+      commitNew(
+        created,
+        `Добавлено · ${created.length} ${plural(created.length, "позиция", "позиции", "позиций")}`,
+      );
+    },
+    [nextCodes, blank, commitNew],
+  );
+
+  /** Заполнение существующей заглушки материалом из библиотеки. */
+  const fillPlaceholder = useCallback(
+    (id: string, m: LibraryMaterial) => {
+      updateItem(id, {
+        materialId: m.id,
+        name: m.name,
+        brand: m.brand ?? "",
+        spec: m.spec ?? "",
+        article: m.article ?? "",
+        unit: m.unit ?? "шт",
+        price: Number(m.price ?? 0),
+        companyId: m.company_id ?? null,
+        status: "picked",
+        isPlaceholder: false,
+      });
+      void persist.flush();
+      setModal({ kind: "none" });
+      showToast(`Позиция заполнена · ${m.name}`);
+    },
+    [updateItem, persist, showToast],
+  );
+
+  const duplicateItem = useCallback(
+    (id: string) => {
+      const src = itemsRef.current.find((i) => i.id === id);
+      if (!src) return;
+      const [code] = nextCodes(src.type, 1);
+      const copy = blank(src.type, code, {
+        ...src,
+        id: crypto.randomUUID(),
+        code,
+        rooms: [], // назначения не копируем: это разные места
+        status: src.isPlaceholder ? "draft" : "picked",
+      });
+      commitNew([copy], `Создана копия · ${code}`);
+    },
+    [nextCodes, blank, commitNew],
+  );
+
+  /* ---------------------------------------------------------------- */
+  /*  Удаление с отменой                                               */
+  /* ---------------------------------------------------------------- */
+
+  const removeItems = useCallback(
+    (ids: string[], label: string) => {
+      if (ids.length === 0) return;
+      const removed = itemsRef.current.filter((i) => ids.includes(i.id));
+      if (removed.length === 0) return;
+
+      setItems((prev) => prev.filter((i) => !ids.includes(i.id)));
+      setSelected(new Set());
+      setModal({ kind: "none" });
+
+      startTransition(async () => {
+        await persist.flush();
+        const res = await deleteSpecItems(orgSlug, projectId, ids);
+
+        if (!res.success) {
+          setItems((prev) =>
+            [...prev, ...removed].sort((a, b) => a.position - b.position),
+          );
+          showToast(res.error);
+          return;
+        }
+
+        showToast(label, "Отменить", () => {
+          startTransition(async () => {
+            const r = await restoreSpecItems(orgSlug, projectId, ids);
+            if (!r.success) {
+              showToast(r.error);
+              return;
+            }
+            setItems((prev) =>
+              [...prev, ...removed].sort((a, b) => a.position - b.position),
+            );
+            showToast("Действие отменено");
+          });
+        });
+      });
+    },
+    [orgSlug, projectId, persist, showToast],
+  );
+
+  const deleteItem = useCallback(
+    (id: string) => {
+      const it = itemsRef.current.find((i) => i.id === id);
+      // марки не пересчитываем — они стоят в чертежах и ведомостях
+      removeItems([id], it ? `Марка ${it.code} удалена` : "Позиция удалена");
+    },
+    [removeItems],
+  );
+
+  const bulkDelete = useCallback(() => {
+    const ids = [...selected];
+    removeItems(ids, `Удалено позиций: ${ids.length}`);
+  }, [selected, removeItems]);
+
+  const bulkStatus = useCallback(
+    (status: SpecStatus) => {
+      const ids = [...selected].filter(
+        (id) => !itemsRef.current.find((i) => i.id === id)?.isPlaceholder,
+      );
+      if (ids.length === 0) {
+        showToast("Заглушкам статус не назначается");
+        return;
+      }
+      updateMany(ids, { status });
+      void persist.flush();
+      showToast(
+        `Статус «${SPEC_STATUS_CONFIG[status].label}» · позиций: ${ids.length}`,
+      );
+    },
+    [selected, updateMany, persist, showToast],
+  );
+
+  /** Очистить содержимое, оставив марку — «место занято, материал переподбирается». */
+  const clearContent = useCallback(
+    (id: string) => {
+      const src = itemsRef.current.find((i) => i.id === id);
+      if (!src) return;
+
+      const before: SpecItemPatch = {
+        name: src.name,
+        brand: src.brand,
+        spec: src.spec,
+        article: src.article,
+        price: src.price,
+        status: src.status,
+        isPlaceholder: src.isPlaceholder,
+        materialId: src.materialId,
+        attrs: src.attrs,
+      };
+
+      updateItem(id, {
+        name: "",
+        brand: "",
+        spec: "",
+        article: "",
+        price: 0,
+        status: "draft",
+        isPlaceholder: true,
+        materialId: null,
+        attrs: {},
+      });
+      setModal({ kind: "none" });
+
+      showToast(`${src.code} очищена · марка сохранена`, "Отменить", () => {
+        updateItem(id, before);
+        showToast("Действие отменено");
+      });
+    },
+    [updateItem, showToast],
+  );
+
+  /** Перенести назначения на другую марку и удалить исходную. */
+  const mergeInto = useCallback(
+    (sourceId: string, targetId: string) => {
+      const src = itemsRef.current.find((i) => i.id === sourceId);
+      const tgt = itemsRef.current.find((i) => i.id === targetId);
+      if (!src || !tgt) return;
+
+      if (src.rooms.length > 0) {
+        updateItem(targetId, {
+          rooms: [...new Set([...tgt.rooms, ...src.rooms])],
+        });
+      }
+      removeItems(
+        [sourceId],
+        src.rooms.length > 0
+          ? `Назначения (${src.rooms.length}) перенесены на ${tgt.code}`
+          : `${src.code} удалена`,
+      );
+    },
+    [updateItem, removeItems],
+  );
+
+  const shareItem = useCallback(
+    (item: SpecItem) => {
+      const url = `${location.origin}${location.pathname}#item=${item.id}`;
+      if (navigator.share) {
+        void navigator
+          .share({ title: `${item.name} · ${item.code}`, text: item.spec, url })
+          .catch(() => {});
+        return;
+      }
+      void navigator.clipboard
+        .writeText(url)
+        .then(() => showToast("Ссылка на позицию скопирована"))
+        .catch(() => showToast("Не удалось скопировать"));
+    },
+    [showToast],
+  );
+
+  /* ---------------------------------------------------------------- */
+  /*  Выборка и агрегаты                                               */
+  /* ---------------------------------------------------------------- */
+
+  const list = useMemo(() => {
+    const q = filters.query.trim().toLowerCase();
+
+    const filtered = items.filter((it) => {
+      if (filters.activeType !== "Все типы" && it.type !== filters.activeType)
+        return false;
+      if (filters.statusFilter && it.status !== filters.statusFilter)
+        return false;
+      if (q) {
+        const hay =
+          `${it.name} ${it.brand} ${it.code} ${it.spec} ${it.article}`.toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    });
+
+    const sorted = [...filtered];
+    if (filters.sort === "az") {
+      sorted.sort((a, b) => a.name.localeCompare(b.name, "ru"));
+    } else if (filters.sort === "sum") {
+      sorted.sort((a, b) => b.qty * b.price - a.qty * a.price);
+    } else {
+      sorted.sort((a, b) =>
+        a.code.localeCompare(b.code, "ru", { numeric: true }),
+      );
+    }
+    return sorted;
+  }, [
+    items,
+    filters.query,
+    filters.activeType,
+    filters.statusFilter,
+    filters.sort,
+  ]);
+
+  const groups = useMemo(
+    () =>
+      TYPE_ORDER.map((type) => {
+        const its = list.filter((i) => i.type === type);
+        if (its.length === 0) return null;
+        return {
+          type,
+          items: its,
+          count: its.length,
+          sum: its.reduce((s, i) => s + i.qty * i.price, 0),
+        };
+      }).filter((g): g is NonNullable<typeof g> => g !== null),
+    [list],
+  );
+
+  /** Производное значение, не мутация ref внутри рендера. */
+  const visibleIds = useMemo(
+    () => groups.flatMap((g) => g.items.map((i) => i.id)),
+    [groups],
+  );
+
+  const stats = useMemo(() => {
+    const real = items.filter((i) => !i.isPlaceholder);
+
+    const bucket = (s: SpecStatus): StatusBucket => {
+      const its = real.filter((i) => i.status === s);
+      return {
+        items: its,
+        count: its.length,
+        sum: its.reduce((a, i) => a + i.qty * i.price, 0),
+      };
+    };
+
+    const procurement = Object.fromEntries(
+      PROCUREMENT_FLOW.map((s) => [s, bucket(s)]),
+    ) as Record<SpecStatus, StatusBucket>;
+
+    const scopeSum = PROCUREMENT_FLOW.reduce(
+      (a, s) => a + procurement[s].sum,
+      0,
+    );
+    const scopeCount = PROCUREMENT_FLOW.reduce(
+      (a, s) => a + procurement[s].count,
+      0,
+    );
+    const picking = PICKING_FLOW.flatMap((s) => bucket(s).items);
+    const replace = bucket("replace");
+
+    return {
+      replace,
+      procurement,
+      scopeSum,
+      scopeCount,
+      scopeSumStr: fmt(scopeSum),
+      picking,
+      pickingCount: picking.length,
+      pickingSum: picking.reduce((a, i) => a + i.qty * i.price, 0),
+      deliveredCount: procurement.delivered.count,
+      deliveredPct: scopeSum
+        ? Math.round((procurement.delivered.sum / scopeSum) * 100)
+        : 0,
+      placeholders: items.filter((i) => i.isPlaceholder).length,
+      totalCount: list.length,
+      totalSum: list.reduce((s, i) => s + i.qty * i.price, 0),
+      grandTotal: items.reduce((s, i) => s + i.qty * i.price, 0),
+    };
+  }, [items, list]);
+
+  /** Баннер «требуют замены» показываем заново, когда появились новые. */
+  const replaceCount = stats.replace.count;
+  const prevReplaceCount = useRef(replaceCount);
+  useEffect(() => {
+    if (replaceCount > prevReplaceCount.current) setReplaceHidden(false);
+    prevReplaceCount.current = replaceCount;
+  }, [replaceCount]);
+
+  /* ---------------------------------------------------------------- */
+  /*  Выделение, свёртка, модалки                                      */
+  /* ---------------------------------------------------------------- */
+
+  const toggleSel = useCallback((id: string) => {
+    setSelected((prev) => {
+      const s = new Set(prev);
+      if (s.has(id)) s.delete(id);
+      else s.add(id);
+      return s;
+    });
+  }, []);
+
+  const allVisibleSelected =
+    visibleIds.length > 0 && visibleIds.every((id) => selected.has(id));
+
+  const toggleSelectAll = useCallback(() => {
+    setSelected(allVisibleSelected ? new Set() : new Set(visibleIds));
+  }, [allVisibleSelected, visibleIds]);
+
+  const clearSelection = useCallback(() => setSelected(new Set()), []);
+
+  const toggleCollapsed = useCallback((type: string) => {
+    setCollapsed((prev) => {
+      const s = new Set(prev);
+      if (s.has(type)) s.delete(type);
+      else s.add(type);
+      return s;
+    });
+  }, []);
+
+  const closeModal = useCallback(() => setModal({ kind: "none" }), []);
+  const openDetail = useCallback(
+    (id: string) => setModal({ kind: "detail", id }),
+    [],
+  );
+  const openAdd = useCallback(
+    (editId: string | null = null) => setModal({ kind: "add", editId }),
+    [],
+  );
+  const openDelete = useCallback(
+    (id: string) => setModal({ kind: "delete", ids: [id] }),
+    [],
+  );
+  const openBulkDelete = useCallback(
+    () => setModal({ kind: "delete", ids: [...selected] }),
+    [selected],
+  );
+  const openProcure = useCallback(() => setModal({ kind: "procure" }), []);
+  const openSummary = useCallback(() => setModal({ kind: "summary" }), []);
+
+  // Escape закрывает верхний слой: сначала конфликт марки, потом модалку
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      if (codeConflict) {
+        e.preventDefault();
+        setCodeConflict(null);
+        return;
+      }
+      if (modal.kind !== "none") {
+        e.preventDefault();
+        setModal({ kind: "none" });
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [codeConflict, modal.kind]);
+
+  const current =
+    modal.kind === "detail"
+      ? (items.find((i) => i.id === modal.id) ?? null)
+      : null;
+  const editing =
+    modal.kind === "add" && modal.editId
+      ? (items.find((i) => i.id === modal.editId) ?? null)
+      : null;
+  const deleting =
+    modal.kind === "delete"
+      ? items.filter((i) => modal.ids.includes(i.id))
+      : [];
+
+  const selectedItems = useMemo(
+    () => items.filter((i) => selected.has(i.id)),
+    [items, selected],
+  );
+
+  /* ---------------------------------------------------------------- */
+
+  return {
+    // данные
+    items,
+    list,
+    groups,
+    visibleIds,
+    stats,
+    filters,
+    isPending,
+
+    // запись
+    updateItem,
+    updateMany,
+    setStatus,
+    incQty,
+    setQty,
+    setPrice,
+    setUnit,
+    setNotes,
+    setSupplier,
+    setAttr,
+    addRoom,
+    removeRoom,
+
+    // создание
+    addPlaceholder,
+    addFromLibrary,
+    fillPlaceholder,
+    duplicateItem,
+
+    // удаление
+    deleteItem,
+    bulkDelete,
+    bulkStatus,
+    clearContent,
+    mergeInto,
+    shareItem,
+
+    // марка
+    setItemCode,
+    codeConflict,
+    confirmCodeSwap,
+    dismissCodeConflict,
+
+    // выделение
+    selected,
+    selectedItems,
+    toggleSel,
+    toggleSelectAll,
+    allVisibleSelected,
+    clearSelection,
+    selectionActive: selected.size > 0,
+
+    // свёртка групп
+    collapsed,
+    toggleCollapsed,
+
+    // модалки
+    modal,
+    current,
+    editing,
+    deleting,
+    openDetail,
+    openAdd,
+    openDelete,
+    openBulkDelete,
+    openProcure,
+    openSummary,
+    closeModal,
+
+    // прочее
+    toast,
+    showToast,
+    dismissToast,
+    replaceHidden,
+    setReplaceHidden,
+    saveStatus: persist.status,
+    saveError: persist.error,
+    flush: persist.flush,
+  };
+}
+
+export type SpecBuilderContext = ReturnType<typeof useSpecBuilder>;
