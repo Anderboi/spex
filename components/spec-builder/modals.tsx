@@ -349,7 +349,7 @@ export function AddModal({
                             setCatSortDir("asc");
                           }
                         }}
-                        className="flex-none flex items-center gap-[5px] py-[7px] px-3 rounded-full font-sans text-[12.5px] font-semibold cursor-pointer whitespace-nowrap"
+                        className="flex-none flex items-center gap-1 py-2 px-3 rounded-full font-sans text-[12.5px] font-semibold cursor-pointer whitespace-nowrap"
                         style={{
                           background: on ? "#1b1a17" : "transparent",
                           color: on ? "#f3efe7" : "#46423a",
@@ -373,7 +373,7 @@ export function AddModal({
                 <div className="flex mt-[10px]">
                   <button
                     onClick={() => setCatHideInSpec(!catHideInSpec)}
-                    className="inline-flex items-center gap-2 py-[7px] pl-[10px] pr-[13px] rounded-full cursor-pointer font-sans text-[12.5px] font-semibold whitespace-nowrap"
+                    className="inline-flex items-center gap-2 py-2 pl-[10px] pr-3 rounded-full cursor-pointer font-sans text-[12.5px] font-semibold whitespace-nowrap"
                     style={{
                       background: catHideInSpec ? "#eef0e6" : "transparent",
                       color: "#1b1a17",
@@ -553,7 +553,7 @@ export function DeleteModal({
   const candidates = items
     .filter(
       (it: SpecItem) =>
-        it.type === item.type && it.id !== item.id && !it.placeholder,
+        it.type === item.type && it.id !== item.id && !it.isPlaceholder,
     )
     .map((it: SpecItem) => ({
       code: it.code,
@@ -566,7 +566,7 @@ export function DeleteModal({
   return (
     <div
       onClick={onClose}
-      className="fixed inset-0 z-[65] flex items-start justify-center overflow-y-auto"
+      className="fixed inset-0 z-65 flex items-start justify-center overflow-y-auto"
       style={{
         background: "rgba(27,26,23,.42)",
         padding: "clamp(12px,5vh,64px) 16px",
@@ -1096,7 +1096,7 @@ export function SummaryModal({
                 </div>
                 <div className="w-full">
                   {its
-                    .filter((it) => !it.placeholder)
+                    .filter((it) => !it.isPlaceholder)
                     .map((it) => (
                       <div
                         key={it.id}

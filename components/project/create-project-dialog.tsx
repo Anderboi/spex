@@ -25,9 +25,11 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { upsertProject } from "@/app/(protected)/projects/actions";
+import { upsertProject } from "@/actions/projects";
+import { useRouter } from "next/navigation";
 
 interface CreateProjectDialogProps {
+  orgSlug: string;
   trigger?: React.ReactNode;
 }
 
@@ -40,9 +42,13 @@ const ACCENT_COLORS = [
   "#7C3AED",
 ];
 
-export function CreateProjectDialog({ trigger }: CreateProjectDialogProps) {
+export function CreateProjectDialog({
+  orgSlug,
+  trigger,
+}: CreateProjectDialogProps) {
   const [open, setOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
+  const router = useRouter();
 
   // Явно указываем типы в useForm<FormInput, Context, FormOutput>
   const form = useForm({
@@ -51,7 +57,7 @@ export function CreateProjectDialog({ trigger }: CreateProjectDialogProps) {
       title: "",
       client_name: "",
       accent_color: "#000000",
-      status: "active",
+      status: "draft",
       cover_url: null,
       address: "",
       budget: 0,
@@ -61,7 +67,7 @@ export function CreateProjectDialog({ trigger }: CreateProjectDialogProps) {
 
   const onSubmit: SubmitHandler<ProjectInput> = (values) => {
     startTransition(async () => {
-      const res = await upsertProject(values);
+      const res = await upsertProject(orgSlug, values);
 
       if (!res.success) {
         form.setError("root", {
@@ -72,20 +78,18 @@ export function CreateProjectDialog({ trigger }: CreateProjectDialogProps) {
 
       form.reset();
       setOpen(false);
+      router.push(`/${orgSlug}/projects/${res.data.id}`);
     });
   };
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger>
-        {trigger || (
-          <span
-            role="button"
-            className="flex h-10 items-center gap-2 bg-bg-accent text-bg border-none rounded-lg px-6 text-[15px] font-semibold cursor-pointer"
-          >
-            <Plus className="size-4" /> Новый проект
-          </span>
-        )}
+      <DialogTrigger
+        render={
+          <Button className="flex h-10 items-center gap-2 bg-bg-accent text-bg border-none rounded-lg px-6 text-[15px] font-semibold cursor-pointer" />
+        }
+      >
+        <Plus className="size-4 shrink-0" /> Новый проект
       </DialogTrigger>
 
       <DialogContent className="sm:max-w-120 bg-bg-card border-border-muted rounded-[20px] p-6 text-fg">

@@ -7,9 +7,11 @@ import Link from "next/link";
 import { MouseEvent } from "react";
 
 export function ProjectCard({
+  orgSlug,
   project,
   index,
 }: {
+  orgSlug: string;
   project: ProjectInput;
   index: number;
 }) {
@@ -35,7 +37,7 @@ export function ProjectCard({
 
   return (
     <Link
-      href={`/projects/${project.id}`}
+      href={`/${orgSlug}/projects/${project.id}`}
       className="group block bg-bg-card border border-border-muted rounded-xl overflow-hidden transition-shadow duration-200 hover:shadow-[0_8px_32px_rgba(27,26,23,.08)]"
     >
       {/* Cover */}

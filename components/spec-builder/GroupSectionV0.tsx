@@ -2,7 +2,7 @@
 
 import { SpecItem } from "@/lib/types";
 import { fmt, brandSite } from "@/lib/utils";
-import SpecRow from './SpecRow';
+import SpecRow from './SpecRowV0';
 import StatusBadge from './StatusBadge';
 
 interface GroupData {
@@ -40,12 +40,13 @@ interface GroupSectionProps {
   shareItem: (it: SpecItem) => void;
 }
 
-export default function GroupSection({
+export default function GroupSectionV0({
   group, collapsed, setCollapsed, selected, accent, dragId, dragOverId,
   statusMenuId, setStatusMenuId, setStatus, onOpen, onOpenFill, onToggleSel,
   onRemove, onDeleteFull, onDragStart, onDragOver, onDrop, onDragEnd,
   onAddPlaceholder, shareItem
 }: GroupSectionProps) {
+  
   return (
     <div className="mt-6">
       <div onClick={() => setCollapsed({ ...collapsed, [group.type]: !collapsed[group.type] })} className="flex items-center justify-between px-1 pb-[14px] border-b border-fg cursor-pointer">

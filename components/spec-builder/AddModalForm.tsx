@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -21,7 +21,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { TYPE_ORDER, UNIT_OPTIONS } from '@/lib/constants';
+import { SpecType, TYPE_ORDER, UNIT_OPTIONS } from "@/lib/constants";
+import { MaterialListItem } from "@/lib/queries";
 
 const manualSchema = z.object({
   name: z.string().min(1, "Required"),
@@ -35,92 +36,103 @@ const manualSchema = z.object({
 
 type ManualFormValues = z.infer<typeof manualSchema>;
 
-interface AddModalFormProps {
-  editId: string | null;
-  onClose: () => void;
-  onSubmitManual: (data: ManualFormValues) => void;
-  fillItem: SpecItem | null | undefined;
-  catQueryInput: string;
-  setCatQueryInput: (v: string) => void;
-  setCatQuery: (v: string) => void;
-  catDebounce: React.MutableRefObject<
-    ReturnType<typeof setTimeout> | undefined
-  >;
-  catType: string;
-  setCatType: (t: string) => void;
-  catSort: string;
-  setCatSort: (s: string) => void;
-  catSortDir: "asc" | "desc";
-  setCatSortDir: (d: "asc" | "desc") => void;
-  catHideInSpec: boolean;
-  setCatHideInSpec: (v: boolean) => void;
-  catSelected: Record<string, boolean>;
-  toggleCat: (key: string) => void;
-  catSorted: any[];
-  catInSpec: (c: any) => boolean;
-  catInSpecCount: number;
-  catSelCount: number;
-  catSelSumStr: string;
-  addFromCatalog: () => void;
-  catTypesPresent: string[];
-  catSelectedList: any[];
-  setCatSelected: (v: Record<string, boolean>) => void;
-}
-
 export default function AddModalForm({
-  editId,
+  library,
+  items,
+  editing,
   onClose,
-  onSubmitManual,
-  fillItem,
-  catQueryInput,
-  setCatQueryInput,
-  setCatQuery,
-  catDebounce,
-  catType,
-  setCatType,
-  catSort,
-  setCatSort,
-  catSortDir,
-  setCatSortDir,
-  catHideInSpec,
-  setCatHideInSpec,
-  catSelected,
-  toggleCat,
-  catSorted,
-  catInSpec,
-  catInSpecCount,
-  catSelCount,
-  catSelSumStr,
-  addFromCatalog,
-  catTypesPresent,
-  catSelectedList,
-  setCatSelected,
-}: AddModalFormProps) {
+  onAdd,
+  onFill,
+}: {
+  library: MaterialListItem[];
+  items: SpecItem[];
+  editing: SpecItem | null;
+  onClose: () => void;
+  onAdd: (materials: MaterialListItem[]) => void;
+  onFill: (material: MaterialListItem) => void;
+}) {
   const [mode, setMode] = useState<"catalog" | "manual">("catalog");
+  const [query, setQuery] = useState("");
+  const [type, setType] = useState<SpecType | "Все типы">(
+    editing?.type ?? "Все типы",
+  );
+  const [picked, setPicked] = useState<ReadonlySet<string>>(new Set());
+  const [hideUsed, setHideUsed] = useState(false);
 
-  const {
-    register,
-    handleSubmit,
-    watch,
-    setValue,
-    formState: { errors },
-  } = useForm<ManualFormValues>({
-    resolver: zodResolver(manualSchema) as any,
-    defaultValues: {
-      name: "",
-      brand: "",
-      type: "Отделка",
-      spec: "",
-      qty: 1,
-      unit: "шт",
-      price: 0,
-    },
-    mode: "onChange",
-  });
+  const usedIds = useMemo(() => {
+    const ids = new Set<string>();
+    const articles = new Set<string>();
+    for (const i of items) {
+      if (i.materialId) ids.add(i.materialId);
+      if (i.article) articles.add(i.article.toLowerCase());
+    }
+    return { ids, articles };
+  }, [items]);
+  
+  const isUsed = (m: MaterialListItem) =>
+    usedIds.ids.has(m.id) ||
+    (!!m.article && usedIds.articles.has(m.article.toLowerCase()));
 
-  const nameVal = watch("name");
-  const priceVal = watch("price");
-  const isManualValid = nameVal.trim().length > 0 && Number(priceVal) > 0;
+  const visible = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return library
+      .filter((m) => {
+        if (type !== "Все типы" && m.category !== type) return false;
+        if (hideUsed && isUsed(m)) return false;
+        if (
+          q &&
+          !`${m.name} ${m.brand ?? ""} ${m.article ?? ""}`
+            .toLowerCase()
+            .includes(q)
+        )
+          return false;
+        return true;
+      })
+      .sort(
+        (a, b) =>
+          Number(isUsed(a)) - Number(isUsed(b)) ||
+          a.name.localeCompare(b.name, "ru"),
+      );
+  }, [library, query, type, hideUsed, usedIds]);
+
+  const pickedList = library.filter((m) => picked.has(m.id));
+  const pickedSum = pickedList.reduce((s, m) => s + Number(m.price ?? 0), 0);
+
+  const toggle = (m: MaterialListItem) => {
+    if (editing) {
+      onFill(m);
+      return;
+    } // заглушка заполняется сразу
+    setPicked((prev) => {
+      const s = new Set(prev);
+      s.has(m.id) ? s.delete(m.id) : s.add(m.id);
+      return s;
+    });
+  };
+
+  // const {
+  //   register,
+  //   handleSubmit,
+  //   watch,
+  //   setValue,
+  //   formState: { errors },
+  // } = useForm<ManualFormValues>({
+  //   resolver: zodResolver(manualSchema) as any,
+  //   defaultValues: {
+  //     name: "",
+  //     brand: "",
+  //     type: "Отделка",
+  //     spec: "",
+  //     qty: 1,
+  //     unit: "шт",
+  //     price: 0,
+  //   },
+  //   mode: "onChange",
+  // });
+
+  // const nameVal = watch("name");
+  // const priceVal = watch("price");
+  // const isManualValid = nameVal.trim().length > 0 && Number(priceVal) > 0;
 
   return (
     <Dialog open={true} onOpenChange={() => onClose()}>

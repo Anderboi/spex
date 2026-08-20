@@ -26,7 +26,7 @@ interface SpecRowProps {
   shareItem: () => void;
 }
 
-export default function SpecRow({
+export default function SpecRowV0({
   it, selected, accent, dragId, dragOverId, statusMenuId, setStatusMenuId, setStatus,
   onOpen, onOpenFill, onToggleSel, onRemove, onDeleteFull,
   onDragStart, onDragOver, onDrop, onDragEnd, shareItem
