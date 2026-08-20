@@ -23,12 +23,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { upsertContact } from "@/app/(protected)/contacts/actions"; // Импорт вашей Server Action
+import { upsertContact } from "@/actions/contacts"; // Импорт вашей Server Action
 import z from "zod";
 import { CategoryMultiSelect } from "../layout/category-multiselect";
 import { TYPE_ORDER } from "@/lib/constants";
 
 interface ContactDialogProps {
+  orgSlug: string;
   open: boolean;
   onClose: () => void;
   onSuccess?: () => void;
@@ -40,6 +41,7 @@ interface ContactDialogProps {
 }
 
 export function ContactDialog({
+  orgSlug,
   open,
   onClose,
   onSuccess,
@@ -111,7 +113,7 @@ export function ContactDialog({
         ? null
         : (fixedCompanyId ?? values.company_id ?? null);
 
-      const res = await upsertContact({
+      const res = await upsertContact(orgSlug, {
         ...values,
         company_id: finalCompanyId,
       });

@@ -12,18 +12,16 @@ import { Button } from "@/components/ui/button";
 import { Building2, Plus, Search, UserPlus } from "lucide-react";
 import { CompanyCard } from "./company-card";
 import { CompanyRow, ContactRow } from "@/lib/validations";
-import {
-  deleteCompany,
-  deleteContact,
-} from "@/app/(protected)/contacts/actions";
+import { deleteCompany, deleteContact } from "@/actions/contacts";
 import { CompanyDialog } from "./company-dialog";
 import { ContactDialog } from "./contact-dialog";
-import TypeChipsSection from "../spec-builder/components/TypeChipsSection";
+import TypeChipsSection from "../spec-builder/TypeChipsSection";
 import { ContactCard } from "./contact-card";
 import { normPhone, normText } from "@/lib/utils";
 import { toast } from "sonner";
 
 interface ContactsViewProps {
+  orgSlug: string;
   initialCompanies: CompanyRow[];
   initialContacts: ContactRow[];
 }
@@ -34,6 +32,7 @@ type ContactAction =
   | { type: "detachFromCompany"; companyId: string };
 
 export default function ContactsView({
+  orgSlug,
   initialCompanies,
   initialContacts,
 }: ContactsViewProps) {
@@ -232,7 +231,7 @@ export default function ContactsView({
           companyId: id,
         });
 
-        const res = await deleteCompany(id);
+        const res = await deleteCompany(orgSlug, id);
         if (!res?.success)
           toast.error("Не удалось удалить компанию", {
             description: res.error,
@@ -247,7 +246,7 @@ export default function ContactsView({
       setOptimisticContacts({ type: "remove", id });
 
       try {
-        await deleteContact(id);
+        await deleteContact(orgSlug, id);
         toast.success("Контакт удален");
       } catch (error) {
         toast.error("Не удалось удалить контакт.");

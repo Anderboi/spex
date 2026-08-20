@@ -23,18 +23,20 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { upsertCompany } from "@/app/(protected)/contacts/actions";
+import { upsertCompany } from "@/actions/contacts";
 import z from "zod";
 import { CategoryMultiSelect } from "../layout/category-multiselect";
 import { TYPE_ORDER } from "@/lib/constants";
 
 interface CompanyDialogProps {
+  orgSlug: string;
   open: boolean;
   onClose: () => void;
   onSuccess?: () => void;
 }
 
 export function CompanyDialog({
+  orgSlug,
   open,
   onClose,
   onSuccess,
@@ -63,7 +65,7 @@ export function CompanyDialog({
 
   const onSubmit: SubmitHandler<CompanyInput> = (values) => {
     startTransition(async () => {
-      const res = await upsertCompany(values);
+      const res = await upsertCompany(orgSlug, values);
 
       if (!res.success) {
         form.setError("root", { message: res.error });
