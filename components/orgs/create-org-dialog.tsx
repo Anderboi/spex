@@ -13,8 +13,8 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Plus, Building2, Loader2 } from "lucide-react";
-import { createOrganization } from "@/app/(auth)/actions";
 import { useRouter } from "next/navigation";
+import { createOrganization } from "@/actions/settings";
 
 export async function createOrganizationFromForm(formData: FormData) {
   return createOrganization({ name: String(formData.get("name") ?? "") });
@@ -26,7 +26,7 @@ export function CreateOrgDialog({
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
-  
+
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 

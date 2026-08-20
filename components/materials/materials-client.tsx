@@ -11,7 +11,7 @@ import { CompanyInput, ContactInput, MaterialInput } from "@/lib/validations";
 import {
   deleteMaterial,
   upsertMaterial,
-} from "@/app/(protected)/materials/actions";
+} from "@/actions/materials";
 import { MaterialDialog } from "./material-dialog";
 import { usePathname, useRouter } from "next/navigation";
 import MaterialCard from "./material-card";
@@ -21,6 +21,7 @@ interface MaterialsClientProps {
   companies: CompanyInput[];
   contacts: ContactInput[];
   searchParams?: { q?: string; sort?: string; action?: string };
+  orgSlug: string;
 }
 type OptimisticAction =
   | { type: "save"; payload: MaterialInput }
@@ -31,6 +32,7 @@ export function MaterialsClient({
   searchParams,
   companies,
   contacts,
+  orgSlug,
 }: MaterialsClientProps) {
   const router = useRouter();
   const pathname = usePathname();
@@ -116,7 +118,7 @@ export function MaterialsClient({
 
     startTransition(async () => {
       setOptimisticMaterials({ type: "delete", payload: id });
-      const res = await deleteMaterial(id);
+      const res = await deleteMaterial(orgSlug, id);
       if (!res.success) {
         alert(res.error || "Ошибка при удалении");
       }
@@ -126,7 +128,7 @@ export function MaterialsClient({
   const handleSave = (data: MaterialInput) => {
     startTransition(async () => {
       setOptimisticMaterials({ type: "save", payload: data });
-      const res = await upsertMaterial(data);
+      const res = await upsertMaterial(orgSlug, data);
       if (!res.success) {
         alert(res.error || "Ошибка сохранения");
       }
