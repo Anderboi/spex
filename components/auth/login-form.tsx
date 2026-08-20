@@ -16,7 +16,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { loginWithCredentials } from "@/app/(auth)/actions";
+import { loginWithCredentials } from "@/actions/auth";
 import { signIn } from "next-auth/react";
 
 const DEFAULT_REDIRECT = "/projects";

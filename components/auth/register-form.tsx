@@ -17,7 +17,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { RegisterInput, registerSchema } from "@/lib/validations";
-import { registerWithCredentials } from "@/app/(auth)/actions";
+import { registerWithCredentials } from "@/actions/auth";
 
 export function RegisterForm() {
   const [error, setError] = React.useState<string | null>(null);

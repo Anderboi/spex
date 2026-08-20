@@ -13,7 +13,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { createOrganization } from "@/app/(auth)/actions";
+import { createOrganization } from "@/actions/settings";
 
 export function CreateOrgForm({ defaultName = "" }: { defaultName?: string }) {
   const router = useRouter();

@@ -33,13 +33,13 @@ export function InviteDialog({ orgSlug }: { orgSlug: string }) {
     setError(null);
     setInviteUrl(null);
 
-    const res = await createInvite(formData);
+    const res = await createInvite(orgSlug, formData);
 
-    if (res.error) {
+    if (!res.success) {
       setError(res.error);
-    } else if (res.inviteUrl) {
-      setInviteUrl(res.inviteUrl);
+      return;
     }
+    setInviteUrl(res.data.inviteUrl);
     setLoading(false);
   }
 
