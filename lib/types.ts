@@ -1,5 +1,6 @@
-import { TYPE_ORDER } from "./constants";
-import { ProjectStatus } from './validations';
+import { SPEC_ITEM_STATUSES, SpecStatus, SpecType, TYPE_ORDER } from "./constants";
+import { Database } from './supabase/database.types';
+import { ProjectStatus } from "./validations";
 
 export type ProjectType = "Интерьер" | "Экстерьер" | "Коммерческий";
 
@@ -12,32 +13,6 @@ export interface Project {
   items: number;
   budget: number;
   updatedAt: string;
-}
-
-export interface SpecItem {
-  id: string;
-  type: string;
-  code: string;
-  name: string;
-  brand: string;
-  spec: string;
-  qty: number;
-  unit: string;
-  price: number;
-  status: string;
-  article: string;
-  format: string;
-  surface: string;
-  color: string;
-  variants: Variant[];
-  rooms?: string[];
-  avail?: string;
-  leadTime?: string;
-  manager?: Manager;
-  notes?: string;
-  placeholder?: boolean;
-  files?: Record<string, FileEntry[]>;
-  cleared?: boolean;
 }
 
 export interface Variant {
@@ -120,3 +95,86 @@ export interface SupplierContact {
 }
 
 export type MessageResult = { success?: string; error?: string };
+
+export type SpecItemStatus = (typeof SPEC_ITEM_STATUSES)[number];
+
+// export type SpecItemRow = {
+//   id: string;
+//   project_id: string;
+//   org_id: string;
+//   material_id: string | null;
+//   company_id: string | null;
+//   contact_id: string | null;
+//   company_name_snapshot: string | null;
+//   code: string | null;
+//   name: string;
+//   brand: string | null;
+//   spec: string | null;
+//   article: string | null;
+//   type: string;
+//   qty: number;
+//   unit: string;
+//   price: number;
+//   status: SpecStatus;
+//   is_placeholder: boolean;
+//   position: number;
+//   rooms: string[] | null;
+//   notes: string | null;
+//   lead_time: string | null;
+//   avail: string | null;
+//   attrs: Record<string, string> | null;
+//   updated_at: string;
+// };
+
+/** Модель в UI (camelCase, без null там, где UI ждёт строку) */
+export type SpecItem = {
+  id: string;
+  projectId: string;
+  materialId: string | null;
+  companyId: string | null;
+  contactId: string | null;
+  companyName: string;
+  contactName: string;
+  contactPhone: string;
+  contactEmail: string;
+  imageUrl: string | null;
+  code: string;
+  type: SpecType;
+  name: string;
+  brand: string;
+  spec: string;
+  article: string;
+  qty: number;
+  unit: string;
+  price: number;
+  status: SpecStatus;
+  isPlaceholder: boolean;
+  position: number;
+  rooms: string[];
+  notes: string;
+  leadTime: string;
+  avail: string;
+  attrs: Record<string, string>;
+  updatedAt: string;
+};
+
+export type SpecItemPatch = Partial<Omit<SpecItem, "id" | "projectId">>;
+
+export type Tables<T extends keyof Database["public"]["Tables"]> =
+  Database["public"]["Tables"][T]["Row"];
+
+export type TablesInsert<T extends keyof Database["public"]["Tables"]> =
+  Database["public"]["Tables"][T]["Insert"];
+
+export type TablesUpdate<T extends keyof Database["public"]["Tables"]> =
+  Database["public"]["Tables"][T]["Update"];
+
+export type Fn<T extends keyof Database["public"]["Functions"]> =
+  Database["public"]["Functions"][T];
+
+export type FnArgs<T extends keyof Database["public"]["Functions"]> =
+  Fn<T>["Args"];
+export type FnReturns<T extends keyof Database["public"]["Functions"]> =
+  Fn<T>["Returns"];
+
+export type { Database };

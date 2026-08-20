@@ -8,23 +8,24 @@ export const authConfig = {
     authorized({ auth, request: { nextUrl } }) {
       const isLoggedIn = !!auth?.user;
 
+      const PUBLIC_PREFIXES = [
+        "/login",
+        "/register",
+        "/verify-email",
+        "/forgot-password",
+        "/reset-password",
+        "/invite",
+      ];
       const isPublicRoute =
-        nextUrl.pathname.startsWith("/login") ||
-        nextUrl.pathname.startsWith("/register") ||
-        nextUrl.pathname.startsWith("/verify-email") ||
-        nextUrl.pathname.startsWith("/forgot-password") ||
-        nextUrl.pathname.startsWith("/reset-password") ||
-        nextUrl.pathname === "/";
+        nextUrl.pathname === "/" ||
+        PUBLIC_PREFIXES.some((p) => nextUrl.pathname.startsWith(p));
 
       const isAuthRoute =
         nextUrl.pathname.startsWith("/login") ||
         nextUrl.pathname.startsWith("/register");
 
-      if (isAuthRoute) {
-        if (isLoggedIn) {
-          return Response.redirect(new URL("/projects", nextUrl));
-        }
-        return true;
+      if (isAuthRoute && isLoggedIn) {
+        return Response.redirect(new URL("/projects", nextUrl));
       }
 
       if (!isPublicRoute && !isLoggedIn) {

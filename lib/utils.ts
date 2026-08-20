@@ -161,37 +161,37 @@ export function numOf(code: string) {
   return parseInt(String(code || "").split("-")[1], 10) || 0;
 }
 
-export function renumberAfter(
-  arr: SpecItem[],
-  prefix: string,
-  removedNum: number,
-): SpecItem[] {
-  return arr.map((it) => {
-    if (prefixOf(it.code) !== prefix) return it;
-    const n = numOf(it.code);
-    if (n > removedNum)
-      return { ...it, code: prefix + "-" + String(n - 1).padStart(2, "0") };
-    return it;
-  });
-}
+// export function renumberAfter(
+//   arr: SpecItem[],
+//   prefix: string,
+//   removedNum: number,
+// ): SpecItem[] {
+//   return arr.map((it) => {
+//     if (prefixOf(it.code) !== prefix) return it;
+//     const n = numOf(it.code);
+//     if (n > removedNum)
+//       return { ...it, code: prefix + "-" + String(n - 1).padStart(2, "0") };
+//     return it;
+//   });
+// }
 
-export function renumberSequential(arr: SpecItem[]): SpecItem[] {
-  const byPrefix: Record<string, SpecItem[]> = {};
-  arr.forEach((it) => {
-    const p = prefixOf(it.code);
-    (byPrefix[p] = byPrefix[p] || []).push(it);
-  });
-  const map: Record<string, string> = {};
-  Object.keys(byPrefix).forEach((p) => {
-    byPrefix[p]
-      .slice()
-      .sort((a, b) => numOf(a.code) - numOf(b.code))
-      .forEach((it, i) => {
-        map[it.id] = p + "-" + String(i + 1).padStart(2, "0");
-      });
-  });
-  return arr.map((it) => (map[it.id] ? { ...it, code: map[it.id] } : it));
-}
+// export function renumberSequential(arr: SpecItem[]): SpecItem[] {
+//   const byPrefix: Record<string, SpecItem[]> = {};
+//   arr.forEach((it) => {
+//     const p = prefixOf(it.code);
+//     (byPrefix[p] = byPrefix[p] || []).push(it);
+//   });
+//   const map: Record<string, string> = {};
+//   Object.keys(byPrefix).forEach((p) => {
+//     byPrefix[p]
+//       .slice()
+//       .sort((a, b) => numOf(a.code) - numOf(b.code))
+//       .forEach((it, i) => {
+//         map[it.id] = p + "-" + String(i + 1).padStart(2, "0");
+//       });
+//   });
+//   return arr.map((it) => (map[it.id] ? { ...it, code: map[it.id] } : it));
+// }
 
 export function exportCSV(items: SpecItem[], showToast: (msg: string) => void) {
   const head = [
@@ -299,3 +299,8 @@ export const normPhone = (s?: string | null): string => {
   if (!s) return "";
   return s.replace(/\D/g, "");
 };
+
+export function one<T>(value: T | T[] | null | undefined): T | null {
+  if (Array.isArray(value)) return value[0] ?? null;
+  return value ?? null;
+}

@@ -1,5 +1,6 @@
-import { ProjectType } from "./types";
-import { ProjectStatus } from './validations';
+import { Enums } from "./supabase/database.types";
+import { ProjectType, SpecItemStatus } from "./types";
+import { ProjectStatus } from "./validations";
 
 export const COVER_PALETTE: string[] = [
   "bg-bg-gold",
@@ -124,16 +125,116 @@ export const PREFIX_MAP: Record<string, string> = {
   Электрика: "Э",
 };
 
-export const TYPE_ORDER = [
+export const TYPE_ORDER: SpecType[] = [
   "Отделка",
-  "Мебель",
-  "Оборудование",
+  "Двери",
   "Сантехника",
   "Освещение",
-  "Текстиль",
-  "Инженерное оборудование",
-  "Декор",
-  "Двери",
   "Электрика",
-  "Другое",
+  "Инженерное оборудование",
+  "Оборудование",
+  "Мебель",
+  "Текстиль",
+  "Декор",
+  "Прочее",
+];
+
+export const SPEC_ITEM_STATUSES = [
+  "draft",
+  "picked",
+  "replace",
+  "approved",
+  "ordered",
+  "delivered",
 ] as const;
+
+export const SPEC_STATUS_CONFIG: Record<
+  SpecItemStatus,
+  { label: string; dot: string }
+> = {
+  draft: { label: "Не выбрано", dot: "bg-fg-muted" },
+  picked: { label: "Подобрано", dot: "bg-blue-500" },
+  replace: { label: "Заменить", dot: "bg-bg-red" },
+  approved: { label: "Согласовано", dot: "bg-bg-green" },
+  ordered: { label: "Заказано", dot: "bg-amber-500" },
+  delivered: { label: "Доставлено", dot: "bg-emerald-600" },
+};
+
+export const SPEC_STATUSES = [
+  "draft",
+  "picked",
+  "approved",
+  "ordered",
+  "delivered",
+  "replace",
+] as const;
+export type SpecStatus = Enums<"spec_status">;
+
+export const SPEC_STATUS_LABEL: Record<SpecStatus, string> = {
+  draft: "Не выбрано",
+  picked: "Подобрано",
+  approved: "Согласовано",
+  ordered: "Приобретено",
+  delivered: "Доставлено",
+  replace: "Заменить",
+};
+
+/** Стадии закупки — порядок важен для прогресс-бара */
+export const PROCUREMENT_FLOW: SpecStatus[] = [
+  "approved",
+  "ordered",
+  "delivered",
+];
+export const PICKING_FLOW: SpecStatus[] = ["draft", "picked"];
+
+export type SpecType = Enums<"spec_types">;
+
+const TYPE_PREFIX: Record<SpecType, string> = {
+  Отделка: "О",
+  Мебель: "М",
+  Оборудование: "ОБ",
+  Сантехника: "С",
+  Освещение: "СВ",
+  Текстиль: "Т",
+  "Инженерное оборудование": "ИО",
+  Декор: "ДК",
+  Двери: "Д",
+  Электрика: "Э",
+  Прочее: "П",
+};
+export const prefixFor = (type: SpecType) => TYPE_PREFIX[type];
+
+export const UNITS = ["шт", "м²", "м.п.", "компл.", "уп.", "л", "кг"] as const;
+export const CODE_PATTERN = /^[A-ZА-Я]{1,3}-\d{1,3}$/;
+
+export const ATTR_PRESETS: Record<string, string[]> = {
+  Отделка: ["Формат", "Поверхность", "Цвет", "Коллекция", "Затирка"],
+  Сантехника: ["Размеры", "Цвет", "Подводка", "Комплектация"],
+  Свет: ["Мощность", "Цветовая температура", "Цоколь", "Диммирование", "IP"],
+  Мебель: ["Габариты", "Материал корпуса", "Фасад", "Фурнитура"],
+  Двери: ["Размер полотна", "Открывание", "Покрытие", "Фурнитура"],
+  Декор: ["Размеры", "Материал", "Цвет"],
+  Оборудование: ["Модель", "Габариты", "Мощность", "Подключение"],
+  Освещение: [
+    "Мощность",
+    "Цветовая температура",
+    "Цоколь",
+    "Диммирование",
+    "IP",
+  ],
+  Текстиль: [
+    "Состав",
+    "Ширина рулона",
+    "Раппорт",
+    "Плотность",
+    "Огнестойкость",
+  ],
+  "Инженерное оборудование": [
+    "Модель",
+    "Производительность",
+    "Габариты",
+    "Подключение",
+  ],
+  Электрика: ["Номинал", "Количество модулей", "Цвет", "Серия"],
+  Прочее: ["Размеры", "Материал", "Цвет"],
+};

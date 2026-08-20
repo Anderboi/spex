@@ -2,7 +2,7 @@
 
 import "server-only";
 import { cache } from "react";
-import { redirect } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import type { Session } from "next-auth";
 import { auth } from "@/lib/auth";
 import { createAdminClient } from "@/lib/supabase/admin";
@@ -66,6 +66,14 @@ export const getSessionContext = cache(
 
     if (error) console.error("[getSessionContext]", error.message);
 
+    if (!data) {
+      console.warn(
+        "[getSessionContext] userId из токена отсутствует в public.users:",
+        userId,
+      );
+      return null;
+    }
+    
     const memberships = (data?.organization_members ??
       []) as unknown as MembershipRaw[];
 
@@ -114,6 +122,20 @@ export async function requireOrg(): Promise<AuthedContext> {
   if (!ctx.orgId || !ctx.orgSlug || !ctx.role)
     redirect("/onboarding/create-org");
   return ctx as AuthedContext;
+}
+
+export async function requireOrgBySlug(slug: string): Promise<AuthedContext> {
+  const ctx = await getSessionContext();
+  if (!ctx)
+    redirect(`/login?callbackUrl=${encodeURIComponent(`/${slug}/projects`)}`);
+
+  const match = ctx.organizations.find((o) => o.slug === slug);
+
+  // НЕ редиректим: чужой или несуществующий slug — это 404, а не «иди на онбординг».
+  // Редирект отсюда — прямая дорога к петле, которую мы ловили весь шаг 3.
+  if (!match) notFound();
+
+  return { ...ctx, orgId: match.id, orgSlug: match.slug, role: match.role };
 }
 
 /** Только для онбординга: организации быть не должно. */

@@ -22,7 +22,7 @@ export async function upsertCompany(orgSlug: string, input: CompanyInput) {
 
   // ── обновление
   if (id) {
-    const guard = await assertCanMutate(orgSlug,"companies", id);
+    const guard = await assertCanMutate(orgSlug, "companies", id);
     if (!guard.ok) return guard.response;
 
     const { data, error } = await guard.ctx.supabase
@@ -64,7 +64,7 @@ export async function upsertCompany(orgSlug: string, input: CompanyInput) {
 }
 
 export async function deleteCompany(orgSlug: string, id: string) {
-  const guard = await assertCanMutate(orgSlug,"companies", id);
+  const guard = await assertCanMutate(orgSlug, "companies", id);
   if (!guard.ok) return guard.response;
 
   // FK: contacts.company_id → SET NULL, materials.company_id → SET NULL
@@ -101,7 +101,7 @@ export async function upsertContact(
   const companyId = input.company_id ?? null;
 
   if (id) {
-    const guard = await assertCanMutate(orgSlug,"contacts", id);
+    const guard = await assertCanMutate(orgSlug, "contacts", id);
     if (!guard.ok) return guard.response;
 
     // компания обязана быть из той же организации
@@ -165,7 +165,7 @@ export async function upsertContact(
 }
 
 export async function deleteContact(orgSlug: string, id: string) {
-  const guard = await assertCanMutate(orgSlug,"contacts", id);
+  const guard = await assertCanMutate(orgSlug, "contacts", id);
   if (!guard.ok) return guard.response;
 
   const { error } = await guard.ctx.supabase

@@ -19,14 +19,13 @@ import {
 } from "@/lib/tokens";
 import { z } from "zod/v3";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { MessageResult } from '@/lib/types';
-
-// Используем Service Role Key для прямых операций с записью
-const supabaseAdmin = createAdminClient();
+import { MessageResult } from "@/lib/types";
 
 export async function registerWithCredentials(
   data: RegisterInput,
 ): Promise<MessageResult> {
+  const supabaseAdmin = createAdminClient();
+
   const validated = registerSchema.safeParse(data);
   if (!validated.success) return { error: "Неверно заполнены поля формы" };
 
@@ -44,13 +43,13 @@ export async function registerWithCredentials(
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
-
+    const cleanEmail = email.toLowerCase().trim();
     // 1. Создаем пользователя (email_verified по умолчанию NULL)
     const { data: newUser, error: insertError } = await supabaseAdmin
       .from("users")
       .insert({
         name,
-        email: email.toLowerCase().trim(),
+        email: cleanEmail,
         password: hashedPassword,
       })
       .select("id")
@@ -67,7 +66,7 @@ export async function registerWithCredentials(
     if (orgError) console.error("[ensure_personal_org]", orgError.message);
 
     // 2. Генерируем токен и отправляем письмо
-    const verificationToken = await generateVerificationToken(email);
+    const verificationToken = await generateVerificationToken(cleanEmail);
     await sendVerificationEmail(
       verificationToken.identifier,
       verificationToken.token,
@@ -80,64 +79,8 @@ export async function registerWithCredentials(
   }
 }
 
-export async function registerUser(data: RegisterInput) {
-  const parsed = registerSchema.safeParse(data);
-  if (!parsed.success) {
-    return { error: "Некорректно заполнены поля формы" };
-  }
-
-  const { name, email, password } = parsed.data;
-
-  try {
-    // 1. Проверяем, существует ли уже пользователь с таким Email
-    const { data: existingUser } = await supabaseAdmin
-      .from("users")
-      .select("id")
-      .eq("email", email)
-      .single();
-
-    if (existingUser) {
-      return { error: "Пользователь с таким Email уже зарегистрирован" };
-    }
-
-    // 2. Хешируем пароль
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    // 3. Создаем пользователя
-    const { data: newUser, error: createError } = await supabaseAdmin
-      .from("users")
-      .insert({
-        name,
-        email,
-        password: hashedPassword,
-        email_verified: false,
-      })
-      .select("id, email")
-      .single();
-
-    if (createError || !newUser) {
-      console.error("Create user error:", createError);
-      return { error: "Не удалось создать аккаунт. Попробуйте позже." };
-    }
-
-    // 4. Генерируем токен и отправляем письмо верификации
-    const verificationToken = await generateVerificationToken(newUser.email);
-    await sendVerificationEmail(
-      verificationToken.identifier,
-      verificationToken.token,
-    );
-
-    return {
-      success:
-        "Аккаунт успешно создан! Мы отправили письмо с подтверждением на ваш Email.",
-    };
-  } catch (err) {
-    console.error("Registration action error:", err);
-    return { error: "Произошла ошибка при регистрации" };
-  }
-}
-
 export async function verifyEmailToken(token: string): Promise<MessageResult> {
+  const supabaseAdmin = createAdminClient();
   // 1. Находим токен в базе
   const { data: existingToken } = await supabaseAdmin
     .from("verification_tokens")
@@ -179,7 +122,10 @@ export async function verifyEmailToken(token: string): Promise<MessageResult> {
 
 const emailSchema = z.string().email("Введите корректный email");
 
-export async function resendVerificationEmail(email: string): Promise<MessageResult> {
+export async function resendVerificationEmail(
+  email: string,
+): Promise<MessageResult> {
+  const supabaseAdmin = createAdminClient();
   // 1. Валидация Email
   const parsed = emailSchema.safeParse(email);
   if (!parsed.success) {
@@ -280,9 +226,9 @@ export async function resetPasswordWithToken(
   token: string,
   data: NewPasswordInput,
 ): Promise<MessageResult> {
+  const supabaseAdmin = createAdminClient();
   const parsed = newPasswordSchema.safeParse(data);
   if (!parsed.success) return { error: "Неверно заполнены пароли" };
-
   const { password } = parsed.data;
 
   try {
@@ -305,20 +251,23 @@ export async function resetPasswordWithToken(
     // Хешируем новый пароль
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Обновляем пароль пользователя в Supabase
+    const { data: user } = await supabaseAdmin
+      .from("users")
+      .select("id")
+      .eq("email", existingToken.email)
+      .maybeSingle();
+    if (!user) return { error: "Пользователь не найден" };
+
     const { error: updateError } = await supabaseAdmin
       .from("users")
       .update({ password: hashedPassword })
-      .eq("email", existingToken.email);
-
+      .eq("id", user.id);
     if (updateError) {
+      console.error("[resetPassword]", updateError.message);
       return { error: "Не удалось обновить пароль. Попробуйте позже." };
     }
 
-    await supabaseAdmin
-      .from("sessions")
-      .delete()
-      .eq("user_id", existingToken.id);
+    await supabaseAdmin.from("sessions").delete().eq("user_id", user.id);
 
     // Удаляем использованный токен
     await supabaseAdmin
@@ -372,5 +321,3 @@ export async function loginWithCredentials(formData: FormData) {
 export async function logout() {
   await signOut({ redirectTo: "/login" });
 }
-
-

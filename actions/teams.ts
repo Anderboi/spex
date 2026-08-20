@@ -4,158 +4,138 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import {
   canManageMembers,
   canRemoveMember,
-  canChangeRole,
   OrgRole,
   can,
 } from "@/lib/permissions";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireSession } from "@/lib/auth";
-import { requireOrg } from "@/lib/auth/session";
+import { requireOrg, requireOrgBySlug } from "@/lib/auth/session";
+import z from 'zod';
+import { fail, ok, type ActionResult } from '@/lib/action-result';
+import { randomBytes } from 'node:crypto';
+import { callRpc } from '@/lib/supabase/rpc';
 
-/**
- * Получение роли текущего пользователя в активной организации
- */
-async function getCurrentUserRole(
-  orgId: string,
-  userId: string,
-): Promise<OrgRole> {
-  const supabase = createAdminClient();
-  const { data } = await supabase
-    .from("organization_members")
-    .select("role")
-    .eq("org_id", orgId)
-    .eq("user_id", userId)
-    .single();
+const INVITE_TTL_DAYS = 7;
 
-  if (!data) throw new Error("Вы не являетесь участником этой организации");
-  return data.role as OrgRole;
-}
+const inviteSchema = z.object({
+  email: z
+    .string()
+    .trim()
+    .toLowerCase()
+    .email("Укажите корректный email")
+    .max(200),
+  role: z.enum(["admin", "member"]),
+});
 
 /**
  * 1. Создание приглашения (Generate Invite)
  */
-export async function createInvite(formData: FormData) {
-  const { orgId, userId, role: currentUserRole } = await requireOrg();
-  const email = formData.get("email")?.toString().trim().toLowerCase();
-  const role = (formData.get("role")?.toString() || "member") as OrgRole;
+export async function createInvite(
+  orgSlug: string,
+  formData: FormData,
+): Promise<ActionResult<{ inviteUrl: string }>> {
+  const { orgId, userId, role } = await requireOrgBySlug(orgSlug);
 
-  if (!email || !email.includes("@")) {
-    return { error: "Укажите корректный email" };
+  if (!can(role, "member:invite")) {
+    return fail("Приглашать участников может только администратор");
   }
 
-  if (!canManageMembers(currentUserRole)) {
-    return { error: "Недостаточно прав для приглашения участников" };
-  }
+  const parsed = inviteSchema.safeParse({
+    email: formData.get("email"),
+    role: formData.get("role") ?? "member",
+  });
+  if (!parsed.success) return fail(parsed.error.issues[0].message);
+  const { email, role: inviteRole } = parsed.data;
 
   const supabase = createAdminClient();
 
-  // Проверяем, не состоит ли пользователь уже в этой организации
-  const { data: existingUser } = await supabase
-    .from("profiles")
+  // уже в команде — приглашать незачем
+  const { data: existing } = await supabase
+    .from("users")
     .select("id")
     .eq("email", email)
     .maybeSingle();
 
-  if (existingUser) {
-    const { data: isMember } = await supabase
+  if (existing) {
+    const { data: member } = await supabase
       .from("organization_members")
-      .select("id")
+      .select("user_id")
       .eq("org_id", orgId)
-      .eq("user_id", existingUser.id)
+      .eq("user_id", existing.id)
       .maybeSingle();
-
-    if (isMember) {
-      return {
-        error: "Пользователь с таким email уже состоит в вашей организации",
-      };
-    }
+    if (member) return fail("Этот пользователь уже состоит в студии");
   }
 
-  // Создаем или обновляем запись приглашения
-  const { data: invite, error } = await supabase
-    .from("organization_invites")
-    .upsert(
-      {
-        org_id: orgId,
-        email,
-        role,
-        invited_by: userId,
-        expires_at: new Date(
-          Date.now() + 7 * 24 * 60 * 60 * 1000,
-        ).toISOString(),
-      },
-      { onConflict: "org_id,email" },
-    )
-    .select("token")
-    .single();
+  // токен генерируем в приложении: не зависим от дефолта колонки
+  const token = randomBytes(32).toString("base64url");
 
-  if (error || !invite) {
-    console.error("[createInvite] Error:", error?.message);
-    return { error: "Не удалось создать приглашение" };
+  const { error } = await supabase.from("organization_invites").upsert(
+    {
+      org_id: orgId,
+      email,
+      role: inviteRole,
+      token,
+      invited_by: userId,
+      expires_at: new Date(
+        Date.now() + INVITE_TTL_DAYS * 86_400_000,
+      ).toISOString(),
+    },
+    { onConflict: "org_id,email" },
+  );
+
+  if (error) {
+    console.error("[createInvite]", error.message);
+    return fail("Не удалось создать приглашение");
   }
 
-  revalidatePath("/settings/team");
+  revalidatePath(`/${orgSlug}/settings/team`);
 
-  // Возвращаем ссылку (её можно скопировать вручную или отправить через Resend/Email)
-  const inviteUrl = `${process.env.NEXT_PUBLIC_APP_URL}/invite/accept?token=${invite.token}`;
-  return { success: true, inviteUrl };
+  const base = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+  return ok({ inviteUrl: `${base}/invite/accept?token=${token}` });
 }
 
 /**
  * 2. Принятие приглашения по токену
  */
-export async function acceptInvite(token: string) {
+export async function acceptInvite(
+  token: string,
+): Promise<ActionResult<never>> {
   const { userId, user } = await requireSession();
-  const userEmail = user.email;
+  if (!user.email) return fail("В вашем профиле не указан email");
+
   const supabase = createAdminClient();
+  const { data, error } = await callRpc(supabase, "accept_invite", {
+    p_token: token,
+    p_user_id: userId,
+    p_email: user.email,
+  });
 
-  const { data: invite, error } = await supabase
-    .from("organization_invites")
-    .select("*")
-    .eq("token", token)
-    .maybeSingle();
-
-  if (error || !invite) {
-    return { error: "Приглашение не найдено или токен недействителен" };
+  if (error) {
+    const m = error.message;
+    if (m.includes("INVITE_NOT_FOUND"))
+      return fail("Приглашение не найдено или уже использовано");
+    if (m.includes("INVITE_EXPIRED"))
+      return fail("Срок действия приглашения истёк");
+    if (m.includes("ALREADY_MEMBER"))
+      return fail("Вы уже состоите в этой студии");
+    if (m.includes("INVITE_EMAIL_MISMATCH")) {
+      const target =
+        m.split("INVITE_EMAIL_MISMATCH:")[1]?.trim() ?? "другого адреса";
+      return fail(
+        `Приглашение выписано на ${target}, а вы вошли как ${user.email}`,
+      );
+    }
+    console.error("[acceptInvite]", m);
+    return fail("Не удалось принять приглашение");
   }
 
-  if (new Date(invite.expires_at) < new Date()) {
-    return { error: "Срок действия приглашения истек" };
-  }
-
-  // Защита: проверять соответствие email
-  if (userEmail && invite.email !== userEmail.toLowerCase()) {
-    return {
-      error: `Этот инвайт предназначен для ${invite.email}, а вы вошли как ${userEmail}`,
-    };
-  }
-
-  // Добавляем в участники
-  const { error: joinError } = await supabase
-    .from("organization_members")
-    .insert({
-      org_id: invite.org_id,
-      user_id: userId,
-      role: invite.role,
-    });
-
-  if (joinError) {
-    console.error("[acceptInvite] Join Error:", joinError.message);
-    return { error: "Ошибка при вступлении в организацию" };
-  }
-
-  // Делаем эту организацию активной для пользователя
-  await supabase
-    .from("profiles")
-    .update({ active_org_id: invite.org_id })
-    .eq("id", userId);
-
-  // Удаляем использованный инвайт
-  await supabase.from("organization_invites").delete().eq("id", invite.id);
+  const row = data?.[0];
+  if (!row) return fail("Приглашение не найдено");
 
   revalidatePath("/", "layout");
-  redirect("/projects");
+  revalidatePath(`/${row.org_slug}/settings/team`); // владелец увидит нового участника
+  redirect(`/${row.org_slug}/projects`); // redirect бросает исключение — код ниже не выполнится
 }
 
 /**
@@ -165,21 +145,12 @@ export async function updateMemberRole(
   orgSlug: string,
   targetUserId: string,
   newRole: OrgRole,
-) {
-  const { userId, orgId, role } = await requireOrg();
+): Promise<ActionResult<null>> {
+  const { userId, orgId, role } = await requireOrgBySlug(orgSlug);
 
-  if (!can(role, "member:role:change")) {
-    return {
-      success: false as const,
-      error: "Менять роли может только владелец",
-    };
-  }
-  if (targetUserId === userId) {
-    return {
-      success: false as const,
-      error: "Нельзя изменить собственную роль",
-    };
-  }
+  if (!can(role, "member:role:change"))
+    return fail("Менять роли может только владелец");
+  if (targetUserId === userId) return fail("Нельзя изменить собственную роль");
 
   const supabase = createAdminClient();
   const { data: target } = await supabase
@@ -189,21 +160,18 @@ export async function updateMemberRole(
     .eq("user_id", targetUserId)
     .maybeSingle();
 
-  if (!target) return { success: false as const, error: "Участник не найден" };
+  if (!target) return fail("Участник не найден");
+  if (target.role === newRole) return ok(null);
 
+  // студия без владельца — необратимое состояние
   if (target.role === "owner" && newRole !== "owner") {
     const { count } = await supabase
       .from("organization_members")
       .select("user_id", { count: "exact", head: true })
       .eq("org_id", orgId)
       .eq("role", "owner");
-
-    if ((count ?? 0) <= 1) {
-      return {
-        success: false as const,
-        error: "В организации должен остаться хотя бы один владелец",
-      };
-    }
+    if ((count ?? 0) <= 1)
+      return fail("В студии должен остаться хотя бы один владелец");
   }
 
   const { error } = await supabase
@@ -214,11 +182,11 @@ export async function updateMemberRole(
 
   if (error) {
     console.error("[updateMemberRole]", error.message);
-    return { success: false as const, error: "Не удалось изменить роль" };
+    return fail("Не удалось изменить роль");
   }
 
   revalidatePath(`/${orgSlug}/settings/team`);
-  return { success: true as const };
+  return ok(null);
 }
 
 /**
@@ -226,27 +194,69 @@ export async function updateMemberRole(
  */
 export async function removeMember(
   orgSlug: string,
-  memberId: string,
-  targetRole: OrgRole,
-) {
-  const { orgId, role: currentUserRole } = await requireOrg();
-
-  if (!canRemoveMember(currentUserRole, targetRole)) {
-    throw new Error("У вас нет прав на исключение этого участника");
-  }
+  targetUserId: string,
+): Promise<ActionResult<null>> {
+  const { userId, orgId, role } = await requireOrgBySlug(orgSlug);
+  if (targetUserId === userId)
+    return fail("Нельзя исключить себя — покиньте студию отдельно");
 
   const supabase = createAdminClient();
+
+  // роль цели читаем из БД, не из аргумента: клиент мог прислать заниженную
+  const { data: target } = await supabase
+    .from("organization_members")
+    .select("role")
+    .eq("org_id", orgId)
+    .eq("user_id", targetUserId)
+    .maybeSingle();
+
+  if (!target) return fail("Участник не найден");
+  if (!canRemoveMember(role, target.role as OrgRole)) {
+    return fail("У вас нет прав исключить этого участника");
+  }
+
   const { error } = await supabase
     .from("organization_members")
     .delete()
-    .eq("id", memberId)
+    .eq("org_id", orgId)
+    .eq("user_id", targetUserId);
+
+  if (error) {
+    console.error("[removeMember]", error.message);
+    return fail("Не удалось исключить участника");
+  }
+
+  // у исключённого эта студия могла быть активной
+  await supabase
+    .from("users")
+    .update({ active_org_id: null })
+    .eq("id", targetUserId)
+    .eq("active_org_id", orgId);
+
+  revalidatePath(`/${orgSlug}/settings/team`);
+  return ok(null);
+}
+
+export async function revokeInvite(
+  orgSlug: string,
+  inviteId: string,
+): Promise<ActionResult<null>> {
+  const { orgId, role } = await requireOrgBySlug(orgSlug);
+  if (!can(role, "member:invite")) return fail("Недостаточно прав");
+
+  const supabase = createAdminClient();
+  const { error } = await supabase
+    .from("organization_invites")
+    .delete()
+    .eq("id", inviteId)
     .eq("org_id", orgId);
 
   if (error) {
-    throw new Error("Не удалось исключить участника");
+    console.error("[revokeInvite]", error.message);
+    return fail("Не удалось отозвать приглашение");
   }
-
   revalidatePath(`/${orgSlug}/settings/team`);
+  return ok(null);
 }
 
 export async function switchActiveOrg(targetOrgId: string) {
@@ -267,7 +277,7 @@ export async function switchActiveOrg(targetOrgId: string) {
 
   // Обновляем active_org_id в профиле
   await supabase
-    .from("profiles")
+    .from("users")
     .update({ active_org_id: targetOrgId })
     .eq("id", userId);
 

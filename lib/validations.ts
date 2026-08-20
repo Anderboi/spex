@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { CODE_PATTERN, SPEC_STATUSES, TYPE_ORDER } from "./constants";
 
 // --- AUTH ---
 export const loginSchema = z.object({
@@ -55,7 +56,6 @@ export const companySchema = z.object({
     .nullable(),
   website: z.string().trim().max(300).optional().nullable(),
   address: z.string().trim().max(300).optional().nullable(),
-  city: z.string().trim().max(120).optional().nullable(),
   category: categoriesSchema,
   note: z.string().max(2000).optional().nullable(),
 });
@@ -138,8 +138,6 @@ export const specItemSchema = z.object({
   id: z.string().uuid().optional(),
   project_id: z.string().uuid("Укажите ID проекта"),
   material_id: z.string().uuid().optional().nullable(),
-  company_id: z.string().uuid().optional().nullable(),
-  contact_id: z.string().uuid().optional().nullable(),
   code: z.string().optional().nullable(), // например, "M-01", "PL-02"
   name: z.string().min(1, "Укажите наименование позиции"),
   brand: z.string().optional().nullable(),
@@ -152,6 +150,13 @@ export const specItemSchema = z.object({
     .default("draft"),
   is_placeholder: z.boolean().default(false),
   position: z.number().int().default(0),
+  created_at: z.string().optional().nullable(),
+  updated_at: z.string().optional().nullable(),
+  company_id: z.string().uuid().optional().nullable(),
+  contact_id: z.string().uuid().optional().nullable(),
+  orgId: z.string().uuid().optional().nullable(),
+  company_name_snapshot: z.string().optional().nullable(),
+  contact_name_snapshot: z.string().optional().nullable(),
 });
 
 export type SpecItemInput = z.infer<typeof specItemSchema>;
@@ -167,3 +172,54 @@ export const reorderSpecItemsSchema = z.object({
 });
 
 export type ReorderSpecItemsInput = z.infer<typeof reorderSpecItemsSchema>;
+
+export const createOrganizationSchema = z.object({
+  name: z
+    .string()
+    .trim()
+    .min(2, "Минимум 2 символа")
+    .max(80, "Слишком длинное название"),
+});
+
+const money = z
+  .number()
+  .min(0)
+  .max(1_000_000_000)
+  .transform((n) => Math.round(n * 100) / 100);
+
+/** Патч позиции: все поля необязательны, лишние ключи отбрасываются. */
+export const specItemPatchSchema = z
+  .object({
+    materialId: z.string().uuid().nullable(),
+    companyId: z.string().uuid().nullable(),
+    contactId: z.string().uuid().nullable(),
+    code: z.string().regex(CODE_PATTERN, "Формат марки: «О-03»"),
+    type: z.enum(TYPE_ORDER),
+    name: z.string().trim().max(300),
+    brand: z.string().trim().max(200),
+    spec: z.string().trim().max(2000),
+    article: z.string().trim().max(120),
+    qty: z.number().min(0.01).max(1_000_000),
+    unit: z.string().trim().min(1).max(20),
+    price: money,
+    status: z.enum(SPEC_STATUSES),
+    isPlaceholder: z.boolean(),
+    position: z.number().int().min(0),
+    rooms: z.array(z.string().trim().min(1).max(120)).max(100),
+    notes: z.string().trim().max(4000),
+    leadTime: z.string().trim().max(120),
+    avail: z.string().trim().max(120),
+    attrs: z.record(z.string(), z.string().max(500)),
+  })
+  .partial()
+  .strip();
+
+export type SpecItemPatch = z.infer<typeof specItemPatchSchema>;
+
+/** Новая позиция: id генерирует клиент, name обязателен. */
+export const specItemCreateSchema = specItemPatchSchema.extend({
+  id: z.string().uuid(),
+  name: z.string().trim().min(1, "Укажите название").max(300),
+  type: z.enum(TYPE_ORDER),
+});
+export type SpecItemCreate = z.infer<typeof specItemCreateSchema>;

@@ -1,13 +1,13 @@
 import "server-only";
-import { requireOrg } from "@/lib/auth/session";
+import { requireOrgBySlug } from "@/lib/auth/session";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { canMutateRecord, can, type Permission } from "@/lib/permissions";
 
 type OwnedTable = "projects" | "materials" | "companies" | "contacts";
 
 /** Контекст + клиент. orgId ВСЕГДА из сессии, никогда из аргументов. */
-export async function scoped() {
-  const ctx = await requireOrg();
+export async function scoped(orgSlug: string) {
+   const ctx = await requireOrgBySlug(orgSlug);
   return { ...ctx, supabase: createAdminClient() };
 }
 
@@ -22,8 +22,8 @@ export function notFound(msg = "Запись не найдена") {
  * Проверяет, что запись принадлежит организации из сессии,
  * и что у пользователя есть право её изменить.
  */
-export async function assertCanMutate(table: OwnedTable, id: string) {
-  const ctx = await scoped();
+export async function assertCanMutate(orgSlug: string, table: OwnedTable, id: string) {
+  const ctx = await scoped(orgSlug);
 
   const { data: row } = await ctx.supabase
     .from(table)
@@ -53,8 +53,8 @@ export async function assertCanMutate(table: OwnedTable, id: string) {
   return { ok: true as const, ctx, row };
 }
 
-export async function assertCan(p: Permission) {
-  const ctx = await scoped();
+export async function assertCan(orgSlug: string, p: Permission) {
+  const ctx = await scoped(orgSlug);
   if (!can(ctx.role, p))
     return { ok: false as const, response: forbidden(), ctx };
   return { ok: true as const, ctx };

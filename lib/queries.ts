@@ -4,11 +4,50 @@ import {
   CompanyRow,
   ContactInput,
   ContactRow,
-  MaterialInput,
   type ProjectStatus,
 } from "./validations";
 import { cache } from "react";
-import { OrgRole, requireOrg } from "./auth/session";
+import { OrgRole, requireOrgBySlug } from "./auth/session";
+import { rowToItem } from "./spec/mappers";
+import { SpecItem } from "./types";
+import { one } from "./utils";
+
+export type SpecPickerCompany = { id: string; name: string };
+export type SpecPickerContact = {
+  id: string;
+  name: string;
+  company_id: string | null;
+  phone: string | null;
+  email: string | null;
+};
+
+export const getSpecPickerData = cache(async (orgSlug: string) => {
+  const { orgId } = await requireOrgBySlug(orgSlug);
+  const supabase = createAdminClient();
+
+  const [companiesRes, contactsRes] = await Promise.all([
+    supabase
+      .from("companies")
+      .select("id, name")
+      .eq("org_id", orgId)
+      .order("name"),
+    supabase
+      .from("contacts")
+      .select("id, name, company_id, phone, email")
+      .eq("org_id", orgId)
+      .order("name"),
+  ]);
+
+  if (companiesRes.error)
+    console.error("[getSpecPickerData] companies", companiesRes.error.message);
+  if (contactsRes.error)
+    console.error("[getSpecPickerData] contacts", contactsRes.error.message);
+
+  return {
+    companies: (companiesRes.data ?? []) as SpecPickerCompany[],
+    contacts: (contactsRes.data ?? []) as SpecPickerContact[],
+  };
+});
 
 const MATERIAL_LIST_SELECT = `
   id,
@@ -24,11 +63,45 @@ const MATERIAL_LIST_SELECT = `
   contacts:contact_id (id, name)
 `;
 
-export async function getMaterials(options?: {
-  search?: string;
-  category?: string;
-}) {
-  const { orgId } = await requireOrg();
+export type MaterialListItem = {
+  id: string;
+  name: string;
+  category: string | null;
+  brand: string | null;
+  article: string | null;
+  price: number | null;
+  unit: string | null;
+  imageUrl: string | null;
+  companyId: string | null;
+  companyName: string;
+  contactName: string;
+  createdAt: string;
+};
+
+function toMaterialListItem(r: any): MaterialListItem {
+  const company = one<{ id: string; name: string }>(r.companies);
+  const contact = one<{ id: string; name: string }>(r.contacts);
+  return {
+    id: r.id,
+    name: r.name,
+    category: r.category ?? null,
+    brand: r.brand ?? null,
+    article: r.article ?? null,
+    price: r.price === null ? null : Number(r.price),
+    unit: r.unit ?? null,
+    imageUrl: r.image_url ?? null,
+    companyId: company?.id ?? null,
+    companyName: company?.name ?? "",
+    contactName: contact?.name ?? "",
+    createdAt: r.created_at,
+  };
+}
+
+export async function getMaterials(
+  orgSlug: string,
+  options?: { search?: string; category?: string },
+) {
+  const { orgId } = await requireOrgBySlug(orgSlug);
   const supabase = createAdminClient();
 
   let query = supabase
@@ -64,11 +137,11 @@ export async function getMaterials(options?: {
     throw new Error(`Failed to fetch materials: ${error.message}`);
   }
 
-  return (data as unknown as MaterialInput[]) ?? [];
+  return (data ?? []).map(toMaterialListItem);
 }
 
-export async function getMaterialById(id: string) {
-  const { orgId } = await requireOrg();
+export async function getMaterialById(orgSlug: string, id: string) {
+  const { orgId } = await requireOrgBySlug(orgSlug);
   const supabase = createAdminClient();
 
   const { data, error } = await supabase
@@ -84,7 +157,7 @@ export async function getMaterialById(id: string) {
     throw new Error(`Failed to fetch material: ${error.message}`);
   }
 
-  return data;
+  return data ? toMaterialListItem(data) : null;
 }
 
 /**
@@ -95,33 +168,54 @@ export async function getMaterialById(id: string) {
 const PROJECT_LIST_SELECT =
   "id, title, client_name, accent_color, status, cover_url, updated_at, created_at, org_id, budget, address, type";
 
-export const getProjects = cache(async (status?: ProjectStatus) => {
-  const { orgId } = await requireOrg();
-  const supabase = createAdminClient();
+export type ProjectSort = "date" | "name" | "budget";
 
-  let query = supabase
-    .from("projects")
-    .select(PROJECT_LIST_SELECT)
-    .eq("org_id", orgId)
-    .is("deleted_at", null)
-    .order("updated_at", { ascending: false });
+export const getProjects = cache(
+  async (opts: {
+    orgSlug: string;
+    search?: string;
+    sort?: ProjectSort;
+    status?: ProjectStatus;
+  }) => {
+    const { orgId } = await requireOrgBySlug(opts.orgSlug);
+    const supabase = createAdminClient();
 
-  if (status) {
-    query = query.eq("status", status);
-  }
+    let query = supabase
+      .from("projects")
+      .select(PROJECT_LIST_SELECT)
+      .eq("org_id", orgId)
+      .is("deleted_at", null);
 
-  const { data, error } = await query;
+    const s = opts.search
+      ?.trim()
+      .replace(/[,.()"\\%]/g, " ")
+      .slice(0, 100)
+      .trim();
+    if (s) {
+      query = query.or(
+        `title.ilike."%${s}%",client_name.ilike."%${s}%",address.ilike."%${s}%"`,
+      );
+    }
+    if (opts.status) query = query.eq("status", opts.status);
 
-  if (error) {
-    console.error("Error fetching projects:", error.message);
-    throw new Error(`Failed to fetch projects: ${error.message}`);
-  }
+    query =
+      opts.sort === "name"
+        ? query.order("title", { ascending: true })
+        : opts.sort === "budget"
+          ? query.order("budget", { ascending: false, nullsFirst: false })
+          : query.order("updated_at", { ascending: false });
 
-  return data;
-});
+    const { data, error } = await query;
+    if (error) {
+      console.error("[getProjects]", error.message);
+      throw new Error("Не удалось загрузить проекты");
+    }
+    return data ?? [];
+  },
+);
 
-export async function getProjectById(projectId: string) {
-  const { orgId } = await requireOrg();
+export async function getProjectById(orgSlug: string, projectId: string) {
+  const { orgId } = await requireOrgBySlug(orgSlug);
 
   const supabase = createAdminClient();
 
@@ -141,8 +235,32 @@ export async function getProjectById(projectId: string) {
   return data;
 }
 
-export async function getProjectSpecItems(projectId: string) {
-  const { orgId } = await requireOrg();
+export const getProjectsStats = cache(async (orgSlug: string) => {
+  const { orgId } = await requireOrgBySlug(orgSlug);
+  const supabase = createAdminClient();
+
+  const { data, error } = await supabase
+    .from("projects")
+    .select("budget, status")
+    .eq("org_id", orgId)
+    .is("deleted_at", null);
+
+  if (error) {
+    console.error("[getProjectsStats]", error.message);
+    return { total: 0, active: 0, budget: 0 };
+  }
+  return {
+    total: data.length,
+    active: data.filter((p) => p.status === "active").length,
+    budget: data.reduce((s, p) => s + (p.budget ?? 0), 0),
+  };
+});
+
+export async function getProjectSpecItems(
+  orgSlug: string,
+  projectId: string,
+): Promise<SpecItem[]> {
+  const { orgId } = await requireOrgBySlug(orgSlug);
   const supabase = createAdminClient();
 
   const { data: project } = await supabase
@@ -150,22 +268,29 @@ export async function getProjectSpecItems(projectId: string) {
     .select("id")
     .eq("id", projectId)
     .eq("org_id", orgId)
+    .is("deleted_at", null) // удалённый проект тоже не отдаём
     .maybeSingle();
   if (!project) return []; // чужой проект — пусто, без намёков
 
   const { data, error } = await supabase
     .from("spec_items")
     .select(
-      `*, company:company_id (id, name), contact:contact_id (id, name), material:material_id (id, name, image_url)`,
+      `*,
+       contact:contact_id ( id, name, phone, email ),
+       material:material_id ( id, name, image_url )`,
     )
     .eq("project_id", projectId)
-    .order("position", { ascending: true });
+    .eq("org_id", orgId) // вторая линия: org_id есть в таблице, используем
+    .is("deleted_at", null) // ← без этого удалённые вернутся после перезагрузки
+    .order("position", { ascending: true })
+    .order("code", { ascending: true }); // стабильный порядок при равных position
 
   if (error) {
     console.error("[getProjectSpecItems]", error.message);
     throw new Error("Не удалось загрузить спецификацию");
   }
-  return data ?? [];
+
+  return (data ?? []).map(rowToItem);
 }
 
 export type CompanyListItem = {
@@ -179,8 +304,8 @@ export type CompanyListItem = {
   note: string | null;
 };
 
-export async function getCompanies(): Promise<CompanyRow[]> {
-  const { orgId } = await requireOrg();
+export async function getCompanies(orgSlug: string): Promise<CompanyRow[]> {
+  const { orgId } = await requireOrgBySlug(orgSlug);
   const supabase = createAdminClient();
 
   const { data, error } = await supabase
@@ -197,8 +322,8 @@ export async function getCompanies(): Promise<CompanyRow[]> {
   return (data as CompanyRow[]) ?? [];
 }
 
-export async function getContacts(): Promise<ContactRow[]> {
-  const { orgId } = await requireOrg();
+export async function getContacts(orgSlug: string): Promise<ContactRow[]> {
+  const { orgId } = await requireOrgBySlug(orgSlug);
   const supabase = createAdminClient();
 
   const { data, error } = await supabase
@@ -220,8 +345,10 @@ export type CounterpartyData = {
   contacts: ContactInput[];
 };
 
-export async function getCounterparties(): Promise<CounterpartyData> {
-  const { orgId } = await requireOrg();
+export async function getCounterparties(
+  orgSlug: string,
+): Promise<CounterpartyData> {
+  const { orgId } = await requireOrgBySlug(orgSlug);
   const supabase = createAdminClient();
 
   const [companiesRes, contactsRes] = await Promise.all([
@@ -249,19 +376,18 @@ export async function getCounterparties(): Promise<CounterpartyData> {
     contacts: contacts.map((c) => ({
       id: c.id,
       name: c.name,
-      category: c.category || [],
+      category: c.category ?? [],
       company_id: c.company_id,
-      company_name:
-        (c.companies as unknown as { name: string } | null)?.name || null,
+      company_name: one<{ name: string }>(c.companies)?.name ?? null,
     })),
   };
 }
 
-export async function getContactsData() {
+export async function getContactsData(orgSlug: string) {
   // Вызываем параллельно и сразу получаем готовые массивы
   const [companies, contacts] = await Promise.all([
-    getCompanies(),
-    getContacts(),
+    getCompanies(orgSlug),
+    getContacts(orgSlug),
   ]);
 
   return {
@@ -279,36 +405,36 @@ export type UserOrganization = {
 
 //* Teams */
 
-export async function getUserOrganizations(): Promise<UserOrganization[]> {
-  const { userId, orgId: activeOrgId } = await requireOrg();
-  const supabase = createAdminClient();
+// export async function getUserOrganizations(): Promise<UserOrganization[]> {
+//   const { userId, orgId: activeOrgId } = await requireOrg();
+//   const supabase = createAdminClient();
 
-  const { data, error } = await supabase
-    .from("organization_members")
-    .select(
-      `
-      role,
-      organizations:org_id (
-        id,
-        name
-      )
-    `,
-    )
-    .eq("user_id", userId);
+//   const { data, error } = await supabase
+//     .from("organization_members")
+//     .select(
+//       `
+//       role,
+//       organizations:org_id (
+//         id,
+//         name
+//       )
+//     `,
+//     )
+//     .eq("user_id", userId);
 
-  if (error) {
-    console.error("[getUserOrganizations] Database error:", error.message);
-    throw new Error("Не удалось загрузить список организаций");
-  }
+//   if (error) {
+//     console.error("[getUserOrganizations] Database error:", error.message);
+//     throw new Error("Не удалось загрузить список организаций");
+//   }
 
-  return (data ?? []).map((item: any) => ({
-    id: item.organizations.id,
-    name: item.organizations.name,
-    role: item.role,
-    slug: item.organizations.slug,
-    is_active: item.organizations.id === activeOrgId,
-  }));
-}
+//   return (data ?? []).map((item: any) => ({
+//     id: item.organizations.id,
+//     name: item.organizations.name,
+//     role: item.role,
+//     slug: item.organizations.slug,
+//     is_active: item.organizations.id === activeOrgId,
+//   }));
+// }
 
 export type TeamMember = {
   user_id: string;
@@ -330,8 +456,8 @@ export type ActiveInvite = {
   expires_at: string;
 };
 
-export async function getTeamData() {
-  const { userId, orgId, role } = await requireOrg();
+export async function getTeamData(orgSlug: string) {
+  const { userId, orgId, role } = await requireOrgBySlug(orgSlug);
   const supabase = createAdminClient();
 
   // 1. Получаем список всех участников
@@ -363,22 +489,38 @@ export async function getTeamData() {
     throw new Error("Не удалось загрузить приглашения");
   }
 
-  const members = (membersData ?? []).map((m: any) => {
-    const u = Array.isArray(m.users) ? m.users[0] : m.users;
-    return {
-      user_id: m.user_id,
-      role: m.role as OrgRole,
-      created_at: m.created_at,
-      is_me: m.user_id === userId,
-      profile: u
-        ? {
-            name: u.name ?? null,
-            email: u.email ?? null,
-            image: u.image ?? null,
-          }
-        : null,
-    };
-  });
+  type MemberRow = {
+    user_id: string;
+    role: OrgRole;
+    created_at: string;
+    users:
+      | {
+          id: string;
+          name: string | null;
+          email: string | null;
+          image: string | null;
+        }
+      | {
+          id: string;
+          name: string | null;
+          email: string | null;
+          image: string | null;
+        }[]
+      | null;
+  };
+
+  const members: TeamMember[] = ((membersData ?? []) as MemberRow[]).map(
+    (m) => {
+      const u = one(m.users);
+      return {
+        user_id: m.user_id,
+        role: m.role,
+        created_at: m.created_at,
+        is_me: m.user_id === userId,
+        profile: u ? { name: u.name, email: u.email, image: u.image } : null,
+      };
+    },
+  );
 
   return {
     members,
