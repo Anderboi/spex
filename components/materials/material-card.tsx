@@ -1,10 +1,11 @@
 import { Button } from "../ui/button";
 import { ArrowRight, Pencil, Trash2 } from "lucide-react";
 import { fmt } from "@/lib/utils";
+import { MaterialListItem } from '@/lib/queries';
 
 interface MaterialCardProps {
-  mat: any;
-  handleEdit: (mat: any) => void;
+  mat: MaterialListItem;
+  handleEdit: (mat: MaterialListItem) => void;
   handleDelete: (mat: any) => void;
 }
 const MaterialCard = ({ mat, handleEdit, handleDelete }: MaterialCardProps) => {

@@ -10,8 +10,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
-  CompanyInput,
-  ContactInput,
   MaterialInput,
   materialSchema,
 } from "@/lib/validations";
@@ -45,11 +43,12 @@ import {
   CommandList,
 } from "../ui/command";
 import { TYPE_ORDER, UNIT_OPTIONS } from '@/lib/constants';
+import { SpecPickerCompany, SpecPickerContact } from '@/lib/queries';
 
 interface MaterialDialogProps {
   open: boolean;
-  companies?: CompanyInput[];
-  contacts?: ContactInput[];
+  companies?: SpecPickerCompany[];
+  contacts?: SpecPickerContact[];
   onOpenChange: (open: boolean) => void;
   materialToEdit?: MaterialInput | null;
   onSave: (data: MaterialInput) => void;
@@ -81,7 +80,6 @@ export function MaterialDialog({
       article: "",
       price: 0,
       unit: "шт",
-      tags: [],
       company_id: null,
       contact_id: null,
       image_url: null,
@@ -107,7 +105,6 @@ export function MaterialDialog({
           article: "",
           price: 0,
           unit: "шт",
-          tags: [],
           company_id: null,
           contact_id: null,
           image_url: null,

@@ -35,7 +35,7 @@ export default async function MaterialsLibraryPage({
           render={
             <Link
               className="flex flex-row items-center gap-2"
-              href="/materials?action=create"
+              href={`/${orgSlug}/materials?action=create`}
             />
           }
           className="h-10 bg-fg"
@@ -59,10 +59,10 @@ async function MaterialsData({
 }) {
   const sp = await searchParams;
 
-   const [materials, counterparties] = await Promise.all([
-     getMaterials(orgSlug, { search: sp.q }),
-     getCounterparties(orgSlug),
-   ]);
+  const [materials, counterparties] = await Promise.all([
+    getMaterials(orgSlug, { search: sp.q }),
+    getCounterparties(orgSlug),
+  ]);
 
   return (
     <>

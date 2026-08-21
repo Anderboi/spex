@@ -7,7 +7,7 @@ import {
   useState,
   useTransition,
 } from "react";
-import { CompanyInput, ContactInput, MaterialInput } from "@/lib/validations";
+import { type MaterialInput } from "@/lib/validations";
 import {
   deleteMaterial,
   upsertMaterial,
@@ -15,13 +15,15 @@ import {
 import { MaterialDialog } from "./material-dialog";
 import { usePathname, useRouter } from "next/navigation";
 import MaterialCard from "./material-card";
+import { MaterialListItem, SpecPickerCompany, SpecPickerContact } from '@/lib/queries';
+import { toListItem, toFormValues } from '@/lib/spec/adapters';
 
 interface MaterialsClientProps {
-  initialMaterials: MaterialInput[];
-  companies: CompanyInput[];
-  contacts: ContactInput[];
-  searchParams?: { q?: string; sort?: string; action?: string };
   orgSlug: string;
+  initialMaterials: MaterialListItem[];
+  companies: SpecPickerCompany[];
+  contacts: SpecPickerContact[];
+  searchParams: { q?: string; sort?: string; action?: string; id?: string };
 }
 type OptimisticAction =
   | { type: "save"; payload: MaterialInput }
@@ -41,6 +43,9 @@ export function MaterialsClient({
   const [editingMaterial, setEditingMaterial] = useState<MaterialInput | null>(
     null,
   );
+  const [editing, setEditing] = useState<
+    (MaterialInput & { id: string }) | null
+  >(null);
   const [, startTransition] = useTransition();
 
   useEffect(() => {
@@ -65,19 +70,19 @@ export function MaterialsClient({
 
   const [optimisticMaterials, setOptimisticMaterials] = useOptimistic(
     initialMaterials,
-    (state, action: OptimisticAction) => {
+    (
+      state: MaterialListItem[],
+      action: OptimisticAction,
+    ): MaterialListItem[] => {
       if (action.type === "delete") {
         return state.filter((m) => m.id !== action.payload);
       }
-      if (action.type === "save") {
-        const item = action.payload;
-        const exists = state.some((m) => m.id === item.id);
-        if (exists) {
-          return state.map((m) => (m.id === item.id ? { ...m, ...item } : m));
-        }
-        return [{ ...item, id: item.id || `temp-${Date.now()}` }, ...state];
+      const input = action.payload;
+      const prev = state.find((m) => m.id === input.id);
+      if (prev) {
+        return state.map((m) => (m.id === input.id ? toListItem(input, m) : m));
       }
-      return state;
+      return [toListItem(input), ...state];
     },
   );
 
@@ -107,8 +112,8 @@ export function MaterialsClient({
     return result;
   }, [optimisticMaterials, q, sort]);
 
-  const handleEdit = (mat: MaterialInput) => {
-    setEditingMaterial(mat);
+  const handleEdit = (m: MaterialListItem) => {
+    setEditing(toFormValues(m)); // ← карточка отдаёт MaterialListItem
     setIsDialogOpen(true);
   };
 
