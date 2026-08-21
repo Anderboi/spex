@@ -13,12 +13,13 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { InlineCode } from "./inline-code";
 import { StatusMenu } from "./status-menu";
 import { isLocked } from "@/lib/spec/status";
-import { fmt } from "@/lib/utils";
+import { fmt, fmtQty } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import { SpecStatus } from "@/lib/constants";
 import { SpecItem } from "@/lib/types";
 import { PriceField } from "./price-field";
 import { QtyStepper } from "./qty-stepper";
+import { priceOf } from '@/lib/spec/pricing';
 
 export type SpecRowHandlers = {
   onOpen: (id: string) => void;
@@ -44,6 +45,7 @@ export const SpecRow = memo(function SpecRow({
   h: SpecRowHandlers;
 }) {
   const sum = item.qty * item.price;
+  const p = priceOf(item);
 
   return (
     <tr
@@ -61,7 +63,6 @@ export const SpecRow = memo(function SpecRow({
           aria-label={`Выбрать ${item.code}`}
         />
       </td>
-
       <td className="w-24 px-2 py-2.5">
         <InlineCode
           code={item.code}
@@ -69,7 +70,6 @@ export const SpecRow = memo(function SpecRow({
           onCommit={(c) => h.onCode(item.id, c)}
         />
       </td>
-
       <td className="min-w-0 px-2 py-2.5">
         {item.isPlaceholder ? (
           <button
@@ -94,35 +94,57 @@ export const SpecRow = memo(function SpecRow({
           </button>
         )}
       </td>
-
-      <td className="w-32 px-2 py-2.5">
-        <QtyStepper
-          qty={item.qty}
-          unit={item.unit}
-          onChange={(d) => h.onQty(item.id, d)}
-        />
+      <td className="px-3 text-right align-middle">
+        <div className="flex flex-col items-end leading-tight">
+          <QtyStepper
+            qty={p.qtyFinal}
+            unit={item.unit}
+            editable={false}
+            onChange={(d) => h.onQty(item.id, d)}
+          />
+          {p.hasQtyMod && (
+            <span
+              className="mt-0.5 font-mono text-[10.5px] text-fg-dim"
+              title={`По плану ${fmtQty(p.qtyBase)} ${item.unit}, запас ${item.stockPct}% (+${fmtQty(p.stockQty)})`}
+            >
+              {fmtQty(p.qtyBase)} +{item.stockPct}%
+            </span>
+          )}
+        </div>
       </td>
-
-      <td className="w-32 px-2 py-2.5 text-right">
-        <PriceField
-          value={item.price}
-          onCommit={(v) => h.onPrice(item.id, v)}
-        />
+      <td className="px-3 text-right align-middle">
+        <div className="flex flex-col items-end leading-tight">
+          <PriceField
+            value={p.priceFinal}
+            readOnly={p.hasPriceMod}
+            onCommit={(v) => h.onPrice(item.id, v)}
+          />
+          {p.hasPriceMod && (
+            <span
+              className="mt-0.5 font-mono text-[10.5px] text-fg-dim"
+              title={`Базовая ${fmt(p.priceBase)} ₽, скидка ${item.clientDiscountPct}% (−${fmt(p.discountAmount)} ₽)`}
+            >
+              {fmt(p.priceBase)} −{item.clientDiscountPct}%
+            </span>
+          )}
+        </div>
       </td>
-
-      <td className="w-32 px-2 py-2.5 text-right font-mono text-[13.5px] font-semibold tabular-nums">
+      {/* <td className="w-32 px-2 py-2.5 text-right font-mono text-[13.5px] font-semibold tabular-nums">
         {sum > 0 ? `${fmt(sum)} ₽` : <span className="text-fg-muted">—</span>}
+      </td> */}
+      <td className="px-3 text-right align-middle">
+        <span className="font-mono text-[14px] font-semibold tabular-nums">
+          {p.total > 0 ? `${fmt(p.total)} ₽` : "—"}
+        </span>
       </td>
-
       <td className="w-40 px-2 py-2.5">
         <StatusMenu item={item} onChange={(s) => h.onStatus(item.id, s)} />
       </td>
-
       <td className="w-10 px-2 py-2.5">
         <DropdownMenu>
           <DropdownMenuTrigger
             aria-label={`Действия для ${item.code}`}
-            className="flex size-8 items-center justify-center rounded-md text-fg-muted opacity-0 transition-opacity hover:bg-bg-select group-hover:opacity-100 focus-visible:opacity-100 data-[popup-open]:opacity-100"
+            className="flex size-8 items-center justify-center rounded-md text-fg-muted opacity-0 transition-opacity hover:bg-bg-select group-hover:opacity-100 focus-visible:opacity-100 data-popup-open:opacity-100"
           >
             <MoreHorizontal className="size-4" />
           </DropdownMenuTrigger>

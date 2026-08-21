@@ -26,6 +26,7 @@ import {
   setSpecItemCode,
 } from "@/actions/specifications";
 import { SPEC_STATUS_CONFIG } from "@/lib/spec/status";
+import { round2, sumItems } from "@/lib/spec/pricing";
 
 /* ------------------------------------------------------------------ */
 /*  Типы                                                               */
@@ -373,6 +374,9 @@ export function useSpecBuilder({
       avail: "",
       attrs: {},
       updatedAt: new Date().toISOString(),
+      stockPct: 0,
+      clientDiscountPct: 0,
+      supplierDiscountPct: 0,
       ...over,
     }),
     [projectId],
@@ -683,15 +687,9 @@ export function useSpecBuilder({
   const groups = useMemo(
     () =>
       TYPE_ORDER.map((type) => {
-        const its = list.filter((i) => i.type === type);
-        if (its.length === 0) return null;
-        return {
-          type,
-          items: its,
-          count: its.length,
-          sum: its.reduce((s, i) => s + i.qty * i.price, 0),
-        };
-      }).filter((g): g is NonNullable<typeof g> => g !== null),
+        const items = list.filter((i) => i.type === type);
+        return { type, items: list, sum: sumItems(list).total };
+      }).filter((g) => g.items.length > 0),
     [list],
   );
 
@@ -703,14 +701,12 @@ export function useSpecBuilder({
 
   const stats = useMemo(() => {
     const real = items.filter((i) => !i.isPlaceholder);
+    const money = sumItems(items);
+    // const replaceItems = items.filter((i) => i.status === "replace");
 
     const bucket = (s: SpecStatus): StatusBucket => {
       const its = real.filter((i) => i.status === s);
-      return {
-        items: its,
-        count: its.length,
-        sum: its.reduce((a, i) => a + i.qty * i.price, 0),
-      };
+      return { items: its, count: its.length, sum: sumItems(its).total }; // ← было qty*price
     };
 
     const procurement = Object.fromEntries(
@@ -729,24 +725,27 @@ export function useSpecBuilder({
     const replace = bucket("replace");
 
     return {
-      replace,
+      totalCount: items.length,
+      totalSum: money.total,
+      discountSum: money.discount,
+      purchaseSum: money.purchase,
+      margin: round2(money.total - money.purchase),
+      placeholders: items.length - real.length,
+
+      replace: { count: replace.count, sum: replace.sum },
       procurement,
       scopeSum,
       scopeCount,
       scopeSumStr: fmt(scopeSum),
       picking,
       pickingCount: picking.length,
-      pickingSum: picking.reduce((a, i) => a + i.qty * i.price, 0),
+      pickingSum: sumItems(picking).total, // ← было qty*price
       deliveredCount: procurement.delivered.count,
       deliveredPct: scopeSum
         ? Math.round((procurement.delivered.sum / scopeSum) * 100)
         : 0,
-      placeholders: items.filter((i) => i.isPlaceholder).length,
-      totalCount: list.length,
-      totalSum: list.reduce((s, i) => s + i.qty * i.price, 0),
-      grandTotal: items.reduce((s, i) => s + i.qty * i.price, 0),
     };
-  }, [items, list]);
+  }, [items]);
 
   /** Баннер «требуют замены» показываем заново, когда появились новые. */
   const replaceCount = stats.replace.count;

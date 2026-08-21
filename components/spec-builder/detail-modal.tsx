@@ -18,7 +18,7 @@ import { QtyStepper } from "./qty-stepper";
 import { PriceField } from "./price-field";
 import { isLocked } from "@/lib/spec/status";
 import { fmt } from "@/lib/utils";
-import { SpecStatus, UNITS } from "@/lib/constants";
+import { SpecStatus, UNIT_OPTIONS } from "@/lib/constants";
 import { SpecItem, SpecItemPatch } from '@/lib/types';
 import { SupplierPicker } from './supplier-picker';
 import { AttrsEditor } from './attrs-editor';
@@ -65,7 +65,7 @@ export function DetailModal({
 
   return (
     <Dialog open onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="max-h-[88vh] overflow-y-auto bg-bg-card sm:max-w-[680px]">
+      <DialogContent className="max-h-[88vh] overflow-y-auto bg-bg-card sm:max-w-170">
         <DialogHeader className="gap-2">
           <div className="flex flex-wrap items-center gap-3">
             <InlineCode
@@ -124,7 +124,7 @@ export function DetailModal({
                   onChange={(e) => onPatch({ unit: e.target.value })}
                   className="h-9 w-full rounded-md border border-border-muted bg-bg px-3 text-sm"
                 >
-                  {UNITS.map((u) => (
+                  {UNIT_OPTIONS.map((u) => (
                     <option key={u} value={u}>
                       {u}
                     </option>
@@ -143,10 +143,19 @@ export function DetailModal({
 
             <div className="flex flex-wrap items-end gap-6 rounded-lg border border-border-muted p-3">
               <Field label="Количество">
-                <QtyStepper qty={item.qty} unit={item.unit} onChange={onQty} />
+                <QtyStepper
+                  editable={false}
+                  qty={item.qty}
+                  unit={item.unit}
+                  onChange={onQty}
+                />
               </Field>
               <Field label="Цена за ед.">
-                <PriceField value={item.price} onCommit={onPrice} />
+                <PriceField
+                  readOnly={false} //TODO: fix
+                  value={item.price}
+                  onCommit={onPrice}
+                />
               </Field>
               <div className="ml-auto text-right">
                 <span className="block text-[11px] uppercase tracking-wider text-fg-muted">

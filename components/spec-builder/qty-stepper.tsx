@@ -5,9 +5,11 @@ export function QtyStepper({
   qty,
   unit,
   onChange,
+  editable,
 }: {
   qty: number;
   unit: string;
+  editable: boolean;
   onChange: (d: number) => void;
 }) {
   return (

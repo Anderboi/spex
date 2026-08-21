@@ -5,8 +5,10 @@ import { fmt } from "@/lib/utils";
 export function PriceField({
   value,
   onCommit,
+  readOnly
 }: {
   value: number;
+  readOnly: boolean;
   onCommit: (raw: string) => void;
 }) {
   const [draft, setDraft] = useState<string | null>(null);

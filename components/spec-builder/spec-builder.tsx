@@ -16,7 +16,7 @@ import { GroupSection } from "./group-section";
 import { DetailModal } from "./detail-modal";
 import { CodeConflictDialog } from "./code-conflict-dialog";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { isLocked, SPEC_STATUS_CONFIG } from "@/lib/spec/status";
+import { isLocked } from "@/lib/spec/status";
 import type { SpecRowHandlers } from "./spec-row";
 import type {
   MaterialListItem,
@@ -27,7 +27,7 @@ import { TYPE_ORDER } from "@/lib/constants";
 import { fmt, plural, cn } from "@/lib/utils";
 import { SpecItem } from '@/lib/types';
 import BottomBar from './bottom-bar';
-import AddModalForm from './AddModalForm';
+import AddModalForm from './add-modal-form';
 
 export default function SpecBuilder({
   orgSlug,
@@ -66,6 +66,7 @@ export default function SpecBuilder({
       onClear: ctx.clearContent,
       onDelete: ctx.openDelete,
       onShare: ctx.shareItem,
+
       onFill: (id) => ctx.openAdd(id),
     }),
     [ctx],
@@ -266,6 +267,8 @@ export default function SpecBuilder({
           items={ctx.items}
           editing={ctx.editing}
           onClose={ctx.closeModal}
+          companies={companies} 
+          onAddManual={()=>{}}
           onAdd={(materials: any) => {
             ctx.addFromLibrary(materials);
             ctx.closeModal();

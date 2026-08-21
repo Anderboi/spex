@@ -15,9 +15,10 @@ import { StatusMenu } from "./status-menu";
 import { QtyStepper } from "./qty-stepper";
 import { PriceField } from "./price-field";
 import { isLocked } from "@/lib/spec/status";
-import { fmt, cn } from "@/lib/utils";
+import { fmt, cn, fmtQty } from "@/lib/utils";
 import type { SpecRowHandlers } from "./spec-row";
 import { SpecItem } from "@/lib/types";
+import { priceOf } from "@/lib/spec/pricing";
 
 export const SpecCard = memo(function SpecCard({
   item,
@@ -29,6 +30,7 @@ export const SpecCard = memo(function SpecCard({
   h: SpecRowHandlers;
 }) {
   const sum = item.qty * item.price;
+  const p = priceOf(item);
 
   return (
     <article
@@ -53,9 +55,46 @@ export const SpecCard = memo(function SpecCard({
               locked={isLocked(item.status)}
               onCommit={(c) => h.onCode(item.id, c)}
             />
-            <span className="ml-auto font-mono text-[14px] font-semibold tabular-nums">
+            {/* <span className="ml-auto font-mono text-[14px] font-semibold tabular-nums">
               {sum > 0 ? `${fmt(sum)} ₽` : "—"}
-            </span>
+            </span> */}
+            <div className="mt-3 border-t border-border-muted pt-2.5">
+              <div className="flex items-baseline gap-2">
+                <span className="font-mono text-[12.5px] text-fg-secondary">
+                  {fmtQty(p.qtyFinal)} {item.unit} × {fmt(p.priceFinal)} ₽
+                </span>
+                <span className="ml-auto font-mono text-[15px] font-semibold tabular-nums">
+                  {p.total > 0 ? `${fmt(p.total)} ₽` : "—"}
+                </span>
+              </div>
+
+              {(p.hasQtyMod || p.hasPriceMod) && (
+                <p className="mt-0.5 font-mono text-[10.5px] text-fg-dim">
+                  {[
+                    p.hasQtyMod &&
+                      `${fmtQty(p.qtyBase)} ${item.unit} +${item.stockPct}% запас`,
+                    p.hasPriceMod && `−${item.clientDiscountPct}% скидка`,
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </p>
+              )}
+
+              <div className="mt-2 flex items-center gap-3">
+                <QtyStepper
+                  qty={p.qtyFinal}
+                  unit={item.unit}
+                  editable={false}
+                  onChange={(d) => h.onQty(item.id, d)}
+                />
+                <div className="ml-auto">
+                  <StatusMenu
+                    item={item}
+                    onChange={(s) => h.onStatus(item.id, s)}
+                  />
+                </div>
+              </div>
+            </div>
           </div>
 
           {item.isPlaceholder ? (
@@ -136,12 +175,14 @@ export const SpecCard = memo(function SpecCard({
       <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-border-muted pt-2.5">
         <QtyStepper
           qty={item.qty}
+          editable={false}
           unit={item.unit}
           onChange={(d) => h.onQty(item.id, d)}
         />
         <div className="flex items-center gap-1 text-[12px] text-fg-muted">
           <span>×</span>
           <PriceField
+            readOnly={p.hasPriceMod}
             value={item.price}
             onCommit={(v) => h.onPrice(item.id, v)}
           />
