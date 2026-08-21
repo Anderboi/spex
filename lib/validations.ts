@@ -1,5 +1,11 @@
 import { z } from "zod";
-import { CODE_PATTERN, SPEC_STATUSES, TYPE_ORDER } from "./constants";
+import {
+  CODE_PATTERN,
+  SPEC_STATUSES,
+  SPEC_TYPES,
+  TYPE_ORDER,
+  UNIT_OPTIONS,
+} from "./constants";
 
 // --- AUTH ---
 export const loginSchema = z.object({
@@ -98,7 +104,7 @@ export const materialSchema = z.object({
     .optional()
     .default(0),
   image_url: z.string().optional().nullable(),
-  tags: z.array(z.string()).optional().default([]),
+  // tags: z.array(z.string()).optional().default([]),
 });
 
 export type MaterialInput = z.infer<typeof materialSchema>;
@@ -210,6 +216,9 @@ export const specItemPatchSchema = z
     leadTime: z.string().trim().max(120),
     avail: z.string().trim().max(120),
     attrs: z.record(z.string(), z.string().max(500)),
+    stockPct: z.coerce.number().min(0).max(100).optional(),
+    clientDiscountPct: z.coerce.number().min(0).max(100).optional(),
+    supplierDiscountPct: z.coerce.number().min(0).max(100).optional(),
   })
   .partial()
   .strip();
@@ -223,3 +232,57 @@ export const specItemCreateSchema = specItemPatchSchema.extend({
   type: z.enum(TYPE_ORDER),
 });
 export type SpecItemCreate = z.infer<typeof specItemCreateSchema>;
+
+export const manualSpecItemSchema = z
+  .object({
+    name: z.string().trim().min(1, "Укажите наименование").max(300),
+    brand: z.string().trim().max(200).default(""),
+    type: z.enum(SPEC_TYPES),
+    spec: z.string().trim().max(2000).default(""),
+    article: z.string().trim().max(120).default(""),
+
+    qty: z.coerce
+      .number({ error: "Укажите количество" })
+      .positive("Количество больше нуля")
+      .min(0.01, "Количество больше нуля")
+      .max(1_000_000, "Слишком большое количество"),
+
+    unit: z.enum(UNIT_OPTIONS).default("шт"),
+
+    price: z.coerce
+      .number({ error: "Укажите цену" })
+      .min(0, "Цена не может быть отрицательной")
+      .max(1_000_000_000),
+
+    stockPct: z.coerce
+      .number({ error: "Укажите процент" })
+      .min(0)
+      .max(100, "Запас не больше 100 %")
+      .default(0),
+
+    clientDiscountPct: z.coerce
+      .number({ error: "Укажите процент" })
+      .min(0)
+      .max(100, "Скидка не больше 100 %")
+      .default(0),
+
+    supplierDiscountPct: z.coerce
+      .number({ error: "Укажите процент" })
+      .min(0)
+      .max(100, "Скидка не больше 100 %")
+      .default(0),
+
+    companyId: z.string().uuid().nullable().default(null),
+    saveToLibrary: z.boolean().default(true),
+  })
+  .refine(
+    (d) =>
+      d.supplierDiscountPct === 0 ||
+      d.clientDiscountPct <= d.supplierDiscountPct,
+    {
+      path: ["clientDiscountPct"],
+      message: "Скидка заказчику больше вашей — позиция уйдёт в минус",
+    },
+  );
+
+export type ManualSpecItemInput = z.infer<typeof manualSpecItemSchema>;

@@ -76,6 +76,7 @@ export type MaterialListItem = {
   companyName: string;
   contactName: string;
   createdAt: string;
+  contactId: string | null;
 };
 
 function toMaterialListItem(r: any): MaterialListItem {
@@ -94,6 +95,7 @@ function toMaterialListItem(r: any): MaterialListItem {
     companyName: company?.name ?? "",
     contactName: contact?.name ?? "",
     createdAt: r.created_at,
+    contactId: contact?.id ?? null,
   };
 }
 
@@ -304,6 +306,18 @@ export type CompanyListItem = {
   note: string | null;
 };
 
+export type ContactListItem = {
+  id: string;
+  name: string;
+  title: string | null;
+  category: string[];
+  phone: string | null;
+  email: string | null;
+  note: string | null;
+  company_id: string | null;
+  company_name: string | null;
+};
+
 export async function getCompanies(orgSlug: string): Promise<CompanyRow[]> {
   const { orgId } = await requireOrgBySlug(orgSlug);
   const supabase = createAdminClient();
@@ -345,43 +359,55 @@ export type CounterpartyData = {
   contacts: ContactInput[];
 };
 
-export async function getCounterparties(
-  orgSlug: string,
-): Promise<CounterpartyData> {
+export const getCounterparties = cache(async (orgSlug: string) => {
   const { orgId } = await requireOrgBySlug(orgSlug);
   const supabase = createAdminClient();
 
   const [companiesRes, contactsRes] = await Promise.all([
     supabase
       .from("companies")
-      .select("id, name,category")
+      .select("id, name, category, phone, email, website, address, note")
       .eq("org_id", orgId)
       .order("name"),
     supabase
       .from("contacts")
-      .select("id, name, company_id, companies(name), category")
+      .select(
+        "id, name, title, category, phone, email, note, company_id, companies(name)",
+      )
       .eq("org_id", orgId)
       .order("name"),
   ]);
 
-  const companies = companiesRes.data || [];
-  const contacts = contactsRes.data || [];
+  if (companiesRes.error)
+    console.error("[getCounterparties] companies", companiesRes.error.message);
+  if (contactsRes.error)
+    console.error("[getCounterparties] contacts", contactsRes.error.message);
 
-  return {
-    companies: companies.map((c) => ({
-      id: c.id,
-      name: c.name,
-      category: c.category || [],
-    })),
-    contacts: contacts.map((c) => ({
-      id: c.id,
-      name: c.name,
-      category: c.category ?? [],
-      company_id: c.company_id,
-      company_name: one<{ name: string }>(c.companies)?.name ?? null,
-    })),
-  };
-}
+  const companies: CompanyListItem[] = (companiesRes.data ?? []).map((r) => ({
+    id: r.id,
+    name: r.name,
+    category: r.category ?? [],
+    phone: r.phone ?? null,
+    email: r.email ?? null,
+    website: r.website ?? null,
+    address: r.address ?? null,
+    note: r.note ?? null,
+  }));
+
+  const contacts: ContactListItem[] = (contactsRes.data ?? []).map((r) => ({
+    id: r.id,
+    name: r.name,
+    title: r.title ?? null,
+    category: r.category ?? [],
+    phone: r.phone ?? null,
+    email: r.email ?? null,
+    note: r.note ?? null,
+    company_id: r.company_id,
+    company_name: one<{ name: string }>(r.companies)?.name ?? null,
+  }));
+
+  return { companies, contacts };
+});
 
 export async function getContactsData(orgSlug: string) {
   // Вызываем параллельно и сразу получаем готовые массивы

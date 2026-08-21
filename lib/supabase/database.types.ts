@@ -417,6 +417,90 @@ export type Database = {
         }
         Relationships: []
       }
+      project_service_items: {
+        Row: {
+          item_id: string
+          service_id: string
+        }
+        Insert: {
+          item_id: string
+          service_id: string
+        }
+        Update: {
+          item_id?: string
+          service_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_service_items_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "spec_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_service_items_service_id_fkey"
+            columns: ["service_id"]
+            isOneToOne: false
+            referencedRelation: "project_services"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      project_services: {
+        Row: {
+          amount: number
+          created_at: string
+          id: string
+          notes: string | null
+          project_id: string
+          status: string
+          supplier_id: string | null
+          supplier_snapshot: string | null
+          title: string
+          type: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          id?: string
+          notes?: string | null
+          project_id: string
+          status: string
+          supplier_id?: string | null
+          supplier_snapshot?: string | null
+          title: string
+          type: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          id?: string
+          notes?: string | null
+          project_id?: string
+          status?: string
+          supplier_id?: string | null
+          supplier_snapshot?: string | null
+          title?: string
+          type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_services_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_services_supplier_id_fkey"
+            columns: ["supplier_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       projects: {
         Row: {
           accent_color: string | null
@@ -529,13 +613,17 @@ export type Database = {
           article: string | null
           attrs: Json
           avail: string | null
+          base_price: number
           brand: string | null
+          client_discount: number
+          client_discount_pct: number
           code: string | null
           company_id: string | null
           company_name_snapshot: string | null
           contact_id: string | null
           contact_name_snapshot: string | null
           created_at: string
+          cutting_stock: number
           deleted_at: string | null
           id: string
           is_placeholder: boolean
@@ -551,6 +639,9 @@ export type Database = {
           rooms: string[]
           spec: string | null
           status: Database["public"]["Enums"]["spec_status"]
+          stock_pct: number
+          supplier_discount: number
+          supplier_discount_pct: number
           type: string
           unit: string
           updated_at: string
@@ -559,13 +650,17 @@ export type Database = {
           article?: string | null
           attrs?: Json
           avail?: string | null
+          base_price?: number
           brand?: string | null
+          client_discount?: number
+          client_discount_pct?: number
           code?: string | null
           company_id?: string | null
           company_name_snapshot?: string | null
           contact_id?: string | null
           contact_name_snapshot?: string | null
           created_at?: string
+          cutting_stock?: number
           deleted_at?: string | null
           id?: string
           is_placeholder?: boolean
@@ -581,6 +676,9 @@ export type Database = {
           rooms?: string[]
           spec?: string | null
           status?: Database["public"]["Enums"]["spec_status"]
+          stock_pct?: number
+          supplier_discount?: number
+          supplier_discount_pct?: number
           type?: string
           unit?: string
           updated_at?: string
@@ -589,13 +687,17 @@ export type Database = {
           article?: string | null
           attrs?: Json
           avail?: string | null
+          base_price?: number
           brand?: string | null
+          client_discount?: number
+          client_discount_pct?: number
           code?: string | null
           company_id?: string | null
           company_name_snapshot?: string | null
           contact_id?: string | null
           contact_name_snapshot?: string | null
           created_at?: string
+          cutting_stock?: number
           deleted_at?: string | null
           id?: string
           is_placeholder?: boolean
@@ -611,6 +713,9 @@ export type Database = {
           rooms?: string[]
           spec?: string | null
           status?: Database["public"]["Enums"]["spec_status"]
+          stock_pct?: number
+          supplier_discount?: number
+          supplier_discount_pct?: number
           type?: string
           unit?: string
           updated_at?: string

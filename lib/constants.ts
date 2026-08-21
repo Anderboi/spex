@@ -101,18 +101,20 @@ export const STATUS_FLOW = [
 
 export const UNIT_OPTIONS = [
   "шт",
-  "м²",
-  "м³",
-  "м.п.",
   "компл.",
   "пара",
-  "л",
+  "м²",
+  "м",
+  "пог. м",
+  "м³",
   "кг",
-  "рул.",
-  "уп.",
-];
+  "л",
+  "рулон",
+  "лист",
+  "короб",
+] as const;
 
-export const PREFIX_MAP: Record<string, string> = {
+export const PREFIX_MAP: Record<SpecType, string> = {
   Отделка: "От",
   Мебель: "М",
   Оборудование: "Об",
@@ -123,9 +125,10 @@ export const PREFIX_MAP: Record<string, string> = {
   Декор: "Д",
   Двери: "Дв",
   Электрика: "Э",
+  Прочее: "Пр",
 };
 
-export const TYPE_ORDER: SpecType[] = [
+export const SPEC_TYPES = [
   "Отделка",
   "Двери",
   "Сантехника",
@@ -137,7 +140,9 @@ export const TYPE_ORDER: SpecType[] = [
   "Текстиль",
   "Декор",
   "Прочее",
-];
+] as const;
+
+export const TYPE_ORDER: readonly SpecType[] = SPEC_TYPES;
 
 export const SPEC_ITEM_STATUSES = [
   "draft",
@@ -188,6 +193,13 @@ export const PROCUREMENT_FLOW: SpecStatus[] = [
 export const PICKING_FLOW: SpecStatus[] = ["draft", "picked"];
 
 export type SpecType = Enums<"spec_types">;
+type _TypesMatch =
+  Enums<"spec_types"> extends SpecType
+    ? SpecType extends Enums<"spec_types">
+      ? true
+      : never
+    : never;
+const _assertTypes: _TypesMatch = true;
 
 const TYPE_PREFIX: Record<SpecType, string> = {
   Отделка: "О",
@@ -204,7 +216,7 @@ const TYPE_PREFIX: Record<SpecType, string> = {
 };
 export const prefixFor = (type: SpecType) => TYPE_PREFIX[type];
 
-export const UNITS = ["шт", "м²", "м.п.", "компл.", "уп.", "л", "кг"] as const;
+// export const UNITS = ["шт", "м²", "м.п.", "компл.", "уп.", "л", "кг"] as const;
 export const CODE_PATTERN = /^[A-ZА-Я]{1,3}-\d{1,3}$/;
 
 export const ATTR_PRESETS: Record<string, string[]> = {
@@ -238,3 +250,5 @@ export const ATTR_PRESETS: Record<string, string[]> = {
   Электрика: ["Номинал", "Количество модулей", "Цвет", "Серия"],
   Прочее: ["Размеры", "Материал", "Цвет"],
 };
+
+export const STOCK_HINT_TYPES = new Set<SpecType>(["Отделка", "Текстиль"]);

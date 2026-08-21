@@ -53,32 +53,35 @@ export function rowToItem(r: SpecItemRowWithRelations): SpecItem {
     avail: r.avail ?? "",
     attrs: (r.attrs as Record<string, string> | null) ?? {},
     updatedAt: r.updated_at,
+    stockPct: Number(r.stock_pct ?? 0),
+    clientDiscountPct: Number(r.client_discount_pct ?? 0),
+    supplierDiscountPct: Number(r.supplier_discount_pct ?? 0),
   };
 }
 
 /** camelCase-патч → колонки БД. Неизвестные ключи отбрасываются. */
-const FIELD_MAP: Record<keyof SpecItemPatch, string> = {
-  materialId: "material_id",
-  companyId: "company_id",
-  contactId: "contact_id",
-  code: "code",
-  type: "type",
-  name: "name",
-  brand: "brand",
-  spec: "spec",
-  article: "article",
-  qty: "qty",
-  unit: "unit",
-  price: "price",
-  status: "status",
-  isPlaceholder: "is_placeholder",
-  position: "position",
-  rooms: "rooms",
-  notes: "notes",
-  leadTime: "lead_time",
-  avail: "avail",
-  attrs: "attrs",
-};
+// const FIELD_MAP: Record<keyof SpecItemPatch, string> = {
+//   materialId: "material_id",
+//   companyId: "company_id",
+//   contactId: "contact_id",
+//   code: "code",
+//   type: "type",
+//   name: "name",
+//   brand: "brand",
+//   spec: "spec",
+//   article: "article",
+//   qty: "qty",
+//   unit: "unit",
+//   price: "price",
+//   status: "status",
+//   isPlaceholder: "is_placeholder",
+//   position: "position",
+//   rooms: "rooms",
+//   notes: "notes",
+//   leadTime: "lead_time",
+//   avail: "avail",
+//   attrs: "attrs",
+// };
 
 export function patchToRow(p: SpecItemPatch): SpecItemRowPatch {
   const r: SpecItemRowPatch = {};
@@ -103,6 +106,11 @@ export function patchToRow(p: SpecItemPatch): SpecItemRowPatch {
   if (p.leadTime !== undefined) r.lead_time = p.leadTime;
   if (p.avail !== undefined) r.avail = p.avail;
   if (p.attrs !== undefined) r.attrs = p.attrs;
+  if (p.stockPct !== undefined) r.stock_pct = p.stockPct;
+  if (p.clientDiscountPct !== undefined)
+    r.client_discount_pct = p.clientDiscountPct;
+  if (p.supplierDiscountPct !== undefined)
+    r.supplier_discount_pct = p.supplierDiscountPct;
 
   return r;
 }

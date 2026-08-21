@@ -4,6 +4,7 @@ import { Geist, JetBrains_Mono, Unbounded } from "next/font/google";
 import { cn } from "@/lib/utils";
 import { ThemeProvider } from "@/components/theme-provider";
 import { SessionProvider } from "next-auth/react";
+import { Toaster } from 'sonner';
 
 export const metadata: Metadata = {
   title: { default: "Spex", template: "%s | Spex" },
@@ -61,6 +62,7 @@ export default async function RootLayout({
             disableTransitionOnChange
           >
             {children}
+            <Toaster position="bottom-center" richColors closeButton />
           </ThemeProvider>
         </SessionProvider>
       </body>

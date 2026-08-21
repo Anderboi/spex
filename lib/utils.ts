@@ -35,7 +35,12 @@ export const fmtDate = (iso: string) =>
     year: "numeric",
   });
 
-export function fmt(n: number | string): string {
+  export const fmtQty = (n: number) =>
+    Number.isInteger(n)
+      ? String(n)
+      : n.toFixed(2).replace(/0+$/, "").replace(/\.$/, "").replace(".", ",");
+
+export function fmt(n: number | string | null): string {
   return Number(n || 0).toLocaleString("ru-RU");
 }
 

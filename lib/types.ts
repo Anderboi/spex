@@ -147,6 +147,9 @@ export type SpecItem = {
   qty: number;
   unit: string;
   price: number;
+  stockPct: number;
+  clientDiscountPct: number;
+  supplierDiscountPct: number;
   status: SpecStatus;
   isPlaceholder: boolean;
   position: number;
