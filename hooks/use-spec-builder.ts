@@ -20,6 +20,7 @@ import {
   TYPE_ORDER,
 } from "@/lib/constants";
 import {
+  createManualSpecItem,
   createSpecItems,
   deleteSpecItems,
   restoreSpecItems,
@@ -27,6 +28,8 @@ import {
 } from "@/actions/specifications";
 import { SPEC_STATUS_CONFIG } from "@/lib/spec/status";
 import { round2, sumItems } from "@/lib/spec/pricing";
+import type { MaterialListItem } from "@/lib/queries";
+import type { ManualSpecItemInput } from "@/lib/validations";
 
 /* ------------------------------------------------------------------ */
 /*  Типы                                                               */
@@ -51,18 +54,6 @@ export type CodeConflict = {
   itemId: string;
   code: string;
   occupantName: string;
-};
-
-export type LibraryMaterial = {
-  id: string;
-  name: string;
-  brand: string | null;
-  spec: string | null;
-  article: string | null;
-  unit: string | null;
-  price: number | null;
-  type: string | null;
-  company_id: string | null;
 };
 
 type StatusBucket = { items: SpecItem[]; count: number; sum: number };
@@ -331,7 +322,7 @@ export function useSpecBuilder({
    * Дыры не заполняются: нумерация монотонна, марка из чертежа не переиспользуется.
    */
   const nextCodes = useCallback((type: string, count: number): string[] => {
-    const p = prefixFor(type);
+    const p = prefixFor(type).toUpperCase();
     const max = itemsRef.current
       .filter((i) => i.code.startsWith(`${p}-`))
       .reduce(
@@ -410,15 +401,15 @@ export function useSpecBuilder({
     [nextCodes, blank, commitNew],
   );
 
-  /** Добавление из библиотеки материалов. Снапшот поставщика проставит сервер. */
+  /** Добавление из библиотеки материалов. Снапшоты поставщика/контакта проставит сервер. */
   const addFromLibrary = useCallback(
-    (materials: LibraryMaterial[]) => {
+    (materials: MaterialListItem[]) => {
       if (materials.length === 0) return;
 
-      const byType = new Map<SpecType, LibraryMaterial[]>();
+      const byType = new Map<SpecType, MaterialListItem[]>();
       for (const m of materials) {
-        const t: SpecType = TYPE_ORDER.includes(m.type as SpecType)
-          ? (m.type as SpecType)
+        const t: SpecType = TYPE_ORDER.includes(m.category as SpecType)
+          ? (m.category as SpecType)
           : "Прочее";
         byType.set(t, [...(byType.get(t) ?? []), m]);
       }
@@ -432,11 +423,12 @@ export function useSpecBuilder({
               materialId: m.id,
               name: m.name,
               brand: m.brand ?? "",
-              spec: m.spec ?? "",
+              spec: "",
               article: m.article ?? "",
               unit: m.unit ?? "шт",
               price: Number(m.price ?? 0),
-              companyId: m.company_id ?? null,
+              companyId: m.companyId ?? null,
+              contactId: m.contactId ?? null,
               status: "picked",
               isPlaceholder: false,
             }),
@@ -454,22 +446,93 @@ export function useSpecBuilder({
 
   /** Заполнение существующей заглушки материалом из библиотеки. */
   const fillPlaceholder = useCallback(
-    (id: string, m: LibraryMaterial) => {
+    (id: string, m: MaterialListItem) => {
       updateItem(id, {
         materialId: m.id,
         name: m.name,
         brand: m.brand ?? "",
-        spec: m.spec ?? "",
+        spec: "",
         article: m.article ?? "",
         unit: m.unit ?? "шт",
         price: Number(m.price ?? 0),
-        companyId: m.company_id ?? null,
+        companyId: m.companyId ?? null,
+        contactId: m.contactId ?? null,
         status: "picked",
         isPlaceholder: false,
       });
       void persist.flush();
       setModal({ kind: "none" });
       showToast(`Позиция заполнена · ${m.name}`);
+    },
+    [updateItem, persist, showToast],
+  );
+
+  /** Ручное создание позиции (с опциональным сохранением материала в библиотеку). */
+  const addManual = useCallback(
+    (input: ManualSpecItemInput) => {
+      const [code] = nextCodes(input.type, 1);
+      const itemId = crypto.randomUUID();
+      const materialId = input.saveToLibrary ? crypto.randomUUID() : null;
+
+      const created = blank(input.type as SpecType, code, {
+        id: itemId,
+        materialId,
+        name: input.name,
+        brand: input.brand,
+        spec: input.spec,
+        article: input.article,
+        qty: input.qty,
+        unit: input.unit,
+        price: input.price,
+        stockPct: input.stockPct,
+        clientDiscountPct: input.clientDiscountPct,
+        supplierDiscountPct: input.supplierDiscountPct,
+        companyId: input.companyId,
+        status: input.price > 0 ? "picked" : "draft",
+        isPlaceholder: false,
+      });
+
+      setItems((prev) => [...prev, created]);
+
+      startTransition(async () => {
+        const res = await createManualSpecItem(orgSlug, projectId, {
+          ...input,
+          itemId,
+          materialId,
+          code,
+        });
+        if (!res.success) {
+          setItems((prev) => prev.filter((i) => i.id !== itemId));
+          showToast(res.error);
+          return;
+        }
+        showToast(`Добавлена позиция · ${code}`);
+      });
+    },
+    [nextCodes, blank, orgSlug, projectId, showToast],
+  );
+
+  /** Заполнение существующей заглушки вручную (без сохранения в библиотеку). */
+  const fillManual = useCallback(
+    (id: string, input: ManualSpecItemInput) => {
+      updateItem(id, {
+        name: input.name,
+        brand: input.brand,
+        spec: input.spec,
+        article: input.article,
+        qty: input.qty,
+        unit: input.unit,
+        price: input.price,
+        stockPct: input.stockPct,
+        clientDiscountPct: input.clientDiscountPct,
+        supplierDiscountPct: input.supplierDiscountPct,
+        companyId: input.companyId,
+        status: input.price > 0 ? "picked" : "draft",
+        isPlaceholder: false,
+      });
+      void persist.flush();
+      setModal({ kind: "none" });
+      showToast(`Позиция заполнена · ${input.name}`);
     },
     [updateItem, persist, showToast],
   );
@@ -688,7 +751,7 @@ export function useSpecBuilder({
     () =>
       TYPE_ORDER.map((type) => {
         const items = list.filter((i) => i.type === type);
-        return { type, items: list, sum: sumItems(list).total };
+        return { type, items: items, sum: sumItems(items).total };
       }).filter((g) => g.items.length > 0),
     [list],
   );
@@ -872,6 +935,8 @@ export function useSpecBuilder({
     addPlaceholder,
     addFromLibrary,
     fillPlaceholder,
+    addManual,
+    fillManual,
     duplicateItem,
 
     // удаление

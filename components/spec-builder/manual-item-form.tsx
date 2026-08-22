@@ -1,6 +1,6 @@
 "use client";
 
-import { useForm } from "react-hook-form";
+import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,8 +9,9 @@ import { TYPE_ORDER, UNIT_OPTIONS, STOCK_HINT_TYPES } from "@/lib/constants";
 import { priceOf } from "@/lib/spec/pricing";
 import type { SpecPickerCompany } from "@/lib/queries";
 import { fmt, fmtQty, cn } from "@/lib/utils";
-import { SpecItem } from '@/lib/types';
-import { ManualSpecItemInput, manualSpecItemSchema } from '@/lib/validations';
+import { z } from "zod";
+import { SpecItem } from "@/lib/types";
+import { ManualSpecItemInput, manualSpecItemSchema } from "@/lib/validations";
 
 export function ManualItemForm({
   companies,
@@ -23,7 +24,11 @@ export function ManualItemForm({
   onCancel: () => void;
   onSubmit: (input: ManualSpecItemInput) => void;
 }) {
-  const form = useForm<ManualSpecItemInput>({
+  const form = useForm<
+    z.input<typeof manualSpecItemSchema>,
+    any,
+    z.output<typeof manualSpecItemSchema>
+  >({
     resolver: zodResolver(manualSpecItemSchema),
     defaultValues: {
       name: editing?.name ?? "",
@@ -32,7 +37,8 @@ export function ManualItemForm({
       spec: editing?.spec ?? "",
       article: editing?.article ?? "",
       qty: editing?.qty ?? 1,
-      unit: editing?.unit ?? "шт",
+      unit:
+        (editing?.unit as (typeof UNIT_OPTIONS)[number] | undefined) ?? "шт",
       price: editing?.price ?? 0,
       stockPct: editing?.stockPct ?? 0,
       clientDiscountPct: editing?.clientDiscountPct ?? 0,
@@ -51,7 +57,7 @@ export function ManualItemForm({
   } = form;
 
   const type = watch("type");
-  const unit = watch("unit");
+  const unit = watch("unit") ?? "шт";
   const preview = priceOf({
     qty: Number(watch("qty")) || 0,
     unit,
@@ -74,7 +80,7 @@ export function ManualItemForm({
           <Input
             {...register("name")}
             autoFocus
-            placeholder="Rome Vein"
+            placeholder="Керамогранит, 120×278"
             className="h-11 bg-bg-card"
           />
         </Field>
@@ -102,10 +108,10 @@ export function ManualItemForm({
         </div>
 
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Характеристика">
+          <Field label="Коллекция">
             <Input
               {...register("spec")}
-              placeholder="Керамогранит, 120×278"
+              placeholder="Rome Vein"
               className="h-11 bg-bg-card"
             />
           </Field>
@@ -246,10 +252,17 @@ export function ManualItemForm({
 
         {!editing && (
           <label className="flex items-start gap-2.5 rounded-lg border border-border-muted p-3">
-            <input
-              type="checkbox"
-              {...register("saveToLibrary")}
-              className="mt-0.5 size-4"
+            <Controller
+              control={form.control}
+              name="saveToLibrary"
+              render={({ field }) => (
+                <input
+                  type="checkbox"
+                  checked={!!field.value}
+                  onChange={(e) => field.onChange(e.target.checked)}
+                  className="mt-0.5 size-4"
+                />
+              )}
             />
             <span>
               <span className="block text-[13.5px] font-medium">

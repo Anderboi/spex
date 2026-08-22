@@ -25,9 +25,11 @@ import type {
 } from "@/lib/queries";
 import { TYPE_ORDER } from "@/lib/constants";
 import { fmt, plural, cn } from "@/lib/utils";
-import { SpecItem } from '@/lib/types';
-import BottomBar from './bottom-bar';
-import AddModalForm from './add-modal-form';
+import { SpecItem } from "@/lib/types";
+import BottomBar from "./bottom-bar";
+import AddModalForm from "./add-modal-form";
+import { PageHeader } from '../layout/page-header';
+import PageTitle from '../layout/page-title';
 
 export default function SpecBuilder({
   orgSlug,
@@ -73,16 +75,14 @@ export default function SpecBuilder({
   );
 
   const overBudget =
-    project.budget !== null && ctx.stats.grandTotal > project.budget;
+    project.budget !== null && ctx.stats.totalSum > project.budget;
 
   return (
     <div className="relative min-h-screen w-full min-w-0 overflow-x-hidden bg-bg px-4 pb-36 text-fg sm:px-6 md:px-10">
       {/* ── шапка ─────────────────────────────────────────── */}
       <header className="flex flex-wrap items-start gap-3 pt-6">
         <div className="min-w-0 flex-1">
-          <h1 className="truncate font-heading text-xl font-semibold">
-            {project.title}
-          </h1>
+          <PageTitle>{project.title}</PageTitle>
           <p className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[13px] text-fg-muted">
             {project.client_name && (
               <span className="truncate">{project.client_name}</span>
@@ -98,9 +98,9 @@ export default function SpecBuilder({
                   overBudget && "font-semibold text-fg-red",
                 )}
               >
-                {fmt(ctx.stats.grandTotal)} из {fmt(project.budget)} ₽
+                {fmt(ctx.stats.totalSum)} из {fmt(project.budget)} ₽
                 {overBudget &&
-                  ` · перерасход ${fmt(ctx.stats.grandTotal - project.budget)} ₽`}
+                  ` · перерасход ${fmt(ctx.stats.totalSum - project.budget)} ₽`}
               </span>
             )}
           </p>
@@ -265,15 +265,19 @@ export default function SpecBuilder({
         <AddModalForm
           library={library}
           items={ctx.items}
+          companies={companies}
           editing={ctx.editing}
           onClose={ctx.closeModal}
-          companies={companies} 
-          onAddManual={()=>{}}
-          onAdd={(materials: any) => {
+          onAddFromLibrary={(materials) => {
             ctx.addFromLibrary(materials);
             ctx.closeModal();
           }}
-          onFill={(m: any) => ctx.fillPlaceholder(ctx.editing!.id, m)}
+          onFillFromLibrary={(m) => ctx.fillPlaceholder(ctx.editing!.id, m)}
+          onAddManual={(input) => {
+            ctx.addManual(input);
+            ctx.closeModal();
+          }}
+          onFillManual={(input) => ctx.fillManual(ctx.editing!.id, input)}
         />
       )}
 

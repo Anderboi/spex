@@ -115,17 +115,17 @@ export const UNIT_OPTIONS = [
 ] as const;
 
 export const PREFIX_MAP: Record<SpecType, string> = {
-  Отделка: "От",
+  Отделка: "ОТ",
   Мебель: "М",
-  Оборудование: "Об",
+  Оборудование: "ОБ",
   Сантехника: "С",
   Освещение: "О",
   Текстиль: "Т",
   "Инженерное оборудование": "ИО",
   Декор: "Д",
-  Двери: "Дв",
+  Двери: "ДВ",
   Электрика: "Э",
-  Прочее: "Пр",
+  Прочее: "ПР",
 };
 
 export const SPEC_TYPES = [
@@ -200,21 +200,6 @@ type _TypesMatch =
       : never
     : never;
 const _assertTypes: _TypesMatch = true;
-
-const TYPE_PREFIX: Record<SpecType, string> = {
-  Отделка: "О",
-  Мебель: "М",
-  Оборудование: "ОБ",
-  Сантехника: "С",
-  Освещение: "СВ",
-  Текстиль: "Т",
-  "Инженерное оборудование": "ИО",
-  Декор: "ДК",
-  Двери: "Д",
-  Электрика: "Э",
-  Прочее: "П",
-};
-export const prefixFor = (type: SpecType) => TYPE_PREFIX[type];
 
 // export const UNITS = ["шт", "м²", "м.п.", "компл.", "уп.", "л", "кг"] as const;
 export const CODE_PATTERN = /^[A-ZА-Я]{1,3}-\d{1,3}$/;

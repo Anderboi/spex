@@ -43,9 +43,6 @@ export function MaterialsClient({
   const [editingMaterial, setEditingMaterial] = useState<MaterialInput | null>(
     null,
   );
-  const [editing, setEditing] = useState<
-    (MaterialInput & { id: string }) | null
-  >(null);
   const [, startTransition] = useTransition();
 
   useEffect(() => {
@@ -113,7 +110,7 @@ export function MaterialsClient({
   }, [optimisticMaterials, q, sort]);
 
   const handleEdit = (m: MaterialListItem) => {
-    setEditing(toFormValues(m)); // ← карточка отдаёт MaterialListItem
+    setEditingMaterial(toFormValues(m));
     setIsDialogOpen(true);
   };
 

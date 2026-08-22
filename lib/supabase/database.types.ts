@@ -210,7 +210,7 @@ export type Database = {
         Insert: {
           article?: string | null
           brand?: string | null
-          category: string
+          category?: string
           company_id?: string | null
           contact_id?: string | null
           created_at?: string
@@ -436,6 +436,13 @@ export type Database = {
             columns: ["item_id"]
             isOneToOne: false
             referencedRelation: "spec_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_service_items_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "spec_items_priced"
             referencedColumns: ["id"]
           },
           {
@@ -819,7 +826,162 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      spec_items_priced: {
+        Row: {
+          article: string | null
+          attrs: Json | null
+          avail: string | null
+          base_price: number | null
+          brand: string | null
+          client_discount: number | null
+          client_discount_pct: number | null
+          code: string | null
+          company_id: string | null
+          company_name_snapshot: string | null
+          contact_id: string | null
+          contact_name_snapshot: string | null
+          created_at: string | null
+          cutting_stock: number | null
+          deleted_at: string | null
+          id: string | null
+          is_placeholder: boolean | null
+          lead_time: string | null
+          material_id: string | null
+          name: string | null
+          notes: string | null
+          org_id: string | null
+          position: number | null
+          price: number | null
+          price_final: number | null
+          project_id: string | null
+          qty: number | null
+          qty_final: number | null
+          rooms: string[] | null
+          spec: string | null
+          status: Database["public"]["Enums"]["spec_status"] | null
+          stock_pct: number | null
+          supplier_discount: number | null
+          supplier_discount_pct: number | null
+          type: string | null
+          unit: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          article?: string | null
+          attrs?: Json | null
+          avail?: string | null
+          base_price?: number | null
+          brand?: string | null
+          client_discount?: number | null
+          client_discount_pct?: number | null
+          code?: string | null
+          company_id?: string | null
+          company_name_snapshot?: string | null
+          contact_id?: string | null
+          contact_name_snapshot?: string | null
+          created_at?: string | null
+          cutting_stock?: number | null
+          deleted_at?: string | null
+          id?: string | null
+          is_placeholder?: boolean | null
+          lead_time?: string | null
+          material_id?: string | null
+          name?: string | null
+          notes?: string | null
+          org_id?: string | null
+          position?: number | null
+          price?: number | null
+          price_final?: never
+          project_id?: string | null
+          qty?: number | null
+          qty_final?: never
+          rooms?: string[] | null
+          spec?: string | null
+          status?: Database["public"]["Enums"]["spec_status"] | null
+          stock_pct?: number | null
+          supplier_discount?: number | null
+          supplier_discount_pct?: number | null
+          type?: string | null
+          unit?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          article?: string | null
+          attrs?: Json | null
+          avail?: string | null
+          base_price?: number | null
+          brand?: string | null
+          client_discount?: number | null
+          client_discount_pct?: number | null
+          code?: string | null
+          company_id?: string | null
+          company_name_snapshot?: string | null
+          contact_id?: string | null
+          contact_name_snapshot?: string | null
+          created_at?: string | null
+          cutting_stock?: number | null
+          deleted_at?: string | null
+          id?: string | null
+          is_placeholder?: boolean | null
+          lead_time?: string | null
+          material_id?: string | null
+          name?: string | null
+          notes?: string | null
+          org_id?: string | null
+          position?: number | null
+          price?: number | null
+          price_final?: never
+          project_id?: string | null
+          qty?: number | null
+          qty_final?: never
+          rooms?: string[] | null
+          spec?: string | null
+          status?: Database["public"]["Enums"]["spec_status"] | null
+          stock_pct?: number | null
+          supplier_discount?: number | null
+          supplier_discount_pct?: number | null
+          type?: string | null
+          unit?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "spec_items_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "spec_items_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "spec_items_material_id_fkey"
+            columns: ["material_id"]
+            isOneToOne: false
+            referencedRelation: "materials"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "spec_items_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "spec_items_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       accept_invite: {
@@ -828,6 +990,33 @@ export type Database = {
           org_id: string
           org_name: string
           org_slug: string
+        }[]
+      }
+      create_manual_spec_item: {
+        Args: {
+          p_article: string
+          p_brand: string
+          p_client_discount_pct: number
+          p_code: string
+          p_company_id: string
+          p_company_name: string
+          p_created_by: string
+          p_item_id: string
+          p_material_id: string
+          p_name: string
+          p_org_id: string
+          p_price: number
+          p_project_id: string
+          p_qty: number
+          p_save_to_library: boolean
+          p_spec: string
+          p_stock_pct: number
+          p_supplier_discount_pct: number
+          p_type: string
+          p_unit: string
+        }
+        Returns: {
+          id: string
         }[]
       }
       create_organization:

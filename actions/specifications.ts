@@ -130,6 +130,20 @@ export async function createSpecItems(
     for (const co of data ?? []) names.set(co.id, co.name);
   }
 
+  // снапшоты контактов — отдельным запросом (идентификаторы из contacts)
+  const contactIds = [
+    ...new Set(items.map((i) => i.contactId).filter(Boolean)),
+  ] as string[];
+  const contactNames = new Map<string, string>();
+  if (contactIds.length > 0) {
+    const { data } = await c.supabase
+      .from("contacts")
+      .select("id, name")
+      .in("id", contactIds)
+      .eq("org_id", c.orgId);
+    for (const co of data ?? []) contactNames.set(co.id, co.name);
+  }
+
   let pos = (last?.position ?? -1) + 1;
   const rows: TablesInsert<"spec_items">[] = items.map((it) => ({
     ...patchToRow(it),
@@ -140,6 +154,9 @@ export async function createSpecItems(
     type: it.type,
     company_name_snapshot: it.companyId
       ? (names.get(it.companyId) ?? null)
+      : null,
+    contact_name_snapshot: it.contactId
+      ? (contactNames.get(it.contactId) ?? null)
       : null,
     position: pos++,
   }));
@@ -173,73 +190,37 @@ export async function createManualSpecItem(
   const snap = await companySnapshot(c.supabase, c.orgId, d.companyId);
   if (!snap.ok) return fail("Компания не найдена");
 
-  // 1. библиотека — только если попросили
-  if (payload.materialId) {
-    const { error } = await c.supabase.from("materials").insert({
-      id: payload.materialId,
-      org_id: c.orgId,
-      created_by: c.userId,
-      name: d.name,
-      brand: d.brand || null,
-      category: d.type,
-      spec: d.spec || null,
-      article: d.article || null,
-      unit: d.unit,
-      price: d.price,
-      company_id: d.companyId,
-    });
-    if (error) {
-      console.error("[createManualSpecItem:material]", error.message);
-      return fail("Не удалось сохранить материал в библиотеку");
-    }
-  }
-
-  // 2. позиция
-  const { data: last } = await c.supabase
-    .from("spec_items")
-    .select("position")
-    .eq("project_id", projectId)
-    .is("deleted_at", null)
-    .order("position", { ascending: false })
-    .limit(1)
-    .maybeSingle();
-
-  const { error } = await c.supabase.from("spec_items").insert({
-    id: payload.itemId,
-    project_id: projectId,
-    org_id: c.orgId,
-    material_id: payload.materialId,
-    company_id: d.companyId,
-    company_name_snapshot: snap.name,
-    code: payload.code,
-    type: d.type,
-    name: d.name,
-    brand: d.brand || null,
-    spec: d.spec || null,
-    article: d.article || null,
-    qty: d.qty,
-    unit: d.unit,
-    price: d.price,
-    stock_pct: d.stockPct, // ← три новых поля
-    client_discount_pct: d.clientDiscountPct, // ←
-    supplier_discount_pct: d.supplierDiscountPct, // ←
-    status: d.price > 0 ? "picked" : "draft",
-    is_placeholder: false,
-    position: (last?.position ?? -1) + 1,
+  // атомарно: материал (если нужен) + позиция — в одной транзакции на сервере
+  const saveToLibrary = d.saveToLibrary && !!payload.materialId;
+  const { error } = await callRpc(c.supabase, "create_manual_spec_item", {
+    p_org_id: c.orgId,
+    p_project_id: projectId,
+    p_item_id: payload.itemId,
+    p_material_id: saveToLibrary ? payload.materialId : null,
+    p_company_id: d.companyId,
+    p_company_name: snap.name,
+    p_created_by: c.userId,
+    p_code: payload.code,
+    p_type: d.type,
+    p_name: d.name,
+    p_brand: d.brand || null,
+    p_spec: d.spec || null,
+    p_article: d.article || null,
+    p_qty: d.qty,
+    p_unit: d.unit,
+    p_price: d.price,
+    p_stock_pct: d.stockPct,
+    p_client_discount_pct: d.clientDiscountPct,
+    p_supplier_discount_pct: d.supplierDiscountPct,
+    p_save_to_library: saveToLibrary,
   });
 
   if (error) {
-    // материал уже создан — убираем, чтобы не осталось сироты
-    if (payload.materialId) {
-      await c.supabase
-        .from("materials")
-        .delete()
-        .eq("id", payload.materialId)
-        .eq("org_id", c.orgId);
-    }
-    if (error.code === "23505")
+    if (error.message.includes("CODE_TAKEN"))
       return fail("Марка уже занята — обновите страницу");
-    console.error("[createManualSpecItem:item]", error.message);
+    if (error.message.includes("PROJECT_NOT_FOUND"))
+      return fail("Проект не найден");
+    console.error("[createManualSpecItem]", error.message);
     return fail("Не удалось добавить позицию");
   }
 

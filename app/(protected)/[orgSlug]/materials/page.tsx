@@ -32,6 +32,7 @@ export default async function MaterialsLibraryPage({
         description="Сохраненные позиции и образцы для быстрого добавления в проекты"
       >
         <Button
+          nativeButton={false}
           render={
             <Link
               className="flex flex-row items-center gap-2"
