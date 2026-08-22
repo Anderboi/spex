@@ -15,6 +15,7 @@ import {
 import { MaterialDialog } from "./material-dialog";
 import { usePathname, useRouter } from "next/navigation";
 import MaterialCard from "./material-card";
+import TypeChipsSection from "../spec-builder/TypeChipsSection";
 import { MaterialListItem, SpecPickerCompany, SpecPickerContact } from '@/lib/queries';
 import { toListItem, toFormValues } from '@/lib/spec/adapters';
 
@@ -44,6 +45,8 @@ export function MaterialsClient({
     null,
   );
   const [, startTransition] = useTransition();
+
+  const [selectedCategory, setSelectedCategory] = useState("Все типы");
 
   useEffect(() => {
     if (searchParams?.action === "create") {
@@ -98,6 +101,10 @@ export function MaterialsClient({
       );
     }
 
+    if (selectedCategory !== "Все типы") {
+      result = result.filter((m) => m.category === selectedCategory);
+    }
+
     if (sort === "name_asc") {
       result.sort((a, b) => a.name.localeCompare(b.name));
     } else if (sort === "price_asc") {
@@ -107,7 +114,7 @@ export function MaterialsClient({
     }
 
     return result;
-  }, [optimisticMaterials, q, sort]);
+  }, [optimisticMaterials, q, sort, selectedCategory]);
 
   const handleEdit = (m: MaterialListItem) => {
     setEditingMaterial(toFormValues(m));
@@ -139,6 +146,11 @@ export function MaterialsClient({
 
   return (
     <article>
+      <TypeChipsSection
+        activeType={selectedCategory}
+        setActiveType={setSelectedCategory}
+        className="mb-4"
+      />
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {filteredAndSortedMaterials.map((mat) => (
           <MaterialCard
