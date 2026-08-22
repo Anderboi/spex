@@ -19,6 +19,7 @@ import TypeChipsSection from "../spec-builder/TypeChipsSection";
 import { ContactCard } from "./contact-card";
 import { normPhone, normText } from "@/lib/utils";
 import { toast } from "sonner";
+import { SearchSortBar } from '../layout/search-sort-bar';
 
 interface ContactsViewProps {
   orgSlug: string;
@@ -287,8 +288,15 @@ export default function ContactsView({
             </Button>
           </div>
         </div>
-
-        <div className="flex flex-wrap items-center gap-3">
+        <SearchSortBar
+          placeholder="Поиск по названию, категории, имени..."
+          sortOptions={[
+            { label: "По названию (А-Я)", value: "name_asc" },
+            { label: "По цене (сначала дешевле)", value: "price_asc" },
+            { label: "По цене (сначала дороже)", value: "price_desc" },
+          ]}
+        />
+        {/* <div className="flex flex-wrap items-center gap-3">
           <div className="relative flex-1 basis-full sm:basis-auto sm:min-w-56">
             <Search
               aria-hidden="true"
@@ -302,7 +310,7 @@ export default function ContactsView({
               className="h-10 w-full rounded-lg border border-input bg-bg-card pl-9 pr-3 text-sm text-foreground outline-none transition-colors placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30"
             />
           </div>
-        </div>
+        </div> */}
 
         <TypeChipsSection
           activeType={selectedCategory}
@@ -402,12 +410,14 @@ export default function ContactsView({
       {/* Диалоговые окна */}
       {companyDialogOpen && (
         <CompanyDialog
+          orgSlug={orgSlug}
           open={companyDialogOpen}
           onClose={() => setCompanyDialogOpen(false)}
         />
       )}
       {managerDialog.open && (
         <ContactDialog
+          orgSlug={orgSlug}
           open={managerDialog.open}
           companies={optimisticCompanies}
           fixedCompanyId={managerDialog.companyId}

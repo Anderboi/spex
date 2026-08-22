@@ -32,7 +32,7 @@ export function PriceField({
       onKeyDown={(e) => {
         if (e.key === "Enter") e.currentTarget.blur();
       }}
-      className="w-full rounded border border-transparent bg-transparent px-2 py-1 text-right font-mono text-[13px] tabular-nums hover:border-border-muted focus:border-fg-brand focus:outline-none"
+      className="w-full rounded border border-transparent bg-transparent //px-2 py-1 text-right font-mono text-[13px] tabular-nums hover:border-border-muted focus:border-fg-brand focus:outline-none"
     />
   );
 }
