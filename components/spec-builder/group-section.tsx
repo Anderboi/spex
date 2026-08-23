@@ -6,6 +6,7 @@ import { SpecRow, type SpecRowHandlers } from "./spec-row";
 import { fmt, plural, cn } from "@/lib/utils";
 import { SpecItem } from '@/lib/types';
 import { SpecCard } from './spec-card';
+import { Checkbox } from '../ui/checkbox';
 
 export const GroupSection = memo(function GroupSection({
   type,
@@ -42,12 +43,14 @@ export const GroupSection = memo(function GroupSection({
         >
           <ChevronDown
             className={cn(
-              "size-4 text-fg-muted transition-transform",
+              "size-3 text-fg-muted transition-transform",
               collapsed && "-rotate-90",
             )}
           />
-          <span className="font-heading text-[16px] font-semibold">{type}</span>
-          <span className="text-[13px] text-fg-muted">
+          <span className="font-mono text-[13px] uppercase font-semibold">
+            {type}
+          </span>
+          <span className="text-[11px] border border-border-muted rounded-full px-2 py-0.5 text-fg-muted">
             {items.length}{" "}
             {plural(items.length, "позиция", "позиции", "позиций")}
           </span>
@@ -73,6 +76,26 @@ export const GroupSection = memo(function GroupSection({
               <caption className="sr-only">
                 {type} — позиции спецификации
               </caption>
+              <thead className="text-[10px] table-fixed font-mono text-fg-muted uppercase border-b border-border-muted //p-2">
+                <tr>
+                  <th className="text-left w-10 px-3 py-2">
+                    <Checkbox className='border-border border-2'
+                      // checked={selected}
+                      // onCheckedChange={() => h.onToggleSel(item.id)}
+                      // aria-label={`Выбрать ${item.code}`}
+                    />
+                  </th>
+                  <th className="text-left w-13 p-2">избр</th>
+                  <th className="text-left w-1/14 p-2">марка</th>
+                  <th className="text-left w-1/4 p-2">наименование</th>
+                  {/* <th className="text-left w-1/6 p-2">описание</th> */}
+                  <th className="//text-right w-1/8 p-2">кол-во</th>
+                  <th className="text-right w-1/7 p-2">цена</th>
+                  <th className="text-right w-1/7 p-2">итого</th>
+                  <th className="//text-left w-1/6 p-2">Статус</th>
+                  <th className="text-left w-13 p-2"></th>
+                </tr>
+              </thead>
               <tbody>
                 {items.map((it) => (
                   <SpecRow
