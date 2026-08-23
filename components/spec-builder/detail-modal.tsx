@@ -25,8 +25,17 @@ import { AttrsEditor } from "./attrs-editor";
 import { RoomsEditor } from "./rooms-editor";
 import { ScrollArea } from "../ui/scroll-area";
 import Image from "next/image";
+import { CompanyDialog } from "@/components/contacts/company-dialog";
 
-type Company = { id: string; name: string };
+type Company = {
+  id: string;
+  name: string;
+  email?: string;
+  phone?: string;
+  website?: string;
+  address?: string;
+  note?: string;
+};
 type Contact = {
   id: string;
   name: string;
@@ -39,6 +48,7 @@ export function DetailModal({
   item,
   companies,
   contacts,
+  orgSlug,
   onClose,
   onPatch,
   onCode,
@@ -52,6 +62,7 @@ export function DetailModal({
   item: SpecItem;
   companies: Company[];
   contacts: Contact[];
+  orgSlug: string;
   onClose: () => void;
   onPatch: (patch: SpecItemPatch) => void;
   onCode: (code: string) => void;
@@ -63,14 +74,17 @@ export function DetailModal({
   onShare: () => void;
 }) {
   const [tab, setTab] = useState("overview");
+  const [localCompanies, setLocalCompanies] = useState<Company[]>(companies);
+  const [showAddCompany, setShowAddCompany] = useState(false);
+  const [newCompanyName, setNewCompanyName] = useState("");
   const sum = item.qty * item.price;
 
   return (
     <Dialog open onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="max-h-[88vh] flex-col  bg-bg-card sm:max-w-170 p-0 gap-0">
         <DialogHeader className="sticky top-0 gap-2 border-b p-4 //pt-8">
-            <div className="flex flex-row gap-8">
-          <div className="flex flex-wrap items-center gap-3">
+          <div className="flex flex-row gap-8">
+            <div className="flex flex-wrap items-center gap-3">
               <div className="bg-fg px-2 py-1 rounded-sm text-bg">
                 <InlineCode
                   code={item.code}
@@ -248,7 +262,7 @@ export function DetailModal({
 
             <TabsContent value="supplier" className="pt-4">
               <SupplierPicker
-                companies={companies}
+                companies={localCompanies}
                 contacts={contacts}
                 companyId={item.companyId}
                 contactId={item.contactId}
@@ -256,6 +270,10 @@ export function DetailModal({
                 onChange={(companyId, contactId) =>
                   onPatch({ companyId, contactId })
                 }
+                onCreateCompany={(name) => {
+                  setNewCompanyName(name);
+                  setShowAddCompany(true);
+                }}
               />
             </TabsContent>
           </ScrollArea>
@@ -277,6 +295,19 @@ export function DetailModal({
           </Button>
         </DialogFooter>
       </DialogContent>
+      {showAddCompany && (
+        <CompanyDialog
+          orgSlug={orgSlug}
+          open={showAddCompany}
+          initialName={newCompanyName}
+          onClose={() => setShowAddCompany(false)}
+          onSuccess={(company) => {
+            setLocalCompanies((prev) => [...prev, company]);
+            onPatch({ companyId: company.id, contactId: null });
+            setShowAddCompany(false);
+          }}
+        />
+      )}
     </Dialog>
   );
 }

@@ -32,13 +32,15 @@ interface CompanyDialogProps {
   orgSlug: string;
   open: boolean;
   onClose: () => void;
-  onSuccess?: () => void;
+  initialName?: string;
+  onSuccess?: (company: { id: string; name: string }) => void;
 }
 
 export function CompanyDialog({
   orgSlug,
   open,
   onClose,
+  initialName,
   onSuccess,
 }: CompanyDialogProps) {
   const [isPending, startTransition] = useTransition();
@@ -51,7 +53,7 @@ export function CompanyDialog({
     resolver: zodResolver(companySchema),
     defaultValues: {
       id: undefined,
-      name: "",
+      name: initialName ?? "",
       category: [],
       website: "",
       email: "",
@@ -74,7 +76,7 @@ export function CompanyDialog({
 
       form.reset();
       onClose();
-      onSuccess?.();
+      onSuccess?.(res.data as { id: string; name: string });
     });
   };
 

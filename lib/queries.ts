@@ -12,7 +12,15 @@ import { rowToItem } from "./spec/mappers";
 import { SpecItem } from "./types";
 import { one } from "./utils";
 
-export type SpecPickerCompany = { id: string; name: string };
+export type SpecPickerCompany = {
+  id: string;
+  name: string;
+  phone?: string;
+  email?: string ;
+  website?: string;
+  address?: string ;
+  note?: string ;
+};
 export type SpecPickerContact = {
   id: string;
   name: string;
@@ -28,7 +36,7 @@ export const getSpecPickerData = cache(async (orgSlug: string) => {
   const [companiesRes, contactsRes] = await Promise.all([
     supabase
       .from("companies")
-      .select("id, name")
+      .select("id, name, phone, email, website, address, note")
       .eq("org_id", orgId)
       .order("name"),
     supabase

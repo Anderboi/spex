@@ -28,7 +28,6 @@ import { fmt, plural, cn } from "@/lib/utils";
 import { SpecItem } from "@/lib/types";
 import BottomBar from "./bottom-bar";
 import AddModalForm from "./add-modal-form";
-import { PageHeader } from '../layout/page-header';
 import PageTitle from '../layout/page-title';
 
 export default function SpecBuilder({
@@ -246,6 +245,7 @@ export default function SpecBuilder({
       {/* ── модалки ───────────────────────────────────────── */}
       {ctx.current && (
         <DetailModal
+          orgSlug={orgSlug}
           item={ctx.current}
           companies={companies}
           contacts={contacts}
