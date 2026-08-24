@@ -27,7 +27,7 @@ import { TYPE_ORDER } from "@/lib/constants";
 import { fmt, plural, cn } from "@/lib/utils";
 import { SpecItem } from "@/lib/types";
 import BottomBar from "./bottom-bar";
-import AddModalForm from "./add-modal-form";
+import AddModalForm from "./add-spec-mat-modal-form";
 import PageTitle from '../layout/page-title';
 
 export default function SpecBuilder({
@@ -266,6 +266,7 @@ export default function SpecBuilder({
           library={library}
           items={ctx.items}
           companies={companies}
+          orgSlug={orgSlug}
           editing={ctx.editing}
           onClose={ctx.closeModal}
           onAddFromLibrary={(materials) => {

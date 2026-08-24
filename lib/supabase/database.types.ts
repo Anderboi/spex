@@ -652,6 +652,7 @@ export type Database = {
           cutting_stock: number
           deleted_at: string | null
           id: string
+          image_url: string | null
           is_placeholder: boolean
           lead_time: string | null
           material_id: string | null
@@ -692,6 +693,7 @@ export type Database = {
           cutting_stock?: number
           deleted_at?: string | null
           id?: string
+          image_url?: string | null
           is_placeholder?: boolean
           lead_time?: string | null
           material_id?: string | null
@@ -732,6 +734,7 @@ export type Database = {
           cutting_stock?: number
           deleted_at?: string | null
           id?: string
+          image_url?: string | null
           is_placeholder?: boolean
           lead_time?: string | null
           material_id?: string | null
@@ -1019,33 +1022,62 @@ export type Database = {
           org_slug: string
         }[]
       }
-      create_manual_spec_item: {
-        Args: {
-          p_article: string
-          p_brand: string
-          p_client_discount_pct: number
-          p_code: string
-          p_company_id: string
-          p_company_name: string
-          p_created_by: string
-          p_item_id: string
-          p_material_id: string
-          p_name: string
-          p_org_id: string
-          p_price: number
-          p_project_id: string
-          p_qty: number
-          p_save_to_library: boolean
-          p_spec: string
-          p_stock_pct: number
-          p_supplier_discount_pct: number
-          p_type: string
-          p_unit: string
-        }
-        Returns: {
-          id: string
-        }[]
-      }
+      create_manual_spec_item:
+        | {
+            Args: {
+              p_article: string
+              p_brand: string
+              p_client_discount_pct: number
+              p_code: string
+              p_company_id: string
+              p_company_name: string
+              p_created_by: string
+              p_item_id: string
+              p_material_id: string
+              p_name: string
+              p_org_id: string
+              p_price: number
+              p_project_id: string
+              p_qty: number
+              p_save_to_library: boolean
+              p_spec: string
+              p_stock_pct: number
+              p_supplier_discount_pct: number
+              p_type: string
+              p_unit: string
+            }
+            Returns: {
+              id: string
+            }[]
+          }
+        | {
+            Args: {
+              p_article: string
+              p_brand: string
+              p_client_discount_pct: number
+              p_code: string
+              p_company_id: string
+              p_company_name: string
+              p_created_by: string
+              p_image_url: string
+              p_item_id: string
+              p_material_id: string
+              p_name: string
+              p_org_id: string
+              p_price: number
+              p_project_id: string
+              p_qty: number
+              p_save_to_library: boolean
+              p_spec: string
+              p_stock_pct: number
+              p_supplier_discount_pct: number
+              p_type: string
+              p_unit: string
+            }
+            Returns: {
+              id: string
+            }[]
+          }
       create_organization:
         | { Args: { p_name: string }; Returns: string }
         | { Args: { p_name: string; p_user_id: string }; Returns: string }

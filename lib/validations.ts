@@ -215,6 +215,7 @@ export const specItemPatchSchema = z
     position: z.number().int().min(0),
     product_url: z.string().trim().max(500),
     product_type: z.string().trim().max(120),
+    imageUrl: z.string().trim().max(500).nullable(),
     rooms: z.array(z.string().trim().min(1).max(120)).max(100),
     notes: z.string().trim().max(4000),
     leadTime: z.string().trim().max(120),
@@ -277,6 +278,7 @@ export const manualSpecItemSchema = z
       .default(0),
 
     companyId: z.string().uuid().nullable().default(null),
+    imageUrl: z.string().trim().max(500).nullable().default(null),
     saveToLibrary: z.boolean().default(true),
   })
   .refine(

@@ -215,6 +215,7 @@ export async function createManualSpecItem(
     p_client_discount_pct: d.clientDiscountPct,
     p_supplier_discount_pct: d.supplierDiscountPct,
     p_save_to_library: saveToLibrary,
+    p_image_url: d.imageUrl,
   });
 
   if (error) {

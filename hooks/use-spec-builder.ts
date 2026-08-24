@@ -490,6 +490,7 @@ export function useSpecBuilder({
         clientDiscountPct: input.clientDiscountPct,
         supplierDiscountPct: input.supplierDiscountPct,
         companyId: input.companyId,
+        imageUrl: input.imageUrl,
         status: input.price > 0 ? "picked" : "draft",
         isPlaceholder: false,
       });
@@ -529,6 +530,7 @@ export function useSpecBuilder({
         clientDiscountPct: input.clientDiscountPct,
         supplierDiscountPct: input.supplierDiscountPct,
         companyId: input.companyId,
+        imageUrl: input.imageUrl,
         status: input.price > 0 ? "picked" : "draft",
         isPlaceholder: false,
       });

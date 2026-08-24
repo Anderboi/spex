@@ -1,7 +1,11 @@
 "use client";
 
+import { useState, type ChangeEvent } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { CloudUpload, Loader2 } from "lucide-react";
+import Image from "next/image";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
@@ -12,14 +16,17 @@ import { fmt, fmtQty, cn } from "@/lib/utils";
 import { z } from "zod";
 import { SpecItem } from "@/lib/types";
 import { ManualSpecItemInput, manualSpecItemSchema } from "@/lib/validations";
+import { uploadMaterialImage } from "@/actions/materials";
 
 export function ManualItemForm({
   companies,
+  orgSlug,
   editing,
   onCancel,
   onSubmit,
 }: {
   companies: SpecPickerCompany[];
+  orgSlug: string;
   editing: SpecItem | null;
   onCancel: () => void;
   onSubmit: (input: ManualSpecItemInput) => void;
@@ -44,10 +51,13 @@ export function ManualItemForm({
       clientDiscountPct: editing?.clientDiscountPct ?? 0,
       supplierDiscountPct: editing?.supplierDiscountPct ?? 0,
       companyId: editing?.companyId ?? null,
+      imageUrl: editing?.imageUrl ?? null,
       saveToLibrary: !editing,
       
     },
   });
+
+  const [isUploading, setIsUploading] = useState(false);
 
   const {
     register,
@@ -58,6 +68,7 @@ export function ManualItemForm({
 
   const type = watch("type");
   const unit = watch("unit") ?? "шт";
+  const imageUrl = watch("imageUrl");
   const preview = priceOf({
     qty: Number(watch("qty")) || 0,
     unit,
@@ -70,12 +81,69 @@ export function ManualItemForm({
   const showPreview =
     preview.total > 0 && (preview.hasQtyMod || preview.hasPriceMod);
 
+  const handleFile = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await uploadMaterialImage(orgSlug, fd);
+      if (!res.success) {
+        toast.error(res.error);
+        return;
+      }
+      form.setValue("imageUrl", res.url, { shouldDirty: true });
+    } catch {
+      toast.error("Не удалось загрузить изображение");
+    } finally {
+      setIsUploading(false);
+      e.target.value = "";
+    }
+  };
+
   return (
     <form
       onSubmit={handleSubmit(onSubmit)}
       className="flex min-h-0 flex-1 flex-col"
     >
       <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
+        <section className="flex items-start gap-4">
+          {imageUrl ? (
+            <div className="relative size-24 shrink-0 overflow-hidden rounded-lg border border-border">
+              <Image
+                src={imageUrl}
+                alt="Изображение позиции"
+                fill
+                sizes="96px"
+                className="object-cover"
+              />
+            </div>
+          ) : null}
+          <label className="flex h-24 flex-1 cursor-pointer items-center justify-center gap-2 rounded-lg border-2 border-dashed border-border-muted bg-bg-card2 p-4">
+            <input
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleFile}
+              disabled={isUploading}
+            />
+            <div className="flex flex-col items-center gap-2">
+              {isUploading ? (
+                <Loader2 className="size-6 animate-spin text-fg-muted" />
+              ) : (
+                <CloudUpload size={24} className="text-fg-muted" />
+              )}
+              <div className="flex flex-col items-center">
+                <span>
+                  {imageUrl ? "Заменить изображение" : "Добавить изображение"}
+                </span>
+                <span className="text-xs text-fg-muted">JPG/PNG до 5 МБ</span>
+              </div>
+            </div>
+          </label>
+        </section>
+
         <Field label="Наименование" error={errors.name?.message}>
           <Input
             {...register("name")}

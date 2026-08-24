@@ -34,7 +34,7 @@ export function rowToItem(r: SpecItemRowWithRelations): SpecItem {
     contactName: contact?.name ?? "",
     contactPhone: contact?.phone ?? "",
     contactEmail: contact?.email ?? "",
-    imageUrl: material?.image_url ?? null,
+    imageUrl: r.image_url ?? material?.image_url ?? null,
     code: r.code ?? "",
     type: r.type as SpecType,
     name: r.name,
@@ -115,6 +115,7 @@ export function patchToRow(p: SpecItemPatch): SpecItemRowPatch {
     r.supplier_discount_pct = p.supplierDiscountPct;
   if(p.product_url !== undefined) r.product_url = p.product_url;
   if(p.product_type !== undefined) r.product_type = p.product_type;
+  if (p.imageUrl !== undefined) r.image_url = p.imageUrl;
 
   return r;
 }

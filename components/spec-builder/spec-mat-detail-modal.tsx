@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { Share2, Trash2, Eraser, CloudUpload } from "lucide-react";
+import { useState, type ChangeEvent } from "react";
+import { Share2, Trash2, Eraser, CloudUpload, Loader2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -27,6 +27,8 @@ import { ScrollArea } from "../ui/scroll-area";
 import Image from "next/image";
 import { CompanyDialog } from "@/components/contacts/company-dialog";
 import CopyButton from "../layout/copy-button";
+import { toast } from "sonner";
+import { uploadMaterialImage } from "@/actions/materials";
 
 type Company = {
   id: string;
@@ -78,7 +80,29 @@ export function DetailModal({
   const [localCompanies, setLocalCompanies] = useState<Company[]>(companies);
   const [showAddCompany, setShowAddCompany] = useState(false);
   const [newCompanyName, setNewCompanyName] = useState("");
+  const [isUploading, setIsUploading] = useState(false);
   const sum = item.qty * item.price;
+
+  const handleFile = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await uploadMaterialImage(orgSlug, fd);
+      if (!res.success) {
+        toast.error(res.error);
+        return;
+      }
+      onPatch({ imageUrl: res.url });
+    } catch {
+      toast.error("Не удалось загрузить изображение");
+    } finally {
+      setIsUploading(false);
+      e.target.value = "";
+    }
+  };
 
   return (
     <Dialog open onOpenChange={(v) => !v && onClose()}>
@@ -135,17 +159,32 @@ export function DetailModal({
                     className="bg-bg-brand rounded-lg border"
                   />
                 )}
-                <div className="flex items-center cursor-pointer justify-center gap-2 border-2 border-border-muted bg-bg-card rounded-lg border-dashed p-4 h-30 flex-1">
+                <label className="flex items-center cursor-pointer justify-center gap-2 border-2 border-border-muted bg-bg-card rounded-lg border-dashed p-4 h-30 flex-1">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleFile}
+                    disabled={isUploading}
+                  />
                   <div className="flex flex-col items-center gap-2">
-                    <CloudUpload size={24} className="text-fg-muted" />
+                    {isUploading ? (
+                      <Loader2 className="size-6 animate-spin text-fg-muted" />
+                    ) : (
+                      <CloudUpload size={24} className="text-fg-muted" />
+                    )}
                     <div className="flex flex-col items-center">
-                      <span>Добавить изображение</span>
+                      <span>
+                        {item.imageUrl
+                          ? "Заменить изображение"
+                          : "Добавить изображение"}
+                      </span>
                       <span className="text-xs text-fg-muted">
-                        Выберите файл или перетащите сюда чтобы загрузить
+                        JPG/PNG до 5 МБ
                       </span>
                     </div>
                   </div>
-                </div>
+                </label>
               </section>
 
               <section className="grid grid-cols-2 gap-4 pl-4 pr-6">

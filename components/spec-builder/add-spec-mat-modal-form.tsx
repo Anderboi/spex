@@ -23,6 +23,7 @@ export default function AddModalForm({
   library,
   items,
   companies,
+  orgSlug,
   editing,
   onClose,
   onAddFromLibrary,
@@ -33,6 +34,7 @@ export default function AddModalForm({
   library: MaterialListItem[];
   items: SpecItem[];
   companies: SpecPickerCompany[];
+  orgSlug: string;
   editing: SpecItem | null;
   onClose: () => void;
   onAddFromLibrary: (materials: MaterialListItem[]) => void;
@@ -180,6 +182,7 @@ export default function AddModalForm({
         {mode === "manual" ? (
           <ManualItemForm
             companies={companies}
+            orgSlug={orgSlug}
             editing={editing}
             onCancel={onClose}
             onSubmit={(d) => (editing ? onFillManual(d) : onAddManual(d))}

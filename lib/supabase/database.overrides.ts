@@ -26,6 +26,7 @@ export type CustomFunctions = {
       p_company_id: string | null;
       p_company_name: string | null;
       p_created_by: string;
+      p_image_url: string | null;
       p_code: string;
       p_type: string;
       p_name: string;
