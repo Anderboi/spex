@@ -15,18 +15,18 @@ import { one } from "./utils";
 export type SpecPickerCompany = {
   id: string;
   name: string;
-  phone?: string;
-  email?: string ;
-  website?: string;
-  address?: string ;
-  note?: string ;
+  phone?: string | null;
+  email?: string | null;
+  website?: string | null;
+  address?: string | null;
+  note?: string | null;
 };
 export type SpecPickerContact = {
   id: string;
   name: string;
   company_id: string | null;
-  phone: string | null;
-  email: string | null;
+  phone?: string | null;
+  email?: string | null;
 };
 
 export const getSpecPickerData = cache(async (orgSlug: string) => {
@@ -68,7 +68,9 @@ const MATERIAL_LIST_SELECT = `
   image_url,
   created_at,
   companies:company_id (id, name),
-  contacts:contact_id (id, name)
+  contacts:contact_id (id, name),
+  product_url,
+  product_type
 `;
 
 export type MaterialListItem = {
@@ -85,6 +87,8 @@ export type MaterialListItem = {
   contactName: string;
   createdAt: string;
   contactId: string | null;
+  product_url: string | null;
+  product_type: string | null;
 };
 
 function toMaterialListItem(r: any): MaterialListItem {
@@ -104,6 +108,8 @@ function toMaterialListItem(r: any): MaterialListItem {
     contactName: contact?.name ?? "",
     createdAt: r.created_at,
     contactId: contact?.id ?? null,
+    product_url: r.product_url ?? null,
+    product_type: r.product_type ?? null,
   };
 }
 

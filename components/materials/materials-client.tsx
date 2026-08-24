@@ -164,6 +164,7 @@ export function MaterialsClient({
 
       <MaterialDialog
         open={isDialogOpen}
+        orgSlug={orgSlug}
         onOpenChange={closeDialog}
         companies={companies}
         contacts={contacts}

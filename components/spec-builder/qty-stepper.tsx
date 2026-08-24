@@ -6,10 +6,12 @@ export function QtyStepper({
   unit,
   onChange,
   editable,
+  showUnit = true,
 }: {
   qty: number;
   unit: string;
   editable: boolean;
+  showUnit?: boolean;
   onChange: (d: number) => void;
 }) {
   return (
@@ -24,7 +26,8 @@ export function QtyStepper({
         <Minus className="size-3" />
       </button>
       <span className="min-w-14 text-center font-mono text-[13px] tabular-nums">
-        {qty} <span className="text-[11px] text-fg-muted">{unit}</span>
+        {qty}
+        {showUnit && <span className="text-[11px] ml-1 text-fg-muted">{unit}</span>}
       </span>
       <button
         type="button"

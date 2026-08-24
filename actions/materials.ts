@@ -5,6 +5,7 @@ import { MaterialInput, materialSchema } from "@/lib/validations";
 import { assertCanMutate, forbidden, scoped } from "@/lib/db/guard";
 import { can } from "@/lib/permissions";
 import { requireOrgBySlug } from "@/lib/auth/session";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 type ActionResponse<T = any> = {
   success: boolean;
@@ -84,4 +85,43 @@ export async function deleteMaterial(orgSlug: string, id: string) {
 
   revalidatePath(`/${orgSlug}/materials`);
   return { success: true as const };
+}
+
+const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
+const MATERIAL_IMAGES_BUCKET = "material-images";
+
+export async function uploadMaterialImage(
+  orgSlug: string,
+  formData: FormData,
+): Promise<{ success: true; url: string } | { success: false; error: string }> {
+  const { orgId } = await requireOrgBySlug(orgSlug);
+
+  const file = formData.get("file");
+  if (!file || typeof file === "string") {
+    return { success: false, error: "Файл не найден" };
+  }
+  if (!file.type.startsWith("image/")) {
+    return { success: false, error: "Нужно изображение" };
+  }
+  if (file.size > MAX_IMAGE_SIZE) {
+    return { success: false, error: "Файл больше 5 МБ" };
+  }
+
+  const supabase = createAdminClient();
+  const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
+  const path = `${orgId}/${crypto.randomUUID()}.${ext}`;
+
+  const { error } = await supabase.storage
+    .from(MATERIAL_IMAGES_BUCKET)
+    .upload(path, file, { contentType: file.type, upsert: false });
+
+  if (error) {
+    console.error("[uploadMaterialImage]", error.message);
+    return { success: false, error: "Не удалось загрузить изображение" };
+  }
+
+  const { data } = supabase.storage
+    .from(MATERIAL_IMAGES_BUCKET)
+    .getPublicUrl(path);
+  return { success: true, url: data.publicUrl };
 }

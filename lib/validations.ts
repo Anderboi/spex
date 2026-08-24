@@ -98,6 +98,8 @@ export const materialSchema = z.object({
   category: z.string().min(1, "Выберите категорию"),
   article: z.string().optional().nullable(),
   unit: z.string().default("шт"),
+  product_url: z.string().optional().nullable(),
+  product_type: z.string().min(1, "Выберите тип продукта").optional().nullable(),
   price: z
     .number()
     .min(0, "Цена не может быть отрицательной")
@@ -211,6 +213,8 @@ export const specItemPatchSchema = z
     status: z.enum(SPEC_STATUSES),
     isPlaceholder: z.boolean(),
     position: z.number().int().min(0),
+    product_url: z.string().trim().max(500),
+    product_type: z.string().trim().max(120),
     rooms: z.array(z.string().trim().min(1).max(120)).max(100),
     notes: z.string().trim().max(4000),
     leadTime: z.string().trim().max(120),

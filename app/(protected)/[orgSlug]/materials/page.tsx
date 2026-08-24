@@ -7,7 +7,6 @@ import { Plus } from "lucide-react";
 import Link from "next/link";
 import { Suspense } from "react";
 import { MaterialsSkeleton } from "@/components/materials/materials-skeleton";
-import TypeChipsSection from '@/components/spec-builder/TypeChipsSection';
 
 type Props = {
   params: Promise<{ orgSlug: string }>;

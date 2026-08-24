@@ -1,7 +1,8 @@
 import { Button } from "../ui/button";
 import { ArrowRight, Pencil, Trash2 } from "lucide-react";
 import { fmt } from "@/lib/utils";
-import { MaterialListItem } from '@/lib/queries';
+import Image from "next/image";
+import { MaterialListItem } from "@/lib/queries";
 
 interface MaterialCardProps {
   mat: MaterialListItem;
@@ -15,12 +16,22 @@ const MaterialCard = ({ mat, handleEdit, handleDelete }: MaterialCardProps) => {
       className="group rounded-xl border border-border bg-bg-card overflow-hidden hover:border-fg/30 transition-all flex flex-col"
     >
       {/* Превью с кнопками действия при наведении */}
-      <div className="h-40 bg-[repeating-linear-gradient(135deg,#e9e4d9,#e9e4d9_5px,#f0ebe1_5px,#f0ebe1_10px)] relative p-3 flex flex-col justify-between">
-        <span className="self-start text-[10px] font-mono uppercase bg-bg/80 backdrop-blur px-2 py-0.5 rounded border border-border">
+      <div className="relative h-40 overflow-hidden bg-bg-brand2 p-3 flex flex-col justify-between">
+        {mat.imageUrl && (
+          <Image
+            src={mat.imageUrl}
+            alt={mat.name}
+            fill
+            sizes="(max-width: 768px) 100vw, 33vw"
+            className="object-cover"
+          />
+        )}
+
+        <span className="relative z-10 self-start text-[10px] font-mono uppercase bg-bg/80 backdrop-blur px-2 py-0.5 rounded border border-border">
           {mat.category || "Без категории"}
         </span>
 
-        <div className="absolute top-2 right-2 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+        <div className="absolute top-2 right-2 z-10 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
           <Button
             size="icon"
             variant="secondary"
@@ -46,6 +57,7 @@ const MaterialCard = ({ mat, handleEdit, handleDelete }: MaterialCardProps) => {
             <div className="text-xs text-fg-muted font-mono">{mat.brand}</div>
           )}
           <h3 className="font-semibold text-sm line-clamp-1">{mat.name}</h3>
+          <p className="text-xs line-clamp-2 text-fg-muted">{mat.product_type}</p>
         </div>
 
         <div className="pt-2 flex items-center justify-between border-t border-border">

@@ -159,6 +159,8 @@ export type SpecItem = {
   avail: string;
   attrs: Record<string, string>;
   updatedAt: string;
+  product_url: string;
+  product_type: string;
 };
 
 export type SpecItemPatch = Partial<Omit<SpecItem, "id" | "projectId">>;

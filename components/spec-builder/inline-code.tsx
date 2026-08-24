@@ -47,8 +47,8 @@ export function InlineCode({
             : "Изменить марку"
         }
         className={cn(
-          "font-mono text-[13px] font-semibold tabular-nums rounded px-1.5 py-0.5 -mx-1.5",
-          "hover:bg-bg-select focus-visible:outline focus-visible:outline-2 focus-visible:outline-fg-brand",
+          "font-mono text-[12px] font-semibold tabular-nums rounded px-1 py-0.5 //-mx-1.5",
+          "hover:bg-bg-select focus-visible:outline //focus-visible:outline-2 focus-visible:outline-fg-brand",
           locked &&
             "underline decoration-dotted decoration-fg-muted underline-offset-4",
         )}
@@ -75,7 +75,7 @@ export function InlineCode({
         }
       }}
       aria-label="Марка позиции"
-      className="w-20 rounded border border-fg-brand bg-bg px-1.5 py-0.5 font-mono text-[13px] font-semibold uppercase tabular-nums outline-none"
+      className="w-13 rounded border border-fg-brand bg-bg px-1.5 py-0.5 font-mono text-[13px] font-semibold uppercase tabular-nums outline-none"
     />
   );
 }

@@ -191,6 +191,7 @@ export type Database = {
       materials: {
         Row: {
           article: string | null
+          attachments: string | null
           brand: string | null
           category: string
           company_id: string | null
@@ -200,15 +201,21 @@ export type Database = {
           deleted_at: string | null
           id: string
           image_url: string | null
+          lead_time: string | null
           name: string
+          notes: string | null
           org_id: string
           price: number
+          product_description: string | null
+          product_type: string | null
+          product_url: string | null
           tags: string[] | null
           unit: string
           updated_at: string
         }
         Insert: {
           article?: string | null
+          attachments?: string | null
           brand?: string | null
           category?: string
           company_id?: string | null
@@ -218,15 +225,21 @@ export type Database = {
           deleted_at?: string | null
           id?: string
           image_url?: string | null
+          lead_time?: string | null
           name: string
+          notes?: string | null
           org_id: string
           price?: number
+          product_description?: string | null
+          product_type?: string | null
+          product_url?: string | null
           tags?: string[] | null
           unit?: string
           updated_at?: string
         }
         Update: {
           article?: string | null
+          attachments?: string | null
           brand?: string | null
           category?: string
           company_id?: string | null
@@ -236,9 +249,14 @@ export type Database = {
           deleted_at?: string | null
           id?: string
           image_url?: string | null
+          lead_time?: string | null
           name?: string
+          notes?: string | null
           org_id?: string
           price?: number
+          product_description?: string | null
+          product_type?: string | null
+          product_url?: string | null
           tags?: string[] | null
           unit?: string
           updated_at?: string
@@ -618,6 +636,7 @@ export type Database = {
       spec_items: {
         Row: {
           article: string | null
+          attachments: string | null
           attrs: Json
           avail: string | null
           base_price: number
@@ -641,6 +660,8 @@ export type Database = {
           org_id: string
           position: number
           price: number
+          product_type: string | null
+          product_url: string | null
           project_id: string
           qty: number
           rooms: string[]
@@ -655,6 +676,7 @@ export type Database = {
         }
         Insert: {
           article?: string | null
+          attachments?: string | null
           attrs?: Json
           avail?: string | null
           base_price?: number
@@ -678,6 +700,8 @@ export type Database = {
           org_id: string
           position?: number
           price?: number
+          product_type?: string | null
+          product_url?: string | null
           project_id: string
           qty?: number
           rooms?: string[]
@@ -692,6 +716,7 @@ export type Database = {
         }
         Update: {
           article?: string | null
+          attachments?: string | null
           attrs?: Json
           avail?: string | null
           base_price?: number
@@ -715,6 +740,8 @@ export type Database = {
           org_id?: string
           position?: number
           price?: number
+          product_type?: string | null
+          product_url?: string | null
           project_id?: string
           qty?: number
           rooms?: string[]

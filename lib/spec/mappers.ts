@@ -47,6 +47,8 @@ export function rowToItem(r: SpecItemRowWithRelations): SpecItem {
     status: r.status as SpecStatus,
     isPlaceholder: r.is_placeholder,
     position: r.position,
+    product_url: r.product_url ?? "",
+    product_type: r.product_type ?? "",
     rooms: r.rooms ?? [],
     notes: r.notes ?? "",
     leadTime: r.lead_time ?? "",
@@ -111,6 +113,8 @@ export function patchToRow(p: SpecItemPatch): SpecItemRowPatch {
     r.client_discount_pct = p.clientDiscountPct;
   if (p.supplierDiscountPct !== undefined)
     r.supplier_discount_pct = p.supplierDiscountPct;
+  if(p.product_url !== undefined) r.product_url = p.product_url;
+  if(p.product_type !== undefined) r.product_type = p.product_type;
 
   return r;
 }

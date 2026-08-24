@@ -368,6 +368,8 @@ export function useSpecBuilder({
       stockPct: 0,
       clientDiscountPct: 0,
       supplierDiscountPct: 0,
+      product_url: "",
+      product_type: "",
       ...over,
     }),
     [projectId],

@@ -19,7 +19,8 @@ import { SpecStatus } from "@/lib/constants";
 import { SpecItem } from "@/lib/types";
 import { PriceField } from "./price-field";
 import { QtyStepper } from "./qty-stepper";
-import { priceOf } from '@/lib/spec/pricing';
+import { priceOf } from "@/lib/spec/pricing";
+import Image from "next/image";
 
 export type SpecRowHandlers = {
   onOpen: (id: string) => void;
@@ -50,51 +51,71 @@ export const SpecRow = memo(function SpecRow({
   return (
     <tr
       className={cn(
-        "group border-b border-border-muted last:border-0 transition-colors hover:bg-bg-card/60",
+        "group border-b  border-border-muted last:border-0 transition-colors hover:bg-bg-card/60",
         selected && "bg-bg-brand/40",
         item.isPlaceholder &&
           "bg-[repeating-linear-gradient(45deg,transparent,transparent_7px,var(--color-bg-card)_7px,var(--color-bg-card)_14px)]",
       )}
     >
-      <td className="w-10 px-3 py-2.5">
+      <td className="px-3 py-2">
         <Checkbox
+          className="border-border border-2"
           checked={selected}
           onCheckedChange={() => h.onToggleSel(item.id)}
           aria-label={`Выбрать ${item.code}`}
         />
       </td>
-      <td className="w-24 px-2 py-2.5">
+      <td>
+        {item.imageUrl ? (
+          <Image
+            src={item.imageUrl}
+            alt={item.name}
+            // fill
+            height={48}
+            width={48}
+            // sizes="(max-width: 768px) 100vw, 33vw"
+            className="object-cover border rounded-lg"
+          />
+        ) : (
+          <div className="size-12 bg-bg-brand2/50 border rounded-lg"></div>
+        )}
+      </td>
+      <td className="px-2 py-2">
         <InlineCode
           code={item.code}
           locked={isLocked(item.status)}
           onCommit={(c) => h.onCode(item.id, c)}
         />
       </td>
-      <td className="min-w-0 px-2 py-2.5">
+      <td className="min-w-0 px-2 py-2">
         {item.isPlaceholder ? (
           <button
             type="button"
             onClick={() => h.onFill(item.id)}
-            className="text-[14px] font-medium text-fg-muted hover:text-fg-brand hover:underline"
+            className="text-[14px] cursor-pointer font-medium text-fg-muted hover:text-fg-brand hover:underline"
           >
-            Позиция не заполнена — выбрать материал
+            Не заполнено — выбрать материал
           </button>
         ) : (
           <button
             type="button"
             onClick={() => h.onOpen(item.id)}
-            className="block max-w-full text-left"
+            className="block max-w-full text-left cursor-pointer"
           >
-            <span className="block truncate text-[14px] font-medium text-fg">
+            <span className="block truncate text-[14px] font-medium text-fg hover:underline">
               {item.name}
             </span>
             <span className="block truncate text-[12.5px] text-fg-muted">
-              {[item.brand, item.article].filter(Boolean).join(" · ") || "—"}
+              {[item.brand, item.spec].filter(Boolean).join(" · ") || "—"}
             </span>
           </button>
         )}
       </td>
-      <td className="px-3 text-right align-middle">
+      {/* <td className="min-w-0 px-2 py-2 block max-w-full text-left text-[14px]">
+        <div>{item.notes}</div>
+        <div>{item.spec}</div>
+      </td> */}
+      <td className="px-2 text-right align-middle">
         <div className="flex flex-col items-end leading-tight">
           <QtyStepper
             qty={p.qtyFinal}
@@ -112,7 +133,7 @@ export const SpecRow = memo(function SpecRow({
           )}
         </div>
       </td>
-      <td className="px-3 text-right align-middle">
+      <td className="px-2 text-right align-middle">
         <div className="flex flex-col items-end leading-tight">
           <PriceField
             value={p.priceFinal}
@@ -132,15 +153,15 @@ export const SpecRow = memo(function SpecRow({
       {/* <td className="w-32 px-2 py-2.5 text-right font-mono text-[13.5px] font-semibold tabular-nums">
         {sum > 0 ? `${fmt(sum)} ₽` : <span className="text-fg-muted">—</span>}
       </td> */}
-      <td className="px-3 text-right align-middle">
+      <td className="px-2 text-right align-middle">
         <span className="font-mono text-[14px] font-semibold tabular-nums">
           {p.total > 0 ? `${fmt(p.total)} ₽` : "—"}
         </span>
       </td>
-      <td className="w-40 px-2 py-2.5">
+      <td className="px-2 py-2">
         <StatusMenu item={item} onChange={(s) => h.onStatus(item.id, s)} />
       </td>
-      <td className="w-10 px-2 py-2.5">
+      <td className="px-2 py-2">
         <DropdownMenu>
           <DropdownMenuTrigger
             aria-label={`Действия для ${item.code}`}

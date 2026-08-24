@@ -3,6 +3,8 @@
 import { useState } from "react";
 import { Plus, X } from "lucide-react";
 import { ATTR_PRESETS } from "@/lib/constants";
+import { Input } from '../ui/input';
+import { Button } from '../ui/button';
 
 export function AttrsEditor({
   type,
@@ -46,27 +48,29 @@ export function AttrsEditor({
           return (
             <li key={key} className="flex items-center gap-2">
               <span
-                className="w-44 shrink-0 truncate text-[12.5px] text-fg-secondary"
+                className="w-30 font-mono uppercase shrink-0 truncate text-[11px] text-fg-secondary"
                 title={key}
               >
                 {key}
               </span>
-              <input
+              <Input
                 defaultValue={attrs[key] ?? ""}
                 onBlur={(e) => setValue(key, e.target.value)}
                 placeholder="—"
                 aria-label={key}
-                className="h-9 min-w-0 flex-1 rounded-md border border-border-muted bg-bg px-3 text-sm outline-none focus:border-fg-brand"
+                className="h-10 min-w-0 flex-1  outline-none focus:border-fg-brand"
               />
               {!isPreset && (
-                <button
-                  type="button"
+                <Button
+                  // type="button"
+                  size="icon-lg"
+                  variant="ghost"
                   onClick={() => removeKey(key)}
                   aria-label={`Удалить «${key}»`}
-                  className="flex size-8 shrink-0 items-center justify-center rounded-md text-fg-muted hover:bg-bg-select"
+                  className="flex size-10 cursor-pointer shrink-0 items-center justify-center rounded-md text-fg-muted hover:bg-bg-select"
                 >
                   <X className="size-3.5" />
-                </button>
+                </Button>
               )}
             </li>
           );
@@ -74,7 +78,7 @@ export function AttrsEditor({
       </ul>
 
       <div className="flex gap-2 border-t border-border-muted pt-3">
-        <input
+        <Input
           value={newKey}
           onChange={(e) => setNewKey(e.target.value)}
           onKeyDown={(e) => {
@@ -85,16 +89,16 @@ export function AttrsEditor({
           }}
           placeholder="Своя характеристика"
           aria-label="Название характеристики"
-          className="h-9 flex-1 rounded-md border border-border-muted bg-bg px-3 text-sm outline-none focus:border-fg-brand"
+          className="h-10 flex-1 outline-none focus:border-fg-brand"
         />
-        <button
-          type="button"
+        <Button
+          variant="ghost"
           onClick={addKey}
           disabled={!newKey.trim()}
-          className="flex h-9 items-center gap-1.5 rounded-md border border-border-muted px-3 text-[13px] disabled:opacity-40"
+          className="flex h-10 cursor-pointer items-center gap-1.5  px-3 text-[13px] disabled:opacity-40"
         >
           <Plus className="size-3.5" /> Добавить
-        </button>
+        </Button>
       </div>
     </div>
   );

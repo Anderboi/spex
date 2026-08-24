@@ -158,6 +158,8 @@ export async function createSpecItems(
     contact_name_snapshot: it.contactId
       ? (contactNames.get(it.contactId) ?? null)
       : null,
+    product_url: it.product_url,
+    product_type: it.product_type,
     position: pos++,
   }));
 
