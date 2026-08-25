@@ -538,6 +538,7 @@ export type Database = {
           deleted_at: string | null
           id: string
           org_id: string
+          rooms: string[]
           status: string
           title: string
           type: string | null
@@ -554,6 +555,7 @@ export type Database = {
           deleted_at?: string | null
           id?: string
           org_id: string
+          rooms?: string[]
           status?: string
           title: string
           type?: string | null
@@ -570,6 +572,7 @@ export type Database = {
           deleted_at?: string | null
           id?: string
           org_id?: string
+          rooms?: string[]
           status?: string
           title?: string
           type?: string | null

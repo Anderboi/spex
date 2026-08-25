@@ -61,6 +61,7 @@ export function DetailModal({
   onClear,
   onDelete,
   onShare,
+  projectRooms,
 }: {
   item: SpecItem;
   companies: Company[];
@@ -75,6 +76,7 @@ export function DetailModal({
   onClear: () => void;
   onDelete: () => void;
   onShare: () => void;
+  projectRooms: string[];
 }) {
   const [tab, setTab] = useState("overview");
   const [localCompanies, setLocalCompanies] = useState<Company[]>(companies);
@@ -338,6 +340,7 @@ export function DetailModal({
               <RoomsEditor
                 rooms={item.rooms}
                 onChange={(rooms) => onPatch({ rooms })}
+                suggestions={projectRooms}
               />
             </TabsContent>
 

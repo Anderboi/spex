@@ -21,9 +21,12 @@ const PRESETS = [
 export function RoomsEditor({
   rooms,
   onChange,
+  suggestions,
 }: {
   rooms: string[];
   onChange: (rooms: string[]) => void;
+  /** Список для «быстрого выбора» — напр. помещения проекта. Пусто → пресеты. */
+  suggestions?: string[];
 }) {
   const [draft, setDraft] = useState("");
 
@@ -35,7 +38,8 @@ export function RoomsEditor({
   };
 
   const remove = (name: string) => onChange(rooms.filter((x) => x !== name));
-  const unused = PRESETS.filter((p) => !rooms.includes(p));
+  const source = suggestions && suggestions.length > 0 ? suggestions : PRESETS;
+  const unused = source.filter((p) => !rooms.includes(p));
 
   return (
     <div className="flex flex-col gap-4">

@@ -1,9 +1,11 @@
 "use client";
 
 import { COVER_PALETTE, STATUS_CONFIG, TYPE_COLORS } from "@/lib/constants";
-// import { fmtDate, fmtRub, plural } from "@/lib/utils";
-import { ProjectInput, ProjectStatus } from "@/lib/validations";
+import { plural } from "@/lib/utils";
+import type { ProjectListItem } from "@/lib/queries";
+import { ProjectStatus } from "@/lib/validations";
 import Link from "next/link";
+import Image from "next/image";
 import { MouseEvent } from "react";
 
 export function ProjectCard({
@@ -12,7 +14,7 @@ export function ProjectCard({
   index,
 }: {
   orgSlug: string;
-  project: ProjectInput;
+  project: ProjectListItem;
   index: number;
 }) {
   const coverBg = COVER_PALETTE[index % COVER_PALETTE.length];
@@ -44,49 +46,59 @@ export function ProjectCard({
       <div
         className={`relative h-40 ${coverBg} flex items-end p-5 overflow-hidden`}
       >
-        <svg
-          className="absolute -top-6 -right-6 size-48 text-bg-white opacity-[.14] pointer-events-none"
-          viewBox="0 0 200 200"
-          fill="none"
-        >
-          <circle
-            cx="100"
-            cy="100"
-            r="96"
-            stroke="currentColor"
-            strokeWidth="1.5"
+        {project.cover_url ? (
+          <Image
+            src={project.cover_url}
+            alt={project.title || "Обложка проекта"}
+            fill
+            sizes="(max-width: 640px) 100vw, 50vw"
+            className="object-cover"
           />
-          <circle
-            cx="100"
-            cy="100"
-            r="68"
-            stroke="currentColor"
-            strokeWidth="1.5"
-          />
-          <circle
-            cx="100"
-            cy="100"
-            r="40"
-            stroke="currentColor"
-            strokeWidth="1.5"
-          />
-          <line
-            x1="100"
-            y1="0"
-            x2="100"
-            y2="200"
-            stroke="currentColor"
-            strokeWidth="1"
-          />
-          <line
-            x1="0"
-            y1="100"
-            x2="200"
-            y2="100"
-            stroke="currentColor"
-            strokeWidth="1"
-          />
-        </svg>
+        ) : (
+          <svg
+            className="absolute -top-6 -right-6 size-48 text-bg-white opacity-[.14] pointer-events-none"
+            viewBox="0 0 200 200"
+            fill="none"
+          >
+            <circle
+              cx="100"
+              cy="100"
+              r="96"
+              stroke="currentColor"
+              strokeWidth="1.5"
+            />
+            <circle
+              cx="100"
+              cy="100"
+              r="68"
+              stroke="currentColor"
+              strokeWidth="1.5"
+            />
+            <circle
+              cx="100"
+              cy="100"
+              r="40"
+              stroke="currentColor"
+              strokeWidth="1.5"
+            />
+            <line
+              x1="100"
+              y1="0"
+              x2="100"
+              y2="200"
+              stroke="currentColor"
+              strokeWidth="1"
+            />
+            <line
+              x1="0"
+              y1="100"
+              x2="200"
+              y2="100"
+              stroke="currentColor"
+              strokeWidth="1"
+            />
+          </svg>
+        )}
 
         <span
           className={`relative z-1 inline-flex items-center rounded-[10px] py-1.5 px-3.5 font-mono text-[11px] font-semibold tracking-[.04em] uppercase ${
@@ -113,15 +125,14 @@ export function ProjectCard({
               {plural(project.items ?? 0, "позиция", "позиции", "позиций")}
             </div>
           </div> */}
-          {/* //?Rooms block */}
-          {/* <div> //TODO: add rooms
-            <div className="font-mono text-[17px] font-semibold text-fg leading-none">
-              {project.rooms ?? 0}
+          <div>
+            <div className="font-mono text-[17px] font-semibold text-fg leading-none truncate">
+              {project.rooms.length}
             </div>
             <div className="text-[11.5px] text-fg-muted mt-1 leading-tight">
-              {plural(project.rooms ?? 0, "комната", "комнаты", "комнат")}
+              {plural(project.rooms.length, "помещение", "помещения", "помещений")}
             </div>
-          </div> */}
+          </div>
           <div>
             <div className="font-mono text-[17px] font-semibold text-fg leading-none truncate">
               {/* {fmtRub(project.budget)} */}

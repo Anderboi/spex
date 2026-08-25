@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useState, useTransition, type ChangeEvent } from "react";
 import { useForm, SubmitHandler } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Plus, Loader2 } from "lucide-react";
+import { Plus, Loader2, CloudUpload, X } from "lucide-react";
 
 import { projectSchema, ProjectInput } from "@/lib/validations";
 
@@ -25,8 +25,11 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { upsertProject } from "@/actions/projects";
+import { upsertProject, uploadProjectImage } from "@/actions/projects";
 import { useRouter } from "next/navigation";
+import Image from "next/image";
+import { toast } from "sonner";
+import { RoomsEditor } from "@/components/spec-builder/rooms-editor";
 
 interface CreateProjectDialogProps {
   orgSlug: string;
@@ -48,6 +51,7 @@ export function CreateProjectDialog({
 }: CreateProjectDialogProps) {
   const [open, setOpen] = useState(false);
   const [isPending, startTransition] = useTransition();
+  const [isUploading, setIsUploading] = useState(false);
   const router = useRouter();
 
   // Явно указываем типы в useForm<FormInput, Context, FormOutput>
@@ -62,8 +66,30 @@ export function CreateProjectDialog({
       address: "",
       budget: 0,
       type: "Интерьер",
+      rooms: [],
     },
   });
+
+  const handleFile = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setIsUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const res = await uploadProjectImage(orgSlug, fd);
+      if (!res.success) {
+        toast.error(res.error);
+        return;
+      }
+      form.setValue("cover_url", res.url, { shouldValidate: true });
+    } catch {
+      toast.error("Не удалось загрузить изображение");
+    } finally {
+      setIsUploading(false);
+      e.target.value = "";
+    }
+  };
 
   const onSubmit: SubmitHandler<ProjectInput> = (values) => {
     startTransition(async () => {
@@ -135,6 +161,70 @@ export function CreateProjectDialog({
               )}
             />
 
+            {/* Обложка */}
+            <FormField
+              control={form.control}
+              name="cover_url"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-xs font-semibold uppercase tracking-wider text-fg-muted">
+                    Обложка
+                  </FormLabel>
+                  <FormControl>
+                    <label className="flex cursor-pointer items-center gap-3 rounded-[12px] border border-dashed border-border-muted bg-bg p-3">
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={handleFile}
+                        disabled={isUploading}
+                      />
+                      {field.value ? (
+                        <Image
+                          alt="Обложка проекта"
+                          src={field.value}
+                          width={64}
+                          height={64}
+                          className="size-16 rounded-[10px] object-cover"
+                        />
+                      ) : (
+                        <div className="flex size-16 items-center justify-center rounded-[10px] bg-bg-select text-fg-muted">
+                          {isUploading ? (
+                            <Loader2 className="size-5 animate-spin" />
+                          ) : (
+                            <CloudUpload className="size-5" />
+                          )}
+                        </div>
+                      )}
+                      <div className="min-w-0 flex-1">
+                        <p className="text-[13px] font-medium text-fg">
+                          {isUploading
+                            ? "Загрузка…"
+                            : field.value
+                              ? "Заменить обложку"
+                              : "Загрузить изображение"}
+                        </p>
+                        <p className="text-[11.5px] text-fg-muted">
+                          JPG, PNG · до 5 МБ
+                        </p>
+                      </div>
+                      {field.value && (
+                        <button
+                          type="button"
+                          onClick={() => field.onChange(null)}
+                          aria-label="Убрать обложку"
+                          className="flex size-7 shrink-0 items-center justify-center rounded-full text-fg-muted hover:bg-bg-select"
+                        >
+                          <X className="size-4" />
+                        </button>
+                      )}
+                    </label>
+                  </FormControl>
+                  <FormMessage className="text-xs text-red-500" />
+                </FormItem>
+              )}
+            />
+
             {/* Заказчик / Клиент */}
             <FormField
               control={form.control}
@@ -196,6 +286,27 @@ export function CreateProjectDialog({
                       }}
                     />
                   </FormControl>
+                  <FormMessage className="text-xs text-red-500" />
+                </FormItem>
+              )}
+            />
+
+            {/* Состав помещений */}
+            <FormField
+              control={form.control}
+              name="rooms"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="text-xs font-semibold uppercase tracking-wider text-fg-muted">
+                    Состав помещений{" "}
+                    <span className="font-normal normal-case text-fg-muted/70">
+                      · опционально
+                    </span>
+                  </FormLabel>
+                  <RoomsEditor
+                    rooms={field.value ?? []}
+                    onChange={(rooms) => field.onChange(rooms)}
+                  />
                   <FormMessage className="text-xs text-red-500" />
                 </FormItem>
               )}

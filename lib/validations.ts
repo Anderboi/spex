@@ -133,6 +133,7 @@ export const projectSchema = z.object({
     .default("#000000"),
   status: z.enum(PROJECT_STATUSES).default("draft"),
   type: z.enum(["Интерьер", "Экстерьер", "Коммерческий"]).default("Интерьер"),
+  rooms: z.array(z.string().trim().min(1).max(120)).max(200).default([]),
   cover_url: z.string().trim().max(500).optional().nullable(),
   // org_id: z.string().uuid().optional().nullable(),
   // created_at: z.string().optional().nullable(),

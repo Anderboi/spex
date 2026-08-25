@@ -276,7 +276,7 @@ export async function getMaterialById(orgSlug: string, id: string) {
  * ==========================================
  */
 const PROJECT_LIST_SELECT =
-  "id, title, client_name, accent_color, status, cover_url, updated_at, created_at, org_id, budget, address, type";
+  "id, title, client_name, accent_color, status, cover_url, updated_at, created_at, org_id, budget, address, type, rooms";
 
 export type ProjectListItem = {
   id: string;
@@ -290,6 +290,7 @@ export type ProjectListItem = {
   budget: number;
   address: string | null;
   type: ProjectType;
+  rooms: string[];
 };
 
 type ProjectRow = {
@@ -305,6 +306,7 @@ type ProjectRow = {
   budget: number | null;
   address: string | null;
   type: string | null;
+  rooms: string[] | null;
 };
 
 function toProjectListItem(r: ProjectRow): ProjectListItem {
@@ -320,6 +322,7 @@ function toProjectListItem(r: ProjectRow): ProjectListItem {
     budget: r.budget ?? 0,
     address: r.address,
     type: (r.type ?? "Интерьер") as ProjectType,
+    rooms: r.rooms ?? [],
   };
 }
 

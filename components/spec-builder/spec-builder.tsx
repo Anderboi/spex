@@ -46,6 +46,7 @@ export default function SpecBuilder({
     title: string;
     budget: number | null;
     client_name: string | null;
+    rooms: string[];
   };
   initialItems: SpecItem[];
   companies: SpecPickerCompany[];
@@ -258,6 +259,7 @@ export default function SpecBuilder({
           onClear={() => ctx.clearContent(ctx.current!.id)}
           onDelete={() => ctx.openDelete(ctx.current!.id)}
           onShare={() => ctx.shareItem(ctx.current!)}
+          projectRooms={project.rooms}
         />
       )}
 

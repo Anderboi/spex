@@ -114,3 +114,42 @@ export async function deleteProject(
   revalidatePath(`/${orgSlug}/projects`);
   return { success: true };
 }
+
+const MAX_PROJECT_IMAGE_SIZE = 5 * 1024 * 1024;
+const PROJECT_IMAGES_BUCKET = "project-images";
+
+export async function uploadProjectImage(
+  orgSlug: string,
+  formData: FormData,
+): Promise<{ success: true; url: string } | { success: false; error: string }> {
+  const { orgId } = await requireOrgBySlug(orgSlug);
+
+  const file = formData.get("file");
+  if (!file || typeof file === "string") {
+    return { success: false, error: "Файл не найден" };
+  }
+  if (!file.type.startsWith("image/")) {
+    return { success: false, error: "Нужно изображение" };
+  }
+  if (file.size > MAX_PROJECT_IMAGE_SIZE) {
+    return { success: false, error: "Файл больше 5 МБ" };
+  }
+
+  const supabase = createAdminClient();
+  const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
+  const path = `${orgId}/${crypto.randomUUID()}.${ext}`;
+
+  const { error } = await supabase.storage
+    .from(PROJECT_IMAGES_BUCKET)
+    .upload(path, file, { contentType: file.type, upsert: false });
+
+  if (error) {
+    console.error("[uploadProjectImage]", error.message);
+    return { success: false, error: "Не удалось загрузить изображение" };
+  }
+
+  const { data } = supabase.storage
+    .from(PROJECT_IMAGES_BUCKET)
+    .getPublicUrl(path);
+  return { success: true, url: data.publicUrl };
+}
