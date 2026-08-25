@@ -86,6 +86,22 @@ export type MaterialsFilters = {
   page: number;
 };
 
+export type ContactsSort =
+  | "name_asc"
+  | "name_desc"
+  | "created_desc"
+  | "created_asc";
+
+export type ContactsTab = "companies" | "independent";
+
+export type ContactsFilters = {
+  query: string;
+  category: string | null;
+  tab: ContactsTab;
+  sort: ContactsSort;
+  page: number;
+};
+
 export interface SupplierOption {
   id: string; // ID записи (компании или контакта)
   name: string; // Имя контакта или Название компании

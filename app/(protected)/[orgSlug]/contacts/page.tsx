@@ -1,56 +1,66 @@
-import { ContactsSkeleton } from '@/components/contacts/contacts-skeleton';
-import ContactsView from "@/components/contacts/contacts-view";
-import { PageHeader } from '@/components/layout/page-header';
-import { Button } from '@/components/ui/button';
-import { getContactsData } from "@/lib/queries";
-import { Plus, UserPlus } from 'lucide-react';
-import { Suspense } from 'react';
+import { ContactsSkeleton } from "@/components/contacts/contacts-skeleton";
+import { ContactsToolbar } from "@/components/contacts/contacts-toolbar";
+import { ContactsList } from "@/components/contacts/contacts-list";
+import { ContactsPagination } from "@/components/contacts/contacts-pagination";
+import { PageHeader } from "@/components/layout/page-header";
+import { parseContactsFilters } from "@/lib/contacts/filters";
+import { getContactsDirectory } from "@/lib/queries";
+import { Suspense } from "react";
 
-type Props = { params: Promise<{ orgSlug: string }> };
+type Props = {
+  params: Promise<{ orgSlug: string }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+};
 
 export const metadata = { title: "Контакты" };
 
-export default async function ContactsPage({ params }: Props) {
+export default async function ContactsPage({ params, searchParams }: Props) {
   const { orgSlug } = await params;
+
   return (
     <>
-      <PageHeader
-        title="Контакты"
-        // description="Компании, поставщики и представители. Управляйте справочником и
-        //   привязывайте их к позициям спецификации"
-      >
-        <div className="flex flex-wrap w-full justify-end items-center gap-2">
-          <Button
-            variant="outline"
-            size="lg"
-            className="flex-1 whitespace-nowrap bg-bg sm:flex-none"
-            // onClick={() => setManagerDialog({ open: true, independent: true })}
-          >
-            <UserPlus className="mr-1 size-4" /> Добавить специалиста
-          </Button>
-          <Button
-            size="lg"
-            className="flex-1 bg-fg whitespace-nowrap sm:flex-none"
-            // onClick={() => setCompanyDialogOpen(true)}
-          >
-            <Plus className="mr-1 size-4" /> Добавить компанию
-          </Button>
-        </div>
-      </PageHeader>
+      <PageHeader title="Контакты" />
       <Suspense fallback={<ContactsSkeleton />}>
-        <ContactsData orgSlug={orgSlug} />
+        <ContactsData orgSlug={orgSlug} searchParams={searchParams} />
       </Suspense>
     </>
   );
 }
 
-async function ContactsData({ orgSlug }: { orgSlug: string }) {
-  const { companies, contacts } = await getContactsData(orgSlug);
+async function ContactsData({
+  orgSlug,
+  searchParams,
+}: {
+  orgSlug: string;
+  searchParams: Props["searchParams"];
+}) {
+  const sp = await searchParams;
+  const filters = parseContactsFilters(sp);
+
+  const {
+    companies,
+    independentContacts,
+    managers,
+    companiesCount,
+    independentCount,
+    pageCount,
+  } = await getContactsDirectory(orgSlug, filters);
+
   return (
-    <ContactsView
-      orgSlug={orgSlug}
-      initialCompanies={companies}
-      initialContacts={contacts}
-    />
+    <>
+      <ContactsToolbar />
+
+      <ContactsList
+        orgSlug={orgSlug}
+        companies={companies}
+        independentContacts={independentContacts}
+        managers={managers}
+        companiesCount={companiesCount}
+        independentCount={independentCount}
+        tab={filters.tab}
+      />
+
+      <ContactsPagination page={filters.page} pageCount={pageCount} />
+    </>
   );
 }

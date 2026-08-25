@@ -9,9 +9,10 @@ import {
 import { cache } from "react";
 import { OrgRole, requireOrgBySlug } from "./auth/session";
 import { rowToItem } from "./spec/mappers";
-import { MaterialsFilters, SpecItem } from "./types";
+import { ContactsFilters, MaterialsFilters, SpecItem } from "./types";
 import { one } from "./utils";
 import { MATERIALS_PAGE_SIZE } from "./materials/filters";
+import { CONTACTS_PAGE_SIZE } from "./contacts/filters";
 
 export type SpecPickerCompany = {
   id: string;
@@ -509,16 +510,142 @@ export const getCounterparties = cache(async (orgSlug: string) => {
   return { companies, contacts };
 });
 
-export async function getContactsData(orgSlug: string) {
-  // Вызываем параллельно и сразу получаем готовые массивы
-  const [companies, contacts] = await Promise.all([
-    getCompanies(orgSlug),
-    getContacts(orgSlug),
+export type ContactsDirectory = {
+  companies: CompanyRow[];
+  independentContacts: ContactRow[];
+  managers: ContactRow[];
+  companiesCount: number;
+  independentCount: number;
+  pageCount: number;
+};
+
+export async function getContactsDirectory(
+  orgSlug: string,
+  filters: ContactsFilters,
+): Promise<ContactsDirectory> {
+  const { orgId } = await requireOrgBySlug(orgSlug);
+  const supabase = createAdminClient();
+
+  const search = sanitizeSearch(filters.query);
+  const from = (filters.page - 1) * CONTACTS_PAGE_SIZE;
+  const to = from + CONTACTS_PAGE_SIZE - 1;
+
+  let companiesQuery = supabase
+    .from("companies")
+    .select("*", { count: "exact" })
+    .eq("org_id", orgId);
+
+  if (search) {
+    companiesQuery = companiesQuery.or(
+      `name.ilike."%${search}%",address.ilike."%${search}%",note.ilike."%${search}%",phone.ilike."%${search}%",email.ilike."%${search}%",website.ilike."%${search}%"`,
+    );
+  }
+  if (filters.category) {
+    companiesQuery = companiesQuery.contains("category", [filters.category]);
+  }
+  if (filters.sort === "name_asc") {
+    companiesQuery = companiesQuery.order("name", { ascending: true });
+  } else if (filters.sort === "name_desc") {
+    companiesQuery = companiesQuery.order("name", { ascending: false });
+  } else if (filters.sort === "created_asc") {
+    companiesQuery = companiesQuery.order("created_at", { ascending: true });
+  } else {
+    companiesQuery = companiesQuery.order("created_at", { ascending: false });
+  }
+
+  let independentQuery = supabase
+    .from("contacts")
+    .select("*", { count: "exact" })
+    .eq("org_id", orgId)
+    .is("company_id", null);
+
+  if (search) {
+    independentQuery = independentQuery.or(
+      `name.ilike."%${search}%",title.ilike."%${search}%",note.ilike."%${search}%",phone.ilike."%${search}%",email.ilike."%${search}%"`,
+    );
+  }
+  if (filters.category) {
+    independentQuery = independentQuery.contains("category", [
+      filters.category,
+    ]);
+  }
+  if (filters.sort === "name_asc") {
+    independentQuery = independentQuery.order("name", { ascending: true });
+  } else if (filters.sort === "name_desc") {
+    independentQuery = independentQuery.order("name", { ascending: false });
+  } else if (filters.sort === "created_asc") {
+    independentQuery = independentQuery.order("created_at", {
+      ascending: true,
+    });
+  } else {
+    independentQuery = independentQuery.order("created_at", {
+      ascending: false,
+    });
+  }
+
+  // Пагинация только для активной вкладки; для неактивной нужен лишь счётчик.
+  if (filters.tab === "companies") {
+    companiesQuery = companiesQuery.range(from, to);
+  } else {
+    companiesQuery = companiesQuery.range(0, 0);
+  }
+  if (filters.tab === "independent") {
+    independentQuery = independentQuery.range(from, to);
+  } else {
+    independentQuery = independentQuery.range(0, 0);
+  }
+
+  const [companiesRes, independentRes] = await Promise.all([
+    companiesQuery,
+    independentQuery,
   ]);
+
+  if (companiesRes.error) {
+    console.error("[getContactsDirectory] companies", companiesRes.error.message);
+    throw new Error("Не удалось загрузить компании");
+  }
+  if (independentRes.error) {
+    console.error("[getContactsDirectory] contacts", independentRes.error.message);
+    throw new Error("Не удалось загрузить контакты");
+  }
+
+  const companies = (
+    filters.tab === "companies" ? (companiesRes.data ?? []) : []
+  ) as CompanyRow[];
+  const independentContacts = (
+    filters.tab === "independent" ? (independentRes.data ?? []) : []
+  ) as ContactRow[];
+  const companiesCount = companiesRes.count ?? 0;
+  const independentCount = independentRes.count ?? 0;
+
+  const totalForTab =
+    filters.tab === "companies" ? companiesCount : independentCount;
+  const pageCount = Math.max(1, Math.ceil(totalForTab / CONTACTS_PAGE_SIZE));
+
+  let managers: ContactRow[] = [];
+  if (companies.length > 0) {
+    const companyIds = companies.map((c) => c.id);
+    const { data, error } = await supabase
+      .from("contacts")
+      .select("*")
+      .eq("org_id", orgId)
+      .in("company_id", companyIds)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("[getContactsDirectory] managers", error.message);
+    } else {
+      managers = (data as ContactRow[]) ?? [];
+    }
+  }
 
   return {
     companies,
-    contacts,
+    independentContacts,
+    managers,
+    companiesCount,
+    independentCount,
+    pageCount,
   };
 }
 export type UserOrganization = {
