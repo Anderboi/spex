@@ -9,10 +9,17 @@ import {
 import { cache } from "react";
 import { OrgRole, requireOrgBySlug } from "./auth/session";
 import { rowToItem } from "./spec/mappers";
-import { ContactsFilters, MaterialsFilters, SpecItem } from "./types";
+import {
+  ContactsFilters,
+  MaterialsFilters,
+  ProjectType,
+  ProjectsFilters,
+  SpecItem,
+} from "./types";
 import { one } from "./utils";
 import { MATERIALS_PAGE_SIZE } from "./materials/filters";
 import { CONTACTS_PAGE_SIZE } from "./contacts/filters";
+import { PROJECTS_PAGE_SIZE } from "./projects/filters";
 
 export type SpecPickerCompany = {
   id: string;
@@ -271,49 +278,93 @@ export async function getMaterialById(orgSlug: string, id: string) {
 const PROJECT_LIST_SELECT =
   "id, title, client_name, accent_color, status, cover_url, updated_at, created_at, org_id, budget, address, type";
 
-export type ProjectSort = "date" | "name" | "budget";
+export type ProjectListItem = {
+  id: string;
+  title: string;
+  client_name: string | null;
+  accent_color: string | null;
+  status: ProjectStatus;
+  cover_url: string | null;
+  updated_at: string;
+  created_at: string;
+  budget: number;
+  address: string | null;
+  type: ProjectType;
+};
+
+type ProjectRow = {
+  id: string;
+  title: string;
+  client_name: string | null;
+  accent_color: string | null;
+  status: string;
+  cover_url: string | null;
+  updated_at: string;
+  created_at: string;
+  org_id: string;
+  budget: number | null;
+  address: string | null;
+  type: string | null;
+};
+
+function toProjectListItem(r: ProjectRow): ProjectListItem {
+  return {
+    id: r.id,
+    title: r.title,
+    client_name: r.client_name,
+    accent_color: r.accent_color,
+    status: r.status as ProjectStatus,
+    cover_url: r.cover_url,
+    updated_at: r.updated_at,
+    created_at: r.created_at,
+    budget: r.budget ?? 0,
+    address: r.address,
+    type: (r.type ?? "Интерьер") as ProjectType,
+  };
+}
 
 export const getProjects = cache(
-  async (opts: {
-    orgSlug: string;
-    search?: string;
-    sort?: ProjectSort;
-    status?: ProjectStatus;
-  }) => {
-    const { orgId } = await requireOrgBySlug(opts.orgSlug);
+  async (
+    orgSlug: string,
+    filters: ProjectsFilters,
+  ): Promise<{ items: ProjectListItem[]; pageCount: number }> => {
+    const { orgId } = await requireOrgBySlug(orgSlug);
     const supabase = createAdminClient();
 
     let query = supabase
       .from("projects")
-      .select(PROJECT_LIST_SELECT)
+      .select(PROJECT_LIST_SELECT, { count: "exact" })
       .eq("org_id", orgId)
       .is("deleted_at", null);
 
-    const s = opts.search
-      ?.trim()
-      .replace(/[,.()"\\%]/g, " ")
-      .slice(0, 100)
-      .trim();
+    const s = sanitizeSearch(filters.query);
     if (s) {
       query = query.or(
         `title.ilike."%${s}%",client_name.ilike."%${s}%",address.ilike."%${s}%"`,
       );
     }
-    if (opts.status) query = query.eq("status", opts.status);
+    if (filters.status) query = query.eq("status", filters.status);
 
-    query =
-      opts.sort === "name"
-        ? query.order("title", { ascending: true })
-        : opts.sort === "budget"
-          ? query.order("budget", { ascending: false, nullsFirst: false })
-          : query.order("updated_at", { ascending: false });
+    if (filters.sort === "name") {
+      query = query.order("title", { ascending: true });
+    } else if (filters.sort === "budget") {
+      query = query.order("budget", { ascending: false, nullsFirst: false });
+    } else {
+      query = query.order("updated_at", { ascending: false });
+    }
 
-    const { data, error } = await query;
+    const from = (filters.page - 1) * PROJECTS_PAGE_SIZE;
+    const to = from + PROJECTS_PAGE_SIZE - 1;
+    const { data, error, count } = await query.range(from, to);
+
     if (error) {
       console.error("[getProjects]", error.message);
       throw new Error("Не удалось загрузить проекты");
     }
-    return data ?? [];
+
+    const total = count ?? 0;
+    const pageCount = Math.max(1, Math.ceil(total / PROJECTS_PAGE_SIZE));
+    return { items: (data ?? []).map(toProjectListItem), pageCount };
   },
 );
 

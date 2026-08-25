@@ -102,6 +102,15 @@ export type ContactsFilters = {
   page: number;
 };
 
+export type ProjectsSort = "date" | "name" | "budget";
+
+export type ProjectsFilters = {
+  query: string;
+  status: ProjectStatus | null;
+  sort: ProjectsSort;
+  page: number;
+};
+
 export interface SupplierOption {
   id: string; // ID записи (компании или контакта)
   name: string; // Имя контакта или Название компании

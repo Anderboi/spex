@@ -1,6 +1,6 @@
 import { CreateProjectDialog } from "./create-project-dialog";
 
-function EmptyState({ onNew }: { onNew?: () => void }) {
+function EmptyState({ orgSlug }: { orgSlug: string }) {
   return (
     <div className="text-center py-28 px-5">
       <div className="inline-flex items-center justify-center size-24 rounded-full bg-bg-select mb-6">
@@ -54,7 +54,7 @@ function EmptyState({ onNew }: { onNew?: () => void }) {
         Создайте ваш первый дизайн-проект и начните работу над спецификациями.
       </div>
       <div className="ml-auto">
-        <CreateProjectDialog />
+        <CreateProjectDialog orgSlug={orgSlug} />
       </div>
     </div>
   );

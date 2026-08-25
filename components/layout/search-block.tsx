@@ -3,33 +3,52 @@
 import { useEffect, useState } from "react";
 import { Loader2, Search, X } from "lucide-react";
 import { useSearchParams } from "next/navigation";
-import { useMaterialsUrl } from "../../hooks/use-materials-url";
+import { useProjectsUrl } from "@/hooks/use-projects-url";
 import { cn } from "@/lib/utils";
 
-export function MaterialsSearch({
-  placeholder = "Поиск по материалам, артикулам, брендам…",
-  className,
-}: {
+interface SearchProps {
   placeholder?: string;
   className?: string;
-}) {
-  const searchParams = useSearchParams();
-  const { update, isPending } = useMaterialsUrl();
+}
 
-  const urlQuery = searchParams.get("query") ?? "";
-  const [value, setValue] = useState(urlQuery);
+export function SearchBlock({
+  placeholder = "Поиск проекта по адресу, клиенту, названию...",
+  className,
+}: SearchProps) {
+   const searchParams = useSearchParams();
+   const { update, isPending } = useProjectsUrl();
 
-  useEffect(() => {
-    setValue(urlQuery);
-  }, [urlQuery]);
+   const urlQuery = searchParams.get("query") ?? "";
 
-  useEffect(() => {
-    if (value === urlQuery) return;
-    const timer = setTimeout(() => update({ query: value.trim() }), 350);
-    return () => clearTimeout(timer);
-  }, [value, urlQuery, update]);
+   const [value, setValue] = useState(urlQuery);
 
-  const busy = isPending || value !== urlQuery;
+   useEffect(() => {
+     setValue((currentValue) => {
+       // Пока пользователь ввёл новое значение,
+       // не перезаписываем его старым URL.
+       if (currentValue.trim() !== urlQuery) {
+         return currentValue;
+       }
+
+       return urlQuery;
+     });
+   }, [urlQuery]);
+
+   useEffect(() => {
+     const query = value.trim();
+
+     if (query === urlQuery) {
+       return;
+     }
+
+     const timer = setTimeout(() => {
+       update({ query });
+     }, 350);
+
+     return () => clearTimeout(timer);
+   }, [value, urlQuery, update]);
+
+   const busy = isPending || value.trim() !== urlQuery;
 
   return (
     <div
