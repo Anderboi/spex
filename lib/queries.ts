@@ -9,8 +9,9 @@ import {
 import { cache } from "react";
 import { OrgRole, requireOrgBySlug } from "./auth/session";
 import { rowToItem } from "./spec/mappers";
-import { SpecItem } from "./types";
+import { MaterialsFilters, SpecItem } from "./types";
 import { one } from "./utils";
+import { MATERIALS_PAGE_SIZE } from "./materials/filters";
 
 export type SpecPickerCompany = {
   id: string;
@@ -154,6 +155,91 @@ export async function getMaterials(
   }
 
   return (data ?? []).map(toMaterialListItem);
+}
+
+function sanitizeSearch(search?: string): string {
+  return (search ?? "")
+    .trim()
+    .replace(/[,.()"\\%]/g, " ")
+    .slice(0, 100)
+    .trim();
+}
+
+export async function getMaterialsPage(
+  orgSlug: string,
+  filters: MaterialsFilters,
+): Promise<{ items: MaterialListItem[]; pageCount: number }> {
+  const { orgId } = await requireOrgBySlug(orgSlug);
+  const supabase = createAdminClient();
+
+  let query = supabase
+    .from("materials")
+    .select(MATERIAL_LIST_SELECT, { count: "exact" })
+    .eq("org_id", orgId);
+
+  if (filters.status === "archived") {
+    query = query.not("deleted_at", "is", null);
+  } else {
+    query = query.is("deleted_at", null);
+  }
+
+  const s = sanitizeSearch(filters.query);
+  if (s) {
+    query = query.or(
+      `name.ilike."%${s}%",brand.ilike."%${s}%",article.ilike."%${s}%"`,
+    );
+  }
+
+  if (filters.category) query = query.eq("category", filters.category);
+  if (filters.manufacturer) query = query.eq("brand", filters.manufacturer);
+
+  if (filters.sort === "name_asc") {
+    query = query.order("name", { ascending: true });
+  } else if (filters.sort === "name_desc") {
+    query = query.order("name", { ascending: false });
+  } else if (filters.sort === "created_asc") {
+    query = query.order("created_at", { ascending: true });
+  } else {
+    query = query.order("created_at", { ascending: false });
+  }
+
+  const from = (filters.page - 1) * MATERIALS_PAGE_SIZE;
+  const to = from + MATERIALS_PAGE_SIZE - 1;
+  const { data, error, count } = await query.range(from, to);
+
+  if (error) {
+    console.error("[getMaterialsPage]", error.message);
+    throw new Error(`Failed to fetch materials: ${error.message}`);
+  }
+
+  const total = count ?? 0;
+  const pageCount = Math.max(1, Math.ceil(total / MATERIALS_PAGE_SIZE));
+  return { items: (data ?? []).map(toMaterialListItem), pageCount };
+}
+
+export async function getMaterialBrands(orgSlug: string): Promise<string[]> {
+  const { orgId } = await requireOrgBySlug(orgSlug);
+  const supabase = createAdminClient();
+
+  const { data, error } = await supabase
+    .from("materials")
+    .select("brand")
+    .eq("org_id", orgId)
+    .is("deleted_at", null)
+    .not("brand", "is", null)
+    .order("brand", { ascending: true });
+
+  if (error) {
+    console.error("[getMaterialBrands]", error.message);
+    return [];
+  }
+
+  const brands = new Set<string>();
+  for (const row of data ?? []) {
+    const brand = row.brand?.trim();
+    if (brand) brands.add(brand);
+  }
+  return [...brands];
 }
 
 export async function getMaterialById(orgSlug: string, id: string) {

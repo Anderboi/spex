@@ -1,41 +1,49 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
+import { useCallback, useRef, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { TYPE_ORDER } from "@/lib/constants";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 interface TypeChipsSectionProps {
   items?: readonly string[];
-  allLabel?: string;
-  activeType?: string;
-  setActiveType?: (type: string) => void;
-
   className?: string;
 }
 
 export default function TypeChipsSection({
   items = TYPE_ORDER,
-  allLabel = "Все типы",
-  activeType: controlledActive,
-  setActiveType,
+
   className = "",
 }: TypeChipsSectionProps) {
-  // const router = useRouter();
-  // const pathname = usePathname();
-  // const searchParams = useSearchParams();
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
-  const allTypes = [allLabel, ...items];
+  const allTypes = ["Все типы", ...items];
+  const activeCategory = searchParams.get("category") || "Все типы";
 
-  // Определяем активный тип: приоритет у prop -> затем paramName из URL -> по умолчанию "Все типы"
-  let activeType = controlledActive;
+  const handleSelectCategory = useCallback(
+    (category: string) => {
+      const params = new URLSearchParams(searchParams.toString());
 
-  // Обработчик переключения типа
-  const handleSelect = (selectedType: string) => {
-    if (setActiveType) {
-      setActiveType(selectedType);
-    }
-  };
+      if (category === "Все типы" || !category) {
+        params.delete("category");
+      } else {
+        params.set("category", category);
+      }
+
+      // Сбрасываем страницу пагинации при смене категории, если она есть
+      params.delete("page");
+
+      const query = params.toString();
+      const url = query ? `${pathname}?${query}` : pathname;
+      startTransition(() => {
+        router.replace(url, { scroll: false });
+      });
+    },
+    [searchParams, pathname, router],
+  );
 
   // Рефы и состояния для Drag-to-Scroll на десктопе
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -91,8 +99,8 @@ export default function TypeChipsSection({
       <div className="block sm:hidden w-full">
         <div className="relative">
           <select
-            value={activeType}
-            onChange={(e) => handleSelect(e.target.value)}
+            value={activeCategory}
+            onChange={(e) => handleSelectCategory(e.target.value)}
             className="w-full h-10 rounded-lg bg-bg-card border border-border px-3.5 pr-8 text-sm text-fg-body font-sans appearance-none focus:outline-none focus:ring-1 focus:ring-border cursor-pointer shadow-sm"
           >
             {allTypes.map((label) => (
@@ -124,12 +132,12 @@ export default function TypeChipsSection({
             onMouseLeave={handleMouseLeaveOrUp}
             onMouseUp={handleMouseLeaveOrUp}
             onMouseMove={handleMouseMove}
-            className={`flex gap-2 overflow-x-auto whitespace-nowrap py-1 px-6 no-scrollbar [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden select-none ${
+            className={`flex gap-2 overflow-x-auto whitespace-nowrap py-1 px-6 no-scrollbar scrollbar-none [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden select-none ${
               isMouseDown ? "cursor-grabbing" : "cursor-grab"
             }`}
           >
             {allTypes.map((label) => {
-              const on = label === activeType;
+              const on = label === activeCategory;
               return (
                 <Button
                   key={label}
@@ -138,7 +146,7 @@ export default function TypeChipsSection({
                       e.preventDefault();
                       return;
                     }
-                    handleSelect(label);
+                    handleSelectCategory(label);
                   }}
                   size="sm"
                   className={`shrink-0 rounded-full px-4 text-sm font-sans transition-colors cursor-pointer ${

@@ -1,30 +1,23 @@
 "use client";
 
-import {
-  useEffect,
-  useMemo,
-  useOptimistic,
-  useState,
-  useTransition,
-} from "react";
+import { useEffect, useOptimistic, useState, useTransition } from "react";
 import { type MaterialInput } from "@/lib/validations";
-import {
-  deleteMaterial,
-  upsertMaterial,
-} from "@/actions/materials";
+import { deleteMaterial, upsertMaterial } from "@/actions/materials";
 import { MaterialDialog } from "./material-dialog";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import MaterialCard from "./material-card";
-import TypeChipsSection from "../spec-builder/TypeChipsSection";
-import { MaterialListItem, SpecPickerCompany, SpecPickerContact } from '@/lib/queries';
-import { toListItem, toFormValues } from '@/lib/spec/adapters';
+import type {
+  MaterialListItem,
+  SpecPickerCompany,
+  SpecPickerContact,
+} from "@/lib/queries";
+import { toListItem, toFormValues } from "@/lib/spec/adapters";
 
 interface MaterialsClientProps {
   orgSlug: string;
   initialMaterials: MaterialListItem[];
   companies: SpecPickerCompany[];
   contacts: SpecPickerContact[];
-  searchParams: { q?: string; sort?: string; action?: string; id?: string };
 }
 type OptimisticAction =
   | { type: "save"; payload: MaterialInput }
@@ -32,13 +25,13 @@ type OptimisticAction =
 
 export function MaterialsClient({
   initialMaterials,
-  searchParams,
   companies,
   contacts,
   orgSlug,
 }: MaterialsClientProps) {
   const router = useRouter();
   const pathname = usePathname();
+  const searchParams = useSearchParams();
 
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingMaterial, setEditingMaterial] = useState<MaterialInput | null>(
@@ -46,24 +39,25 @@ export function MaterialsClient({
   );
   const [, startTransition] = useTransition();
 
-  const [selectedCategory, setSelectedCategory] = useState("Все типы");
-
   useEffect(() => {
-    if (searchParams?.action === "create") {
+    if (searchParams.get("action") === "create") {
       setEditingMaterial(null);
       setIsDialogOpen(true);
     }
-  }, [searchParams?.action]);
+  }, [searchParams]);
 
   const closeDialog = (open: boolean) => {
     setIsDialogOpen(open);
     if (!open) {
       setEditingMaterial(null);
-      if (searchParams?.action) {
+      if (searchParams.get("action")) {
         // Очищаем action из URL при закрытии
-        const params = new URLSearchParams(window.location.search);
+        const params = new URLSearchParams(searchParams.toString());
         params.delete("action");
-        router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+        const qs = params.toString();
+        startTransition(() => {
+          router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
+        });
       }
     }
   };
@@ -85,36 +79,6 @@ export function MaterialsClient({
       return [toListItem(input), ...state];
     },
   );
-
-  const q = searchParams?.q?.toLowerCase() || "";
-  const sort = searchParams?.sort || "";
-
-  const filteredAndSortedMaterials = useMemo(() => {
-    let result = [...optimisticMaterials];
-
-    if (q) {
-      result = result.filter(
-        (m) =>
-          m.name.toLowerCase().includes(q) ||
-          m.article?.toLowerCase().includes(q) ||
-          m.brand?.toLowerCase().includes(q),
-      );
-    }
-
-    if (selectedCategory !== "Все типы") {
-      result = result.filter((m) => m.category === selectedCategory);
-    }
-
-    if (sort === "name_asc") {
-      result.sort((a, b) => a.name.localeCompare(b.name));
-    } else if (sort === "price_asc") {
-      result.sort((a, b) => (a.price || 0) - (b.price || 0));
-    } else if (sort === "price_desc") {
-      result.sort((a, b) => (b.price || 0) - (a.price || 0));
-    }
-
-    return result;
-  }, [optimisticMaterials, q, sort, selectedCategory]);
 
   const handleEdit = (m: MaterialListItem) => {
     setEditingMaterial(toFormValues(m));
@@ -146,13 +110,8 @@ export function MaterialsClient({
 
   return (
     <article>
-      <TypeChipsSection
-        activeType={selectedCategory}
-        setActiveType={setSelectedCategory}
-        className="mb-4"
-      />
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {filteredAndSortedMaterials.map((mat) => (
+      <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+        {optimisticMaterials.map((mat) => (
           <MaterialCard
             key={mat.id}
             mat={mat}
@@ -161,6 +120,12 @@ export function MaterialsClient({
           />
         ))}
       </div>
+
+      {optimisticMaterials.length === 0 && (
+        <p className="py-14 text-center text-sm text-fg-muted">
+          Ничего не найдено — измените фильтры или запрос.
+        </p>
+      )}
 
       <MaterialDialog
         open={isDialogOpen}

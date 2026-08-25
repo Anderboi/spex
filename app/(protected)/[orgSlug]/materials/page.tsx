@@ -1,21 +1,18 @@
-import { getCounterparties, getMaterials } from "@/lib/queries";
-import { SearchSortBar } from "@/components/layout/search-sort-bar";
+import { getCounterparties, getMaterialBrands, getMaterialsPage } from "@/lib/queries";
+import { MaterialsToolbar } from "@/components/materials/materials-toolbar";
 import { MaterialsClient } from "@/components/materials/materials-client";
+import { MaterialsPagination } from "@/components/materials/materials-pagination";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
 import { Plus } from "lucide-react";
 import Link from "next/link";
 import { Suspense } from "react";
 import { MaterialsSkeleton } from "@/components/materials/materials-skeleton";
+import { parseMaterialsFilters } from "@/lib/materials/filters";
 
 type Props = {
   params: Promise<{ orgSlug: string }>;
-  searchParams: Promise<{
-    q?: string;
-    sort?: string;
-    action?: string;
-    id?: string;
-  }>;
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
 };
 
 export const metadata = { title: "Материалы" };
@@ -59,30 +56,26 @@ async function MaterialsData({
   searchParams: Props["searchParams"];
 }) {
   const sp = await searchParams;
+  const filters = parseMaterialsFilters(sp);
 
-  const [materials, counterparties] = await Promise.all([
-    getMaterials(orgSlug, { search: sp.q }),
+  const [{ items, pageCount }, counterparties, brands] = await Promise.all([
+    getMaterialsPage(orgSlug, filters),
     getCounterparties(orgSlug),
+    getMaterialBrands(orgSlug),
   ]);
 
   return (
     <>
-      <SearchSortBar
-        placeholder="Поиск по материалам, артикулам, брендам…"
-        sortOptions={[
-          { label: "По названию (А-Я)", value: "name_asc" },
-          { label: "По цене (сначала дешевле)", value: "price_asc" },
-          { label: "По цене (сначала дороже)", value: "price_desc" },
-        ]}
-      />
+      <MaterialsToolbar brands={brands} />
 
       <MaterialsClient
         orgSlug={orgSlug}
-        initialMaterials={materials}
+        initialMaterials={items}
         companies={counterparties.companies}
         contacts={counterparties.contacts}
-        searchParams={sp}
       />
+
+      <MaterialsPagination page={filters.page} pageCount={pageCount} />
     </>
   );
 }

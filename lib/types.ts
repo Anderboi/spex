@@ -71,6 +71,21 @@ export interface FileCategory {
   empty: string;
 }
 
+export type MaterialsSort =
+  | "created_desc"
+  | "created_asc"
+  | "name_asc"
+  | "name_desc";
+
+export type MaterialsFilters = {
+  query: string;
+  category: string | null;
+  manufacturer: string | null;
+  status: string | null;
+  sort: MaterialsSort;
+  page: number;
+};
+
 export interface SupplierOption {
   id: string; // ID записи (компании или контакта)
   name: string; // Имя контакта или Название компании
