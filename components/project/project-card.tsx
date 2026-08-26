@@ -1,12 +1,14 @@
 "use client";
 
 import { COVER_PALETTE, STATUS_CONFIG, TYPE_COLORS } from "@/lib/constants";
-import { plural } from "@/lib/utils";
+import { fmtDate, plural } from "@/lib/utils";
 import type { ProjectListItem } from "@/lib/queries";
 import { ProjectStatus } from "@/lib/validations";
 import Link from "next/link";
 import Image from "next/image";
 import { MouseEvent } from "react";
+import { Button } from "../ui/button";
+import { Edit, Trash } from "lucide-react";
 
 export function ProjectCard({
   orgSlug,
@@ -44,10 +46,29 @@ export function ProjectCard({
     >
       {/* Cover */}
       <div
-        className={`relative h-40 ${coverBg} flex items-end p-5 overflow-hidden`}
+        className={`relative h-60 ${coverBg} flex items-end p-5 overflow-hidden group`}
       >
+        <div className="absolute z-20 top-3 right-3 /left-2 transition-all gap-2 hidden duration-200 group-hover:flex">
+          <Button
+            variant="outline"
+            className="size-10 opacity-50 hover:bg-bg-white rounded-full hover:border-none  hover:opacity-100"
+            size="icon-lg"
+            onClick={handleEdit}
+          >
+            <Edit size={20} />
+          </Button>
+          <Button
+            variant="outline"
+            className="size-10 opacity-50 hover:bg-bg-red-light hover:border-none rounded-full hover:text-fg-red hover:opacity-100"
+            size="icon-lg"
+            onClick={handleDelete}
+          >
+            <Trash size={20} />
+          </Button>
+        </div>
         {project.cover_url ? (
           <Image
+            loading="lazy"
             src={project.cover_url}
             alt={project.title || "Обложка проекта"}
             fill
@@ -99,7 +120,6 @@ export function ProjectCard({
             />
           </svg>
         )}
-
         <span
           className={`relative z-1 inline-flex items-center rounded-[10px] py-1.5 px-3.5 font-mono text-[11px] font-semibold tracking-[.04em] uppercase ${
             TYPE_COLORS[project.type] ?? "bg-bg-accent text-bg"
@@ -129,8 +149,13 @@ export function ProjectCard({
             <div className="font-mono text-[17px] font-semibold text-fg leading-none truncate">
               {project.rooms.length}
             </div>
-            <div className="text-[11.5px] text-fg-muted mt-1 leading-tight">
-              {plural(project.rooms.length, "помещение", "помещения", "помещений")}
+            <div className="text-[11px] font-mono capitalize text-fg-muted mt-1 leading-tight">
+              {plural(
+                project.rooms.length,
+                "помещение",
+                "помещения",
+                "помещений",
+              )}
             </div>
           </div>
           <div>
@@ -139,7 +164,7 @@ export function ProjectCard({
               {project.budget.toLocaleString("ru-RU").replace(/,/g, "\u2009") +
                 "₽"}
             </div>
-            <div className="text-[11.5px] text-fg-muted mt-1 leading-tight">
+            <div className="text-[11px] font-mono capitalize text-fg-muted mt-1 leading-tight">
               Бюджет
             </div>
           </div>
@@ -154,13 +179,13 @@ export function ProjectCard({
             </span>
           </div>
           {/* //TODO: add date */}
-          {/* <span className="font-mono text-[11.5px] text-fg-muted tracking-[.02em]">
+          <span className="font-mono text-[11px] text-fg-muted tracking-[.02em]">
             {project.updated_at ? fmtDate(project.updated_at) : "—"}
-          </span> */}
+          </span>
         </div>
 
         {/* Hover actions — заменены теги <button> на роли role="button" в <div> */}
-        <div className="flex items-center gap-2 mt-4 pt-3 border-t border-border-subtle opacity-0 transition-opacity duration-150 group-hover:opacity-100">
+        {/* <div className="flex items-center gap-2 mt-4 pt-3 border-t border-border-subtle opacity-0 transition-opacity duration-150 group-hover:opacity-100">
           <div
             role="button"
             tabIndex={0}
@@ -192,7 +217,7 @@ export function ProjectCard({
               />
             </svg>
           </div>
-        </div>
+        </div> */}
       </div>
     </Link>
   );

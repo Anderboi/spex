@@ -1,5 +1,10 @@
 import SpecBuilder from "@/components/spec-builder/spec-builder";
-import { getMaterials, getProjectById, getProjectSpecItems, getSpecPickerData } from "@/lib/queries";
+import {
+  getMaterials,
+  getProjectById,
+  getProjectSpecItems,
+  getSpecPickerData,
+} from "@/lib/queries";
 import { notFound } from "next/navigation";
 
 interface ProjectPageProps {
