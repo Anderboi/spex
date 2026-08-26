@@ -9,6 +9,7 @@ import {
   AlertCircle,
   Loader2,
   Check,
+  MoreVertical,
 } from "lucide-react";
 import { useSpecBuilder } from "@/hooks/use-spec-builder";
 import { useMediaQuery } from "@/hooks/use-media-query";
@@ -28,7 +29,16 @@ import { fmt, plural, cn } from "@/lib/utils";
 import { SpecItem } from "@/lib/types";
 import BottomBar from "./bottom-bar";
 import AddModalForm from "./add-spec-mat-modal-form";
-import PageTitle from '../layout/page-title';
+import PageTitle from "../layout/page-title";
+import { ProcureModal } from "./procure-modal";
+import { SpecSummary } from "./spec-summary";
+import { Button } from "../ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "../ui/dropdown-menu";
 
 export default function SpecBuilder({
   orgSlug,
@@ -108,6 +118,46 @@ export default function SpecBuilder({
 
         <div className="flex shrink-0 items-center gap-2">
           <SaveIndicator status={ctx.saveStatus} error={ctx.saveError} />
+
+          {/* web view */}
+          <div className="hidden items-center gap-2 md:flex">
+            <Button
+              variant="outline"
+              onClick={ctx.openProcure}
+              className="flex h-10 items-center gap-1.5 rounded-lg border border-border-muted bg-bg-card px-3 text-[13.5px] font-semibold text-fg hover:border-fg"
+            >
+              Закупка
+            </Button>
+
+            <Button
+              variant="outline"
+              onClick={ctx.openSummary}
+              className="flex h-10 items-center gap-1.5 rounded-lg border border-border-muted bg-bg-card px-3 text-[13.5px] font-semibold text-fg hover:border-fg"
+            >
+              Сводка
+            </Button>
+          </div>
+
+          <div className="flex items-center gap-2 md:hidden">
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={
+                  <Button type="button" size="icon-lg" variant="outline">
+                    <MoreVertical className="size-4" />
+                  </Button>
+                }
+              ></DropdownMenuTrigger>
+              <DropdownMenuContent>
+                <DropdownMenuItem onClick={ctx.openProcure}>
+                  Закупка
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={ctx.openSummary}>
+                  Сводка
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+
           <button
             type="button"
             onClick={() => ctx.openAdd(null)}
@@ -282,6 +332,14 @@ export default function SpecBuilder({
           }}
           onFillManual={(input) => ctx.fillManual(ctx.editing!.id, input)}
         />
+      )}
+
+      {ctx.modal.kind === "procure" && (
+        <ProcureModal ctx={ctx} onClose={ctx.closeModal} />
+      )}
+
+      {ctx.modal.kind === "summary" && (
+        <SpecSummary ctx={ctx} project={project} onClose={ctx.closeModal} />
       )}
 
       <CodeConflictDialog

@@ -799,7 +799,7 @@ export function useSpecBuilder({
       margin: round2(money.total - money.purchase),
       placeholders: items.length - real.length,
 
-      replace: { count: replace.count, sum: replace.sum },
+      replace: replace,
       procurement,
       scopeSum,
       scopeCount,
@@ -912,6 +912,8 @@ export function useSpecBuilder({
   /* ---------------------------------------------------------------- */
 
   return {
+    orgSlug,
+    projectId,
     // данные
     items,
     list,

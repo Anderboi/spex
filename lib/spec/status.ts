@@ -4,6 +4,7 @@ export const SPEC_STATUS_CONFIG: Record<
   SpecStatus,
   {
     label: string;
+    sub?: string;
     dot: string;
     chip: string;
     bar: string;
@@ -17,30 +18,35 @@ export const SPEC_STATUS_CONFIG: Record<
   },
   picked: {
     label: "Подобрано",
+    sub: "готово к согласованию",
     dot: "bg-blue-500",
     chip: "bg-blue-500/12 text-blue-600",
     bar: "#3b82f6",
   },
   approved: {
     label: "Согласовано",
+    sub: "ожидает заказа",
     dot: "bg-emerald-500",
     chip: "bg-emerald-500/12 text-emerald-600",
     bar: "#10b981",
   },
   ordered: {
-    label: "Приобретено",
+    label: "Заказано",
+    sub: "в производстве или пути",
     dot: "bg-amber-500",
     chip: "bg-amber-500/12 text-amber-600",
     bar: "#f59e0b",
   },
   delivered: {
     label: "Доставлено",
+    sub: "на объекте",
     dot: "bg-emerald-700",
     chip: "bg-emerald-700/12 text-emerald-700",
     bar: "#047857",
   },
   replace: {
     label: "Заменить",
+    sub: "брак или пересмотр",
     dot: "bg-bg-red",
     chip: "bg-bg-red/12 text-fg-red",
     bar: "#dc2626",

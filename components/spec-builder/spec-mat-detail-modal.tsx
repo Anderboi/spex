@@ -33,18 +33,18 @@ import { uploadMaterialImage } from "@/actions/materials";
 type Company = {
   id: string;
   name: string;
-  email?: string;
-  phone?: string;
-  website?: string;
-  address?: string;
-  note?: string;
+  email?: string| null;
+  phone?: string | null;
+  website?: string | null;
+  address?: string | null;
+  note?: string | null;
 };
 type Contact = {
   id: string;
   name: string;
   company_id: string | null;
-  phone: string | null;
-  email: string | null;
+  phone?: string | null;
+  email?: string | null;
 };
 
 export function DetailModal({
@@ -108,7 +108,7 @@ export function DetailModal({
 
   return (
     <Dialog open onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="max-h-[95vh] flex-col bg-bg sm:max-w-170 p-0 gap-0">
+      <DialogContent className="max-h-[90vh] flex-col bg-bg sm:max-w-170 p-0 gap-0">
         <DialogHeader className="sticky top-0 gap-2 border-b p-4">
           <div className="flex flex-row gap-8">
             <div className="flex flex-wrap items-center gap-3">
@@ -137,7 +137,7 @@ export function DetailModal({
             <TabsTrigger value="supplier">Поставщик</TabsTrigger>
             <TabsTrigger value="files">Файлы</TabsTrigger>
           </TabsList>
-          <ScrollArea className="h-[75svh] /pr-4">
+          <ScrollArea className="h-[60vh]">
             <TabsContent
               value="overview"
               className="flex flex-col gap-4 pt-2 pb-4"
@@ -336,7 +336,10 @@ export function DetailModal({
               />
             </TabsContent>
 
-            <TabsContent value="rooms" className="pt-4">
+            <TabsContent
+              value="rooms"
+              className="flex flex-col gap-4 py-4 pl-4 pr-6"
+            >
               <RoomsEditor
                 rooms={item.rooms}
                 onChange={(rooms) => onPatch({ rooms })}
@@ -344,7 +347,10 @@ export function DetailModal({
               />
             </TabsContent>
 
-            <TabsContent value="supplier" className="pt-4">
+            <TabsContent
+              value="supplier"
+              className="flex flex-col gap-4 py-4 pl-4 pr-6"
+            >
               <SupplierPicker
                 companies={localCompanies}
                 contacts={contacts}
@@ -363,7 +369,7 @@ export function DetailModal({
           </ScrollArea>
         </Tabs>
 
-        <DialogFooter className="//mt-5 //flex //flex-wrap //items-center gap-2 border-t border-border-muted //pt-4">
+        <DialogFooter className="gap-2 border-t border-border-muted">
           <Button variant="ghost" onClick={onShare} className="gap-2">
             <Share2 className="size-4" /> Поделиться
           </Button>

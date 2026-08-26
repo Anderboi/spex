@@ -36,18 +36,18 @@ export function SupplierPicker({
   companies: {
     id: string;
     name: string;
-    email?: string;
-    phone?: string;
-    website?: string;
-    address?: string;
-    note?: string;
+    email?: string | null;
+    phone?: string | null;
+    website?: string | null;
+    address?: string | null;
+    note?: string | null;
   }[];
   contacts: {
     id: string;
     name: string;
     company_id: string | null;
-    phone: string | null;
-    email: string | null;
+    phone?: string | null;
+    email?: string | null;
   }[];
   companyId: string | null;
   contactId: string | null;

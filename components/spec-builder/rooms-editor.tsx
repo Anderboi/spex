@@ -86,13 +86,13 @@ export function RoomsEditor({
           }}
           placeholder="Спальня 2, Санузел гостевой…"
           aria-label="Новое помещение"
-          className="h-9 flex-1 rounded-md border border-border-muted bg-bg px-3 text-sm outline-none focus:border-fg-brand"
+          className="h-10 flex-1 rounded-md border border-border-muted bg-bg-card px-3 text-sm outline-none focus:border-fg-brand"
         />
         <button
           type="button"
           onClick={() => add(draft)}
           disabled={!draft.trim()}
-          className="flex h-9 items-center gap-1.5 rounded-md border border-border-muted px-3 text-[13px] disabled:opacity-40"
+          className="flex h-10 items-center gap-1.5 rounded-md border border-border-muted px-3 text-[13px] disabled:opacity-40"
         >
           <Plus className="size-3.5" /> Добавить
         </button>

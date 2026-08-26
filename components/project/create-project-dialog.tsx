@@ -11,6 +11,7 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
@@ -30,6 +31,7 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { toast } from "sonner";
 import { RoomsEditor } from "@/components/spec-builder/rooms-editor";
+import { ScrollArea } from "../ui/scroll-area";
 
 interface CreateProjectDialogProps {
   orgSlug: string;
@@ -54,7 +56,6 @@ export function CreateProjectDialog({
   const [isUploading, setIsUploading] = useState(false);
   const router = useRouter();
 
-  // Явно указываем типы в useForm<FormInput, Context, FormOutput>
   const form = useForm({
     resolver: zodResolver(projectSchema),
     defaultValues: {
@@ -118,233 +119,233 @@ export function CreateProjectDialog({
         <Plus className="size-4 shrink-0" /> Новый проект
       </DialogTrigger>
 
-      <DialogContent className="sm:max-w-120 bg-bg-card border-border-muted rounded-[20px] p-6 text-fg">
-        <DialogHeader>
+      <DialogContent className="sm:max-w-170 max-h-[88vh] flex-col bg-bg border-border-muted p-0 gap-0">
+        <DialogHeader className="sticky top-0 gap-2 border-b p-4">
           <DialogTitle className="text-xl font-bold tracking-tight">
             Новый проект
           </DialogTitle>
-          <DialogDescription className="text-sm text-fg-muted mt-1">
+          {/* <DialogDescription className="text-sm text-fg-muted mt-1">
             Создайте рабочий профиль объекта для управления материалами и
             спецификацией.
-          </DialogDescription>
+          </DialogDescription> */}
         </DialogHeader>
 
         <Form {...form}>
-          <form
-            onSubmit={form.handleSubmit(onSubmit)}
-            className="space-y-5 mt-4"
-          >
-            {form.formState.errors.root && (
-              <div className="p-3 text-xs font-medium bg-red-500/10 border border-red-500/20 text-red-500 rounded-lg">
-                {form.formState.errors.root.message}
-              </div>
-            )}
+          <form onSubmit={form.handleSubmit(onSubmit)}>
+            <ScrollArea className="h-[66svh] p-4">
+              <article className=" flex flex-col gap-4">
+                {form.formState.errors.root && (
+                  <div className="p-3 text-xs font-medium bg-red-500/10 border border-red-500/20 text-red-500 rounded-lg">
+                    {form.formState.errors.root.message}
+                  </div>
+                )}
 
-            {/* Название проекта */}
-            <FormField
-              control={form.control}
-              name="title"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="text-xs font-semibold uppercase tracking-wider text-fg-muted">
-                    Название объекта / проекта *
-                  </FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder="Например: Апартаменты в ЖК Prime"
-                      className="bg-bg border-border-muted rounded-[12px] h-11 text-fg placeholder:text-fg-muted focus:border-border-dash-input"
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage className="text-xs text-red-500" />
-                </FormItem>
-              )}
-            />
-
-            {/* Обложка */}
-            <FormField
-              control={form.control}
-              name="cover_url"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="text-xs font-semibold uppercase tracking-wider text-fg-muted">
-                    Обложка
-                  </FormLabel>
-                  <FormControl>
-                    <label className="flex cursor-pointer items-center gap-3 rounded-[12px] border border-dashed border-border-muted bg-bg p-3">
-                      <input
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={handleFile}
-                        disabled={isUploading}
-                      />
-                      {field.value ? (
-                        <Image
-                          alt="Обложка проекта"
-                          src={field.value}
-                          width={64}
-                          height={64}
-                          className="size-16 rounded-[10px] object-cover"
+                {/* Название проекта */}
+                <FormField
+                  control={form.control}
+                  name="title"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-xs font-semibold uppercase tracking-wider text-fg-muted">
+                        Название объекта / проекта *
+                      </FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="Например: Апартаменты в ЖК Prime"
+                          className=" placeholder:text-fg-muted focus:border-border-dash-input"
+                          {...field}
                         />
-                      ) : (
-                        <div className="flex size-16 items-center justify-center rounded-[10px] bg-bg-select text-fg-muted">
-                          {isUploading ? (
-                            <Loader2 className="size-5 animate-spin" />
+                      </FormControl>
+                      <FormMessage className="text-xs text-red-500" />
+                    </FormItem>
+                  )}
+                />
+
+                {/* Обложка */}
+                <FormField
+                  control={form.control}
+                  name="cover_url"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-xs font-semibold uppercase tracking-wider text-fg-muted">
+                        Обложка
+                      </FormLabel>
+                      <FormControl>
+                        <label className="flex cursor-pointer items-center gap-3 rounded-[12px] border border-dashed border-border-muted bg-bg p-3">
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={handleFile}
+                            disabled={isUploading}
+                          />
+                          {field.value ? (
+                            <Image
+                              alt="Обложка проекта"
+                              src={field.value}
+                              width={64}
+                              height={64}
+                              className="size-16 rounded-[10px] object-cover"
+                            />
                           ) : (
-                            <CloudUpload className="size-5" />
+                            <div className="flex size-16 items-center justify-center rounded-[10px] bg-bg-select text-fg-muted">
+                              {isUploading ? (
+                                <Loader2 className="size-5 animate-spin" />
+                              ) : (
+                                <CloudUpload className="size-5" />
+                              )}
+                            </div>
                           )}
-                        </div>
-                      )}
-                      <div className="min-w-0 flex-1">
-                        <p className="text-[13px] font-medium text-fg">
-                          {isUploading
-                            ? "Загрузка…"
-                            : field.value
-                              ? "Заменить обложку"
-                              : "Загрузить изображение"}
-                        </p>
-                        <p className="text-[11.5px] text-fg-muted">
-                          JPG, PNG · до 5 МБ
-                        </p>
-                      </div>
-                      {field.value && (
-                        <button
-                          type="button"
-                          onClick={() => field.onChange(null)}
-                          aria-label="Убрать обложку"
-                          className="flex size-7 shrink-0 items-center justify-center rounded-full text-fg-muted hover:bg-bg-select"
-                        >
-                          <X className="size-4" />
-                        </button>
-                      )}
-                    </label>
-                  </FormControl>
-                  <FormMessage className="text-xs text-red-500" />
-                </FormItem>
-              )}
-            />
+                          <div className="min-w-0 flex-1">
+                            <p className="text-[13px] font-medium text-fg">
+                              {isUploading
+                                ? "Загрузка…"
+                                : field.value
+                                  ? "Заменить обложку"
+                                  : "Загрузить изображение"}
+                            </p>
+                            <p className="text-[11.5px] text-fg-muted">
+                              JPG, PNG · до 5 МБ
+                            </p>
+                          </div>
+                          {field.value && (
+                            <button
+                              type="button"
+                              onClick={() => field.onChange(null)}
+                              aria-label="Убрать обложку"
+                              className="flex size-7 shrink-0 items-center justify-center rounded-full text-fg-muted hover:bg-bg-select"
+                            >
+                              <X className="size-4" />
+                            </button>
+                          )}
+                        </label>
+                      </FormControl>
+                      <FormMessage className="text-xs text-red-500" />
+                    </FormItem>
+                  )}
+                />
 
-            {/* Заказчик / Клиент */}
-            <FormField
-              control={form.control}
-              name="client_name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="text-xs font-semibold uppercase tracking-wider text-fg-muted">
-                    Заказчик
-                  </FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder="Имя или фамилия клиента"
-                      className="bg-bg border-border-muted rounded-[12px] h-11 text-fg placeholder:text-fg-muted focus:border-border-dash-input"
-                      value={field.value || ""}
-                      onChange={field.onChange}
-                    />
-                  </FormControl>
-                  <FormMessage className="text-xs text-red-500" />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="address"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="text-xs font-semibold uppercase tracking-wider text-fg-muted">
-                    Адрес
-                  </FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder="Адрес объекта"
-                      className="bg-bg border-border-muted rounded-[12px] h-11 text-fg placeholder:text-fg-muted focus:border-border-dash-input"
-                      value={field.value || ""}
-                      onChange={field.onChange}
-                    />
-                  </FormControl>
-                  <FormMessage className="text-xs text-red-500" />
-                </FormItem>
-              )}
-            />
-            <FormField
-              control={form.control}
-              name="budget"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="text-xs font-semibold uppercase tracking-wider text-fg-muted">
-                    Ориентировочный бюджет
-                  </FormLabel>
-                  <FormControl>
-                    <Input
-                      type="number"
-                      placeholder="10 000 000 ₽"
-                      className="bg-bg border-border-muted rounded-[12px] h-11 text-fg placeholder:text-fg-muted focus:border-border-dash-input"
-                      value={field.value ?? 0}
-                      onChange={(e) => {
-                        const val = e.target.value;
-                        field.onChange(val === "" ? 0 : Number(val));
-                      }}
-                    />
-                  </FormControl>
-                  <FormMessage className="text-xs text-red-500" />
-                </FormItem>
-              )}
-            />
-
-            {/* Состав помещений */}
-            <FormField
-              control={form.control}
-              name="rooms"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="text-xs font-semibold uppercase tracking-wider text-fg-muted">
-                    Состав помещений{" "}
-                    <span className="font-normal normal-case text-fg-muted/70">
-                      · опционально
-                    </span>
-                  </FormLabel>
-                  <RoomsEditor
-                    rooms={field.value ?? []}
-                    onChange={(rooms) => field.onChange(rooms)}
-                  />
-                  <FormMessage className="text-xs text-red-500" />
-                </FormItem>
-              )}
-            />
-
-            {/* Акцентный цвет */}
-            <FormField
-              control={form.control}
-              name="accent_color"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel className="text-xs font-semibold uppercase tracking-wider text-fg-muted">
-                    Акцентный цвет карточки
-                  </FormLabel>
-                  <FormControl>
-                    <div className="flex items-center gap-2.5 pt-1">
-                      {ACCENT_COLORS.map((color) => (
-                        <button
-                          key={color}
-                          type="button"
-                          onClick={() => field.onChange(color)}
-                          className={`size-8 rounded-full transition-all border-2 ${
-                            field.value === color
-                              ? "border-fg scale-110 shadow-sm"
-                              : "border-transparent opacity-80 hover:opacity-100"
-                          }`}
-                          style={{ backgroundColor: color }}
+                {/* Заказчик / Клиент */}
+                <FormField
+                  control={form.control}
+                  name="client_name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-xs font-semibold uppercase tracking-wider text-fg-muted">
+                        Заказчик
+                      </FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="Имя или фамилия клиента"
+                          className="text-fg placeholder:text-fg-muted focus:border-border-dash-input"
+                          value={field.value || ""}
+                          onChange={field.onChange}
                         />
-                      ))}
-                    </div>
-                  </FormControl>
-                  <FormMessage className="text-xs text-red-500" />
-                </FormItem>
-              )}
-            />
+                      </FormControl>
+                      <FormMessage className="text-xs text-red-500" />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="address"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-xs font-semibold uppercase tracking-wider text-fg-muted">
+                        Адрес
+                      </FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="Адрес объекта"
+                          className=" text-fg placeholder:text-fg-muted focus:border-border-dash-input"
+                          value={field.value || ""}
+                          onChange={field.onChange}
+                        />
+                      </FormControl>
+                      <FormMessage className="text-xs text-red-500" />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="budget"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-xs font-semibold uppercase tracking-wider text-fg-muted">
+                        Ориентировочный бюджет
+                      </FormLabel>
+                      <FormControl>
+                        <Input
+                          type="number"
+                          placeholder="10 000 000 ₽"
+                          className=" text-fg placeholder:text-fg-muted focus:border-border-dash-input"
+                          value={field.value ?? 0}
+                          onChange={(e) => {
+                            const val = e.target.value;
+                            field.onChange(val === "" ? 0 : Number(val));
+                          }}
+                        />
+                      </FormControl>
+                      <FormMessage className="text-xs text-red-500" />
+                    </FormItem>
+                  )}
+                />
 
+                {/* Состав помещений */}
+                <FormField
+                  control={form.control}
+                  name="rooms"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-xs font-semibold uppercase tracking-wider text-fg-muted">
+                        Состав помещений{" "}
+                        <span className="font-normal normal-case text-fg-muted/70">
+                          · опционально
+                        </span>
+                      </FormLabel>
+                      <RoomsEditor
+                        rooms={field.value ?? []}
+                        onChange={(rooms) => field.onChange(rooms)}
+                      />
+                      <FormMessage className="text-xs text-red-500" />
+                    </FormItem>
+                  )}
+                />
+
+                {/* Акцентный цвет */}
+                <FormField
+                  control={form.control}
+                  name="accent_color"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel className="text-xs font-semibold uppercase tracking-wider text-fg-muted">
+                        Акцентный цвет карточки
+                      </FormLabel>
+                      <FormControl>
+                        <div className="flex items-center gap-2.5 pt-1">
+                          {ACCENT_COLORS.map((color) => (
+                            <button
+                              key={color}
+                              type="button"
+                              onClick={() => field.onChange(color)}
+                              className={`size-8 rounded-full transition-all border-2 ${
+                                field.value === color
+                                  ? "border-fg scale-110 shadow-sm"
+                                  : "border-transparent opacity-80 hover:opacity-100"
+                              }`}
+                              style={{ backgroundColor: color }}
+                            />
+                          ))}
+                        </div>
+                      </FormControl>
+                      <FormMessage className="text-xs text-red-500" />
+                    </FormItem>
+                  )}
+                />
+              </article>
+            </ScrollArea>
             {/* Кнопки действий */}
-            <div className="flex items-center justify-end gap-3 pt-4 border-t border-border-muted">
+            <DialogFooter className="flex justify-end gap-2">
               <Button
                 type="button"
                 variant="outline"
@@ -368,7 +369,7 @@ export function CreateProjectDialog({
                   "Создать проект"
                 )}
               </Button>
-            </div>
+            </DialogFooter>
           </form>
         </Form>
       </DialogContent>
