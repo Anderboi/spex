@@ -171,17 +171,17 @@ export const SPEC_ITEM_STATUSES = [
   "delivered",
 ] as const;
 
-export const SPEC_STATUS_CONFIG: Record<
-  SpecItemStatus,
-  { label: string; dot: string }
-> = {
-  draft: { label: "Не выбрано", dot: "bg-fg-muted" },
-  picked: { label: "Подобрано", dot: "bg-blue-500" },
-  replace: { label: "Заменить", dot: "bg-bg-red" },
-  approved: { label: "Согласовано", dot: "bg-bg-green" },
-  ordered: { label: "Заказано", dot: "bg-amber-500" },
-  delivered: { label: "Доставлено", dot: "bg-emerald-600" },
-};
+// export const SPEC_STATUS_CONFIG: Record<
+//   SpecItemStatus,
+//   { label: string; dot: string }
+// > = {
+//   draft: { label: "Не выбрано", dot: "bg-fg-muted" },
+//   picked: { label: "Подобрано", dot: "bg-blue-500" },
+//   replace: { label: "Заменить", dot: "bg-bg-red" },
+//   approved: { label: "Согласовано", dot: "bg-bg-green" },
+//   ordered: { label: "Заказано", dot: "bg-amber-500" },
+//   delivered: { label: "Доставлено", dot: "bg-emerald-600" },
+// };
 
 export const SPEC_STATUSES = [
   "draft",

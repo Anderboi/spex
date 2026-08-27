@@ -292,3 +292,38 @@
     margin: 14mm;
   }
 }
+
+@media print {
+  @page {
+    size: A4;
+    margin: 15mm;
+  }
+
+  body {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  /* скрыть всё лишнее */
+  nav,
+  header button,
+  .print\:hidden {
+    display: none !important;
+  }
+
+  /* разрывы страниц */
+  .print\:break-inside-avoid {
+    break-inside: avoid;
+  }
+
+  .print\:break-inside-avoid-page {
+    break-inside: avoid-page;
+  }
+
+  /* убрать тени и фоны модалок */
+  [role="dialog"] {
+    box-shadow: none !important;
+    max-height: none !important;
+    overflow: visible !important;
+  }
+}
