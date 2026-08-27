@@ -10,7 +10,7 @@ import { priceOf } from "@/lib/spec/pricing";
 import { SPEC_STATUS_CONFIG } from "@/lib/spec/status";
 import { TYPE_ORDER } from "@/lib/constants";
 import { fmt, fmtQty } from "@/lib/utils";
-import { type SpecItem } from '@/lib/types';
+import { type SpecItem } from "@/lib/types";
 
 // Если хотите кириллицу — подключите шрифт
 Font.register({
@@ -91,6 +91,7 @@ const styles = StyleSheet.create({
   },
   code: { width: "8%", color: "#46423a" },
   name: { width: "28%", fontWeight: "bold" },
+  nameWide: { width: "34%", fontWeight: "bold" },
   spec: { width: "20%", color: "#46423a" },
   qty: { width: "10%", textAlign: "right" },
   price: { width: "12%", textAlign: "right", color: "#46423a" },
@@ -110,9 +111,13 @@ const styles = StyleSheet.create({
 export function SpecPdfDocument({
   project,
   items,
+  clientView = false,
+  createdAt,
 }: {
   project: { title: string; client_name: string | null };
   items: SpecItem[];
+  clientView?: boolean;
+  createdAt?: string;
 }) {
   const real = items.filter((i) => !i.isPlaceholder);
   const totalSum = real.reduce((s, i) => s + priceOf(i).total, 0);
@@ -123,10 +128,11 @@ export function SpecPdfDocument({
     return { type, items: list, sum };
   }).filter((g) => g.items.length > 0);
 
+  const date = createdAt ? new Date(createdAt) : new Date();
+
   return (
     <Document>
       <Page size="A4" style={styles.page}>
-        {/* заголовок */}
         <View style={styles.header}>
           <View
             style={{ flexDirection: "row", justifyContent: "space-between" }}
@@ -138,19 +144,18 @@ export function SpecPdfDocument({
               <Text style={styles.title}>{project.title}</Text>
             </View>
             <View style={styles.meta}>
-              <Text>Дата · {new Date().toLocaleDateString("ru")}</Text>
-              <Text>Позиций · {real.length}</Text>
+              <Text>Дата · {date.toLocaleDateString("ru")}</Text>
+              <Text>Позиций · {items.length}</Text>
+              {clientView && <Text>Коммерческое предложение</Text>}
             </View>
           </View>
         </View>
 
-        {/* итого */}
         <View style={styles.totalRow}>
           <Text style={styles.totalLabel}>Итого по спецификации</Text>
           <Text style={styles.totalAmount}>{fmt(totalSum)} ₽</Text>
         </View>
 
-        {/* группы */}
         {byType.map((g) => (
           <View key={g.type} wrap={false}>
             <View style={styles.groupHeader}>
@@ -162,12 +167,12 @@ export function SpecPdfDocument({
 
             {g.items.map((it) => {
               const p = priceOf(it);
-              const config = SPEC_STATUS_CONFIG[it.status];
               return (
                 <View key={it.id} style={styles.itemRow}>
-                  <Text style={styles.code}>{it.code}</Text>
-                  <Text style={styles.name}>
-                    {it.name} {it.brand && `(${it.brand})`}
+                  {!clientView && <Text style={styles.code}>{it.code}</Text>}
+                  <Text style={clientView ? styles.nameWide : styles.name}>
+                    {it.name}
+                    {it.brand ? ` (${it.brand})` : ""}
                   </Text>
                   <Text style={styles.spec}>{it.spec || "—"}</Text>
                   <Text style={styles.qty}>
@@ -175,14 +180,17 @@ export function SpecPdfDocument({
                   </Text>
                   <Text style={styles.price}>{fmt(p.priceFinal)}</Text>
                   <Text style={styles.total}>{fmt(p.total)} ₽</Text>
-                  <Text style={styles.status}>{config.label}</Text>
+                  {!clientView && (
+                    <Text style={styles.status}>
+                      {SPEC_STATUS_CONFIG[it.status].label}
+                    </Text>
+                  )}
                 </View>
               );
             })}
           </View>
         ))}
 
-        {/* подвал */}
         <View style={styles.footer}>
           <Text style={styles.footerLabel}>Всего</Text>
           <Text style={styles.footerSum}>{fmt(totalSum)} ₽</Text>

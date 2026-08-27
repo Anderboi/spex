@@ -597,6 +597,7 @@ export type Database = {
       }
       public_links: {
         Row: {
+          client_view: boolean
           created_at: string
           expires_at: string
           org_id: string
@@ -605,6 +606,7 @@ export type Database = {
           type: string
         }
         Insert: {
+          client_view?: boolean
           created_at?: string
           expires_at: string
           org_id: string
@@ -613,6 +615,7 @@ export type Database = {
           type: string
         }
         Update: {
+          client_view?: boolean
           created_at?: string
           expires_at?: string
           org_id?: string

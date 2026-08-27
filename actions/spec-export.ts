@@ -9,67 +9,92 @@ import { fmt, fmtQty } from "@/lib/utils";
 import { SPEC_STATUS_CONFIG } from "@/lib/spec/status";
 import * as XLSX from "xlsx";
 
+type ExportOpts = { clientView?: boolean };
+
 export async function exportSpecToExcel(
   orgSlug: string,
   projectId: string,
+  opts: ExportOpts = {},
 ): Promise<ActionResult<{ filename: string; base64: string }>> {
-  const ctx = await requireOrgBySlug(orgSlug);
-  const items = await getProjectSpecItems(orgSlug, projectId);
+  // const ctx = await requireOrgBySlug(orgSlug);
+  const items = (await getProjectSpecItems(orgSlug, projectId)).filter(
+    (i) => !i.isPlaceholder,
+  );
+
+  const client = opts.clientView === true;
 
   const rows = items.map((it) => {
     const p = priceOf(it);
-    return {
-      Марка: it.code,
+    // порядок ключей = порядок колонок
+    const base: Record<string, string> = client ? {} : { Марка: it.code };
+
+    Object.assign(base, {
       Наименование: it.name,
       Бренд: it.brand || "",
-      Спецификация: it.spec || "",
-      Артикул: it.article || "",
+      Характеристика: it.spec || "",
+      ...(client ? {} : { Артикул: it.article || "" }),
       "Кол-во": fmtQty(p.qtyFinal),
       "Ед.": it.unit,
       Цена: fmt(p.priceFinal),
       Сумма: fmt(p.total),
-      Статус: SPEC_STATUS_CONFIG[it.status].label,
-      Поставщик: it.companyName || "",
-      Контакт: it.contactName || "",
-      Помещения: it.rooms.join(", "),
-      Заметки: it.notes || "",
-    };
+    });
+
+    if (!client) {
+      Object.assign(base, {
+        Статус: SPEC_STATUS_CONFIG[it.status].label,
+        Поставщик: it.companyName || "",
+        Помещения: it.rooms.join(", "),
+        Заметки: it.notes || "",
+      });
+    }
+    return base;
   });
 
   const wb = XLSX.utils.book_new();
   const ws = XLSX.utils.json_to_sheet(rows);
 
   // ширины колонок
-  ws["!cols"] = [
-    { wch: 8 }, // Марка
-    { wch: 30 }, // Наименование
-    { wch: 15 }, // Бренд
-    { wch: 25 }, // Спецификация
-    { wch: 12 }, // Артикул
-    { wch: 8 }, // Кол-во
-    { wch: 6 }, // Ед.
-    { wch: 10 }, // Цена
-    { wch: 12 }, // Сумма
-    { wch: 12 }, // Статус
-    { wch: 20 }, // Поставщик
-    { wch: 20 }, // Контакт
-    { wch: 20 }, // Помещения
-    { wch: 30 }, // Заметки
-  ];
+  ws["!cols"] = client
+    ? [
+        { wch: 30 },
+        { wch: 15 },
+        { wch: 25 },
+        { wch: 8 },
+        { wch: 6 },
+        { wch: 10 },
+        { wch: 12 },
+      ]
+    : [
+        { wch: 8 },
+        { wch: 30 },
+        { wch: 15 },
+        { wch: 25 },
+        { wch: 12 },
+        { wch: 8 },
+        { wch: 6 },
+        { wch: 10 },
+        { wch: 12 },
+        { wch: 12 },
+        { wch: 20 },
+        { wch: 20 },
+        { wch: 30 },
+      ];
 
   XLSX.utils.book_append_sheet(wb, ws, "Спецификация");
 
   const buf = XLSX.write(wb, { type: "buffer", bookType: "xlsx" });
   const base64 = Buffer.from(buf).toString("base64");
 
-  const filename = `spec-${projectId.slice(0, 8)}-${new Date().toISOString().slice(0, 10)}.xlsx`;
+    const suffix = client ? "client" : "full";
+    const filename = `spec-${projectId.slice(0, 8)}-${suffix}-${new Date().toISOString().slice(0, 10)}.xlsx`;
 
-  return ok({ filename, base64 });
+  return ok({ filename, base64: Buffer.from(buf).toString("base64") });
 }
 
 export async function generatePublicLink(
   orgSlug: string,
   projectId: string,
+  opts: ExportOpts = {},
 ): Promise<ActionResult<{ token: string }>> {
   const ctx = await requireOrgBySlug(orgSlug);
   const supabase = createAdminClient();
@@ -83,6 +108,7 @@ export async function generatePublicLink(
     org_id: ctx.orgId,
     project_id: projectId,
     type: "spec",
+    client_view: opts.clientView === true,
     expires_at: expiresAt.toISOString(),
   });
 
@@ -97,7 +123,8 @@ export async function generatePublicLink(
 export async function generateSpecPdf(
   orgSlug: string,
   projectId: string,
+  opts: ExportOpts = {},
 ): Promise<ActionResult<{ token: string }>> {
   // PDF генерируется на лету через API-роут
-  return generatePublicLink(orgSlug, projectId);
+   return generatePublicLink(orgSlug, projectId, opts);
 }
