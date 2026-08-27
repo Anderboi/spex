@@ -1,11 +1,10 @@
 import { NextRequest } from "next/server";
-import { renderToStream } from "@react-pdf/renderer";
+import { renderToBuffer, renderToStream } from "@react-pdf/renderer";
 import { loadPublicSpec } from "@/lib/spec/public-spec";
 import { SpecPdfDocument } from "@/lib/spec/pdf-document";
 
-export const dynamic = "force-dynamic";
-
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 export async function GET(
   _req: NextRequest,
@@ -16,7 +15,7 @@ export async function GET(
   if (!data)
     return new Response("Ссылка недействительна или истекла", { status: 404 });
 
-  const stream = await renderToStream(
+  const buffer = await renderToBuffer(
     <SpecPdfDocument
       project={data.project}
       items={data.items}
@@ -25,10 +24,11 @@ export async function GET(
     />,
   );
 
-  return new Response(stream as unknown as ReadableStream, {
+  return new Response(new Uint8Array(buffer), {
     headers: {
       "Content-Type": "application/pdf",
       "Content-Disposition": `inline; filename="spec-${data.clientView ? "client" : "full"}.pdf"`,
+      "Cache-Control": "no-store",
     },
   });
 }

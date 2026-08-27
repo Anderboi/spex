@@ -1,6 +1,5 @@
 "use client";
 
-import { X } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader } from "@/components/ui/dialog";
 import { SPEC_STATUS_CONFIG } from "@/lib/spec/status";
 import { PROCUREMENT_FLOW } from "@/lib/constants";
