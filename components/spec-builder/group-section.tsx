@@ -31,6 +31,14 @@ export const GroupSection = memo(function GroupSection({
 }) {
   const sectionId = `group-${type}`;
 
+  const groupIds = items.map((i) => i.id);
+  const selectedCount = items.reduce(
+    (n, i) => n + (selected.has(i.id) ? 1 : 0),
+    0,
+  );
+  const allSelected = items.length > 0 && selectedCount === items.length;
+  const someSelected = selectedCount > 0 && !allSelected;
+
   return (
     <section className="mt-6">
       <div className="flex items-center gap-3 border-b border-border-muted pb-2">
@@ -79,20 +87,21 @@ export const GroupSection = memo(function GroupSection({
               <thead className="text-[10px] table-fixed font-mono text-fg-muted uppercase border-b border-border-muted //p-2">
                 <tr>
                   <th className="text-left w-10 px-3 py-2">
-                    <Checkbox className='border-border border-2'
-                      // checked={selected}
-                      // onCheckedChange={() => h.onToggleSel(item.id)}
-                      // aria-label={`Выбрать ${item.code}`}
+                    <Checkbox
+                      className="border-border border-2 data-indeterminate:bg-primary/50 data-indeterminate:text-primary-foreground"
+                      checked={allSelected}
+                      indeterminate={someSelected}
+                      onCheckedChange={() => h.onToggleSelGroup(groupIds)}
+                      aria-label={`Выбрать все позиции типа ${type}`}
                     />
                   </th>
                   <th className="text-left w-13 p-2">избр</th>
                   <th className="text-left w-1/14 p-2">марка</th>
                   <th className="text-left w-1/4 p-2">наименование</th>
-                  {/* <th className="text-left w-1/6 p-2">описание</th> */}
-                  <th className="//text-right w-1/8 p-2">кол-во</th>
+                  <th className="text-right w-1/8 p-2">кол-во</th>
                   <th className="text-right w-1/7 p-2">цена</th>
                   <th className="text-right w-1/7 p-2">итого</th>
-                  <th className="//text-left w-1/6 p-2">Статус</th>
+                  <th className="text-left w-1/6 p-2">Статус</th>
                   <th className="text-left w-13 p-2"></th>
                 </tr>
               </thead>
