@@ -74,12 +74,15 @@ export default function SpecBuilder({
       onPrice: ctx.setPrice,
       onStatus: ctx.setStatus,
       onToggleSel: ctx.toggleSel,
+      onToggleSelGroup: ctx.toggleSelGroup,
       onDuplicate: ctx.duplicateItem,
       onClear: ctx.clearContent,
       onDelete: ctx.openDelete,
       onShare: ctx.shareItem,
-
       onFill: (id) => ctx.openAdd(id),
+      onProcure: ctx.openProcure,
+      onSwitchVariant: ctx.switchVariantLocal,
+      onAddVariant: ctx.addVariantLocal,
     }),
     [ctx],
   );
@@ -310,6 +313,16 @@ export default function SpecBuilder({
           onDelete={() => ctx.openDelete(ctx.current!.id)}
           onShare={() => ctx.shareItem(ctx.current!)}
           projectRooms={project.rooms}
+          onSwitchVariant={(vid) =>
+            ctx.switchVariantLocal(ctx.current!.id, vid)
+          }
+          onAddVariant={() => ctx.addVariantLocal(ctx.current!.id)}
+          onUpdateVariant={(vid, patch) =>
+            ctx.updateVariantLocal(ctx.current!.id, vid, patch)
+          }
+          onDeleteVariant={(vid) =>
+            ctx.deleteVariantLocal(ctx.current!.id, vid)
+          }
         />
       )}
 
@@ -333,6 +346,42 @@ export default function SpecBuilder({
           onFillManual={(input) => ctx.fillManual(ctx.editing!.id, input)}
         />
       )}
+
+      {ctx.modal.kind === "add-variant" &&
+        (() => {
+          const targetItemId = ctx.modal.itemId;
+          const targetItem = ctx.items.find((i) => i.id === targetItemId);
+          const variantLibrary = targetItem
+            ? library.filter((m) => m.category === targetItem.type)
+            : library;
+          
+          return (
+            <AddModalForm
+              library={variantLibrary}
+              items={ctx.items}
+              companies={companies}
+              orgSlug={orgSlug}
+              editing={null}
+              variantMode
+              variantFor={targetItem}
+              onClose={ctx.closeModal}
+              onAddFromLibrary={(materials) => {
+                // берём первый выбранный материал как вариант
+                if (materials[0])
+                  ctx.commitVariantFromLibrary(targetItemId, materials[0]);
+              }}
+              onFillFromLibrary={(m) =>
+                ctx.commitVariantFromLibrary(targetItemId, m)
+              }
+              onAddManual={(input) =>
+                ctx.commitVariantManual(targetItemId, input)
+              }
+              onFillManual={(input) =>
+                ctx.commitVariantManual(targetItemId, input)
+              }
+            />
+          );
+        })()}
 
       {ctx.modal.kind === "procure" && (
         <ProcureModal ctx={ctx} onClose={ctx.closeModal} />

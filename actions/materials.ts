@@ -17,7 +17,7 @@ export async function upsertMaterial(
   orgSlug: string,
   input: MaterialInput,
 ): Promise<ActionResponse> {
-  const { userId, orgId, role } = await requireOrgBySlug(orgSlug);
+  // const { userId, orgId, role } = await requireOrgBySlug(orgSlug);
   const parsed = materialSchema.safeParse(input);
   if (!parsed.success) {
     return { success: false as const, error: parsed.error.issues[0].message };

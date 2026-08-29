@@ -17,6 +17,8 @@ export function toFormValues(
     image_url: m.imageUrl,
     company_id: m.companyId,
     contact_id: m.contactId,
+    product_url: m.product_url ?? null,
+    product_type: m.product_type ?? null,
   };
 }
 
@@ -39,5 +41,7 @@ export function toListItem(
     contactId: input.contact_id ?? null,
     contactName: prev?.contactName ?? "",
     createdAt: prev?.createdAt ?? new Date().toISOString(),
+    product_url: input.product_url ?? prev?.product_url ?? null,
+    product_type: input.product_type ?? prev?.product_type ?? null,
   };
 }

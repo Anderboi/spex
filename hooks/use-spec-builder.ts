@@ -11,7 +11,7 @@ import {
 import { useSpecPersistence } from "./use-spec-persistence";
 import { useSpecFilters } from "./use-spec-filters";
 import { fmt, plural, prefixFor } from "@/lib/utils";
-import { SpecItem, SpecItemPatch } from "@/lib/types";
+import { SpecItem, SpecItemPatch, type SpecVariant } from "@/lib/types";
 import {
   PICKING_FLOW,
   PROCUREMENT_FLOW,
@@ -26,7 +26,14 @@ import {
   restoreSpecItems,
   setSpecItemCode,
 } from "@/actions/specifications";
+import {
+  addVariant,
+  deleteVariant,
+  switchVariant,
+  updateVariant,
+} from "@/actions/spec-variants";
 import { SPEC_STATUS_CONFIG } from "@/lib/spec/status";
+import { applyActiveVariant } from "@/lib/spec/variants";
 import { round2, sumItems } from "@/lib/spec/pricing";
 import type { MaterialListItem } from "@/lib/queries";
 import type { ManualSpecItemInput } from "@/lib/validations";
@@ -46,6 +53,7 @@ export type Modal =
   | { kind: "none" }
   | { kind: "detail"; id: string }
   | { kind: "add"; editId: string | null }
+  | { kind: "add-variant"; itemId: string }
   | { kind: "delete"; ids: string[] }
   | { kind: "procure" }
   | { kind: "summary" };
@@ -233,6 +241,221 @@ export function useSpecBuilder({
   );
 
   /* ---------------------------------------------------------------- */
+  /*  Варианты замены материала                                        */
+  /* ---------------------------------------------------------------- */
+
+  /** Мгновенно помечает выбранный вариант активным и пересчитывает плоские поля. */
+  const switchVariantLocal = useCallback(
+    (itemId: string, variantId: string) => {
+      setItems((prev) =>
+        prev.map((it) => {
+          if (it.id !== itemId) return it;
+          const variants = it.variants.map((v) => ({
+            ...v,
+            isActive: v.id === variantId,
+          }));
+          return applyActiveVariant({ ...it, variants });
+        }),
+      );
+      startTransition(async () => {
+        const res = await switchVariant(orgSlug, itemId, variantId);
+        if (!res.success) showToast(res.error);
+      });
+    },
+    [orgSlug, showToast],
+  );
+
+  const openAddVariant = useCallback(
+    (itemId: string) => setModal({ kind: "add-variant", itemId }),
+    [],
+  );
+
+  const addVariantLocal = useCallback(
+    (itemId: string) => openAddVariant(itemId),
+    [openAddVariant],
+  );
+
+  /** Создаёт вариант из материала библиотеки и записывает его локально. */
+  const commitVariantFromLibrary = useCallback(
+    (itemId: string, m: MaterialListItem) => {
+      startTransition(async () => {
+        const res = await addVariant(orgSlug, itemId, m.name);
+        if (!res.success) {
+          showToast(res.error);
+          return;
+        }
+
+        // сразу обновляем поля нового варианта данными материала
+        const patch = {
+          name: m.name,
+          brand: m.brand ?? "",
+          article: m.article ?? "",
+          price: Number(m.price ?? 0),
+          product_url: m.product_url ?? "",
+          image_url: m.imageUrl ?? null,
+          company_id: m.companyId ?? null,
+          contact_id: m.contactId ?? null,
+          label: m.name,
+        };
+        const upd = await updateVariant(orgSlug, itemId, res.data.id, patch);
+        if (!upd.success) {
+          showToast(upd.error);
+          return;
+        }
+
+        setItems((prev) =>
+          prev.map((it) => {
+            if (it.id !== itemId) return it;
+            const newVariant: SpecVariant = {
+              id: res.data.id,
+              specItemId: it.id,
+              name: m.name,
+              brand: m.brand ?? "",
+              article: m.article ?? "",
+              spec: "",
+              price: Number(m.price ?? 0),
+              productUrl: m.product_url ?? "",
+              imageUrl: m.imageUrl ?? null,
+              leadTime: "",
+              companyId: m.companyId ?? null,
+              contactId: m.contactId ?? null,
+              companyName: m.companyName ?? "",
+              label: m.name,
+              isActive: false,
+              position: it.variants.length,
+            };
+            return { ...it, variants: [...it.variants, newVariant] };
+          }),
+        );
+        showToast(`Вариант добавлен · ${m.name}`);
+        setModal({ kind: "none" });
+      });
+    },
+    [orgSlug, showToast],
+  );
+
+  /** Создаёт вариант из ручного ввода. */
+  const commitVariantManual = useCallback(
+    (itemId: string, input: ManualSpecItemInput) => {
+      startTransition(async () => {
+        const res = await addVariant(
+          orgSlug,
+          itemId,
+          input.name || "Альтернатива",
+        );
+        if (!res.success) {
+          showToast(res.error);
+          return;
+        }
+
+        const patch = {
+          name: input.name,
+          brand: input.brand ?? "",
+          article: input.article ?? "",
+          spec: input.spec ?? "",
+          price: input.price,
+          product_url: "",
+          image_url: input.imageUrl ?? null,
+          company_id: input.companyId ?? null,
+          label: input.name || "Альтернатива",
+        };
+        const upd = await updateVariant(orgSlug, itemId, res.data.id, patch);
+        if (!upd.success) {
+          showToast(upd.error);
+          return;
+        }
+
+        setItems((prev) =>
+          prev.map((it) => {
+            if (it.id !== itemId) return it;
+            const newVariant: SpecVariant = {
+              id: res.data.id,
+              specItemId: it.id,
+              name: input.name,
+              brand: input.brand ?? "",
+              article: input.article ?? "",
+              spec: input.spec ?? "",
+              price: input.price,
+              productUrl: "",
+              imageUrl: input.imageUrl ?? null,
+              leadTime: input.leadTime ?? "",
+              companyId: input.companyId ?? null,
+              contactId: null,
+              companyName: "",
+              label: input.name || "Альтернатива",
+              isActive: false,
+              position: it.variants.length,
+            };
+            return { ...it, variants: [...it.variants, newVariant] };
+          }),
+        );
+        showToast(`Вариант добавлен · ${input.name}`);
+        setModal({ kind: "none" });
+      });
+    },
+    [orgSlug, showToast],
+  );
+
+  /** Оптимистично правит поля варианта; активный пересчитывается в плоские. */
+  const updateVariantLocal = useCallback(
+    (itemId: string, variantId: string, patch: Partial<SpecVariant>) => {
+      setItems((prev) =>
+        prev.map((it) => {
+          if (it.id !== itemId) return it;
+          const variants = it.variants.map((v) =>
+            v.id === variantId ? { ...v, ...patch } : v,
+          );
+          return applyActiveVariant({ ...it, variants });
+        }),
+      );
+
+      // camelCase (UI) → snake_case (БД)
+      const dbPatch: Record<string, unknown> = {};
+      const map: Record<string, string> = {
+        productUrl: "product_url",
+        imageUrl: "image_url",
+        leadTime: "lead_time",
+        companyId: "company_id",
+        contactId: "contact_id",
+        companyName: "company_name_snapshot",
+      };
+      for (const [k, val] of Object.entries(patch)) {
+        dbPatch[map[k] ?? k] = val;
+      }
+
+      startTransition(async () => {
+        const res = await updateVariant(orgSlug, itemId, variantId, dbPatch);
+        if (!res.success) showToast(res.error);
+      });
+    },
+    [orgSlug, showToast],
+  );
+
+  /** Оптимистично удаляет вариант; последний вариант не удаляется. */
+  const deleteVariantLocal = useCallback(
+    (itemId: string, variantId: string) => {
+      const item = itemsRef.current.find((i) => i.id === itemId);
+      if (!item || item.variants.length <= 1) return; // последний не удаляем
+      setItems((prev) =>
+        prev.map((it) => {
+          if (it.id !== itemId) return it;
+          const removed = it.variants.find((v) => v.id === variantId);
+          let variants = it.variants.filter((v) => v.id !== variantId);
+          if (removed?.isActive && variants.length > 0) {
+            variants = variants.map((v, i) => ({ ...v, isActive: i === 0 }));
+          }
+          return applyActiveVariant({ ...it, variants });
+        }),
+      );
+      startTransition(async () => {
+        const res = await deleteVariant(orgSlug, itemId, variantId);
+        if (!res.success) showToast(res.error);
+      });
+    },
+    [orgSlug, showToast],
+  );
+
+  /* ---------------------------------------------------------------- */
   /*  Марка                                                            */
   /* ---------------------------------------------------------------- */
 
@@ -370,6 +593,8 @@ export function useSpecBuilder({
       supplierDiscountPct: 0,
       product_url: "",
       product_type: "",
+      activeVariantId: null,
+      variants: [],
       ...over,
     }),
     [projectId],
@@ -835,6 +1060,18 @@ export function useSpecBuilder({
     });
   }, []);
 
+  /** Выделить/снять выделение со всех позиций группы (например, типа «Плитка»). */
+  const toggleSelGroup = useCallback((ids: string[]) => {
+    if (ids.length === 0) return;
+    setSelected((prev) => {
+      const allSel = ids.every((id) => prev.has(id));
+      const s = new Set(prev);
+      if (allSel) ids.forEach((id) => s.delete(id));
+      else ids.forEach((id) => s.add(id));
+      return s;
+    });
+  }, []);
+
   const allVisibleSelected =
     visibleIds.length > 0 && visibleIds.every((id) => selected.has(id));
 
@@ -937,6 +1174,14 @@ export function useSpecBuilder({
     addRoom,
     removeRoom,
 
+    // варианты замены
+    switchVariantLocal,
+    addVariantLocal,
+    updateVariantLocal,
+    deleteVariantLocal,
+    commitVariantManual,
+    commitVariantFromLibrary,
+
     // создание
     addPlaceholder,
     addFromLibrary,
@@ -963,6 +1208,7 @@ export function useSpecBuilder({
     selected,
     selectedItems,
     toggleSel,
+    toggleSelGroup,
     toggleSelectAll,
     allVisibleSelected,
     clearSelection,

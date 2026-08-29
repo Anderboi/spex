@@ -1,5 +1,10 @@
-import { SPEC_ITEM_STATUSES, SpecStatus, SpecType, TYPE_ORDER } from "./constants";
-import { Database } from './supabase/database.types';
+import {
+  SPEC_ITEM_STATUSES,
+  SpecStatus,
+  SpecType,
+  TYPE_ORDER,
+} from "./constants";
+import { Database } from "./supabase/database.types";
 import { ProjectStatus } from "./validations";
 
 export type ProjectType = "Интерьер" | "Экстерьер" | "Коммерческий";
@@ -201,6 +206,8 @@ export type SpecItem = {
   updatedAt: string;
   product_url: string;
   product_type: string;
+  variants: SpecVariant[];
+  activeVariantId: string | null;
 };
 
 export type SpecItemPatch = Partial<Omit<SpecItem, "id" | "projectId">>;
@@ -223,3 +230,22 @@ export type FnReturns<T extends keyof Database["public"]["Functions"]> =
   Fn<T>["Returns"];
 
 export type { Database };
+
+export type SpecVariant = {
+  id: string;
+  specItemId: string;
+  name: string;
+  brand: string;
+  article: string;
+  spec: string;
+  price: number;
+  productUrl: string;
+  imageUrl: string | null;
+  leadTime: string;
+  companyId: string | null;
+  contactId: string | null;
+  companyName: string;
+  label: string;
+  isActive: boolean;
+  position: number;
+};

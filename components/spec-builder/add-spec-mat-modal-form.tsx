@@ -14,8 +14,8 @@ import { ManualItemForm } from "./manual-item-form";
 import { TYPE_ORDER, type SpecType } from "@/lib/constants";
 import type { MaterialListItem, SpecPickerCompany } from "@/lib/queries";
 import { fmt, plural, cn } from "@/lib/utils";
-import { SpecItem } from '@/lib/types';
-import { ManualSpecItemInput } from '@/lib/validations';
+import { SpecItem } from "@/lib/types";
+import { ManualSpecItemInput } from "@/lib/validations";
 
 type SortKey = "default" | "name" | "price" | "brand";
 
@@ -30,6 +30,8 @@ export default function AddModalForm({
   onFillFromLibrary,
   onAddManual,
   onFillManual,
+  variantMode = false,
+  variantFor = null,
 }: {
   library: MaterialListItem[];
   items: SpecItem[];
@@ -41,11 +43,15 @@ export default function AddModalForm({
   onFillFromLibrary: (material: MaterialListItem) => void;
   onAddManual: (input: ManualSpecItemInput) => void;
   onFillManual: (input: ManualSpecItemInput) => void;
+  variantMode?: boolean;
+  variantFor?: SpecItem | null;
 }) {
   const [mode, setMode] = useState<"catalog" | "manual">("catalog");
   const [query, setQuery] = useState("");
   const [type, setType] = useState<SpecType | "Все типы">(
-    editing?.type ?? "Все типы",
+    variantMode && variantFor
+      ? (variantFor.type as SpecType)
+      : ("Прочее" as SpecType),
   );
   const [sort, setSort] = useState<SortKey>("default");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
@@ -151,7 +157,11 @@ export default function AddModalForm({
         {/* ── шапка ───────────────────────────────────── */}
         <DialogHeader className="flex-row items-center gap-3 border-b border-border-subtle px-4 py-3">
           <DialogTitle className="flex-1 text-[17px] tracking-[-.01em]">
-            {editing ? `Заполнить ${editing.code}` : "Добавить позиции"}
+            {variantMode
+              ? `Вариант для ${variantFor?.code ?? "позиции"}`
+              : editing
+                ? `Заполнить ${editing.code}`
+                : "Добавить позиции"}
           </DialogTitle>
 
           <div
@@ -185,6 +195,8 @@ export default function AddModalForm({
             orgSlug={orgSlug}
             editing={editing}
             onCancel={onClose}
+            variantMode={variantMode}
+            variantFor={variantFor}
             onSubmit={(d) => (editing ? onFillManual(d) : onAddManual(d))}
           />
         ) : (
@@ -459,9 +471,7 @@ function Chip({
       aria-pressed={on}
       className={cn(
         "flex flex-none items-center gap-1.5 whitespace-nowrap rounded-full border font-semibold transition-colors",
-        size === "sm"
-          ? "px-2.5 py-1 text-[12px]"
-          : "px-3.5 py-2 text-[13px]",
+        size === "sm" ? "px-2.5 py-1 text-[12px]" : "px-3.5 py-2 text-[13px]",
         on
           ? "border-fg-brand bg-bg-accent text-bg"
           : "border-border-muted text-fg-secondary hover:border-border",

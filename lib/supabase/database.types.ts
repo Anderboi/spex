@@ -681,6 +681,108 @@ export type Database = {
           },
         ]
       }
+      spec_item_variants: {
+        Row: {
+          article: string | null
+          brand: string
+          company_id: string | null
+          company_name_snapshot: string
+          contact_id: string | null
+          created_at: string
+          id: string
+          image_url: string | null
+          is_active: boolean
+          label: string
+          lead_time: string
+          name: string
+          org_id: string
+          position: number
+          price: number
+          product_url: string
+          spec: string
+          spec_item_id: string
+          updated_at: string
+        }
+        Insert: {
+          article?: string | null
+          brand?: string
+          company_id?: string | null
+          company_name_snapshot?: string
+          contact_id?: string | null
+          created_at?: string
+          id?: string
+          image_url?: string | null
+          is_active?: boolean
+          label?: string
+          lead_time?: string
+          name?: string
+          org_id: string
+          position?: number
+          price?: number
+          product_url?: string
+          spec?: string
+          spec_item_id: string
+          updated_at?: string
+        }
+        Update: {
+          article?: string | null
+          brand?: string
+          company_id?: string | null
+          company_name_snapshot?: string
+          contact_id?: string | null
+          created_at?: string
+          id?: string
+          image_url?: string | null
+          is_active?: boolean
+          label?: string
+          lead_time?: string
+          name?: string
+          org_id?: string
+          position?: number
+          price?: number
+          product_url?: string
+          spec?: string
+          spec_item_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "spec_item_variants_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "spec_item_variants_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "spec_item_variants_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "spec_item_variants_spec_item_id_fkey"
+            columns: ["spec_item_id"]
+            isOneToOne: false
+            referencedRelation: "spec_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "spec_item_variants_spec_item_id_fkey"
+            columns: ["spec_item_id"]
+            isOneToOne: false
+            referencedRelation: "spec_items_priced"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       spec_items: {
         Row: {
           article: string | null

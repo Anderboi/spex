@@ -24,12 +24,16 @@ export function ManualItemForm({
   editing,
   onCancel,
   onSubmit,
+  variantMode = false,
+  variantFor = null,
 }: {
   companies: SpecPickerCompany[];
   orgSlug: string;
   editing: SpecItem | null;
   onCancel: () => void;
   onSubmit: (input: ManualSpecItemInput) => void;
+  variantMode: boolean;
+  variantFor?: SpecItem | null;
 }) {
   const form = useForm<
     z.input<typeof manualSpecItemSchema>,
@@ -38,12 +42,14 @@ export function ManualItemForm({
   >({
     resolver: zodResolver(manualSpecItemSchema),
     defaultValues: {
-      name: editing?.name ?? "",
+      name: variantMode && variantFor ? variantFor.name : (editing?.name ?? ""),
       brand: editing?.brand ?? "",
-      type: editing?.type ?? "Отделка",
+      type: (variantMode && variantFor
+        ? variantFor.type
+        : (editing?.type ?? "Отделка")) as (typeof TYPE_ORDER)[number],
       spec: editing?.spec ?? "",
       article: editing?.article ?? "",
-      qty: editing?.qty ?? 1,
+      qty: ( editing?.qty ?? 1),
       unit:
         (editing?.unit as (typeof UNIT_OPTIONS)[number] | undefined) ?? "шт",
       price: editing?.price ?? 0,
@@ -53,7 +59,6 @@ export function ManualItemForm({
       companyId: editing?.companyId ?? null,
       imageUrl: editing?.imageUrl ?? null,
       saveToLibrary: !editing,
-      
     },
   });
 
@@ -148,8 +153,8 @@ export function ManualItemForm({
           <Input
             {...register("name")}
             autoFocus
-            placeholder="Керамогранит, 120×278"
-            className="h-11 bg-bg-card"
+            placeholder="Вид материала/изделия"
+            className="h-10 bg-bg-card"
           />
         </Field>
 
@@ -158,13 +163,17 @@ export function ManualItemForm({
             <Input
               {...register("brand")}
               placeholder="ABK"
-              className="h-11 bg-bg-card"
+              className="h-10 bg-bg-card"
             />
           </Field>
           <Field label="Тип">
             <select
               {...register("type")}
-              className="h-11 w-full rounded-md border border-border bg-bg-card px-3 text-[15px]"
+              disabled={variantMode}
+              className={cn(
+                "h-10 w-full rounded-md border border-border bg-bg-card px-3 text-[15px]",
+                variantMode && "opacity-50 cursor-not-allowed",
+              )}
             >
               {TYPE_ORDER.map((t) => (
                 <option key={t} value={t}>
@@ -180,41 +189,49 @@ export function ManualItemForm({
             <Input
               {...register("spec")}
               placeholder="Rome Vein"
-              className="h-11 bg-bg-card"
+              className="h-10 bg-bg-card"
             />
           </Field>
           <Field label="Артикул">
             <Input
               {...register("article")}
               placeholder="PF60005804"
-              className="h-11 bg-bg-card"
+              className="h-10 bg-bg-card"
             />
           </Field>
         </div>
 
         {/* ── количество и цена ───────────────────────── */}
         <div className="flex gap-3">
-          <Field label="Кол-во" error={errors.qty?.message} className="w-24">
-            <Input
-              {...register("qty")}
-              type="number"
-              step="0.01"
-              min={0.01}
-              className="h-11 bg-bg-card font-mono"
-            />
-          </Field>
-          <Field label="Ед." className="w-24">
-            <select
-              {...register("unit")}
-              className="h-11 w-full rounded-md border border-border bg-bg-card px-2 font-mono text-[15px]"
-            >
-              {UNIT_OPTIONS.map((u) => (
-                <option key={u} value={u}>
-                  {u}
-                </option>
-              ))}
-            </select>
-          </Field>
+          {!variantMode && (
+            <>
+              <Field
+                label="Кол-во"
+                error={errors.qty?.message}
+                className="w-24"
+              >
+                <Input
+                  {...register("qty")}
+                  type="number"
+                  step="0.01"
+                  min={0.01}
+                  className="h-10 bg-bg-card font-mono"
+                />
+              </Field>
+              <Field label="Ед." className="w-24">
+                <select
+                  {...register("unit")}
+                  className="h-10 w-full rounded-md border border-border bg-bg-card px-2 font-mono text-[15px]"
+                >
+                  {UNIT_OPTIONS.map((u) => (
+                    <option key={u} value={u}>
+                      {u}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            </>
+          )}
           <Field
             label="Цена за ед., ₽"
             error={errors.price?.message}
@@ -226,7 +243,7 @@ export function ManualItemForm({
               step="0.01"
               min={0}
               placeholder="6500"
-              className="h-11 bg-bg-card font-mono"
+              className="h-10 bg-bg-card font-mono"
             />
           </Field>
         </div>
@@ -249,7 +266,7 @@ export function ManualItemForm({
               min={0}
               max={100}
               placeholder="0"
-              className="h-11 bg-bg-card font-mono"
+              className="h-10 bg-bg-card font-mono"
             />
           </Field>
 
@@ -264,7 +281,7 @@ export function ManualItemForm({
               min={0}
               max={100}
               placeholder="0"
-              className="h-11 bg-bg-card font-mono"
+              className="h-10 bg-bg-card font-mono"
             />
           </Field>
         </div>
@@ -272,7 +289,7 @@ export function ManualItemForm({
         <Field label="Поставщик">
           <select
             {...register("companyId", { setValueAs: (v) => v || null })}
-            className="h-11 w-full rounded-md border border-border bg-bg-card px-3 text-[15px]"
+            className="h-10 w-full rounded-md border border-border bg-bg-card px-3 text-[15px]"
           >
             <option value="">Не указан</option>
             {companies.map((c) => (
@@ -296,7 +313,7 @@ export function ManualItemForm({
             min={0}
             max={100}
             placeholder="0"
-            className="h-11 bg-bg-card font-mono"
+            className="h-10 bg-bg-card font-mono"
           />
         </Field>
 
@@ -346,10 +363,15 @@ export function ManualItemForm({
       </div>
 
       <div className="flex flex-none gap-3 border-t border-border-subtle p-4">
-        <Button type="button" variant="outline" onClick={onCancel}>
+        <Button type="button" size="lg" variant="outline" onClick={onCancel}>
           Отмена
         </Button>
-        <Button type="submit" disabled={isSubmitting} className="flex-1">
+        <Button
+          type="submit"
+          size="lg"
+          disabled={isSubmitting}
+          className="flex-1"
+        >
           {editing ? "Заполнить позицию" : "Добавить позицию"}
         </Button>
       </div>

@@ -21,6 +21,7 @@ import { PriceField } from "./price-field";
 import { QtyStepper } from "./qty-stepper";
 import { priceOf } from "@/lib/spec/pricing";
 import Image from "next/image";
+import { VariantSwitcher } from './variant-switcher';
 
 export type SpecRowHandlers = {
   onOpen: (id: string) => void;
@@ -29,11 +30,14 @@ export type SpecRowHandlers = {
   onPrice: (id: string, value: string) => void;
   onStatus: (id: string, s: SpecStatus) => void;
   onToggleSel: (id: string) => void;
+  onToggleSelGroup: (ids: string[]) => void;
   onDuplicate: (id: string) => void;
   onClear: (id: string) => void;
   onDelete: (id: string) => void;
   onShare: (item: SpecItem) => void;
   onFill: (id: string) => void;
+  onSwitchVariant: (id: string, variantId: string) => void;
+  onAddVariant: (id: string) => void;
 };
 
 export const SpecRow = memo(function SpecRow({
@@ -51,13 +55,13 @@ export const SpecRow = memo(function SpecRow({
   return (
     <tr
       className={cn(
-        "group border-b  border-border-muted last:border-0 transition-colors hover:bg-bg-card/60",
+        "group border-b border-border-muted last:border-0 transition-colors hover:bg-bg-card/60",
         selected && "bg-bg-brand/40",
         item.isPlaceholder &&
           "bg-[repeating-linear-gradient(45deg,transparent,transparent_7px,var(--color-bg-card)_7px,var(--color-bg-card)_14px)]",
       )}
     >
-      <td className="px-3 py-2">
+      <td className="px-3">
         <Checkbox
           className="border-border border-2"
           checked={selected}
@@ -65,7 +69,7 @@ export const SpecRow = memo(function SpecRow({
           aria-label={`Выбрать ${item.code}`}
         />
       </td>
-      <td>
+      <td className='py-2'>
         {item.imageUrl ? (
           <Image
             src={item.imageUrl}
@@ -80,14 +84,14 @@ export const SpecRow = memo(function SpecRow({
           <div className="size-12 bg-bg-brand2/50 border rounded-lg"></div>
         )}
       </td>
-      <td className="px-2 py-2">
+      <td className="px-2">
         <InlineCode
           code={item.code}
           locked={isLocked(item.status)}
           onCommit={(c) => h.onCode(item.id, c)}
         />
       </td>
-      <td className="min-w-0 px-2 py-2">
+      <td className="min-w-0 px-2">
         {item.isPlaceholder ? (
           <button
             type="button"
@@ -109,6 +113,14 @@ export const SpecRow = memo(function SpecRow({
               {[item.brand, item.spec].filter(Boolean).join(" · ") || "—"}
             </span>
           </button>
+        )}
+        {!item.isPlaceholder && (item.variants?.length ?? 0) > 1 && (
+          <VariantSwitcher
+            item={item}
+            onSwitch={(vid) => h.onSwitchVariant(item.id, vid)}
+            onAdd={() => h.onAddVariant(item.id)}
+            onOpenVariants={() => h.onOpen(item.id)}
+          />
         )}
       </td>
       {/* <td className="min-w-0 px-2 py-2 block max-w-full text-left text-[14px]">
@@ -158,10 +170,10 @@ export const SpecRow = memo(function SpecRow({
           {p.total > 0 ? `${fmt(p.total)} ₽` : "—"}
         </span>
       </td>
-      <td className="px-2 py-2">
+      <td className="px-2">
         <StatusMenu item={item} onChange={(s) => h.onStatus(item.id, s)} />
       </td>
-      <td className="px-2 py-2">
+      <td className="px-2">
         <DropdownMenu>
           <DropdownMenuTrigger
             aria-label={`Действия для ${item.code}`}

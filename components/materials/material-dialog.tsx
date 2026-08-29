@@ -103,6 +103,8 @@ export function MaterialDialog({
           company_id: materialToEdit.company_id ?? null,
           contact_id: materialToEdit.contact_id ?? null,
           image_url: materialToEdit.image_url ?? null,
+          product_url: materialToEdit.product_url ?? null,
+          product_type: materialToEdit.product_type ?? null,
         });
       } else {
         form.reset({
@@ -262,7 +264,7 @@ export function MaterialDialog({
                         <FormLabel>Тип</FormLabel>
                         <FormControl>
                           <Input
-                            placeholder="Керамогранит"
+                            placeholder="Описание продукта"
                             value={field.value ?? ""}
                             onChange={field.onChange}
                           />
@@ -279,7 +281,7 @@ export function MaterialDialog({
                         <FormLabel>Бренд</FormLabel>
                         <FormControl>
                           <Input
-                            placeholder="Kerama Marazzi"
+                            placeholder="Brand"
                             value={field.value ?? ""}
                             onChange={field.onChange}
                           />

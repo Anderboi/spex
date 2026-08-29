@@ -231,6 +231,27 @@ export const specItemPatchSchema = z
 
 export type SpecItemPatch = z.infer<typeof specItemPatchSchema>;
 
+/** Патч варианта спецификации: редактируемые поля, служебные ключи отбрасываются. */
+export const specVariantPatchSchema = z
+  .object({
+    name: z.string().trim().max(300),
+    brand: z.string().trim().max(200),
+    article: z.string().trim().max(120),
+    spec: z.string().trim().max(2000),
+    price: z.number().min(0).max(1_000_000_000),
+    product_url: z.string().trim().max(500),
+    image_url: z.string().trim().max(500).nullable(),
+    lead_time: z.string().trim().max(120),
+    company_id: z.string().uuid().nullable(),
+    contact_id: z.string().uuid().nullable(),
+    company_name_snapshot: z.string().trim().max(200),
+    label: z.string().trim().max(120),
+  })
+  .partial()
+  .strip();
+
+export type SpecVariantPatch = z.infer<typeof specVariantPatchSchema>;
+
 /** Новая позиция: id генерирует клиент, name обязателен. */
 export const specItemCreateSchema = specItemPatchSchema.extend({
   id: z.string().uuid(),
@@ -281,6 +302,7 @@ export const manualSpecItemSchema = z
     companyId: z.string().uuid().nullable().default(null),
     imageUrl: z.string().trim().max(500).nullable().default(null),
     saveToLibrary: z.boolean().default(true),
+    leadTime: z.string().trim().max(120).default(""),
   })
   .refine(
     (d) =>

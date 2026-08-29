@@ -58,6 +58,8 @@ export function rowToItem(r: SpecItemRowWithRelations): SpecItem {
     stockPct: Number(r.stock_pct ?? 0),
     clientDiscountPct: Number(r.client_discount_pct ?? 0),
     supplierDiscountPct: Number(r.supplier_discount_pct ?? 0),
+    
+    
   };
 }
 

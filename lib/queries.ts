@@ -20,6 +20,7 @@ import { one } from "./utils";
 import { MATERIALS_PAGE_SIZE } from "./materials/filters";
 import { CONTACTS_PAGE_SIZE } from "./contacts/filters";
 import { PROJECTS_PAGE_SIZE } from "./projects/filters";
+import { applyActiveVariant, rowToVariant } from './spec/variants';
 
 export type SpecPickerCompany = {
   id: string;
@@ -447,7 +448,36 @@ export async function getProjectSpecItems(
     throw new Error("Не удалось загрузить спецификацию");
   }
 
-  return (data ?? []).map(rowToItem);
+  const rows = data ?? [];
+  if (rows.length === 0) return [];
+
+  // ── варианты: один запрос на все позиции проекта ──────────────
+  const itemIds = rows.map((r) => r.id);
+  const { data: variantRows, error: vErr } = await supabase
+    .from("spec_item_variants")
+    .select("*")
+    .in("spec_item_id", itemIds)
+    .order("position", { ascending: true });
+
+  if (vErr) {
+    console.error("[getProjectSpecItems] variants", vErr.message);
+    // не роняем спецификацию из-за вариантов — отдаём позиции без них
+  }
+
+  // группируем варианты по spec_item_id
+  const byItem = new Map<string, ReturnType<typeof rowToVariant>[]>();
+  for (const vr of variantRows ?? []) {
+    const list = byItem.get(vr.spec_item_id) ?? [];
+    list.push(rowToVariant(vr));
+    byItem.set(vr.spec_item_id, list);
+  }
+
+  // собираем позицию → прикрепляем варианты → накладываем активный
+  return rows.map((r) => {
+    const item = rowToItem(r);
+    const variants = byItem.get(r.id) ?? [];
+    return applyActiveVariant({ ...item, variants, activeVariantId: null });
+  });
 }
 
 export type CompanyListItem = {

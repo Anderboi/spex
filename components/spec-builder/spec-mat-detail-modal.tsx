@@ -19,7 +19,7 @@ import { PriceField } from "./price-field";
 import { isLocked } from "@/lib/spec/status";
 import { cn, fmt } from "@/lib/utils";
 import { LEAD_TIME_OPTIONS, SpecStatus, UNIT_OPTIONS } from "@/lib/constants";
-import { SpecItem, SpecItemPatch } from "@/lib/types";
+import { SpecItem, SpecItemPatch, SpecVariant } from "@/lib/types";
 import { SupplierPicker } from "./supplier-picker";
 import { AttrsEditor } from "./attrs-editor";
 import { RoomsEditor } from "./rooms-editor";
@@ -29,6 +29,7 @@ import { CompanyDialog } from "@/components/contacts/company-dialog";
 import CopyButton from "../layout/copy-button";
 import { toast } from "sonner";
 import { uploadMaterialImage } from "@/actions/materials";
+import { VariantsTab } from './variants-tab';
 
 type Company = {
   id: string;
@@ -62,6 +63,10 @@ export function DetailModal({
   onDelete,
   onShare,
   projectRooms,
+  onSwitchVariant,
+  onAddVariant,
+  onUpdateVariant,
+  onDeleteVariant
 }: {
   item: SpecItem;
   companies: Company[];
@@ -77,6 +82,10 @@ export function DetailModal({
   onDelete: () => void;
   onShare: () => void;
   projectRooms: string[];
+  onSwitchVariant: (variantId: string) => void;
+  onAddVariant: () => void;
+  onUpdateVariant: (variantId: string, patch: Partial<SpecVariant>) => void;
+  onDeleteVariant: (variantId: string) => void;
 }) {
   const [tab, setTab] = useState("overview");
   const [localCompanies, setLocalCompanies] = useState<Company[]>(companies);
@@ -130,6 +139,14 @@ export function DetailModal({
         <Tabs value={tab} onValueChange={setTab} className="mt-2 gap-0">
           <TabsList className="w-full justify-start gap-2 overflow-x-auto bg-bg //border px-4">
             <TabsTrigger value="overview">Обзор</TabsTrigger>
+            <TabsTrigger value="variants">
+              Варианты
+              {(item.variants?.length ?? 0) > 1 && (
+                <span className="ml-1.5 rounded-md bg-bg-select px-1.5 py-0.5 font-mono text-[10px]">
+                  {item.variants?.length}
+                </span>
+              )}
+            </TabsTrigger>
             <TabsTrigger value="attrs">Характеристики</TabsTrigger>
             <TabsTrigger value="rooms">
               Помещения {item.rooms.length > 0 && `· ${item.rooms.length}`}
@@ -323,6 +340,19 @@ export function DetailModal({
                   className="min-h-20 w-full rounded-lg border border-border-muted bg-bg-card p-2 text-sm"
                 />
               </Field>
+            </TabsContent>
+
+            <TabsContent
+              value="variants"
+              className="flex flex-col gap-4 py-4 pl-4 pr-6"
+            >
+              <VariantsTab
+                item={item}
+                onSwitch={onSwitchVariant}
+                onAdd={onAddVariant}
+                onUpdate={onUpdateVariant}
+                onDelete={onDeleteVariant}
+              />
             </TabsContent>
 
             <TabsContent
