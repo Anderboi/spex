@@ -1,40 +1,38 @@
 "use client";
 
-import { useState, type ChangeEvent } from "react";
-import { Share2, Trash2, Eraser, CloudUpload, Loader2 } from "lucide-react";
+import { useState } from "react";
+import {
+  Share2,
+  Trash2,
+  Eraser,
+  Paperclip,
+} from "lucide-react";
 import {
   Dialog,
   DialogContent,
   DialogFooter,
   DialogHeader,
+  DialogTitle,
 } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { InlineCode } from "./inline-code";
 import { StatusMenu } from "./status-menu";
-import { QtyStepper } from "./qty-stepper";
-import { PriceField } from "./price-field";
 import { isLocked } from "@/lib/spec/status";
-import { cn, fmt } from "@/lib/utils";
-import { LEAD_TIME_OPTIONS, SpecStatus, UNIT_OPTIONS } from "@/lib/constants";
+import {  SpecStatus } from "@/lib/constants";
 import { SpecItem, SpecItemPatch, SpecVariant } from "@/lib/types";
 import { SupplierPicker } from "./supplier-picker";
 import { AttrsEditor } from "./attrs-editor";
 import { RoomsEditor } from "./rooms-editor";
 import { ScrollArea } from "../ui/scroll-area";
-import Image from "next/image";
 import { CompanyDialog } from "@/components/contacts/company-dialog";
-import CopyButton from "../layout/copy-button";
-import { toast } from "sonner";
-import { uploadMaterialImage } from "@/actions/materials";
-import { VariantsTab } from './variants-tab';
+import { VariantsTab } from "./variants-tab";
+import ModalReviewTab from "./modal-review-tab";
 
 type Company = {
   id: string;
   name: string;
-  email?: string| null;
+  email?: string | null;
   phone?: string | null;
   website?: string | null;
   address?: string | null;
@@ -66,7 +64,8 @@ export function DetailModal({
   onSwitchVariant,
   onAddVariant,
   onUpdateVariant,
-  onDeleteVariant
+  onDeleteVariant,
+  onEditVariant,
 }: {
   item: SpecItem;
   companies: Company[];
@@ -86,58 +85,47 @@ export function DetailModal({
   onAddVariant: () => void;
   onUpdateVariant: (variantId: string, patch: Partial<SpecVariant>) => void;
   onDeleteVariant: (variantId: string) => void;
+  onEditVariant: (variantId: string) => void;
 }) {
   const [tab, setTab] = useState("overview");
   const [localCompanies, setLocalCompanies] = useState<Company[]>(companies);
   const [showAddCompany, setShowAddCompany] = useState(false);
   const [newCompanyName, setNewCompanyName] = useState("");
-  const [isUploading, setIsUploading] = useState(false);
-  const sum = item.qty * item.price;
-
-  const handleFile = async (e: ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setIsUploading(true);
-    try {
-      const fd = new FormData();
-      fd.append("file", file);
-      const res = await uploadMaterialImage(orgSlug, fd);
-      if (!res.success) {
-        toast.error(res.error);
-        return;
-      }
-      onPatch({ imageUrl: res.url });
-    } catch {
-      toast.error("Не удалось загрузить изображение");
-    } finally {
-      setIsUploading(false);
-      e.target.value = "";
-    }
-  };
 
   return (
     <Dialog open onOpenChange={(v) => !v && onClose()}>
       <DialogContent className="max-h-[90vh] flex-col bg-bg sm:max-w-170 p-0 gap-0">
+
         <DialogHeader className="sticky top-0 gap-2 border-b p-4">
-          <div className="flex flex-row gap-8">
-            <div className="flex flex-wrap items-center gap-3">
-              <div className="bg-fg px-2 py-1 rounded-sm text-bg">
-                <InlineCode
-                  code={item.code}
-                  locked={isLocked(item.status)}
-                  onCommit={onCode}
-                />
-              </div>
-              <span className="font-mono uppercase text-fg-muted text-xs">
-                {item.type} / {item.product_type}
+          <DialogTitle className="truncate font-serif text-[16px] font-semibold leading-tight">
+            {item.name || (
+              <span className="text-fg-muted font-normal">
+                Позиция не заполнена
               </span>
+            )}
+          </DialogTitle>
+
+          {/* Строка 2: код, тип, статус */}
+          <div className="flex flex-wrap items-center gap-3">
+            <div className="bg-fg px-2 py-0.5 rounded-sm text-bg">
+              <InlineCode
+                code={item.code}
+                locked={isLocked(item.status)}
+                onCommit={onCode}
+              />
             </div>
-            <StatusMenu item={item} onChange={onStatus} />
+            <span className="font-mono uppercase text-fg-muted text-[11px]">
+              {item.type}
+              {item.product_type ? ` / ${item.product_type}` : ""}
+            </span>
+            <div className="ml-auto">
+              <StatusMenu item={item} onChange={onStatus} />
+            </div>
           </div>
         </DialogHeader>
 
         <Tabs value={tab} onValueChange={setTab} className="mt-2 gap-0">
-          <TabsList className="w-full justify-start gap-2 overflow-x-auto bg-bg //border px-4">
+          <TabsList className="w-full justify-start gap-2 overflow-x-auto bg-bg px-4">
             <TabsTrigger value="overview">Обзор</TabsTrigger>
             <TabsTrigger value="variants">
               Варианты
@@ -155,206 +143,32 @@ export function DetailModal({
             <TabsTrigger value="files">Файлы</TabsTrigger>
           </TabsList>
           <ScrollArea className="h-[60vh]">
+            {/* overview */}
             <TabsContent
               value="overview"
-              className="flex flex-col gap-4 pt-2 pb-4"
             >
-              {/* <DialogTitle className="text-pretty text-xl">
-                {item.name || (
-                  <span className="text-fg-muted">Позиция не заполнена</span>
-                )}
-              </DialogTitle>
-              {item.brand && (
-                <p className="text-[13px] text-fg-muted">{item.brand}</p>
-              )} */}
-              {/* //? Images */}
-              <section className="flex items-center justify-start gap-4 bg-bg-card border-t border-b border-border-muted py-4 pl-4 pr-6">
-                {item.imageUrl && (
-                  <Image
-                    alt="product image"
-                    src={item.imageUrl}
-                    width={120}
-                    height={120}
-                    className="bg-bg-brand rounded-lg border"
-                  />
-                )}
-                <label className="flex items-center cursor-pointer justify-center gap-2 border-2 border-border-muted bg-bg-card rounded-lg border-dashed p-4 h-30 flex-1">
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={handleFile}
-                    disabled={isUploading}
-                  />
-                  <div className="flex flex-col items-center gap-2">
-                    {isUploading ? (
-                      <Loader2 className="size-6 animate-spin text-fg-muted" />
-                    ) : (
-                      <CloudUpload size={24} className="text-fg-muted" />
-                    )}
-                    <div className="flex flex-col items-center">
-                      <span>
-                        {item.imageUrl
-                          ? "Заменить изображение"
-                          : "Добавить изображение"}
-                      </span>
-                      <span className="text-xs text-fg-muted">
-                        JPG/PNG до 5 МБ
-                      </span>
-                    </div>
-                  </div>
-                </label>
-              </section>
-
-              <section className="grid grid-cols-2 gap-4 pl-4 pr-6">
-                <Field label="Наименование" className="col-span-2">
-                  <Input
-                    defaultValue={item.name}
-                    onBlur={(e) => onPatch({ name: e.target.value.trim() })}
-                  />
-                </Field>
-                <Field label="Производитель">
-                  <Input
-                    defaultValue={item.brand}
-                    onBlur={(e) => onPatch({ brand: e.target.value.trim() })}
-                  />
-                </Field>
-
-                {/* <Field label="Единица">
-                  <select
-                    defaultValue={item.unit}
-                    onChange={(e) => onPatch({ unit: e.target.value })}
-                    className="h-10 w-full rounded-md border border-border-muted bg-bg-card px-3 text-sm"
-                  >
-                    {UNIT_OPTIONS.map((u) => (
-                      <option key={u} value={u}>
-                        {u}
-                      </option>
-                    ))}
-                  </select>
-                </Field> */}
-                <Field label="Тип">
-                  <Input
-                    defaultValue={item.product_type}
-                    onBlur={(e) =>
-                      onPatch({ product_type: e.target.value.trim() })
-                    }
-                  />
-                </Field>
-                <Field label="Артикул">
-                  <Input
-                    defaultValue={item.article}
-                    onBlur={(e) => onPatch({ article: e.target.value.trim() })}
-                  />
-                </Field>
-                <Field label="Срок поставки">
-                  <select
-                    defaultValue={item.leadTime}
-                    onChange={(e) => onPatch({ leadTime: e.target.value })}
-                    className="h-10 w-full rounded-lg font-mono border border-border-muted bg-bg-card px-3 text-sm"
-                  >
-                    {LEAD_TIME_OPTIONS.map((u) => (
-                      <option key={u} value={u}>
-                        {u}
-                      </option>
-                    ))}
-                  </select>
-                  {/* <Input
-                    defaultValue={item.leadTime}
-                    placeholder="4–6 недель"
-                    onBlur={(e) => onPatch({ leadTime: e.target.value.trim() })}
-                  /> */}
-                </Field>
-              </section>
-
-              <Field label="Ссылка" className="pl-4 pr-6">
-                <div className="flex flex-row gap-2 items-center">
-                  <Input
-                    defaultValue={item.product_url}
-                    onBlur={(e) =>
-                      onPatch({ product_url: e.target.value.trim() })
-                    }
-                  />
-                  {item.product_url && (
-                    <CopyButton textToCopy={item.product_url} />
-                  )}
-                </div>
-              </Field>
-
-              {/* //? Quantity & Price */}
-              <section className="flex flex-wrap items-center gap-2 rounded-lg pl-4 pr-6 border-border-muted">
-                <div className="bg-bg-card h-19 border rounded-lg p-3 flex-1">
-                  <Field label="Кол-во">
-                    <div className="flex items-center gap-2">
-                      <QtyStepper
-                        editable={false}
-                        qty={item.qty}
-                        unit={item.unit}
-                        onChange={onQty}
-                        showUnit={false}
-                      />
-                      <select
-                        defaultValue={item.unit}
-                        onChange={(e) => onPatch({ unit: e.target.value })}
-                        className="h-6 w-full rounded-sm font-mono //border border-border-muted bg-bg-card px-3 text-sm"
-                      >
-                        {UNIT_OPTIONS.map((u) => (
-                          <option key={u} value={u}>
-                            {u}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </Field>
-                </div>
-                <div className="bg-bg-card h-19 border  rounded-lg p-3 flex-1">
-                  <Field label="Цена за ед.">
-                    <PriceField
-                      readOnly={false} //TODO: fix
-                      value={item.price}
-                      onCommit={onPrice}
-                      className="text-[18px]! p-0! text-left! font-semibold tabular-nums"
-                    />
-                  </Field>
-                </div>
-                <div className="ml-auto h-19 text-left font-mono bg-fg rounded-lg p-3 text-bg flex-1">
-                  <Field label="Сумма">
-                    <span className="text-[18px] font-semibold tabular-nums">
-                      {fmt(sum)} ₽
-                    </span>
-                  </Field>
-                </div>
-              </section>
-              <Field label="Описание" className="pl-4 pr-6">
-                <textarea
-                  defaultValue={item.spec}
-                  onBlur={(e) => onPatch({ spec: e.target.value.trim() })}
-                  className="min-h-16 w-full rounded-lg border border-border-muted bg-bg-card p-2 text-sm"
-                />
-              </Field>
-              <Field label="Заметки" className="pl-4 pr-6">
-                <textarea
-                  defaultValue={item.notes}
-                  onBlur={(e) => onPatch({ notes: e.target.value })}
-                  placeholder="Условия, скидки, договорённости"
-                  className="min-h-20 w-full rounded-lg border border-border-muted bg-bg-card p-2 text-sm"
-                />
-              </Field>
+              <ModalReviewTab
+                item={item}
+                onPatch={onPatch}
+                onPrice={onPrice}
+                onQty={onQty}
+                orgSlug={orgSlug}
+                setTab={setTab}
+              />
             </TabsContent>
-
+            {/* variants */}
             <TabsContent
               value="variants"
-              className="flex flex-col gap-4 py-4 pl-4 pr-6"
             >
               <VariantsTab
                 item={item}
                 onSwitch={onSwitchVariant}
                 onAdd={onAddVariant}
-                onUpdate={onUpdateVariant}
+                onEdit={onEditVariant}
                 onDelete={onDeleteVariant}
               />
             </TabsContent>
-
+            {/* attrs */}
             <TabsContent
               value="attrs"
               className="flex flex-col gap-4 py-4 pl-4 pr-6"
@@ -365,7 +179,7 @@ export function DetailModal({
                 onChange={(attrs) => onPatch({ attrs })}
               />
             </TabsContent>
-
+            {/* rooms */}
             <TabsContent
               value="rooms"
               className="flex flex-col gap-4 py-4 pl-4 pr-6"
@@ -376,10 +190,10 @@ export function DetailModal({
                 suggestions={projectRooms}
               />
             </TabsContent>
-
+            {/* supplier */}
             <TabsContent
               value="supplier"
-              className="flex flex-col gap-4 py-4 pl-4 pr-6"
+              // className="flex flex-col gap-4 py-4 pl-4 pr-6"
             >
               <SupplierPicker
                 companies={localCompanies}
@@ -395,6 +209,22 @@ export function DetailModal({
                   setShowAddCompany(true);
                 }}
               />
+            </TabsContent>
+            {/* files */}
+            <TabsContent
+              value="files"
+              className="flex flex-col gap-4 py-4 pl-4 pr-6"
+            >
+              <div className="flex flex-col items-center gap-3 rounded-xl border border-dashed border-border-muted py-12 text-center">
+                <Paperclip className="size-8 text-fg-muted" />
+                <p className="text-[14px] font-medium text-fg">
+                  Файлы и документы
+                </p>
+                <p className="max-w-xs text-[12.5px] text-fg-muted">
+                  Здесь будут счета, спецификации поставщика и другие вложения.
+                  Функция в разработке.
+                </p>
+              </div>
             </TabsContent>
           </ScrollArea>
         </Tabs>
@@ -429,24 +259,5 @@ export function DetailModal({
         />
       )}
     </Dialog>
-  );
-}
-
-function Field({
-  label,
-  children,
-  className,
-}: {
-  label: string;
-  children: React.ReactNode;
-  className?: string;
-}) {
-  return (
-    <div className={cn("flex min-w-0 flex-col gap-1.5", className)}>
-      <Label className="text-[11px] font-mono uppercase tracking-wider w-full text-fg-muted">
-        {label}
-      </Label>
-      {children}
-    </div>
   );
 }

@@ -32,6 +32,7 @@ export default function AddModalForm({
   onFillManual,
   variantMode = false,
   variantFor = null,
+  forceManual = false,
 }: {
   library: MaterialListItem[];
   items: SpecItem[];
@@ -45,8 +46,11 @@ export default function AddModalForm({
   onFillManual: (input: ManualSpecItemInput) => void;
   variantMode?: boolean;
   variantFor?: SpecItem | null;
+  forceManual?: boolean;
 }) {
-  const [mode, setMode] = useState<"catalog" | "manual">("catalog");
+  const [mode, setMode] = useState<"catalog" | "manual">(
+    forceManual || editing ? "manual" : "catalog",
+  );
   const [query, setQuery] = useState("");
   const [type, setType] = useState<SpecType | "Все типы">(
     variantMode && variantFor

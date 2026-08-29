@@ -301,6 +301,7 @@ export const manualSpecItemSchema = z
 
     companyId: z.string().uuid().nullable().default(null),
     imageUrl: z.string().trim().max(500).nullable().default(null),
+    productUrl: z.string().trim().max(500).nullable().default(null),
     saveToLibrary: z.boolean().default(true),
     leadTime: z.string().trim().max(120).default(""),
   })

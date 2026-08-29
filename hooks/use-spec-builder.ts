@@ -35,7 +35,7 @@ import {
 import { SPEC_STATUS_CONFIG } from "@/lib/spec/status";
 import { applyActiveVariant } from "@/lib/spec/variants";
 import { round2, sumItems } from "@/lib/spec/pricing";
-import type { MaterialListItem } from "@/lib/queries";
+import type { MaterialListItem, SpecPickerCompany } from "@/lib/queries";
 import type { ManualSpecItemInput } from "@/lib/validations";
 
 /* ------------------------------------------------------------------ */
@@ -56,7 +56,8 @@ export type Modal =
   | { kind: "add-variant"; itemId: string }
   | { kind: "delete"; ids: string[] }
   | { kind: "procure" }
-  | { kind: "summary" };
+  | { kind: "summary" }
+  | { kind: "edit-variant"; itemId: string; variantId: string };
 
 export type CodeConflict = {
   itemId: string;
@@ -265,6 +266,12 @@ export function useSpecBuilder({
     [orgSlug, showToast],
   );
 
+  const openEditVariant = useCallback(
+    (itemId: string, variantId: string) =>
+      setModal({ kind: "edit-variant", itemId, variantId }),
+    [],
+  );
+
   const openAddVariant = useCallback(
     (itemId: string) => setModal({ kind: "add-variant", itemId }),
     [],
@@ -277,13 +284,16 @@ export function useSpecBuilder({
 
   /** Создаёт вариант из материала библиотеки и записывает его локально. */
   const commitVariantFromLibrary = useCallback(
-    (itemId: string, m: MaterialListItem) => {
+    (itemId: string, m: MaterialListItem, companies: SpecPickerCompany[]) => {
       startTransition(async () => {
         const res = await addVariant(orgSlug, itemId, m.name);
         if (!res.success) {
           showToast(res.error);
           return;
         }
+
+        const companyName =
+          companies.find((c) => c.id === m.companyId)?.name ?? "";
 
         // сразу обновляем поля нового варианта данными материала
         const patch = {
@@ -292,8 +302,10 @@ export function useSpecBuilder({
           article: m.article ?? "",
           price: Number(m.price ?? 0),
           product_url: m.product_url ?? "",
+        
           image_url: m.imageUrl ?? null,
           company_id: m.companyId ?? null,
+          company_name_snapshot: companyName,
           contact_id: m.contactId ?? null,
           label: m.name,
         };
@@ -319,7 +331,7 @@ export function useSpecBuilder({
               leadTime: "",
               companyId: m.companyId ?? null,
               contactId: m.contactId ?? null,
-              companyName: m.companyName ?? "",
+              companyName,
               label: m.name,
               isActive: false,
               position: it.variants.length,
@@ -336,7 +348,11 @@ export function useSpecBuilder({
 
   /** Создаёт вариант из ручного ввода. */
   const commitVariantManual = useCallback(
-    (itemId: string, input: ManualSpecItemInput) => {
+    (
+      itemId: string,
+      input: ManualSpecItemInput,
+      companies: SpecPickerCompany[],
+    ) => {
       startTransition(async () => {
         const res = await addVariant(
           orgSlug,
@@ -348,6 +364,9 @@ export function useSpecBuilder({
           return;
         }
 
+        const companyName =
+          companies.find((c) => c.id === input.companyId)?.name ?? "";
+
         const patch = {
           name: input.name,
           brand: input.brand ?? "",
@@ -357,6 +376,7 @@ export function useSpecBuilder({
           product_url: "",
           image_url: input.imageUrl ?? null,
           company_id: input.companyId ?? null,
+          company_name_snapshot: companyName,
           label: input.name || "Альтернатива",
         };
         const upd = await updateVariant(orgSlug, itemId, res.data.id, patch);
@@ -376,12 +396,12 @@ export function useSpecBuilder({
               article: input.article ?? "",
               spec: input.spec ?? "",
               price: input.price,
-              productUrl: "",
+              productUrl: input.productUrl ?? "",
               imageUrl: input.imageUrl ?? null,
               leadTime: input.leadTime ?? "",
               companyId: input.companyId ?? null,
               contactId: null,
-              companyName: "",
+              companyName,
               label: input.name || "Альтернатива",
               isActive: false,
               position: it.variants.length,
@@ -1181,6 +1201,7 @@ export function useSpecBuilder({
     deleteVariantLocal,
     commitVariantManual,
     commitVariantFromLibrary,
+    openEditVariant,
 
     // создание
     addPlaceholder,

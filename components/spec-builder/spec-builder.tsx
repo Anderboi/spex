@@ -323,8 +323,73 @@ export default function SpecBuilder({
           onDeleteVariant={(vid) =>
             ctx.deleteVariantLocal(ctx.current!.id, vid)
           }
+          onEditVariant={(vid) => ctx.openEditVariant(ctx.current!.id, vid)}
         />
       )}
+
+      {ctx.modal.kind === "edit-variant" &&
+        (() => {
+          const { itemId, variantId } = ctx.modal;
+          const item = ctx.items.find((i) => i.id === itemId);
+          const variant = item?.variants.find((v) => v.id === variantId);
+          if (!item || !variant) return null;
+
+          // собираем «псевдо-SpecItem» из полей варианта для предзаполнения формы
+          const editingLike = {
+            ...item,
+            name: variant.name,
+            brand: variant.brand,
+            article: variant.article,
+            spec: variant.spec,
+            price: variant.price,
+            imageUrl: variant.imageUrl,
+            companyId: variant.companyId,
+            product_url: variant.productUrl,
+          };
+
+          return (
+            <AddModalForm
+              library={library.filter((m) => m.category === item.type)}
+              items={ctx.items}
+              companies={companies}
+              orgSlug={orgSlug}
+              editing={editingLike}
+              variantMode
+              variantFor={item}
+              onClose={ctx.closeModal}
+              onAddFromLibrary={() => {}}
+              onFillFromLibrary={() => {}}
+              onAddManual={(input) => {
+                ctx.updateVariantLocal(itemId, variantId, {
+                  name: input.name,
+                  brand: input.brand,
+                  article: input.article,
+                  spec: input.spec,
+                  price: input.price,
+                  imageUrl: input.imageUrl ?? null,
+                  companyId: input.companyId ?? null,
+                  companyName:
+                    companies.find((c) => c.id === input.companyId)?.name ?? "",
+                });
+                ctx.closeModal();
+              }}
+              onFillManual={(input) => {
+                ctx.updateVariantLocal(itemId, variantId, {
+                  name: input.name,
+                  brand: input.brand,
+                  article: input.article,
+                  spec: input.spec,
+                  price: input.price,
+                  imageUrl: input.imageUrl ?? null,
+                  companyId: input.companyId ?? null,
+                  companyName:
+                    companies.find((c) => c.id === input.companyId)?.name ?? "",
+                });
+                ctx.closeModal();
+              }}
+            />
+          );
+        })()}
 
       {ctx.modal.kind === "add" && (
         <AddModalForm
@@ -354,7 +419,7 @@ export default function SpecBuilder({
           const variantLibrary = targetItem
             ? library.filter((m) => m.category === targetItem.type)
             : library;
-          
+
           return (
             <AddModalForm
               library={variantLibrary}
@@ -368,16 +433,20 @@ export default function SpecBuilder({
               onAddFromLibrary={(materials) => {
                 // берём первый выбранный материал как вариант
                 if (materials[0])
-                  ctx.commitVariantFromLibrary(targetItemId, materials[0]);
+                  ctx.commitVariantFromLibrary(
+                    targetItemId,
+                    materials[0],
+                    companies,
+                  );
               }}
               onFillFromLibrary={(m) =>
-                ctx.commitVariantFromLibrary(targetItemId, m)
+                ctx.commitVariantFromLibrary(targetItemId, m, companies)
               }
               onAddManual={(input) =>
-                ctx.commitVariantManual(targetItemId, input)
+                ctx.commitVariantManual(targetItemId, input, companies)
               }
               onFillManual={(input) =>
-                ctx.commitVariantManual(targetItemId, input)
+                ctx.commitVariantManual(targetItemId, input, companies)
               }
             />
           );
