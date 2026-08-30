@@ -1,18 +1,31 @@
+"use client";
+
 import { PriceField } from "./price-field";
 import Field from "../layout/modal-field";
 import { LEAD_TIME_OPTIONS, UNIT_OPTIONS } from "@/lib/constants";
 import { Input } from "../ui/input";
-import { Building2, CloudUpload, Loader2 } from "lucide-react";
+import {
+  Building2,
+  ChevronDown,
+  CloudUpload,
+  ExternalLink,
+  Loader2,
+} from "lucide-react";
 import Image from "next/image";
 import { SpecItem, SpecItemPatch } from "@/lib/types";
 import { ChangeEvent, useState } from "react";
 import { priceOf } from "@/lib/spec/pricing";
 import { toast } from "sonner";
 import { uploadMaterialImage } from "@/actions/materials";
-import CopyButton from "../layout/copy-button";
 import { QtyStepper } from "./qty-stepper";
 import { fmt } from "@/lib/utils";
 import { Button } from "../ui/button";
+import { AttrsEditor } from "./attrs-editor";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "../ui/collapsible";
 
 const ModalReviewTab = ({
   item,
@@ -29,6 +42,7 @@ const ModalReviewTab = ({
   orgSlug: string;
   setTab: (tab: string) => void;
 }) => {
+  const [isOpen, setIsOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const p = priceOf(item);
 
@@ -101,6 +115,7 @@ const ModalReviewTab = ({
           <Field label="Наименование" className="col-span-2">
             <Input
               defaultValue={item.name}
+              autoFocus
               onBlur={(e) => onPatch({ name: e.target.value.trim() })}
             />
           </Field>
@@ -159,9 +174,21 @@ const ModalReviewTab = ({
           <div className="flex flex-row gap-2 items-center">
             <Input
               defaultValue={item.product_url}
+              onFocus={(e) => e.target.select()}
               onBlur={(e) => onPatch({ product_url: e.target.value.trim() })}
             />
-            {item.product_url && <CopyButton textToCopy={item.product_url} />}
+            {item.product_url && (
+              <a
+                href={item.product_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                aria-label="Открыть на сайте"
+                className="shrink-0 text-fg-muted hover:text-fg"
+              >
+                <ExternalLink className="size-3.5" />
+              </a>
+            )}
           </div>
         </Field>
         {/* //? Quantity & Price */}
@@ -275,6 +302,34 @@ const ModalReviewTab = ({
           </div>
         </Field>
       </section>
+
+      <Collapsible
+        open={isOpen}
+        onOpenChange={setIsOpen}
+        className="p-2 border rounded-xl ml-4 mr-6 mb-4 bg-bg-card"
+      >
+        <CollapsibleTrigger
+          render={
+            <Button
+              variant="ghost"
+              size="lg"
+              className="flex items-center justify-between gap-4 h-10 w-full //mb-4"
+            >
+              <h4 className="text-sm font-semibold">Характеристики</h4>{" "}
+              <ChevronDown />
+              <span className="sr-only">Toggle details</span>
+            </Button>
+          }
+        />
+
+        <CollapsibleContent className="flex flex-col gap-2">
+          <AttrsEditor
+            type={item.type}
+            attrs={item.attrs}
+            onChange={(attrs) => onPatch({ attrs })}
+          />
+        </CollapsibleContent>
+      </Collapsible>
     </>
   );
 };

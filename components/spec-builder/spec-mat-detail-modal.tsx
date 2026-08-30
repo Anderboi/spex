@@ -94,7 +94,7 @@ export function DetailModal({
 
   return (
     <Dialog open onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="max-h-[90vh] flex-col bg-bg sm:max-w-170 p-0 gap-0">
+      <DialogContent className="max-h-[90vh] flex-col bg-bg sm:max-w-3xl p-0 gap-0">
 
         <DialogHeader className="sticky top-0 gap-2 border-b p-4">
           <DialogTitle className="truncate font-serif text-[16px] font-semibold leading-tight">
@@ -135,7 +135,7 @@ export function DetailModal({
                 </span>
               )}
             </TabsTrigger>
-            <TabsTrigger value="attrs">Характеристики</TabsTrigger>
+            {/* <TabsTrigger value="attrs">Характеристики</TabsTrigger> */}
             <TabsTrigger value="rooms">
               Помещения {item.rooms.length > 0 && `· ${item.rooms.length}`}
             </TabsTrigger>
@@ -169,7 +169,7 @@ export function DetailModal({
               />
             </TabsContent>
             {/* attrs */}
-            <TabsContent
+            {/* <TabsContent
               value="attrs"
               className="flex flex-col gap-4 py-4 pl-4 pr-6"
             >
@@ -178,7 +178,7 @@ export function DetailModal({
                 attrs={item.attrs}
                 onChange={(attrs) => onPatch({ attrs })}
               />
-            </TabsContent>
+            </TabsContent> */}
             {/* rooms */}
             <TabsContent
               value="rooms"

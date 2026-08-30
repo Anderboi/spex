@@ -49,7 +49,7 @@ export const SpecRow = memo(function SpecRow({
   selected: boolean;
   h: SpecRowHandlers;
 }) {
-  const sum = item.qty * item.price;
+  // const sum = item.qty * item.price;
   const p = priceOf(item);
 
   return (
