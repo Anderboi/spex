@@ -16,6 +16,7 @@ export function ConfirmDialog({
   confirmLabel = "Подтвердить",
   cancelLabel = "Отмена",
   destructive = false,
+  autoFocusCancel = false,
   onConfirm,
   onCancel,
 }: {
@@ -25,28 +26,36 @@ export function ConfirmDialog({
   confirmLabel?: string;
   cancelLabel?: string;
   destructive?: boolean;
+  /** Фокус при открытии на безопасной кнопке (Отмена), а не на подтверждающей. */
+  autoFocusCancel?: boolean;
   onConfirm: () => void;
   onCancel: () => void;
 }) {
   return (
     <Dialog open={open} onOpenChange={(v) => !v && onCancel()}>
-      <DialogContent className="sm:max-w-105 bg-bg-card">
+      <DialogContent className="sm:max-w-115 bg-bg-card">
         <DialogHeader>
-          <DialogTitle className="text-base">{title}</DialogTitle>
+          <DialogTitle className="text-base font-semibold">{title}</DialogTitle>
           {description && (
-            <DialogDescription className="text-pretty text-[13.5px] leading-relaxed text-fg-secondary">
+            <DialogDescription className="text-pretty text-[13px] //leading-relaxed text-fg-secondary">
               {description}
             </DialogDescription>
           )}
         </DialogHeader>
         <div className="mt-4 flex justify-end gap-2">
-          <Button variant="ghost" onClick={onCancel}>
+          <Button
+            variant="ghost"
+            size="lg"
+            onClick={onCancel}
+            autoFocus={autoFocusCancel}
+          >
             {cancelLabel}
           </Button>
           <Button
             variant={destructive ? "destructive" : "default"}
             onClick={onConfirm}
-            autoFocus
+            size="lg"
+            autoFocus={!autoFocusCancel}
           >
             {confirmLabel}
           </Button>

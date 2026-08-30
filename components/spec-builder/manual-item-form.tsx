@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ChangeEvent } from "react";
+import { useEffect, useState, type ChangeEvent } from "react";
 import { Controller, useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { CloudUpload, Loader2 } from "lucide-react";
@@ -26,6 +26,7 @@ export function ManualItemForm({
   onSubmit,
   variantMode = false,
   variantFor = null,
+  onDirtyChange,
 }: {
   companies: SpecPickerCompany[];
   orgSlug: string;
@@ -34,6 +35,8 @@ export function ManualItemForm({
   onSubmit: (input: ManualSpecItemInput) => void;
   variantMode: boolean;
   variantFor?: SpecItem | null;
+  /** Сообщает родителю о наличии изменений в форме (для guard закрытия диалога). */
+  onDirtyChange?: (dirty: boolean) => void;
 }) {
   const form = useForm<
     z.input<typeof manualSpecItemSchema>,
@@ -68,8 +71,13 @@ export function ManualItemForm({
     register,
     watch,
     handleSubmit,
-    formState: { errors, isSubmitting },
+    formState: { errors, isSubmitting, isDirty },
   } = form;
+
+  // Прокидываем «есть ли незаполненные/изменённые поля» родительскому диалогу.
+  useEffect(() => {
+    onDirtyChange?.(isDirty);
+  }, [isDirty, onDirtyChange]);
 
   const type = watch("type");
   const unit = watch("unit") ?? "шт";

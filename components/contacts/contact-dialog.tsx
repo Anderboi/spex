@@ -27,6 +27,7 @@ import { upsertContact } from "@/actions/contacts"; // Импорт вашей S
 import z from "zod";
 import { CategoryMultiSelect } from "../layout/category-multiselect";
 import { TYPE_ORDER } from "@/lib/constants";
+import { useDialogDismissGuard } from "@/components/ui/use-dialog-dismiss-guard";
 
 interface ContactDialogProps {
   orgSlug: string;
@@ -88,6 +89,16 @@ export function ContactDialog({
 
   const categories = form.watch("category") || [];
 
+  // Защита от случайного закрытия: клик мимо диалога / Escape при заполненной
+  // форме не закрывают окно, а показывают предупреждение.
+  // ВАЖНО: isDirty читаем именно во время рендера — иначе RHF не подпишется
+  // на него и вернёт устаревшее false.
+  const isDirty = form.formState.isDirty;
+  const { handleOpenChange } = useDialogDismissGuard({
+    onOpenChange: (val) => !val && onClose(),
+    hasChanges: isDirty,
+  });
+
   const toggleCategory = (type: string) => {
     const current = Array.isArray(categories) ? categories : [];
     if (categories.includes(type)) {
@@ -134,7 +145,7 @@ export function ContactDialog({
   const showCompanySelect = !fixedCompanyId && !independentOnly;
 
   return (
-    <Dialog open={open} onOpenChange={(val) => !val && onClose()}>
+    <Dialog open={open} onOpenChange={handleOpenChange}>
       <DialogContent className="sm:max-w-125">
         <DialogHeader className="border-b border-border-subtle py-2">
           <DialogTitle>
