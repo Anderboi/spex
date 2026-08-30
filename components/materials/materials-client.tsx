@@ -110,7 +110,7 @@ export function MaterialsClient({
 
   return (
     <article>
-      <div className="grid grid-cols-1 gap-6 md:grid-cols-2 lg:grid-cols-3">
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {optimisticMaterials.map((mat) => (
           <MaterialCard
             key={mat.id}
