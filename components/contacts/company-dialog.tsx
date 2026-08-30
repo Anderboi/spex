@@ -1,6 +1,6 @@
 "use client";
 
-import { useTransition } from "react";
+import { useEffect, useTransition } from "react";
 import { useForm, SubmitHandler } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Loader2 } from "lucide-react";
@@ -64,6 +64,23 @@ export function CompanyDialog({
   });
 
   const { watch, setValue } = form;
+
+  // Диалог монтируется постоянно (открытие через URL), поэтому форму
+  // сбрасываем при каждом открытии, чтобы не оставались прошлые значения.
+  useEffect(() => {
+    if (open) {
+      form.reset({
+        id: undefined,
+        name: initialName ?? "",
+        category: [],
+        website: "",
+        email: "",
+        phone: "",
+        address: "",
+        note: "",
+      });
+    }
+  }, [open, initialName, form]);
 
   const onSubmit: SubmitHandler<CompanyInput> = (values) => {
     startTransition(async () => {

@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import { Loader2, MailCheck, RefreshCw } from "lucide-react";
+import Link from "next/link";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,9 +13,9 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import { resendVerificationEmail } from "@/actions/auth";
+import { useDialogUrl } from "@/hooks/use-dialog-url";
 
 interface ResendVerificationProps {
   initialEmail?: string;
@@ -25,7 +26,6 @@ export function ResendVerificationButton({
   initialEmail = "",
   variant = "link",
 }: ResendVerificationProps) {
-  const [open, setOpen] = React.useState(false);
   const [email, setEmail] = React.useState(initialEmail);
   const [status, setStatus] = React.useState<{
     type: "success" | "error";
@@ -33,6 +33,12 @@ export function ResendVerificationButton({
   } | null>(null);
   const [isPending, startTransition] = React.useTransition();
   const [cooldown, setCooldown] = React.useState(0);
+  const { value: dialog, hrefFor, close: closeDialog } = useDialogUrl("dialog");
+
+  // Диалог управляется URL: ?dialog=resend (остальные параметры, например
+  // ?token=..., при открытии/закрытии сохраняются).
+  const isOpen = dialog === "resend";
+  const resendHref = hrefFor("resend");
 
   // Таймер обратного отсчета
   React.useEffect(() => {
@@ -60,14 +66,27 @@ export function ResendVerificationButton({
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger>
-        <Button variant={variant} className="text-xs p-0 h-auto font-normal">
-          Не получили письмо? Отправить повторно
-        </Button>
-      </DialogTrigger>
+    <>
+      <Button
+        nativeButton={false}
+        render={
+          <Link
+            className="text-xs p-0 h-auto font-normal"
+            href={resendHref}
+          />
+        }
+        variant={variant}
+      >
+        Не получили письмо? Отправить повторно
+      </Button>
 
-      <DialogContent className="sm:max-w-md">
+      <Dialog
+        open={isOpen}
+        onOpenChange={(val) => {
+          if (!val) closeDialog();
+        }}
+      >
+        <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <MailCheck className="h-5 w-5 text-primary" />
@@ -127,5 +146,6 @@ export function ResendVerificationButton({
         </form>
       </DialogContent>
     </Dialog>
+    </>
   );
 }

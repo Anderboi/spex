@@ -9,6 +9,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { MaterialsSkeleton } from "@/components/materials/materials-skeleton";
 import { parseMaterialsFilters } from "@/lib/materials/filters";
+import { withSearchParams } from "@/lib/query-string";
 
 type Props = {
   params: Promise<{ orgSlug: string }>;
@@ -21,7 +22,12 @@ export default async function MaterialsLibraryPage({
   params,
   searchParams,
 }: Props) {
-  const { orgSlug } = await params;
+  const [{ orgSlug }, sp] = await Promise.all([params, searchParams]);
+  // Открытие диалога — через URL (?action=create), существующие фильтры
+  // и пагинация при этом сохраняются.
+  const createHref = withSearchParams(`/${orgSlug}/materials`, sp, {
+    action: "create",
+  });
   return (
     <>
       <PageHeader
@@ -33,7 +39,7 @@ export default async function MaterialsLibraryPage({
           render={
             <Link
               className="flex flex-row items-center gap-2"
-              href={`/${orgSlug}/materials?action=create`}
+              href={createHref}
             />
           }
           className="h-10 bg-fg"

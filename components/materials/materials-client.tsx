@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useOptimistic, useState, useTransition } from "react";
+import { useOptimistic, useTransition } from "react";
 import { type MaterialInput } from "@/lib/validations";
 import { deleteMaterial, upsertMaterial } from "@/actions/materials";
 import { MaterialDialog } from "./material-dialog";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
+import { useDialogUrl } from "@/hooks/use-dialog-url";
 import MaterialCard from "./material-card";
 import type {
   MaterialListItem,
@@ -29,38 +30,13 @@ export function MaterialsClient({
   contacts,
   orgSlug,
 }: MaterialsClientProps) {
-  const router = useRouter();
-  const pathname = usePathname();
   const searchParams = useSearchParams();
-
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [editingMaterial, setEditingMaterial] = useState<MaterialInput | null>(
-    null,
-  );
+  const {
+    value: action,
+    open: openDialog,
+    close: closeDialog,
+  } = useDialogUrl("action");
   const [, startTransition] = useTransition();
-
-  useEffect(() => {
-    if (searchParams.get("action") === "create") {
-      setEditingMaterial(null);
-      setIsDialogOpen(true);
-    }
-  }, [searchParams]);
-
-  const closeDialog = (open: boolean) => {
-    setIsDialogOpen(open);
-    if (!open) {
-      setEditingMaterial(null);
-      if (searchParams.get("action")) {
-        // Очищаем action из URL при закрытии
-        const params = new URLSearchParams(searchParams.toString());
-        params.delete("action");
-        const qs = params.toString();
-        startTransition(() => {
-          router.replace(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
-        });
-      }
-    }
-  };
 
   const [optimisticMaterials, setOptimisticMaterials] = useOptimistic(
     initialMaterials,
@@ -80,9 +56,22 @@ export function MaterialsClient({
     },
   );
 
+  // Диалог управляется URL: ?action=create / ?action=edit&id=<materialId>.
+  // Никакого useState — состояние берётся напрямую из search params.
+  const editId = searchParams.get("id");
+  const editingItem =
+    action === "edit" && editId
+      ? optimisticMaterials.find((m) => m.id === editId)
+      : undefined;
+  const isDialogOpen = action === "create" || Boolean(editingItem);
+  const materialToEdit = editingItem ? toFormValues(editingItem) : null;
+
   const handleEdit = (m: MaterialListItem) => {
-    setEditingMaterial(toFormValues(m));
-    setIsDialogOpen(true);
+    openDialog("edit", { id: m.id });
+  };
+
+  const handleDialogOpenChange = (open: boolean) => {
+    if (!open) closeDialog();
   };
 
   const handleDelete = (id?: string) => {
@@ -130,10 +119,10 @@ export function MaterialsClient({
       <MaterialDialog
         open={isDialogOpen}
         orgSlug={orgSlug}
-        onOpenChange={closeDialog}
+        onOpenChange={handleDialogOpenChange}
         companies={companies}
         contacts={contacts}
-        materialToEdit={editingMaterial}
+        materialToEdit={materialToEdit}
         onSave={handleSave}
       />
     </article>

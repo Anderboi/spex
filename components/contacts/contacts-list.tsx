@@ -1,8 +1,9 @@
 "use client";
 
-import { useMemo, useOptimistic, useState, useTransition, type ReactNode } from "react";
+import { useMemo, useOptimistic, useTransition, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { Building2, Plus, UserPlus } from "lucide-react";
+import Link from "next/link";
 import { CompanyCard } from "./company-card";
 import { CompanyRow, ContactRow } from "@/lib/validations";
 import { deleteCompany, deleteContact } from "@/actions/contacts";
@@ -12,7 +13,11 @@ import { ContactCard } from "./contact-card";
 import { toast } from "sonner";
 import { useSearchParams } from "next/navigation";
 import { useContactsUrl } from "./use-contacts-url";
+import { useDialogUrl } from "@/hooks/use-dialog-url";
 import type { ContactsTab } from "@/lib/types";
+
+/** Доп. параметры открытия контактных диалогов, удаляемые при закрытии. */
+const CONTACT_DIALOG_CLEANUP = ["company_id", "independent"];
 
 interface ContactsListProps {
   orgSlug: string;
@@ -69,16 +74,25 @@ export function ContactsList({
 }: ContactsListProps) {
   const searchParams = useSearchParams();
   const { update, isPending } = useContactsUrl();
+  const {
+    value: dialog,
+    hrefFor,
+    open: openDialog,
+    close: closeDialog,
+  } = useDialogUrl("dialog", CONTACT_DIALOG_CLEANUP);
   const [, startTransition] = useTransition();
 
   const query = searchParams.get("query") ?? "";
 
-  const [companyDialogOpen, setCompanyDialogOpen] = useState(false);
-  const [managerDialog, setManagerDialog] = useState<{
-    open: boolean;
-    companyId?: string;
-    independent?: boolean;
-  }>({ open: false });
+  // Диалоги управляются URL:
+  //   ?dialog=company                — добавить компанию
+  //   ?dialog=contact                — добавить контакт
+  //   ?dialog=contact&company_id=X   — контакт для конкретной компании
+  //   ?dialog=contact&independent=1  — независимый специалист
+  const isCompanyOpen = dialog === "company";
+  const isContactOpen = dialog === "contact";
+  const fixedCompanyId = searchParams.get("company_id") ?? undefined;
+  const independentOnly = searchParams.get("independent") === "1";
 
   const baseData = useMemo<DirectoryData>(
     () => ({ companies, managers, independentContacts }),
@@ -137,17 +151,23 @@ export function ContactsList({
       >
         <div className="flex flex-wrap w-full justify-end items-center gap-2">
           <Button
+            nativeButton={false}
+            render={
+              <Link
+                href={hrefFor("contact", { independent: "1" })}
+              />
+            }
             variant="outline"
             size="lg"
             className="flex-1 whitespace-nowrap bg-bg sm:flex-none"
-            onClick={() => setManagerDialog({ open: true, independent: true })}
           >
             <UserPlus className="mr-1 size-4" /> Добавить специалиста
           </Button>
           <Button
+            nativeButton={false}
+            render={<Link href={hrefFor("company")} />}
             size="lg"
             className="flex-1 bg-fg whitespace-nowrap sm:flex-none"
-            onClick={() => setCompanyDialogOpen(true)}
           >
             <Plus className="mr-1 size-4" /> Добавить компанию
           </Button>
@@ -184,7 +204,10 @@ export function ContactsList({
               }
               action={
                 !query && (
-                  <Button onClick={() => setCompanyDialogOpen(true)}>
+                  <Button
+                    nativeButton={false}
+                    render={<Link href={hrefFor("company")} />}
+                  >
                     <Plus className="mr-2 size-4" /> Добавить компанию
                   </Button>
                 )
@@ -198,7 +221,7 @@ export function ContactsList({
                   company={c}
                   managers={managersByCompanyId.get(c.id) || []}
                   onAddManager={(companyId) =>
-                    setManagerDialog({ open: true, companyId })
+                    openDialog("contact", { company_id: companyId })
                   }
                   onRemoveManager={handleRemoveContact}
                   onRemoveCompany={handleRemoveCompany}
@@ -219,8 +242,11 @@ export function ContactsList({
             action={
               !query && (
                 <Button
-                  onClick={() =>
-                    setManagerDialog({ open: true, independent: true })
+                  nativeButton={false}
+                  render={
+                    <Link
+                      href={hrefFor("contact", { independent: "1" })}
+                    />
                   }
                 >
                   <UserPlus className="mr-2 size-4" /> Добавить контакт
@@ -241,23 +267,19 @@ export function ContactsList({
         )}
       </ul>
 
-      {companyDialogOpen && (
-        <CompanyDialog
-          orgSlug={orgSlug}
-          open={companyDialogOpen}
-          onClose={() => setCompanyDialogOpen(false)}
-        />
-      )}
-      {managerDialog.open && (
-        <ContactDialog
-          orgSlug={orgSlug}
-          open={managerDialog.open}
-          companies={data.companies}
-          fixedCompanyId={managerDialog.companyId}
-          independentOnly={managerDialog.independent}
-          onClose={() => setManagerDialog({ open: false })}
-        />
-      )}
+      <CompanyDialog
+        orgSlug={orgSlug}
+        open={isCompanyOpen}
+        onClose={closeDialog}
+      />
+      <ContactDialog
+        orgSlug={orgSlug}
+        open={isContactOpen}
+        companies={data.companies}
+        fixedCompanyId={fixedCompanyId}
+        independentOnly={independentOnly}
+        onClose={closeDialog}
+      />
     </>
   );
 }

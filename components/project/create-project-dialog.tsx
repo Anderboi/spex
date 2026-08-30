@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition, type ChangeEvent } from "react";
+import { useEffect, useState, useTransition, type ChangeEvent } from "react";
 import { useForm, SubmitHandler } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Plus, Loader2, CloudUpload, X } from "lucide-react";
@@ -10,11 +10,9 @@ import { projectSchema, ProjectInput } from "@/lib/validations";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -28,14 +26,15 @@ import {
 } from "@/components/ui/form";
 import { upsertProject, uploadProjectImage } from "@/actions/projects";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import Image from "next/image";
 import { toast } from "sonner";
 import { RoomsEditor } from "@/components/spec-builder/rooms-editor";
 import { ScrollArea } from "../ui/scroll-area";
+import { useDialogUrl } from "@/hooks/use-dialog-url";
 
 interface CreateProjectDialogProps {
   orgSlug: string;
-  trigger?: React.ReactNode;
 }
 
 const ACCENT_COLORS = [
@@ -47,14 +46,16 @@ const ACCENT_COLORS = [
   "#7C3AED",
 ];
 
-export function CreateProjectDialog({
-  orgSlug,
-  trigger,
-}: CreateProjectDialogProps) {
-  const [open, setOpen] = useState(false);
+export function CreateProjectDialog({ orgSlug }: CreateProjectDialogProps) {
   const [isPending, startTransition] = useTransition();
   const [isUploading, setIsUploading] = useState(false);
   const router = useRouter();
+  const { value: action, hrefFor, close: closeDialog } = useDialogUrl("action");
+
+  // Диалог управляется URL: открытие — это переход на ?action=create
+  // (кнопка — обычный <Link>, состояние не хранится в компоненте).
+  const isOpen = action === "create";
+  const createHref = hrefFor("create");
 
   const form = useForm({
     resolver: zodResolver(projectSchema),
@@ -70,6 +71,11 @@ export function CreateProjectDialog({
       rooms: [],
     },
   });
+
+  // Каждое открытие (в т.ч. повторное через URL) — с чистой формой.
+  useEffect(() => {
+    if (isOpen) form.reset();
+  }, [isOpen, form]);
 
   const handleFile = async (e: ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -104,22 +110,34 @@ export function CreateProjectDialog({
       }
 
       form.reset();
-      setOpen(false);
-      router.push(`/${orgSlug}/projects/${res.data.id}`);
+      // replace, а не push: запись ?action=create не должна оставаться
+      // в истории — кнопка «Назад» из проекта вернёт на чистый список,
+      // а не в уже созданный диалог.
+      router.replace(`/${orgSlug}/projects/${res.data.id}`);
     });
   };
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger
+    <>
+      <Button
+        nativeButton={false}
         render={
-          <Button className="flex h-10 items-center gap-2 bg-bg-accent text-bg border-none rounded-lg px-6 text-[15px] font-semibold cursor-pointer" />
+          <Link
+            className="flex h-10 items-center gap-2 bg-bg-accent text-bg border-none rounded-lg px-6 text-[15px] font-semibold cursor-pointer"
+            href={createHref}
+          />
         }
       >
         <Plus className="size-4 shrink-0" /> Новый проект
-      </DialogTrigger>
+      </Button>
 
-      <DialogContent className="sm:max-w-170 max-h-[88vh] flex-col bg-bg border-border-muted p-0 gap-0">
+      <Dialog
+        open={isOpen}
+        onOpenChange={(open) => {
+          if (!open) closeDialog();
+        }}
+      >
+        <DialogContent className="sm:max-w-170 max-h-[88vh] flex-col bg-bg border-border-muted p-0 gap-0">
         <DialogHeader className="sticky top-0 gap-2 border-b p-4">
           <DialogTitle className="text-xl font-bold tracking-tight">
             Новый проект
@@ -349,7 +367,7 @@ export function CreateProjectDialog({
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => setOpen(false)}
+                onClick={closeDialog}
                 disabled={isPending}
                 className="rounded-[11px] h-11 border-border-muted text-fg hover:bg-bg-select"
               >
@@ -374,5 +392,6 @@ export function CreateProjectDialog({
         </Form>
       </DialogContent>
     </Dialog>
+    </>
   );
 }
