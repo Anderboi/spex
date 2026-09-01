@@ -1,5 +1,6 @@
 import React from "react";
 import PageTitle from "./page-title";
+import { SidebarTrigger } from "../ui/sidebar";
 
 interface PageHeaderProps {
   title: string;
@@ -12,22 +13,27 @@ export function PageHeader({
   title,
   description,
   children,
-  className = "",
+  className,
 }: PageHeaderProps) {
   return (
-    <div
-      className={`flex flex-col sm:flex-row sm:items-end pb-4 sm:justify-between gap-4 //pt-[clamp(28px,5vw,48px)] ${className}`}
-    >
-      <PageTitle>{title}</PageTitle>
-      {children && (
-        <div className="flex items-center gap-3 shrink-0">{children}</div>
-      )}
+    <header className={`flex flex-col py-2 ${className}`}>
+      <div className="flex h-10 shrink-0 items-center gap-2">
+        <SidebarTrigger />
+      </div>
+      <div
+        className={`flex flex-col sm:flex-row sm:items-end //pb-4 sm:justify-between gap-4 //pt-[clamp(28px,5vw,48px)] `}
+      >
+        <PageTitle>{title}</PageTitle>
+        {children && (
+          <div className="flex items-center gap-3 shrink-0">{children}</div>
+        )}
 
-      {/* {description && (
+        {/* {description && (
           <p className="text-[15px] mt-2 text-pretty text-fg-secondary font-normal">
             {description}
           </p>
         )} */}
-    </div>
+      </div>
+    </header>
   );
 }

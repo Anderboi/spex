@@ -2,6 +2,7 @@ import { ContactsSkeleton } from "@/components/contacts/contacts-skeleton";
 import { ContactsToolbar } from "@/components/contacts/contacts-toolbar";
 import { ContactsList } from "@/components/contacts/contacts-list";
 import { ContactsPagination } from "@/components/contacts/contacts-pagination";
+import { ContactsHeaderActions } from "@/components/contacts/contacts-header-actions";
 import { PageHeader } from "@/components/layout/page-header";
 import { parseContactsFilters } from "@/lib/contacts/filters";
 import { getContactsDirectory } from "@/lib/queries";
@@ -19,7 +20,9 @@ export default async function ContactsPage({ params, searchParams }: Props) {
 
   return (
     <>
-      <PageHeader title="Контакты" />
+      <PageHeader title="Контакты">
+        <ContactsHeaderActions />
+      </PageHeader>
       <Suspense fallback={<ContactsSkeleton />}>
         <ContactsData orgSlug={orgSlug} searchParams={searchParams} />
       </Suspense>

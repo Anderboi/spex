@@ -31,9 +31,9 @@ export default async function OrgLayout({
         />
         <SidebarInset className="relative flex min-h-svh w-full min-w-0 flex-1 overflow-x-hidden bg-bg">
           {/* <div className="relative flex min-h-svh w-full min-w-0 flex-1 overflow-x-hidden bg-bg"> */}
-          <header className="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12">
+          {/* <header className="flex h-16 shrink-0 items-center gap-2 transition-[width,height] ease-linear group-has-data-[collapsible=icon]/sidebar-wrapper:h-12">
             <SidebarTrigger className="p-4" />
-          </header>
+          </header> */}
           <main className="w-full min-w-0 flex-1">{children}</main>
           {/* </div> */}
         </SidebarInset>

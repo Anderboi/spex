@@ -95,7 +95,7 @@ export function ContactDialog({
   // на него и вернёт устаревшее false.
   const isDirty = form.formState.isDirty;
   const { handleOpenChange } = useDialogDismissGuard({
-    onOpenChange: (val) => !val && onClose(),
+    onClose,
     hasChanges: isDirty,
   });
 

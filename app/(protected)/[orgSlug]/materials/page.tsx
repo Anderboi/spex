@@ -32,7 +32,7 @@ export default async function MaterialsLibraryPage({
     <>
       <PageHeader
         title="Библиотека материалов"
-        description="Сохраненные позиции и образцы для быстрого добавления в проекты"
+        // description="Сохраненные позиции и образцы для быстрого добавления в проекты"
       >
         <Button
           nativeButton={false}

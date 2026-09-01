@@ -149,30 +149,6 @@ export function ContactsList({
         role="toolbar"
         className={`flex flex-col gap-4 transition-opacity ${isPending ? "opacity-60" : ""}`}
       >
-        <div className="flex flex-wrap w-full justify-end items-center gap-2">
-          <Button
-            nativeButton={false}
-            render={
-              <Link
-                href={hrefFor("contact", { independent: "1" })}
-              />
-            }
-            variant="outline"
-            size="lg"
-            className="flex-1 whitespace-nowrap bg-bg sm:flex-none"
-          >
-            <UserPlus className="mr-1 size-4" /> Добавить специалиста
-          </Button>
-          <Button
-            nativeButton={false}
-            render={<Link href={hrefFor("company")} />}
-            size="lg"
-            className="flex-1 bg-fg whitespace-nowrap sm:flex-none"
-          >
-            <Plus className="mr-1 size-4" /> Добавить компанию
-          </Button>
-        </div>
-
         <div role="tablist" className="mb-4 flex gap-1 border-b border-border">
           <TabButton
             active={tab === "companies"}
@@ -244,9 +220,7 @@ export function ContactsList({
                 <Button
                   nativeButton={false}
                   render={
-                    <Link
-                      href={hrefFor("contact", { independent: "1" })}
-                    />
+                    <Link href={hrefFor("contact", { independent: "1" })} />
                   }
                 >
                   <UserPlus className="mr-2 size-4" /> Добавить контакт

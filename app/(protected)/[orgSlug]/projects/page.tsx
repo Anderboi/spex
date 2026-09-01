@@ -31,7 +31,7 @@ export default async function ProjectsPage({ params, searchParams }: Props) {
         <ProjectsToolbar />
       </div>
 
-      <div className="mt-3 flex items-center gap-2 flex-wrap">
+      {/* <div className="mt-3 flex items-center gap-2 flex-wrap">
         <div className="flex items-center gap-2 bg-bg-card border border-border-muted h-10 rounded-lg px-4">
           <span className="size-2 rounded-full bg-bg-green flex-none" />
           <span className="font-mono text-[13px] font-semibold text-fg">
@@ -55,7 +55,7 @@ export default async function ProjectsPage({ params, searchParams }: Props) {
           </span>
           <span className="text-[13px] text-fg-muted">общий бюджет</span>
         </div>
-      </div>
+      </div> */}
 
       <Suspense fallback={<ProjectsSkeleton />}>
         <ProjectsData orgSlug={orgSlug} searchParams={searchParams} />
