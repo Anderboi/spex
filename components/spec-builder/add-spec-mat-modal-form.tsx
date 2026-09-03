@@ -67,7 +67,9 @@ export default function AddModalForm({
   const [type, setType] = useState<SpecType | "Все типы">(
     variantMode && variantFor
       ? (variantFor.type as SpecType)
-      : ("Прочее" as SpecType),
+      : editing
+        ? editing.type
+        : "Все типы",
   );
   const [sort, setSort] = useState<SortKey>("default");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
@@ -179,10 +181,10 @@ export default function AddModalForm({
   return (
     <>
       <Dialog open onOpenChange={handleOpenChange}>
-        <DialogContent className="flex max-h-[92vh] flex-col gap-0 overflow-hidden rounded-[22px] bg-bg p-0 sm:max-w-180">
+        <DialogContent className="flex max-h-[92vh] h-[80svh] flex-col gap-0 overflow-hidden rounded-[22px] bg-bg p-0 sm:max-w-180">
           {/* ── шапка ───────────────────────────────────── */}
           <DialogHeader className="flex-row items-center gap-3 border-b border-border-subtle px-4 py-3">
-            <DialogTitle className="flex-1 text-[17px] tracking-[-.01em]">
+            <DialogTitle className="flex text-[17px] tracking-[-.01em]">
               {variantMode
                 ? `Вариант для ${variantFor?.code ?? "позиции"}`
                 : editing
@@ -248,7 +250,7 @@ export default function AddModalForm({
                     onChange={(e) => setQuery(e.target.value)}
                     aria-label="Поиск по библиотеке"
                     placeholder="Название, бренд, артикул…"
-                    className="h-11 bg-bg-card pr-9 text-[14px]"
+                    className="h-10 bg-bg-card pr-9 text-[14px]"
                   />
                   {query && (
                     <button
@@ -352,6 +354,7 @@ export default function AddModalForm({
                             on
                               ? "border-fg-brand bg-bg-brand/40"
                               : "border-border-muted bg-bg-card hover:border-border",
+                            isUsed(m) && "bg-bg-green-light",
                           )}
                         >
                           <span
@@ -412,7 +415,7 @@ export default function AddModalForm({
 
               {/* ── подвал ──────────────────────────────── */}
               {!editing && (
-                <div className="flex-none border-t border-border-subtle px-4 pb-3 pt-3">
+                <div className="flex-none border-t border-border-subtle p-4">
                   {pickedList.length > 0 && (
                     <div className="mb-2.5 flex gap-2 overflow-x-auto pb-1">
                       {pickedList.map((m) => (
@@ -462,7 +465,7 @@ export default function AddModalForm({
                     <Button
                       onClick={() => onAddFromLibrary(pickedList)}
                       disabled={picked.size === 0}
-                      className="h-auto flex-none gap-1.5 rounded-xl px-5 py-3 text-[15px] font-semibold"
+                      size="lg"
                     >
                       <Plus className="size-4" />
                       {picked.size > 0

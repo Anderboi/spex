@@ -16,6 +16,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { OrgRole, ROLE_LABELS } from "@/lib/permissions";
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "../ui/sidebar";
+import { useIsMobile } from '@/hooks/use-mobile';
 
 export type UserOrgItem = {
   id: string;
@@ -33,6 +34,7 @@ export function OrgSwitcher({
   organizations = [],
 }: OrgSwitcherProps) {
   const [isPending, startTransition] = useTransition();
+  const isMobile = useIsMobile();
   const pathname = usePathname();
 
   const currentOrg =
@@ -71,7 +73,7 @@ export function OrgSwitcher({
           <DropdownMenuContent
             align="start"
             className="bg-bg-card w-(--radix-dropdown-menu-trigger-width) min-w-56 rounded-lg"
-            // side={isMobile ? "bottom" : "right"} //TODO: add isMobile
+            side={isMobile ? "bottom" : "right"}
             sideOffset={4}
           >
             <DropdownMenuGroup>

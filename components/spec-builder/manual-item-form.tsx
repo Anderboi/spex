@@ -371,7 +371,7 @@ export function ManualItemForm({
       </div>
 
       <div className="flex flex-none gap-3 border-t border-border-subtle p-4">
-        <Button type="button" size="lg" variant="outline" onClick={onCancel}>
+        <Button type="button" size="lg" variant="ghost" onClick={onCancel}>
           Отмена
         </Button>
         <Button

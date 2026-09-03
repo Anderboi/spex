@@ -23,6 +23,8 @@ import {
 } from "@/components/ui/command";
 import { cn } from "@/lib/utils";
 import CopyButton from "../layout/copy-button";
+import Field from "../layout/modal-field";
+import { Avatar } from "../ui/avatar";
 
 export function SupplierPicker({
   companies,
@@ -71,98 +73,97 @@ export function SupplierPicker({
     : companies;
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-4 p-4">
       <div className="flex flex-col gap-1.5">
-        <span className="text-[11px] font-mono font-semibold uppercase tracking-wider text-fg-muted">
-          Компания
-        </span>
-        <Popover open={open} onOpenChange={setOpen}>
-          <PopoverTrigger
-            render={
-              <Button
-                variant="outline"
-                role="combobox"
-                aria-expanded={open}
-                className={cn(
-                  "h-10 w-full justify-between bg-bg-card font-normal",
-                  !company && "text-fg-muted",
-                )}
-              >
-                {company ? (
-                  <span className="truncate">{company.name}</span>
-                ) : (
-                  <span>Не указана</span>
-                )}
-                <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
-              </Button>
-            }
-          />
-          <PopoverContent className="w-full p-0 bg-bg-card" align="start">
-            <Command shouldFilter={false}>
-              <CommandInput
-                value={query}
-                onValueChange={setQuery}
-                placeholder="Поиск компании..."
-              />
-              <CommandList>
-                <CommandItem
-                  value="none"
-                  onSelect={() => {
-                    onChange(null, null);
-                    setOpen(false);
-                  }}
+        <Field label="Компания">
+          <Popover open={open} onOpenChange={setOpen}>
+            <PopoverTrigger
+              render={
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  aria-expanded={open}
+                  className={cn(
+                    "h-10 w-full justify-between bg-bg-card font-normal",
+                    !company && "text-fg-muted",
+                  )}
                 >
-                  <Check
-                    className={cn(
-                      "mr-2 h-4 w-4",
-                      !companyId ? "opacity-100" : "opacity-0",
-                    )}
-                  />
-                  <span className="text-muted-foreground">Не указана</span>
-                </CommandItem>
-                {filteredCompanies.map((c) => {
-                  const isSelected = companyId === c.id;
-                  return (
-                    <CommandItem
-                      key={c.id}
-                      value={c.id}
-                      onSelect={() => {
-                        onChange(c.id, null);
-                        setOpen(false);
-                      }}
-                    >
-                      <Check
-                        className={cn(
-                          "mr-2 h-4 w-4",
-                          isSelected ? "opacity-100" : "opacity-0",
-                        )}
-                      />
-                      <Building2 className="mr-2 h-4 w-4 text-muted-foreground" />
-                      <span className="truncate">{c.name}</span>
-                    </CommandItem>
-                  );
-                })}
-                {onCreateCompany && (
-                  <>
-                    <CommandSeparator />
-                    <CommandItem
-                      value="__create__"
-                      onSelect={() => {
-                        onCreateCompany(query.trim());
-                        setOpen(false);
-                      }}
-                    >
-                      <Plus className="mr-2 h-4 w-4 text-fg-brand" />
-                      {q && filteredCompanies.length === 0
-                        ? `Создать компанию «${query.trim()}»`
-                        : "Добавить компанию"}
-                    </CommandItem>
-                  </>
-                )}
-              </CommandList>
-            </Command>
-          </PopoverContent>
-        </Popover>
+                  {company ? (
+                    <span className="truncate">{company.name}</span>
+                  ) : (
+                    <span>Не указана</span>
+                  )}
+                  <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
+                </Button>
+              }
+            />
+            <PopoverContent className="w-full p-0 bg-bg-card" align="start">
+              <Command shouldFilter={false}>
+                <CommandInput
+                  value={query}
+                  onValueChange={setQuery}
+                  placeholder="Поиск компании..."
+                />
+                <CommandList>
+                  <CommandItem
+                    value="none"
+                    onSelect={() => {
+                      onChange(null, null);
+                      setOpen(false);
+                    }}
+                  >
+                    <Check
+                      className={cn(
+                        "mr-2 h-4 w-4",
+                        !companyId ? "opacity-100" : "opacity-0",
+                      )}
+                    />
+                    <span className="text-muted-foreground">Не указана</span>
+                  </CommandItem>
+                  {filteredCompanies.map((c) => {
+                    const isSelected = companyId === c.id;
+                    return (
+                      <CommandItem
+                        key={c.id}
+                        value={c.id}
+                        onSelect={() => {
+                          onChange(c.id, null);
+                          setOpen(false);
+                        }}
+                      >
+                        <Check
+                          className={cn(
+                            "mr-2 h-4 w-4",
+                            isSelected ? "opacity-100" : "opacity-0",
+                          )}
+                        />
+                        <Building2 className="mr-2 h-4 w-4 text-muted-foreground" />
+                        <span className="truncate">{c.name}</span>
+                      </CommandItem>
+                    );
+                  })}
+                  {onCreateCompany && (
+                    <>
+                      <CommandSeparator />
+                      <CommandItem
+                        value="__create__"
+                        onSelect={() => {
+                          onCreateCompany(query.trim());
+                          setOpen(false);
+                        }}
+                      >
+                        <Plus className="mr-2 h-4 w-4 text-fg-brand" />
+                        {q && filteredCompanies.length === 0
+                          ? `Создать компанию «${query.trim()}»`
+                          : "Добавить компанию"}
+                      </CommandItem>
+                    </>
+                  )}
+                </CommandList>
+              </Command>
+            </PopoverContent>
+          </Popover>
+        </Field>
       </div>
 
       {renamed && (
@@ -173,55 +174,63 @@ export function SupplierPicker({
         </p>
       )}
 
-      <label className="flex flex-col gap-1.5">
-        <span className="text-[11px] font-semibold font-mono uppercase tracking-wider text-fg-muted">
-          Менеджер
-        </span>
-        <select
-          value={contactId ?? ""}
-          onChange={(e) => onChange(companyId, e.target.value || null)}
-          className="h-10 rounded-lg border border-border-muted bg-bg-card px-2 text-sm"
-        >
-          <option value="">Не указан</option>
-          {available.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
-        </select>
-      </label>
+      <div className="flex flex-col gap-1.5">
+        <Field label="Менеджер">
+          <select
+            value={contactId ?? ""}
+            onChange={(e) => onChange(companyId, e.target.value || null)}
+            className="h-10 rounded-lg border border-border-muted bg-bg-card px-2 text-sm"
+          >
+            <option value="">Не указан</option>
+            {available.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
+          </select>
+        </Field>
+      </div>
 
       {company && (
         <div className="rounded-lg border border-border-muted bg-bg-card2 p-3 text-[13px]">
-          <p className="font-medium text-lg w-full text-center pb-2">
-            {company.name}
-          </p>
-          {company.phone && (
-            <ContactDataField label="Телефон">
-              <a
-                href={`tel:${company.phone}`}
-                className="block text-fg-brand hover:underline col-span-2"
-              >
-                {company.phone}
-              </a>
-            </ContactDataField>
-          )}
-          {company.email && (
-            <ContactDataField label="Эл. почта">
-              <a
-                href={`mailto:${company.email}`}
-                className="block text-fg-brand hover:underline col-span-2"
-              >
-                {company.email}
-              </a>
-            </ContactDataField>
-          )}
-          {company.address && (
-            <ContactDataField label="Адрес">
-              <span>{company.address}</span>
-              <CopyButton textToCopy={company.address} />
-            </ContactDataField>
-          )}
+          <div className="flex gap-4">
+            <div className="flex flex-col items-center gap-2 p-4">
+              <Avatar size="lg" />
+              <p className="font-medium text-lg w-full text-center">
+                {company.name}
+              </p>
+            </div>
+            <div className="flex flex-col items-start gap-1">
+              {company.phone && (
+                <ContactDataField label="Телефон">
+                  <a
+                    href={`tel:${company.phone}`}
+                    className="block text-fg-brand hover:underline col-span-2"
+                  >
+                    {company.phone}
+                  </a>
+                </ContactDataField>
+              )}
+              {company.email && (
+                <ContactDataField label="Эл. почта">
+                  <a
+                    href={`mailto:${company.email}`}
+                    className="block text-fg-brand hover:underline col-span-2"
+                  >
+                    {company.email}
+                  </a>
+                </ContactDataField>
+              )}
+              {company.address && (
+                <ContactDataField label="Адрес">
+                  <span className="block text-fg-brand hover:underline col-span-2">
+                    {company.address}
+                  </span>
+                  <CopyButton textToCopy={company.address} />
+                </ContactDataField>
+              )}
+            </div>
+          </div>
         </div>
       )}
       {contact && (
