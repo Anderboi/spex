@@ -49,9 +49,9 @@ export function AppSidebar({
       <SidebarHeader className="font-heading text-xl flex flex-row items-center justify-between">
         {/* <span className="group-data-[collapsible=icon]:hidden truncate font-semibold">
           Spex
-        </span>
-        <SidebarTrigger /> */}{" "}
+        </span> */}
         <OrgSwitcher currentSlug={currentSlug} organizations={organizations} />
+        {/* <SidebarTrigger /> */}
       </SidebarHeader>
       {/* <SidebarSeparator className='w-full'/> */}
       <SidebarContent>

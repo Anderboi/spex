@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import {
   Plus,
   Search,
@@ -9,10 +9,10 @@ import {
   AlertCircle,
   Loader2,
   Check,
-  MoreVertical,
 } from "lucide-react";
 import { useSpecBuilder } from "@/hooks/use-spec-builder";
 import { useMediaQuery } from "@/hooks/use-media-query";
+import { useDialogUrl } from "@/hooks/use-dialog-url";
 import { GroupSection } from "./group-section";
 import { DetailModal } from "./spec-mat-detail-modal";
 import { CodeConflictDialog } from "./code-conflict-dialog";
@@ -29,16 +29,8 @@ import { fmt, plural, cn } from "@/lib/utils";
 import { SpecItem } from "@/lib/types";
 import BottomBar from "./bottom-bar";
 import AddModalForm from "./add-spec-mat-modal-form";
-import PageTitle from "../layout/page-title";
 import { ProcureModal } from "./procure-modal";
 import { SpecSummary } from "./spec-summary";
-import { Button } from "../ui/button";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "../ui/dropdown-menu";
 
 export default function SpecBuilder({
   orgSlug,
@@ -66,6 +58,38 @@ export default function SpecBuilder({
   const ctx = useSpecBuilder({ orgSlug, projectId, initialItems });
   const isDesktop = useMediaQuery("(min-width: 820px)");
 
+  // Диалоги из шапки страницы открываются через URL (?dialog=add|procure|summary),
+  // здесь синхронизируем URL с внутренним состоянием модалки (useSpecBuilder).
+  const { value: dialog, close: closeDialog } = useDialogUrl("dialog");
+
+  // URL → модалка: появление ?dialog=add|procure|summary открывает соответствующую
+  // модалку, исчезновение параметра (браузерный Back, прямая ссылка) — закрывает её.
+  // ctx намеренно не в deps: он новый на каждом рендере, а добавление в deps
+  // заставило бы эффект перезапускаться и закрывать открытые вручную модалки.
+  useEffect(() => {
+    const v = dialog;
+    if (v === "add" || v === "procure" || v === "summary") {
+      ctx.closeModal();
+      if (v === "add") ctx.openAdd(null);
+      else if (v === "procure") ctx.openProcure();
+      else if (v === "summary") ctx.openSummary();
+    } else {
+      ctx.closeModal();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dialog]);
+
+  // Модалка закрылась (Escape/сохранение), а в URL остался ?dialog=… → чистим URL,
+  // чтобы после перезагрузки страницы диалог не открывался заново.
+  const prevModalKindRef = useRef(ctx.modal.kind);
+  useEffect(() => {
+    const prev = prevModalKindRef.current;
+    prevModalKindRef.current = ctx.modal.kind;
+    if (prev !== "none" && ctx.modal.kind === "none" && dialog) {
+      closeDialog();
+    }
+  }, [ctx.modal.kind, dialog, closeDialog]);
+
   const handlers = useMemo<SpecRowHandlers>(
     () => ({
       onOpen: ctx.openDetail,
@@ -91,85 +115,30 @@ export default function SpecBuilder({
     project.budget !== null && ctx.stats.totalSum > project.budget;
 
   return (
-    <div className="relative min-h-screen w-full min-w-0 overflow-x-hidden bg-bg px-4 pb-36 text-fg sm:px-6 md:px-10">
-      {/* ── шапка ─────────────────────────────────────────── */}
-      <header className="flex flex-wrap items-start gap-3 pt-6">
-        <div className="min-w-0 flex-1">
-          <PageTitle>{project.title}</PageTitle>
-          <p className="mt-0.5 flex flex-wrap items-center gap-x-2 text-[13px] text-fg-muted">
-            {project.client_name && (
-              <span className="truncate">{project.client_name}</span>
+    <div className="relative min-h-screen w-full min-w-0 overflow-x-hidden bg-bg pb-36 text-fg">
+      {/* ── статус и статистика (шапка на странице: PageHeader) ── */}
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pt-6 text-[13px] text-fg-muted">
+        <SaveIndicator status={ctx.saveStatus} error={ctx.saveError} />
+        {project.client_name && (
+          <span className="truncate">{project.client_name}</span>
+        )}
+        <span>
+          {ctx.items.length}{" "}
+          {plural(ctx.items.length, "позиция", "позиции", "позиций")}
+        </span>
+        {project.budget !== null && (
+          <span
+            className={cn(
+              "tabular-nums",
+              overBudget && "font-semibold text-fg-red",
             )}
-            <span>
-              {ctx.items.length}{" "}
-              {plural(ctx.items.length, "позиция", "позиции", "позиций")}
-            </span>
-            {project.budget !== null && (
-              <span
-                className={cn(
-                  "tabular-nums",
-                  overBudget && "font-semibold text-fg-red",
-                )}
-              >
-                {fmt(ctx.stats.totalSum)} из {fmt(project.budget)} ₽
-                {overBudget &&
-                  ` · перерасход ${fmt(ctx.stats.totalSum - project.budget)} ₽`}
-              </span>
-            )}
-          </p>
-        </div>
-
-        <div className="flex shrink-0 items-center gap-2">
-          <SaveIndicator status={ctx.saveStatus} error={ctx.saveError} />
-
-          {/* web view */}
-          <div className="hidden items-center gap-2 md:flex">
-            <Button
-              variant="outline"
-              onClick={ctx.openProcure}
-              className="flex h-10 items-center gap-1.5 rounded-lg border border-border-muted bg-bg-card px-3 text-[13.5px] font-semibold text-fg hover:border-fg"
-            >
-              Закупка
-            </Button>
-
-            <Button
-              variant="outline"
-              onClick={ctx.openSummary}
-              className="flex h-10 items-center gap-1.5 rounded-lg border border-border-muted bg-bg-card px-3 text-[13.5px] font-semibold text-fg hover:border-fg"
-            >
-              Сводка
-            </Button>
-          </div>
-
-          <div className="flex items-center gap-2 md:hidden">
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                render={
-                  <Button type="button" size="icon-lg" variant="outline">
-                    <MoreVertical className="size-4" />
-                  </Button>
-                }
-              ></DropdownMenuTrigger>
-              <DropdownMenuContent>
-                <DropdownMenuItem onClick={ctx.openProcure}>
-                  Закупка
-                </DropdownMenuItem>
-                <DropdownMenuItem onClick={ctx.openSummary}>
-                  Сводка
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => ctx.openAdd(null)}
-            className="flex h-9 items-center gap-1.5 rounded-lg bg-bg-accent px-4 text-[13.5px] font-semibold text-bg"
           >
-            <Plus className="size-4" /> Добавить
-          </button>
-        </div>
-      </header>
+            {fmt(ctx.stats.totalSum)} из {fmt(project.budget)} ₽
+            {overBudget &&
+              ` · перерасход ${fmt(ctx.stats.totalSum - project.budget)} ₽`}
+          </span>
+        )}
+      </div>
 
       {/* ── поиск и сортировка ────────────────────────────── */}
       <div className="mt-4 flex gap-2">

@@ -7,7 +7,7 @@ import { SearchBlock } from '../layout/search-block';
 export function MaterialsToolbar({ brands }: { brands: string[] }) {
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3 mt-5">
         <SearchBlock
           className="min-w-60 flex-1"
           placeholder="Поиск по материалам, артикулам, брендам…"
