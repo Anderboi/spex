@@ -202,6 +202,7 @@ export const specItemPatchSchema = z
     materialId: z.string().uuid().nullable(),
     companyId: z.string().uuid().nullable(),
     contactId: z.string().uuid().nullable(),
+    parentId: z.string().uuid().nullable().optional(),
     code: z.string().regex(CODE_PATTERN, "Формат марки: «О-03»"),
     type: z.enum(TYPE_ORDER),
     name: z.string().trim().max(300),
@@ -229,7 +230,7 @@ export const specItemPatchSchema = z
   .partial()
   .strip();
 
-export type SpecItemPatch = z.infer<typeof specItemPatchSchema>;
+// export type SpecItemPatch = z.infer<typeof specItemPatchSchema>;
 
 /** Патч варианта спецификации: редактируемые поля, служебные ключи отбрасываются. */
 export const specVariantPatchSchema = z

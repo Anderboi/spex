@@ -1,7 +1,6 @@
 import type { Tables, TablesUpdate } from "@/lib/supabase/database.types";
-import type { SpecItemPatch } from "@/lib/validations";
 import { one } from "../utils";
-import { SpecItem } from "../types";
+import { SpecItem, SpecItemPatch } from "../types";
 import { SpecStatus, SpecType } from "../constants";
 
 type ContactRel = {
@@ -12,7 +11,6 @@ type ContactRel = {
 };
 type MaterialRel = { id: string; name: string; image_url: string | null };
 export type SpecItemRowPatch = TablesUpdate<"spec_items">;
-
 
 /** Строка spec_items вместе со связями из select(). */
 export type SpecItemRowWithRelations = Tables<"spec_items"> & {
@@ -58,34 +56,9 @@ export function rowToItem(r: SpecItemRowWithRelations): SpecItem {
     stockPct: Number(r.stock_pct ?? 0),
     clientDiscountPct: Number(r.client_discount_pct ?? 0),
     supplierDiscountPct: Number(r.supplier_discount_pct ?? 0),
-    
-    
+    parentId: r.parent_id,
   };
 }
-
-/** camelCase-патч → колонки БД. Неизвестные ключи отбрасываются. */
-// const FIELD_MAP: Record<keyof SpecItemPatch, string> = {
-//   materialId: "material_id",
-//   companyId: "company_id",
-//   contactId: "contact_id",
-//   code: "code",
-//   type: "type",
-//   name: "name",
-//   brand: "brand",
-//   spec: "spec",
-//   article: "article",
-//   qty: "qty",
-//   unit: "unit",
-//   price: "price",
-//   status: "status",
-//   isPlaceholder: "is_placeholder",
-//   position: "position",
-//   rooms: "rooms",
-//   notes: "notes",
-//   leadTime: "lead_time",
-//   avail: "avail",
-//   attrs: "attrs",
-// };
 
 export function patchToRow(p: SpecItemPatch): SpecItemRowPatch {
   const r: SpecItemRowPatch = {};
@@ -115,9 +88,12 @@ export function patchToRow(p: SpecItemPatch): SpecItemRowPatch {
     r.client_discount_pct = p.clientDiscountPct;
   if (p.supplierDiscountPct !== undefined)
     r.supplier_discount_pct = p.supplierDiscountPct;
-  if(p.product_url !== undefined) r.product_url = p.product_url;
-  if(p.product_type !== undefined) r.product_type = p.product_type;
+  if (p.product_url !== undefined) r.product_url = p.product_url;
+  if (p.product_type !== undefined) r.product_type = p.product_type;
   if (p.imageUrl !== undefined) r.image_url = p.imageUrl;
+  if (p.parentId !== undefined) {
+    r.parent_id = p.parentId;
+  }
 
   return r;
 }

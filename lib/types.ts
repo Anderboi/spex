@@ -208,6 +208,7 @@ export type SpecItem = {
   product_type: string;
   variants: SpecVariant[];
   activeVariantId: string | null;
+  parentId: string | null;
 };
 
 export type SpecItemPatch = Partial<Omit<SpecItem, "id" | "projectId">>;

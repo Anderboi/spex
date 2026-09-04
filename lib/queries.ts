@@ -742,37 +742,6 @@ export type UserOrganization = {
 
 //* Teams */
 
-// export async function getUserOrganizations(): Promise<UserOrganization[]> {
-//   const { userId, orgId: activeOrgId } = await requireOrg();
-//   const supabase = createAdminClient();
-
-//   const { data, error } = await supabase
-//     .from("organization_members")
-//     .select(
-//       `
-//       role,
-//       organizations:org_id (
-//         id,
-//         name
-//       )
-//     `,
-//     )
-//     .eq("user_id", userId);
-
-//   if (error) {
-//     console.error("[getUserOrganizations] Database error:", error.message);
-//     throw new Error("Не удалось загрузить список организаций");
-//   }
-
-//   return (data ?? []).map((item: any) => ({
-//     id: item.organizations.id,
-//     name: item.organizations.name,
-//     role: item.role,
-//     slug: item.organizations.slug,
-//     is_active: item.organizations.id === activeOrgId,
-//   }));
-// }
-
 export type TeamMember = {
   user_id: string;
   role: OrgRole;
