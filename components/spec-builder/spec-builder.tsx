@@ -2,13 +2,9 @@
 
 import { useEffect, useMemo, useRef } from "react";
 import {
-  Plus,
   Search,
   ArrowUpDown,
-  PackageSearch,
   AlertCircle,
-  Loader2,
-  Check,
 } from "lucide-react";
 import { useSpecBuilder } from "@/hooks/use-spec-builder";
 import { useMediaQuery } from "@/hooks/use-media-query";
@@ -31,6 +27,10 @@ import BottomBar from "./bottom-bar";
 import AddModalForm from "./add-spec-mat-modal-form";
 import { ProcureModal } from "./procure-modal";
 import { SpecSummary } from "./spec-summary";
+import EmptyFilter from "./empty-filter";
+import EmptyProject from "./empty-project";
+import TypeChip from "../layout/type-chip";
+import SaveIndicator from "../layout/save-indicator";
 
 export default function SpecBuilder({
   orgSlug,
@@ -58,14 +58,8 @@ export default function SpecBuilder({
   const ctx = useSpecBuilder({ orgSlug, projectId, initialItems });
   const isDesktop = useMediaQuery("(min-width: 820px)");
 
-  // Диалоги из шапки страницы открываются через URL (?dialog=add|procure|summary),
-  // здесь синхронизируем URL с внутренним состоянием модалки (useSpecBuilder).
   const { value: dialog, close: closeDialog } = useDialogUrl("dialog");
 
-  // URL → модалка: появление ?dialog=add|procure|summary открывает соответствующую
-  // модалку, исчезновение параметра (браузерный Back, прямая ссылка) — закрывает её.
-  // ctx намеренно не в deps: он новый на каждом рендере, а добавление в deps
-  // заставило бы эффект перезапускаться и закрывать открытые вручную модалки.
   useEffect(() => {
     const v = dialog;
     if (v === "add" || v === "procure" || v === "summary") {
@@ -79,8 +73,6 @@ export default function SpecBuilder({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dialog]);
 
-  // Модалка закрылась (Escape/сохранение), а в URL остался ?dialog=… → чистим URL,
-  // чтобы после перезагрузки страницы диалог не открывался заново.
   const prevModalKindRef = useRef(ctx.modal.kind);
   useEffect(() => {
     const prev = prevModalKindRef.current;
@@ -495,111 +487,6 @@ export default function SpecBuilder({
           )}
         </div>
       )}
-    </div>
-  );
-}
-
-/* ---------------------------------------------------------------- */
-
-function TypeChip({
-  label,
-  count,
-  active,
-  onClick,
-}: {
-  label: string;
-  count: number;
-  active: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        "flex h-8 shrink-0 items-center gap-1.5 rounded-full border px-3 text-[12.5px] transition-colors",
-        active
-          ? "border-fg-brand bg-bg-brand font-semibold"
-          : "border-border-muted text-fg-secondary",
-      )}
-    >
-      {label}
-      <span className="text-[11px] opacity-60">{count}</span>
-    </button>
-  );
-}
-
-function SaveIndicator({
-  status,
-  error,
-}: {
-  status: string;
-  error: string | null;
-}) {
-  if (status === "error") {
-    return (
-      <span
-        role="alert"
-        className="flex items-center gap-1.5 text-[12.5px] text-fg-red"
-        title={error ?? ""}
-      >
-        <AlertCircle className="size-3.5" /> Не сохранено
-      </span>
-    );
-  }
-  if (status === "saving") {
-    return (
-      <span className="flex items-center gap-1.5 text-[12.5px] text-fg-muted">
-        <Loader2 className="size-3.5 animate-spin" /> Сохранение
-      </span>
-    );
-  }
-  if (status === "saved") {
-    return (
-      <span className="flex items-center gap-1.5 text-[12.5px] text-fg-muted">
-        <Check className="size-3.5" /> Сохранено
-      </span>
-    );
-  }
-  return null;
-}
-
-function EmptyProject({ onAdd }: { onAdd: () => void }) {
-  return (
-    <div className="mt-8 rounded-2xl border border-dashed border-border-muted py-20 text-center">
-      <PackageSearch className="mx-auto size-10 text-fg-muted" />
-      <p className="mt-4 font-heading text-lg font-semibold">
-        Спецификация пуста
-      </p>
-      <p className="mx-auto mt-1.5 max-w-md text-pretty text-[14px] text-fg-muted">
-        Добавьте материалы из библиотеки или заведите пустые марки — заполните
-        их, когда определитесь с подбором.
-      </p>
-      <button
-        type="button"
-        onClick={onAdd}
-        className="mt-5 inline-flex h-10 items-center gap-2 rounded-xl bg-bg-accent px-5 text-[14px] font-semibold text-bg"
-      >
-        <Plus className="size-4" /> Добавить позиции
-      </button>
-    </div>
-  );
-}
-
-function EmptyFilter({ onReset }: { onReset: () => void }) {
-  return (
-    <div className="py-20 text-center">
-      <p className="font-heading text-lg font-semibold">Ничего не найдено</p>
-      <p className="mt-1.5 text-[14px] text-fg-muted">
-        Измените запрос или сбросьте фильтры.
-      </p>
-      <button
-        type="button"
-        onClick={onReset}
-        className="mt-5 rounded-xl bg-bg-accent px-5 py-2.5 text-[14px] font-semibold text-bg"
-      >
-        Сбросить фильтры
-      </button>
     </div>
   );
 }

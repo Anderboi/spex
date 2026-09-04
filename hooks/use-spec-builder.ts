@@ -615,6 +615,7 @@ export function useSpecBuilder({
       product_type: "",
       activeVariantId: null,
       variants: [],
+      parentId: null,
       ...over,
     }),
     [projectId],

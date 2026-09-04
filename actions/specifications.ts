@@ -8,13 +8,13 @@ import { ok, fail, type ActionResult } from "@/lib/action-result";
 import {
   ManualSpecItemInput,
   manualSpecItemSchema,
-  SpecItemPatch,
   specItemPatchSchema,
 } from "@/lib/validations";
 import { patchToRow } from "@/lib/spec/mappers";
 import { callRpc } from "@/lib/supabase/rpc";
 import { TablesInsert } from "@/lib/supabase/database.types";
 import { SpecType } from "@/lib/constants";
+import { SpecItemPatch } from '@/lib/types';
 
 async function assertProject(orgSlug: string, projectId: string) {
   const ctx = await requireOrgBySlug(orgSlug);
