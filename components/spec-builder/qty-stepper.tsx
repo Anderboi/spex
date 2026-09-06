@@ -1,5 +1,12 @@
 "use client";
 import { Minus, Plus } from "lucide-react";
+import { Button } from "../ui/button";
+import { ButtonGroup } from "../ui/button-group";
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+} from "../ui/input-group";
 
 export function QtyStepper({
   qty,
@@ -15,28 +22,37 @@ export function QtyStepper({
   onChange: (d: number) => void;
 }) {
   return (
-    <div className="flex items-center gap-1">
-      <button
-        type="button"
+    <ButtonGroup>
+      <Button
+        className="size-7 bg-bg-card"
+        size="sm"
+        variant="outline"
         onClick={() => onChange(-1)}
         disabled={qty <= 1}
         aria-label="Уменьшить количество"
-        className="flex size-6 items-center justify-center rounded border border-border-muted text-fg-secondary disabled:opacity-35"
       >
         <Minus className="size-3" />
-      </button>
-      <span className="min-w-14 text-center font-mono text-[13px] tabular-nums">
-        {qty}
-        {showUnit && <span className="text-[11px] ml-1 text-fg-muted">{unit}</span>}
-      </span>
-      <button
-        type="button"
+      </Button>
+      <InputGroup className="h-7 min-w-14 items-center bg-bg-card">
+        <InputGroupInput
+          className="text-center font-mono text-[12px] tabular-nums"
+          value={qty}
+        />
+        <InputGroupAddon align="inline-end">
+          {showUnit && (
+            <span className="text-[11px] ml-1 text-fg-muted">{unit}</span>
+          )}
+        </InputGroupAddon>
+      </InputGroup>
+      <Button
+        size="sm"
+        className="size-7 bg-bg-card"
+        variant="outline"
         onClick={() => onChange(1)}
         aria-label="Увеличить количество"
-        className="flex size-6 items-center justify-center rounded border border-border-muted text-fg-secondary"
       >
         <Plus className="size-3" />
-      </button>
-    </div>
+      </Button>
+    </ButtonGroup>
   );
 }
