@@ -180,6 +180,8 @@ export async function createManualSpecItem(
     itemId: string;
     materialId: string | null;
     code: string;
+    /** Родитель создаваемой позиции (null — обычное создание без родителя). */
+    parentId?: string | null;
   },
 ): Promise<ActionResult<null>> {
   const parsed = manualSpecItemSchema.safeParse(payload);
@@ -216,6 +218,7 @@ export async function createManualSpecItem(
     p_supplier_discount_pct: d.supplierDiscountPct,
     p_save_to_library: saveToLibrary,
     p_image_url: d.imageUrl,
+    p_parent_id: payload.parentId ?? null,
   });
 
   if (error) {

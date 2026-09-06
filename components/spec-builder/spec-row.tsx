@@ -1,7 +1,7 @@
 "use client";
 
 import { memo } from "react";
-import { Copy, Eraser, MoreHorizontal, Share2, Trash2 } from "lucide-react";
+import { Copy, Eraser, MoreHorizontal, Plus, Share2, Trash2 } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -22,6 +22,7 @@ import { QtyStepper } from "./qty-stepper";
 import { priceOf } from "@/lib/spec/pricing";
 import Image from "next/image";
 import { VariantSwitcher } from './variant-switcher';
+import { ParentSubMenu } from './parent-submenu';
 
 export type SpecRowHandlers = {
   onOpen: (id: string) => void;
@@ -32,9 +33,11 @@ export type SpecRowHandlers = {
   onToggleSel: (id: string) => void;
   onToggleSelGroup: (ids: string[]) => void;
   onDuplicate: (id: string) => void;
+  onAddChild: (parentId: string) => void;
   onClear: (id: string) => void;
   onDelete: (id: string) => void;
   onShare: (item: SpecItem) => void;
+  onSetParent: (id: string, parentId: string | null) => void;
   onFill: (id: string) => void;
   onSwitchVariant: (id: string, variantId: string) => void;
   onAddVariant: (id: string) => void;
@@ -42,10 +45,12 @@ export type SpecRowHandlers = {
 
 export const SpecRow = memo(function SpecRow({
   item,
+  allItems,
   selected,
   h,
 }: {
   item: SpecItem;
+  allItems: SpecItem[];
   selected: boolean;
   h: SpecRowHandlers;
 }) {
@@ -69,19 +74,19 @@ export const SpecRow = memo(function SpecRow({
           aria-label={`Выбрать ${item.code}`}
         />
       </td>
-      <td className='py-2'>
+      <td className="p-2">
         {item.imageUrl ? (
           <Image
             src={item.imageUrl}
             alt={item.name}
             // fill
-            height={48}
-            width={48}
+            height={64}
+            width={64}
             // sizes="(max-width: 768px) 100vw, 33vw"
             className="object-cover border rounded-lg"
           />
         ) : (
-          <div className="size-12 bg-bg-brand2/50 border rounded-lg"></div>
+          <div className="size-16 bg-bg-brand2/50 border rounded-lg"></div>
         )}
       </td>
       <td className="px-2">
@@ -145,8 +150,8 @@ export const SpecRow = memo(function SpecRow({
           )}
         </div>
       </td>
-      <td className="px-2 text-right align-middle">
-        <div className="flex flex-col items-end leading-tight">
+      <td className="px-2 text-left align-middle">
+        <div className="flex flex-col items-start leading-tight">
           <PriceField
             value={p.priceFinal}
             readOnly={p.hasPriceMod}
@@ -187,6 +192,17 @@ export const SpecRow = memo(function SpecRow({
               className="text-[13px]"
             >
               Открыть карточку
+            </DropdownMenuItem>
+            <ParentSubMenu
+              item={item}
+              allItems={allItems}
+              onSetParent={(parentId) => h.onSetParent(item.id, parentId)}
+            />
+            <DropdownMenuItem
+              onClick={() => h.onAddChild(item.id)}
+              className="gap-2 text-[13px]"
+            >
+              <Plus className="size-3.5" /> Добавить субэлемент
             </DropdownMenuItem>
             <DropdownMenuItem
               onClick={() => h.onDuplicate(item.id)}

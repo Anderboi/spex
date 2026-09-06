@@ -35,6 +35,7 @@ import {
 import { SPEC_STATUS_CONFIG } from "@/lib/spec/status";
 import { applyActiveVariant } from "@/lib/spec/variants";
 import { round2, sumItems } from "@/lib/spec/pricing";
+import { setSpecItemParent } from "@/lib/spec/tree";
 import type { MaterialListItem, SpecPickerCompany } from "@/lib/queries";
 import type { ManualSpecItemInput } from "@/lib/validations";
 
@@ -52,7 +53,7 @@ export type Toast = {
 export type Modal =
   | { kind: "none" }
   | { kind: "detail"; id: string }
-  | { kind: "add"; editId: string | null }
+  | { kind: "add"; editId: string | null; parentId: string | null }
   | { kind: "add-variant"; itemId: string }
   | { kind: "delete"; ids: string[] }
   | { kind: "procure" }
@@ -158,6 +159,36 @@ export function useSpecBuilder({
       ids.forEach((id) => persist.push(id, patch));
     },
     [persist],
+  );
+
+  /**
+   * Назначить/снять родителя позиции (parentId) — без UI.
+   * Валидация (нет позиции, самоссылка, отсутствующий родитель, цикл)
+   * выполняется в setSpecItemParent и здесь не дублируется: невалидная
+   * операция возвращает исходный массив — состояние и очередь не меняются,
+   * пользователю показывается toast. Возвращает true при успешном изменении.
+   */
+  const setItemParent = useCallback(
+    (itemId: string, parentId: string | null): boolean => {
+      const unchanged =
+        setSpecItemParent(itemsRef.current, itemId, parentId) ===
+        itemsRef.current;
+
+      if (unchanged) {
+        // no-op: родитель уже такой, как просят — это не ошибка
+        const target = itemsRef.current.find((i) => i.id === itemId);
+        if (target?.parentId === parentId) return true;
+        showToast(
+          "Нельзя назначить родителя: позиция не найдена, самоссылка или цикл",
+        );
+        return false;
+      }
+
+      // единственный путь записи: локально + патч в очередь persistence
+      updateItem(itemId, { parentId });
+      return true;
+    },
+    [updateItem, showToast],
   );
 
   const setStatus = useCallback(
@@ -642,16 +673,19 @@ export function useSpecBuilder({
   );
 
   const addPlaceholder = useCallback(
-    (type: SpecType) => {
+    (type: SpecType, parentId: string | null = null) => {
       const [code] = nextCodes(type, 1);
-      commitNew([blank(type, code)], `Добавлена пустая позиция · ${code}`);
+      commitNew(
+        [blank(type, code, { parentId })],
+        `Добавлена пустая позиция · ${code}`,
+      );
     },
     [nextCodes, blank, commitNew],
   );
 
   /** Добавление из библиотеки материалов. Снапшоты поставщика/контакта проставит сервер. */
   const addFromLibrary = useCallback(
-    (materials: MaterialListItem[]) => {
+    (materials: MaterialListItem[], parentId: string | null = null) => {
       if (materials.length === 0) return;
 
       const byType = new Map<SpecType, MaterialListItem[]>();
@@ -677,6 +711,7 @@ export function useSpecBuilder({
               price: Number(m.price ?? 0),
               companyId: m.companyId ?? null,
               contactId: m.contactId ?? null,
+              parentId,
               status: "picked",
               isPlaceholder: false,
             }),
@@ -717,7 +752,7 @@ export function useSpecBuilder({
 
   /** Ручное создание позиции (с опциональным сохранением материала в библиотеку). */
   const addManual = useCallback(
-    (input: ManualSpecItemInput) => {
+    (input: ManualSpecItemInput, parentId: string | null = null) => {
       const [code] = nextCodes(input.type, 1);
       const itemId = crypto.randomUUID();
       const materialId = input.saveToLibrary ? crypto.randomUUID() : null;
@@ -737,6 +772,7 @@ export function useSpecBuilder({
         supplierDiscountPct: input.supplierDiscountPct,
         companyId: input.companyId,
         imageUrl: input.imageUrl,
+        parentId,
         status: input.price > 0 ? "picked" : "draft",
         isPlaceholder: false,
       });
@@ -749,6 +785,7 @@ export function useSpecBuilder({
           itemId,
           materialId,
           code,
+          parentId,
         });
         if (!res.success) {
           setItems((prev) => prev.filter((i) => i.id !== itemId));
@@ -988,6 +1025,11 @@ export function useSpecBuilder({
         a.code.localeCompare(b.code, "ru", { numeric: true }),
       );
     }
+
+    // В основной таблице показываем все SpecItem, в том числе дочерние:
+    // parentId — обычная связь SpecItem → SpecItem, а не принадлежность
+    // «составу» (для него есть отдельная таблица spec_item_components,
+    // строки которой не попадают в ctx.items и в эту таблицу).
     return sorted;
   }, [
     items,
@@ -1117,7 +1159,8 @@ export function useSpecBuilder({
     [],
   );
   const openAdd = useCallback(
-    (editId: string | null = null) => setModal({ kind: "add", editId }),
+    (editId: string | null = null, parentId: string | null = null) =>
+      setModal({ kind: "add", editId, parentId }),
     [],
   );
   const openDelete = useCallback(
@@ -1184,6 +1227,7 @@ export function useSpecBuilder({
     // запись
     updateItem,
     updateMany,
+    setItemParent,
     setStatus,
     incQty,
     setQty,

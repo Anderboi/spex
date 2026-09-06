@@ -36,6 +36,7 @@ export default function AddModalForm({
   companies,
   orgSlug,
   editing,
+  parentId = null,
   onClose,
   onAddFromLibrary,
   onFillFromLibrary,
@@ -50,10 +51,15 @@ export default function AddModalForm({
   companies: SpecPickerCompany[];
   orgSlug: string;
   editing: SpecItem | null;
+  /** Родитель создаваемого субэлемента (null — обычное добавление). */
+  parentId?: string | null;
   onClose: () => void;
-  onAddFromLibrary: (materials: MaterialListItem[]) => void;
+  onAddFromLibrary: (
+    materials: MaterialListItem[],
+    parentId: string | null,
+  ) => void;
   onFillFromLibrary: (material: MaterialListItem) => void;
-  onAddManual: (input: ManualSpecItemInput) => void;
+  onAddManual: (input: ManualSpecItemInput, parentId: string | null) => void;
   onFillManual: (input: ManualSpecItemInput) => void;
   variantMode?: boolean;
   variantFor?: SpecItem | null;
@@ -64,12 +70,15 @@ export default function AddModalForm({
   );
   const [manualDirty, setManualDirty] = useState(false);
   const [query, setQuery] = useState("");
+  const parentItem = parentId
+    ? (items.find((i) => i.id === parentId) ?? null)
+    : null;
   const [type, setType] = useState<SpecType | "Все типы">(
     variantMode && variantFor
       ? (variantFor.type as SpecType)
       : editing
         ? editing.type
-        : "Все типы",
+        : (parentItem?.type ?? "Все типы"),
   );
   const [sort, setSort] = useState<SortKey>("default");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
@@ -226,7 +235,10 @@ export default function AddModalForm({
               variantMode={variantMode}
               variantFor={variantFor}
               onDirtyChange={setManualDirty}
-              onSubmit={(d) => (editing ? onFillManual(d) : onAddManual(d))}
+              defaultType={parentItem?.type}
+              onSubmit={(d) =>
+                editing ? onFillManual(d) : onAddManual(d, parentId)
+              }
             />
           ) : (
             <>
@@ -463,7 +475,7 @@ export default function AddModalForm({
                       )}
                     </p>
                     <Button
-                      onClick={() => onAddFromLibrary(pickedList)}
+                      onClick={() => onAddFromLibrary(pickedList, parentId)}
                       disabled={picked.size === 0}
                       size="lg"
                     >

@@ -683,6 +683,7 @@ export type Database = {
       }
       spec_item_components: {
         Row: {
+          additional_cost: number | null
           company_id: string | null
           contact_id: string | null
           cost: number | null
@@ -699,6 +700,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          additional_cost?: number | null
           company_id?: string | null
           contact_id?: string | null
           cost?: number | null
@@ -715,6 +717,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          additional_cost?: number | null
           company_id?: string | null
           contact_id?: string | null
           cost?: number | null

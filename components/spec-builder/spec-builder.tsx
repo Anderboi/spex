@@ -92,9 +92,11 @@ export default function SpecBuilder({
       onToggleSel: ctx.toggleSel,
       onToggleSelGroup: ctx.toggleSelGroup,
       onDuplicate: ctx.duplicateItem,
+      onAddChild: (parentId) => ctx.openAdd(null, parentId),
       onClear: ctx.clearContent,
       onDelete: ctx.openDelete,
       onShare: ctx.shareItem,
+      onSetParent: ctx.setItemParent,
       onFill: (id) => ctx.openAdd(id),
       onProcure: ctx.openProcure,
       onSwitchVariant: ctx.switchVariantLocal,
@@ -102,6 +104,12 @@ export default function SpecBuilder({
     }),
     [ctx],
   );
+
+  /** Непосредственные дети позиции, открытой в детализации (для секции «Субэлементы»). */
+  const current = ctx.current;
+  const currentChildren = current
+    ? ctx.items.filter((child) => child.parentId === current.id)
+    : [];
 
   const overBudget =
     project.budget !== null && ctx.stats.totalSum > project.budget;
@@ -247,6 +255,7 @@ export default function SpecBuilder({
             collapsed={ctx.collapsed.has(g.type)}
             onToggle={() => ctx.toggleCollapsed(g.type)}
             onAddPlaceholder={() => ctx.addPlaceholder(g.type)}
+            allItems={ctx.items}
             selected={ctx.selected}
             isDesktop={isDesktop}
             h={handlers}
@@ -260,8 +269,13 @@ export default function SpecBuilder({
       {/* ── модалки ───────────────────────────────────────── */}
       {ctx.current && (
         <DetailModal
+          key={ctx.current.id}
           orgSlug={orgSlug}
+          projectId={projectId}
           item={ctx.current}
+          childrenItems={currentChildren}
+          onOpenItem={ctx.openDetail}
+          allItems={ctx.items}
           companies={companies}
           contacts={contacts}
           onClose={ctx.closeModal}
@@ -285,6 +299,8 @@ export default function SpecBuilder({
             ctx.deleteVariantLocal(ctx.current!.id, vid)
           }
           onEditVariant={(vid) => ctx.openEditVariant(ctx.current!.id, vid)}
+          saveStatus={ctx.saveStatus}
+          saveError={ctx.saveError}
         />
       )}
 
@@ -359,14 +375,15 @@ export default function SpecBuilder({
           companies={companies}
           orgSlug={orgSlug}
           editing={ctx.editing}
+          parentId={ctx.modal.parentId}
           onClose={ctx.closeModal}
-          onAddFromLibrary={(materials) => {
-            ctx.addFromLibrary(materials);
+          onAddFromLibrary={(materials, parentId) => {
+            ctx.addFromLibrary(materials, parentId);
             ctx.closeModal();
           }}
           onFillFromLibrary={(m) => ctx.fillPlaceholder(ctx.editing!.id, m)}
-          onAddManual={(input) => {
-            ctx.addManual(input);
+          onAddManual={(input, parentId) => {
+            ctx.addManual(input, parentId);
             ctx.closeModal();
           }}
           onFillManual={(input) => ctx.fillManual(ctx.editing!.id, input)}

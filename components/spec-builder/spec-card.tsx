@@ -1,7 +1,7 @@
 "use client";
 
 import { memo } from "react";
-import { Copy, Eraser, MoreHorizontal, Share2, Trash2 } from "lucide-react";
+import { Copy, Eraser, MoreHorizontal, Plus, Share2, Trash2 } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -17,19 +17,21 @@ import { PriceField } from "./price-field";
 import { isLocked } from "@/lib/spec/status";
 import { fmt, cn, fmtQty } from "@/lib/utils";
 import type { SpecRowHandlers } from "./spec-row";
+import { ParentSubMenu } from "./parent-submenu";
 import { SpecItem } from "@/lib/types";
 import { priceOf } from "@/lib/spec/pricing";
 
 export const SpecCard = memo(function SpecCard({
   item,
+  allItems,
   selected,
   h,
 }: {
   item: SpecItem;
+  allItems: SpecItem[];
   selected: boolean;
   h: SpecRowHandlers;
 }) {
-  const sum = item.qty * item.price;
   const p = priceOf(item);
 
   return (
@@ -142,6 +144,17 @@ export const SpecCard = memo(function SpecCard({
               className="text-[13px]"
             >
               Открыть карточку
+            </DropdownMenuItem>
+            <ParentSubMenu
+              item={item}
+              allItems={allItems}
+              onSetParent={(parentId) => h.onSetParent(item.id, parentId)}
+            />
+            <DropdownMenuItem
+              onClick={() => h.onAddChild(item.id)}
+              className="gap-2 text-[13px]"
+            >
+              <Plus className="size-3.5" /> Добавить субэлемент
             </DropdownMenuItem>
             <DropdownMenuItem
               onClick={() => h.onDuplicate(item.id)}

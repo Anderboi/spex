@@ -247,17 +247,14 @@ const ModalReviewTab = ({
             </Field>
           </div>
         </div>
-        {/* <div>
-                <Field label="Запас">
-                  <Input defaultValue={item.stockPct} type="number" />
-                </Field>
-                <Field label="Скидка %">
-                  <Input
-                    defaultValue={item.supplierDiscountPct}
-                    type="number"
-                  />
-                </Field>
-              </div> */}
+        <div className="flex flex-row gap-2 w-full items-center">
+          <Field label="Запас">
+            <Input defaultValue={item.stockPct} type="number" />
+          </Field>
+          <Field label="Скидка %">
+            <Input defaultValue={item.supplierDiscountPct} type="number" />
+          </Field>
+        </div>
         <Field label="Описание">
           <textarea
             defaultValue={item.spec}

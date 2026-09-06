@@ -317,3 +317,47 @@ export const manualSpecItemSchema = z
   );
 
 export type ManualSpecItemInput = z.infer<typeof manualSpecItemSchema>;
+
+// --- СОСТАВ (spec_item_components) ---
+/** Создание компонента состава: только минимальный набор полей. */
+export const specItemComponentCreateSchema = z.object({
+  name: z.string().trim().min(1, "Укажите название").max(300),
+  cost: z
+    .number()
+    .min(0, "Стоимость не может быть отрицательной")
+    .max(1_000_000_000)
+    .nullable()
+    .default(null),
+  companyId: z.string().uuid().nullable().default(null),
+  contactId: z.string().uuid().nullable().default(null),
+  notes: z.string().trim().max(4000).default(""),
+});
+
+export type SpecItemComponentCreateInput = z.infer<
+  typeof specItemComponentCreateSchema
+>;
+
+
+/** Создание группы состава: только название (остальные поля группы всегда пустые). */
+export const specItemGroupSchema = z.object({
+  name: z.string().trim().min(1, "Укажите название группы").max(300),
+});
+
+export type SpecItemGroupInput = z.infer<typeof specItemGroupSchema>;
+
+/** Ссылка на существующий SpecItem состава (kind = 'spec_ref'). */
+export const specItemComponentRefSchema = z.object({
+  /** Целевая позиция спецификации проекта. */
+  refSpecItemId: z.string().uuid("Укажите позицию спецификации"),
+  /** Ручная дополнительная сумма ссылки; может быть пустой. */
+  additionalCost: z
+    .number()
+    .min(0, "Дополнительная стоимость не может быть отрицательной")
+    .max(1_000_000_000, "Слишком большая дополнительная стоимость")
+    .nullable()
+    .default(null),
+});
+
+export type SpecItemComponentRefInput = z.infer<
+  typeof specItemComponentRefSchema
+>;

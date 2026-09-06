@@ -9,7 +9,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
-import { TYPE_ORDER, UNIT_OPTIONS, STOCK_HINT_TYPES } from "@/lib/constants";
+import { TYPE_ORDER, UNIT_OPTIONS, STOCK_HINT_TYPES, type SpecType } from "@/lib/constants";
 import { priceOf } from "@/lib/spec/pricing";
 import type { SpecPickerCompany } from "@/lib/queries";
 import { fmt, fmtQty, cn } from "@/lib/utils";
@@ -26,6 +26,7 @@ export function ManualItemForm({
   onSubmit,
   variantMode = false,
   variantFor = null,
+  defaultType,
   onDirtyChange,
 }: {
   companies: SpecPickerCompany[];
@@ -35,6 +36,8 @@ export function ManualItemForm({
   onSubmit: (input: ManualSpecItemInput) => void;
   variantMode: boolean;
   variantFor?: SpecItem | null;
+  /** Тип по умолчанию для новой позиции (например, тип родителя). */
+  defaultType?: SpecType;
   /** Сообщает родителю о наличии изменений в форме (для guard закрытия диалога). */
   onDirtyChange?: (dirty: boolean) => void;
 }) {
@@ -49,7 +52,7 @@ export function ManualItemForm({
       brand: editing?.brand ?? "",
       type: (variantMode && variantFor
         ? variantFor.type
-        : (editing?.type ?? "Отделка")) as (typeof TYPE_ORDER)[number],
+        : editing?.type ?? defaultType ?? "Отделка") as (typeof TYPE_ORDER)[number],
       spec: editing?.spec ?? "",
       article: editing?.article ?? "",
       qty: ( editing?.qty ?? 1),
@@ -370,7 +373,7 @@ export function ManualItemForm({
         )}
       </div>
 
-      <div className="flex flex-none gap-3 border-t border-border-subtle p-4">
+      <div className="flex justify-end flex-none gap-3 border-t border-border-subtle p-4">
         <Button type="button" size="lg" variant="ghost" onClick={onCancel}>
           Отмена
         </Button>
@@ -378,7 +381,7 @@ export function ManualItemForm({
           type="submit"
           size="lg"
           disabled={isSubmitting}
-          className="flex-1"
+          
         >
           {editing ? "Заполнить позицию" : "Добавить позицию"}
         </Button>

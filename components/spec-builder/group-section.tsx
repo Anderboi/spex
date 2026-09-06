@@ -11,6 +11,7 @@ import { Checkbox } from '../ui/checkbox';
 export const GroupSection = memo(function GroupSection({
   type,
   items,
+  allItems,
   sum,
   collapsed,
   onToggle,
@@ -21,6 +22,7 @@ export const GroupSection = memo(function GroupSection({
 }: {
   type: string;
   items: SpecItem[];
+  allItems: SpecItem[];
   sum: number;
   collapsed: boolean;
   onToggle: () => void;
@@ -41,7 +43,7 @@ export const GroupSection = memo(function GroupSection({
 
   return (
     <section className="mt-6">
-      <div className="flex items-center gap-3 border-b border-border-muted pb-2">
+      <div className="flex items-center gap-3 border-b border-fg pb-2">
         <button
           type="button"
           onClick={onToggle}
@@ -55,7 +57,7 @@ export const GroupSection = memo(function GroupSection({
               collapsed && "-rotate-90",
             )}
           />
-          <span className="font-mono text-[13px] uppercase font-semibold">
+          <span className="font-mono text-[13px] tracking-wide uppercase font-semibold">
             {type}
           </span>
           <span className="text-[11px] border border-border-muted rounded-full px-2 py-0.5 text-fg-muted">
@@ -84,7 +86,7 @@ export const GroupSection = memo(function GroupSection({
               <caption className="sr-only">
                 {type} — позиции спецификации
               </caption>
-              <thead className="text-[10px] table-fixed font-mono text-fg-muted uppercase border-b border-border-muted //p-2">
+              <thead className="text-[10px] table-fixed font-mono text-fg-muted uppercase border-b border-border-muted">
                 <tr>
                   <th className="text-left w-10 px-3 py-2">
                     <Checkbox
@@ -95,14 +97,14 @@ export const GroupSection = memo(function GroupSection({
                       aria-label={`Выбрать все позиции типа ${type}`}
                     />
                   </th>
-                  <th className="text-left w-13 p-2">избр</th>
-                  <th className="text-left w-1/14 p-2">марка</th>
-                  <th className="text-left w-1/4 p-2">наименование</th>
-                  <th className="text-right w-1/8 p-2">кол-во</th>
-                  <th className="text-right w-1/7 p-2">цена</th>
-                  <th className="text-right w-1/7 p-2">итого</th>
-                  <th className="text-left w-1/6 p-2">Статус</th>
-                  <th className="text-left w-13 p-2"></th>
+                  <th className="text-left w-20 p-2">изобр</th>
+                  <th className="text-left w-14 p-2">марка</th>
+                  <th className="text-left flex-1 ..w-1/4 p-2">наименование</th>
+                  <th className="text-left w-30 p-2">кол-во</th>
+                  <th className="text-left w-28 p-2">цена</th>
+                  <th className="text-right w-28 p-2">итого</th>
+                  <th className="text-left w-34 min-w-30 p-2">Статус</th>
+                  <th className="text-left w-12 p-2"></th>
                 </tr>
               </thead>
               <tbody>
@@ -110,6 +112,7 @@ export const GroupSection = memo(function GroupSection({
                   <SpecRow
                     key={it.id}
                     item={it}
+                    allItems={allItems}
                     selected={selected.has(it.id)}
                     h={h}
                   />
@@ -122,6 +125,7 @@ export const GroupSection = memo(function GroupSection({
                 <SpecCard
                   key={it.id}
                   item={it}
+                  allItems={allItems}
                   selected={selected.has(it.id)}
                   h={h}
                 />

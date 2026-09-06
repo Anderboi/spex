@@ -19,6 +19,8 @@ import { Button } from "@/components/ui/button";
 import { InlineCode } from "./inline-code";
 import { StatusMenu } from "./status-menu";
 import { isLocked } from "@/lib/spec/status";
+import { priceOf } from "@/lib/spec/pricing";
+import { fmt, fmtQty } from "@/lib/utils";
 import {  SpecStatus } from "@/lib/constants";
 import { SpecItem, SpecItemPatch, SpecVariant } from "@/lib/types";
 import { SupplierPicker } from "./supplier-picker";
@@ -28,6 +30,8 @@ import { ScrollArea } from "../ui/scroll-area";
 import { CompanyDialog } from "@/components/contacts/company-dialog";
 import { VariantsTab } from "./variants-tab";
 import ModalReviewTab from "./modal-review-tab";
+import { SpecComponentsSection } from "./spec-components-section";
+import SaveIndicator from "../layout/save-indicator";
 
 type Company = {
   id: string;
@@ -48,9 +52,13 @@ type Contact = {
 
 export function DetailModal({
   item,
+  childrenItems,
+  onOpenItem,
+  allItems,
   companies,
   contacts,
   orgSlug,
+  projectId,
   onClose,
   onPatch,
   onCode,
@@ -66,11 +74,20 @@ export function DetailModal({
   onUpdateVariant,
   onDeleteVariant,
   onEditVariant,
+  saveStatus,
+  saveError,
 }: {
   item: SpecItem;
+  /** Непосредственные дети текущей позиции (для секции «Субэлементы»). */
+  childrenItems: SpecItem[];
+  /** Открыть детализацию другой позиции (ребёнка) через существующий механизм. */
+  onOpenItem: (id: string) => void;
+  /** Все позиции проекта — для ссылок на существующий SpecItem в «Составе». */
+  allItems: SpecItem[];
   companies: Company[];
   contacts: Contact[];
   orgSlug: string;
+  projectId: string;
   onClose: () => void;
   onPatch: (patch: SpecItemPatch) => void;
   onCode: (code: string) => void;
@@ -86,6 +103,8 @@ export function DetailModal({
   onUpdateVariant: (variantId: string, patch: Partial<SpecVariant>) => void;
   onDeleteVariant: (variantId: string) => void;
   onEditVariant: (variantId: string) => void;
+  saveStatus: "idle" | "saving" | "saved" | "error";
+  saveError: string | null;
 }) {
   const [tab, setTab] = useState("overview");
   const [localCompanies, setLocalCompanies] = useState<Company[]>(companies);
@@ -127,6 +146,7 @@ export function DetailModal({
         <Tabs value={tab} onValueChange={setTab} className="mt-2 gap-0">
           <TabsList className="w-full justify-start gap-2 overflow-x-auto bg-bg px-4">
             <TabsTrigger value="overview">Обзор</TabsTrigger>
+            <TabsTrigger value="components">Состав</TabsTrigger>
             <TabsTrigger value="variants">
               Варианты
               {(item.variants?.length ?? 0) > 1 && (
@@ -154,6 +174,62 @@ export function DetailModal({
                 onQty={onQty}
                 orgSlug={orgSlug}
                 setTab={setTab}
+              />
+
+              {childrenItems.length > 0 && (
+                <section className="border-t border-border-muted px-4 py-4">
+                  <h4 className="text-[14px] font-bold text-fg">
+                    Субэлементы · {childrenItems.length}
+                  </h4>
+                  <div className="mt-2 divide-y divide-border-muted">
+                    {childrenItems.map((child) => {
+                      const cp = priceOf(child);
+                      return (
+                        <button
+                          key={child.id}
+                          type="button"
+                          onClick={() => onOpenItem(child.id)}
+                          title={`Открыть карточку ${child.code || child.name}`}
+                          className="grid w-full grid-cols-[52px_minmax(0,1fr)_88px] items-center gap-3 py-2.5 text-left transition-colors hover:bg-bg-select sm:grid-cols-[56px_minmax(0,1.6fr)_100px_110px]"
+                        >
+                          <span className="truncate font-mono text-[12px] font-medium text-fg-secondary">
+                            {child.code || "—"}
+                          </span>
+                          <span className="min-w-0">
+                            <span className="block truncate text-[13.5px] font-semibold">
+                              {child.name || "Позиция не заполнена"}
+                            </span>
+                            {child.brand && (
+                              <span className="block truncate font-mono text-[10.5px] text-fg-dim">
+                                {child.brand}
+                              </span>
+                            )}
+                          </span>
+                          <span className="font-mono text-[12px] text-fg-secondary tabular-nums">
+                            {fmtQty(cp.qtyFinal)} {child.unit}
+                          </span>
+                          <span className="hidden text-right font-mono text-[14px] font-bold tabular-nums sm:block">
+                            {cp.total > 0 ? `${fmt(cp.total)} ₽` : "—"}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </section>
+              )}
+            </TabsContent>
+            {/* components (состав: spec_item_components, не строки таблицы) */}
+            <TabsContent
+              value="components"
+            >
+              <SpecComponentsSection
+                orgSlug={orgSlug}
+                projectId={projectId}
+                specItemId={item.id}
+                companies={companies}
+                contacts={contacts}
+                specItems={allItems}
+                onOpenRefItem={onOpenItem}
               />
             </TabsContent>
             {/* variants */}
@@ -230,6 +306,9 @@ export function DetailModal({
         </Tabs>
 
         <DialogFooter className="gap-2 border-t border-border-muted">
+          <div className="flex min-w-0 items-center">
+            <SaveIndicator status={saveStatus} error={saveError} />
+          </div>
           <Button variant="ghost" onClick={onShare} className="gap-2">
             <Share2 className="size-4" /> Поделиться
           </Button>
