@@ -40,6 +40,7 @@ export type CustomFunctions = {
       p_client_discount_pct: number;
       p_supplier_discount_pct: number;
       p_save_to_library: boolean;
+      p_parent_id: string | null;
     };
     Returns: { id: string }[];
   };

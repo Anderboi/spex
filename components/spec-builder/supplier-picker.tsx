@@ -223,10 +223,12 @@ export function SupplierPicker({
               )}
               {company.address && (
                 <ContactDataField label="Адрес">
-                  <span className="block text-fg-brand hover:underline col-span-2">
-                    {company.address}
-                  </span>
-                  <CopyButton textToCopy={company.address} />
+                  <div className='flex gap-2'>
+                    <span className="block text-fg-brand hover:underline col-span-2">
+                      {company.address}
+                    </span>
+                    <CopyButton textToCopy={company.address} />
+                  </div>
                 </ContactDataField>
               )}
             </div>
@@ -273,7 +275,7 @@ const ContactDataField = ({
   children: React.ReactNode;
 }) => {
   return (
-    <div className="grid grid-cols-3 items-center gap-2 h-6">
+    <div className="w-full grid grid-cols-3 items-start gap-3 h-6">
       <span className="text-fg-muted text-[12px] text-right font-mono">
         {label}
       </span>

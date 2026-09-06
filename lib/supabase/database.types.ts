@@ -681,6 +681,114 @@ export type Database = {
           },
         ]
       }
+      spec_item_components: {
+        Row: {
+          company_id: string | null
+          contact_id: string | null
+          cost: number | null
+          created_at: string
+          id: string
+          kind: string
+          name: string
+          notes: string | null
+          org_id: string
+          parent_component_id: string | null
+          position: number
+          ref_spec_item_id: string | null
+          spec_item_id: string
+          updated_at: string
+        }
+        Insert: {
+          company_id?: string | null
+          contact_id?: string | null
+          cost?: number | null
+          created_at?: string
+          id?: string
+          kind: string
+          name: string
+          notes?: string | null
+          org_id: string
+          parent_component_id?: string | null
+          position?: number
+          ref_spec_item_id?: string | null
+          spec_item_id: string
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string | null
+          contact_id?: string | null
+          cost?: number | null
+          created_at?: string
+          id?: string
+          kind?: string
+          name?: string
+          notes?: string | null
+          org_id?: string
+          parent_component_id?: string | null
+          position?: number
+          ref_spec_item_id?: string | null
+          spec_item_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "spec_item_components_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "spec_item_components_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "spec_item_components_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "spec_item_components_parent_component_id_fkey"
+            columns: ["parent_component_id"]
+            isOneToOne: false
+            referencedRelation: "spec_item_components"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "spec_item_components_ref_spec_item_id_fkey"
+            columns: ["ref_spec_item_id"]
+            isOneToOne: false
+            referencedRelation: "spec_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "spec_item_components_ref_spec_item_id_fkey"
+            columns: ["ref_spec_item_id"]
+            isOneToOne: false
+            referencedRelation: "spec_items_priced"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "spec_item_components_spec_item_id_fkey"
+            columns: ["spec_item_id"]
+            isOneToOne: false
+            referencedRelation: "spec_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "spec_item_components_spec_item_id_fkey"
+            columns: ["spec_item_id"]
+            isOneToOne: false
+            referencedRelation: "spec_items_priced"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       spec_item_variants: {
         Row: {
           article: string | null
@@ -1231,6 +1339,35 @@ export type Database = {
               p_material_id: string
               p_name: string
               p_org_id: string
+              p_price: number
+              p_project_id: string
+              p_qty: number
+              p_save_to_library: boolean
+              p_spec: string
+              p_stock_pct: number
+              p_supplier_discount_pct: number
+              p_type: string
+              p_unit: string
+            }
+            Returns: {
+              id: string
+            }[]
+          }
+        | {
+            Args: {
+              p_article: string
+              p_brand: string
+              p_client_discount_pct: number
+              p_code: string
+              p_company_id: string
+              p_company_name: string
+              p_created_by: string
+              p_image_url: string
+              p_item_id: string
+              p_material_id: string
+              p_name: string
+              p_org_id: string
+              p_parent_id?: string
               p_price: number
               p_project_id: string
               p_qty: number

@@ -45,6 +45,7 @@ export function VariantsTab({
           const delta = active && !v.isActive ? v.price - active.price : 0;
           return (
             <VariantCard
+              key={v.id}
               item={v}
               onSwitch={onSwitch}
               onEdit={onEdit}
