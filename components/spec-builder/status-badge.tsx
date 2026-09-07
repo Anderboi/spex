@@ -28,7 +28,7 @@ export default function StatusBadge({
       >
         <span className="size-1.5 rounded-full flex-none bg-current opacity-80"></span>
         {status}
-        <span className="text-[9px] opacity-60 ml-[1px]">▾</span>
+        <span className="text-[9px] opacity-60 ml-px">▾</span>
       </span>
       {menuOpen && (
         <div className="absolute top-[calc(100%+6px)] right-0 z-40 min-w-46 bg-bg-card border border-border-muted rounded-[13px] p-[6px] shadow-[0_16px_40px_rgba(27,26,23,.18)]">

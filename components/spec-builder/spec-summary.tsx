@@ -7,7 +7,6 @@ import {
   X,
   Share2,
   Loader2,
-  XIcon,
   EyeOff,
   Eye,
 } from "lucide-react";
@@ -17,7 +16,7 @@ import { SPEC_STATUS_CONFIG } from "@/lib/spec/status";
 import { SPEC_STATUSES, TYPE_ORDER } from "@/lib/constants";
 import { priceOf } from "@/lib/spec/pricing";
 import type { SpecBuilderContext } from "@/hooks/use-spec-builder";
-import { fmt, fmtQty, cn } from "@/lib/utils";
+import { fmt, cn } from "@/lib/utils";
 import {
   exportSpecToExcel,
   generatePublicLink,
@@ -25,7 +24,6 @@ import {
 } from "@/actions/spec-export";
 import {
   Drawer,
-  DrawerClose,
   DrawerContent,
   DrawerFooter,
   DrawerHeader,

@@ -1,11 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef } from "react";
-import {
-  Search,
-  ArrowUpDown,
-  AlertCircle,
-} from "lucide-react";
+import { Search, ArrowUpDown, AlertCircle } from "lucide-react";
 import { useSpecBuilder } from "@/hooks/use-spec-builder";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { useDialogUrl } from "@/hooks/use-dialog-url";
@@ -31,6 +27,7 @@ import EmptyFilter from "./empty-filter";
 import EmptyProject from "./empty-project";
 import TypeChip from "../layout/type-chip";
 import SaveIndicator from "../layout/save-indicator";
+import AddSectionPicker from "./add-section-picker";
 
 export default function SpecBuilder({
   orgSlug,
@@ -260,21 +257,29 @@ export default function SpecBuilder({
       ) : ctx.groups.length === 0 ? (
         <EmptyFilter onReset={ctx.filters.reset} />
       ) : (
-        ctx.groups.map((g) => (
-          <GroupSection
-            key={g.type}
-            type={g.type}
-            items={g.items}
-            sum={g.sum}
-            collapsed={ctx.collapsed.has(g.type)}
-            onToggle={() => ctx.toggleCollapsed(g.type)}
-            onAddPlaceholder={() => ctx.addPlaceholder(g.type)}
-            allItems={ctx.items}
-            selected={ctx.selected}
-            isDesktop={isDesktop}
-            h={handlers}
-          />
-        ))
+        <>
+          {ctx.groups.map((g) => (
+            <>
+              <GroupSection
+                key={g.type}
+                type={g.type}
+                items={g.items}
+                sum={g.sum}
+                collapsed={ctx.collapsed.has(g.type)}
+                onToggle={() => ctx.toggleCollapsed(g.type)}
+                allItems={ctx.items}
+                selected={ctx.selected}
+                isDesktop={isDesktop}
+                h={handlers}
+              />
+              <AddSectionPicker
+                onAddPlaceholder={() => ctx.addPlaceholder(g.type)}
+                usedTypes={ctx.groups.map((g) => g.type)}
+                onPick={(type) => ctx.addPlaceholder(type)}
+              />
+            </>
+          ))}
+        </>
       )}
 
       {/* ── нижняя панель ─────────────────────────────────── */}

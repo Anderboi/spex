@@ -15,7 +15,7 @@ export const GroupSection = memo(function GroupSection({
   sum,
   collapsed,
   onToggle,
-  onAddPlaceholder,
+  // onAddPlaceholder,
   selected,
   isDesktop,
   h,
@@ -26,7 +26,7 @@ export const GroupSection = memo(function GroupSection({
   sum: number;
   collapsed: boolean;
   onToggle: () => void;
-  onAddPlaceholder: () => void;
+  // onAddPlaceholder: () => void;
   selected: ReadonlySet<string>;
   isDesktop: boolean;
   h: SpecRowHandlers;
@@ -70,13 +70,13 @@ export const GroupSection = memo(function GroupSection({
           {sum > 0 ? `${fmt(sum)} ₽` : ""}
         </span>
 
-        <button
+        {/* <button
           type="button"
           onClick={onAddPlaceholder}
           className="flex h-8 items-center gap-1.5 rounded-lg border border-border-muted px-3 text-[12.5px] text-fg-secondary hover:bg-bg-card"
         >
           <Plus className="size-3.5" /> Пустая марка
-        </button>
+        </button> */}
       </div>
 
       {!collapsed && (
