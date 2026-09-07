@@ -41,37 +41,40 @@ export function AttrsEditor({
   const rows = [...new Set([...Object.keys(attrs), ...presets])];
 
   return (
-    <div className="flex flex-col gap-3">
-      <ul className="flex flex-col gap-2">
+    <>
+      <span className="font-semibold text-[15px] font-mono">Спецификация</span>
+      <ul className="grid grid-cols-2 gap-4">
         {rows.map((key) => {
           const isPreset = presets.includes(key);
           return (
-            <li key={key} className="flex items-center gap-2">
+            <li key={key} className="flex flex-col //items-center gap-2">
               <span
                 className="w-30 font-mono uppercase shrink-0 truncate text-[11px] text-fg-secondary"
                 title={key}
               >
                 {key}
               </span>
-              <Input
-                defaultValue={attrs[key] ?? ""}
-                onBlur={(e) => setValue(key, e.target.value)}
-                placeholder="—"
-                aria-label={key}
-                className="h-10 min-w-0 flex-1  outline-none focus:border-fg-brand"
-              />
-              {!isPreset && (
-                <Button
-                  // type="button"
-                  size="icon-lg"
-                  variant="ghost"
-                  onClick={() => removeKey(key)}
-                  aria-label={`Удалить «${key}»`}
-                  className="flex size-10 cursor-pointer shrink-0 items-center justify-center rounded-md text-fg-muted hover:bg-bg-select"
-                >
-                  <X className="size-3.5" />
-                </Button>
-              )}
+              <div className='flex'>
+                <Input
+                  defaultValue={attrs[key] ?? ""}
+                  onBlur={(e) => setValue(key, e.target.value)}
+                  placeholder="—"
+                  aria-label={key}
+                  className="h-10 min-w-0 flex-1  outline-none focus:border-fg-brand"
+                />
+                {!isPreset && (
+                  <Button
+                    // type="button"
+                    size="icon-lg"
+                    variant="ghost"
+                    onClick={() => removeKey(key)}
+                    aria-label={`Удалить «${key}»`}
+                    className="flex size-10 cursor-pointer shrink-0 items-center justify-center rounded-md text-fg-muted hover:bg-bg-select"
+                  >
+                    <X className="size-3.5" />
+                  </Button>
+                )}
+              </div>
             </li>
           );
         })}
@@ -100,6 +103,6 @@ export function AttrsEditor({
           <Plus className="size-3.5" /> Добавить
         </Button>
       </div>
-    </div>
+    </>
   );
 }

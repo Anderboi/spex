@@ -1,14 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import {
-  Share2,
-  Trash2,
-  Eraser,
-  Paperclip,
-} from "lucide-react";
+import { Share2, Trash2, Eraser, Paperclip, X } from "lucide-react";
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogFooter,
   DialogHeader,
@@ -21,7 +17,7 @@ import { StatusMenu } from "./status-menu";
 import { isLocked } from "@/lib/spec/status";
 import { priceOf } from "@/lib/spec/pricing";
 import { fmt, fmtQty } from "@/lib/utils";
-import {  SpecStatus } from "@/lib/constants";
+import { SpecStatus } from "@/lib/constants";
 import { SpecItem, SpecItemPatch, SpecVariant } from "@/lib/types";
 import { SupplierPicker } from "./supplier-picker";
 import { AttrsEditor } from "./attrs-editor";
@@ -32,6 +28,7 @@ import { VariantsTab } from "./variants-tab";
 import ModalReviewTab from "./modal-review-tab";
 import { SpecComponentsSection } from "./spec-components-section";
 import SaveIndicator from "../layout/save-indicator";
+import type { DetailTab } from "@/hooks/use-spec-builder";
 
 type Company = {
   id: string;
@@ -54,11 +51,13 @@ export function DetailModal({
   item,
   childrenItems,
   onOpenItem,
+  onOpenRefItem,
   allItems,
   companies,
   contacts,
   orgSlug,
   projectId,
+  initialTab,
   onClose,
   onPatch,
   onCode,
@@ -82,12 +81,19 @@ export function DetailModal({
   childrenItems: SpecItem[];
   /** Открыть детализацию другой позиции (ребёнка) через существующий механизм. */
   onOpenItem: (id: string) => void;
+  /**
+   * Открыть исходный SpecItem для строки kind = 'spec_ref' из «Состава».
+   * Если не передан — используется onOpenItem.
+   */
+  onOpenRefItem?: (id: string) => void;
   /** Все позиции проекта — для ссылок на существующий SpecItem в «Составе». */
   allItems: SpecItem[];
   companies: Company[];
   contacts: Contact[];
   orgSlug: string;
   projectId: string;
+  /** Вкладка при открытии (например, «Состав» после возврата из ссылки). */
+  initialTab?: DetailTab;
   onClose: () => void;
   onPatch: (patch: SpecItemPatch) => void;
   onCode: (code: string) => void;
@@ -106,45 +112,59 @@ export function DetailModal({
   saveStatus: "idle" | "saving" | "saved" | "error";
   saveError: string | null;
 }) {
-  const [tab, setTab] = useState("overview");
+  const [tab, setTab] = useState<string>(initialTab ?? "overview");
   const [localCompanies, setLocalCompanies] = useState<Company[]>(companies);
   const [showAddCompany, setShowAddCompany] = useState(false);
   const [newCompanyName, setNewCompanyName] = useState("");
 
   return (
     <Dialog open onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="max-h-[90vh] flex-col bg-bg sm:max-w-3xl p-0 gap-0">
-
-        <DialogHeader className="sticky top-0 gap-2 border-b p-4">
-          <DialogTitle className="truncate font-serif text-[16px] font-semibold leading-tight">
-            {item.name || (
-              <span className="text-fg-muted font-normal">
-                Позиция не заполнена
-              </span>
-            )}
-          </DialogTitle>
-
-          {/* Строка 2: код, тип, статус */}
-          <div className="flex flex-wrap items-center gap-3">
-            <div className="bg-fg px-2 py-0.5 rounded-sm text-bg">
-              <InlineCode
-                code={item.code}
-                locked={isLocked(item.status)}
-                onCommit={onCode}
-              />
+      <DialogContent
+        showCloseButton={false}
+        className="max-h-[90vh] flex-col bg-bg sm:max-w-3xl p-0 gap-0"
+      >
+        <DialogHeader className="border-b p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <div className="bg-fg px-2 py-0.5 rounded-sm text-bg">
+                <InlineCode
+                  code={item.code}
+                  locked={isLocked(item.status)}
+                  onCommit={onCode}
+                />
+              </div>
+              <DialogTitle className="truncate font-sans text-[18px] font-semibold leading-tight">
+                {item.name || (
+                  <span className="text-fg-muted font-normal">
+                    Позиция не заполнена
+                  </span>
+                )}
+              </DialogTitle>
+              <Button
+                variant="ghost"
+                size="lg"
+                onClick={onShare}
+                className="gap-2 text-fg-muted"
+              >
+                <Share2 className="size-4" />
+                {/* Поделиться */}
+              </Button>
             </div>
-            <span className="font-mono uppercase text-fg-muted text-[11px]">
-              {item.type}
-              {item.product_type ? ` / ${item.product_type}` : ""}
-            </span>
-            <div className="ml-auto">
+            <div className="flex items-center gap-2">
               <StatusMenu item={item} onChange={onStatus} />
+              <DialogClose
+                render={
+                  <Button variant="ghost" size="lg">
+                    <X />
+                  </Button>
+                }
+              />
             </div>
           </div>
         </DialogHeader>
 
         <Tabs value={tab} onValueChange={setTab} className="mt-2 gap-0">
-          <TabsList className="w-full justify-start gap-2 overflow-x-auto bg-bg px-4">
+          <TabsList className="w-full justify-start gap-2 overflow-x-auto bg-bg px-4 pb-2 //border-b">
             <TabsTrigger value="overview">Обзор</TabsTrigger>
             <TabsTrigger value="components">Состав</TabsTrigger>
             <TabsTrigger value="variants">
@@ -162,11 +182,9 @@ export function DetailModal({
             <TabsTrigger value="supplier">Поставщик</TabsTrigger>
             <TabsTrigger value="files">Файлы</TabsTrigger>
           </TabsList>
-          <ScrollArea className="h-[60vh]">
+          <ScrollArea className="h-[66vh]">
             {/* overview */}
-            <TabsContent
-              value="overview"
-            >
+            <TabsContent value="overview">
               <ModalReviewTab
                 item={item}
                 onPatch={onPatch}
@@ -219,9 +237,7 @@ export function DetailModal({
               )}
             </TabsContent>
             {/* components (состав: spec_item_components, не строки таблицы) */}
-            <TabsContent
-              value="components"
-            >
+            <TabsContent value="components">
               <SpecComponentsSection
                 orgSlug={orgSlug}
                 projectId={projectId}
@@ -229,13 +245,11 @@ export function DetailModal({
                 companies={companies}
                 contacts={contacts}
                 specItems={allItems}
-                onOpenRefItem={onOpenItem}
+                onOpenRefItem={onOpenRefItem ?? onOpenItem}
               />
             </TabsContent>
             {/* variants */}
-            <TabsContent
-              value="variants"
-            >
+            <TabsContent value="variants">
               <VariantsTab
                 item={item}
                 onSwitch={onSwitchVariant}
@@ -309,9 +323,7 @@ export function DetailModal({
           <div className="flex min-w-0 items-center">
             <SaveIndicator status={saveStatus} error={saveError} />
           </div>
-          <Button variant="ghost" onClick={onShare} className="gap-2">
-            <Share2 className="size-4" /> Поделиться
-          </Button>
+
           <Button variant="ghost" onClick={onClear} className="gap-2">
             <Eraser className="size-4" /> Очистить
           </Button>

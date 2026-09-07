@@ -7,12 +7,9 @@ import {
   SidebarGroup,
   SidebarHeader,
   SidebarMenu,
-  SidebarMenuBadge,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarRail,
   SidebarSeparator,
-  SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { cn } from "@/lib/utils";
 import { BookUser, Folder, Layers, Settings } from "lucide-react";
@@ -21,6 +18,7 @@ import { usePathname } from "next/navigation";
 import { UserProfile } from "./layout/user-profile";
 import { OrgSwitcher, UserOrgItem } from "./orgs/org-switcher";
 import { can, OrgRole } from "@/lib/permissions";
+import { Separator } from './ui/separator';
 
 const NAV = [
   { seg: "projects", label: "Проекты", icon: Folder },
@@ -51,9 +49,9 @@ export function AppSidebar({
           Spex
         </span> */}
         <OrgSwitcher currentSlug={currentSlug} organizations={organizations} />
-        {/* <SidebarTrigger /> */}
+        
       </SidebarHeader>
-      {/* <SidebarSeparator className='w-full'/> */}
+      <Separator className="border-border-muted" />
       <SidebarContent>
         <SidebarGroup>
           <SidebarMenu className="gap-1">
@@ -61,22 +59,23 @@ export function AppSidebar({
               const href = `/${currentSlug}/${seg}`;
               const active =
                 pathname === href || pathname.startsWith(`${href}/`);
-              // const Icon = item.icon;
+
               return (
                 <SidebarMenuItem key={seg}>
                   <SidebarMenuButton
                     size={"default"}
                     tooltip={label}
                     className={cn(
-                      "cursor-pointer hover:bg-bg-brand/50 h-10 px-4 text-fg-secondary/80 hover:text-fg-body ",
-                      active && "bg-bg-brand text-fg hover:bg-bg-select",
+                      "cursor-pointer hover:bg-bg-card/60 h-10 px-4 text-fg-secondary/80 hover:text-fg-body ",
+                      active &&
+                        "bg-bg-card text-fg border border-border hover:bg-bg-select",
                     )}
                     render={
                       <Link
                         href={href}
                         aria-current={active ? "page" : undefined}
                         className={cn(
-                          "flex gap-2 w-full font-medium items-center //text-fg-secondary",
+                          "flex gap-4 w-full font-medium items-center",
                         )}
                       />
                     }
@@ -119,26 +118,7 @@ export function AppSidebar({
             </SidebarMenuItem>
           </SidebarMenu>
         </SidebarGroup>
-        {/* <div className="group-data-[collapsible=icon]:hidden"> */}
-        {/* {can(currentRole, "member:invite") && (
-            <Link
-              href={`/${currentSlug}/settings/team`}
-              className="flex h-10 items-center gap-2 rounded-md px-3 text-sm text-fg-secondary hover:bg-bg-card/60"
-            >
-              <Settings className="size-4 shrink-0" />
-              Команда
-            </Link>
-          )} */}
-        {/* <OrgSwitcher currentSlug={currentSlug} organizations={organizations} /> */}
-        {/* <Link
-            href={`/${session.org.slug}/projects`}
-            onClick={() => void switchOrganization(session.org.id)}
-          >
-            {session.org.name}
-          </Link> */}
-        {/* </div> */}
-        {/* <UserProfile user={user} /> */}
-      </SidebarFooter>
+        </SidebarFooter>
     </Sidebar>
   );
 }

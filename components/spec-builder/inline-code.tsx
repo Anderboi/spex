@@ -48,7 +48,7 @@ export function InlineCode({
         }
         className={cn(
           "font-mono text-[12px] font-semibold tabular-nums rounded px-1 py-0.5 //-mx-1.5",
-          "hover:bg-bg-select focus-visible:outline //focus-visible:outline-2 focus-visible:outline-fg-brand",
+          "hover:bg-fg-body focus-visible:outline //focus-visible:outline-2 focus-visible:outline-fg-brand",
           locked &&
             "underline decoration-dotted decoration-fg-muted underline-offset-4",
         )}

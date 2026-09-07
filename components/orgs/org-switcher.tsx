@@ -48,7 +48,7 @@ export function OrgSwitcher({
         <DropdownMenu>
           <DropdownMenuTrigger
             disabled={isPending}
-            className="w-full bg-bg-card rounded-lg"
+            className="w-full hover:bg-bg-card rounded-lg cursor-pointer"
             render={
               <SidebarMenuButton
                 size="lg"
@@ -72,7 +72,7 @@ export function OrgSwitcher({
 
           <DropdownMenuContent
             align="start"
-            className="bg-bg-card w-(--radix-dropdown-menu-trigger-width) min-w-56 rounded-lg"
+            className="bg-bg w-(--radix-dropdown-menu-trigger-width) min-w-56 rounded-lg"
             side={isMobile ? "bottom" : "right"}
             sideOffset={4}
           >
@@ -86,7 +86,7 @@ export function OrgSwitcher({
                   render={
                     <Link href={`/${org.slug}/${section}`} prefetch={false} />
                   }
-                  className="gap-2 p-2 text-xs"
+                  className="gap-2 p-2 text-xs hover:bg-bg-card cursor-pointer"
                 >
                   <div className="flex size-6 items-center justify-center rounded-md border">
                     <Building2 className="size-3.5 shrink-0 text-fg-muted" />{" "}
