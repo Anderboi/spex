@@ -84,9 +84,9 @@ export const SpecCard = memo(function SpecCard({
 
               <div className="mt-2 flex items-center gap-3">
                 <QtyStepper
-                  qty={p.qtyFinal}
+                  qty={item.qty}
                   unit={item.unit}
-                  editable={false}
+                  editable
                   onChange={(d) => h.onQty(item.id, d)}
                 />
                 <div className="ml-auto">
@@ -188,7 +188,7 @@ export const SpecCard = memo(function SpecCard({
       <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 border-t border-border-muted pt-2.5">
         <QtyStepper
           qty={item.qty}
-          editable={false}
+          editable
           unit={item.unit}
           onChange={(d) => h.onQty(item.id, d)}
         />

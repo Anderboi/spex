@@ -98,6 +98,7 @@ export default function SpecBuilder({
       onProcure: ctx.openProcure,
       onSwitchVariant: ctx.switchVariantLocal,
       onAddVariant: ctx.addVariantLocal,
+      onDraftName: (id, name) => ctx.updateItem(id, { name }),
     }),
     [ctx],
   );

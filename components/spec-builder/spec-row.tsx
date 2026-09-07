@@ -23,6 +23,7 @@ import { priceOf } from "@/lib/spec/pricing";
 import Image from "next/image";
 import { VariantSwitcher } from './variant-switcher';
 import { ParentSubMenu } from './parent-submenu';
+import { DraftNameField } from '../layout/draft-name-field';
 
 export type SpecRowHandlers = {
   onOpen: (id: string) => void;
@@ -41,6 +42,7 @@ export type SpecRowHandlers = {
   onFill: (id: string) => void;
   onSwitchVariant: (id: string, variantId: string) => void;
   onAddVariant: (id: string) => void;
+  onDraftName: (id: string, name: string) => void;
 };
 
 export const SpecRow = memo(function SpecRow({
@@ -54,7 +56,6 @@ export const SpecRow = memo(function SpecRow({
   selected: boolean;
   h: SpecRowHandlers;
 }) {
-  // const sum = item.qty * item.price;
   const p = priceOf(item);
 
   return (
@@ -79,10 +80,8 @@ export const SpecRow = memo(function SpecRow({
           <Image
             src={item.imageUrl}
             alt={item.name}
-            // fill
             height={64}
             width={64}
-            // sizes="(max-width: 768px) 100vw, 33vw"
             className="object-cover border rounded-lg"
           />
         ) : (
@@ -98,13 +97,19 @@ export const SpecRow = memo(function SpecRow({
       </td>
       <td className="min-w-0 px-2">
         {item.isPlaceholder ? (
-          <button
-            type="button"
-            onClick={() => h.onFill(item.id)}
-            className="text-[14px] cursor-pointer font-medium text-fg-muted hover:text-fg-brand hover:underline"
-          >
-            Не заполнено — выбрать материал
-          </button>
+          <div className="flex flex-col items-start gap-0.5">
+            <DraftNameField
+              value={item.name}
+              onCommit={(name) => h.onDraftName(item.id, name)}
+            />
+            <button
+              type="button"
+              onClick={() => h.onFill(item.id)}
+              className="text-[12.5px] cursor-pointer text-fg-muted hover:text-fg-brand hover:underline"
+            >
+              Выбрать материал из библиотеки
+            </button>
+          </div>
         ) : (
           <button
             type="button"
@@ -135,9 +140,9 @@ export const SpecRow = memo(function SpecRow({
       <td className="px-2 text-right align-middle">
         <div className="flex flex-col items-end leading-tight">
           <QtyStepper
-            qty={p.qtyFinal}
+            qty={item.qty}
             unit={item.unit}
-            editable={false}
+            editable
             onChange={(d) => h.onQty(item.id, d)}
           />
           {p.hasQtyMod && (

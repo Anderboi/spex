@@ -1,7 +1,7 @@
 "use client";
 
 import { memo } from "react";
-import { ChevronDown, Plus } from "lucide-react";
+import { ChevronDown } from "lucide-react";
 import { SpecRow, type SpecRowHandlers } from "./spec-row";
 import { fmt, plural, cn } from "@/lib/utils";
 import { SpecItem } from '@/lib/types';
@@ -15,7 +15,6 @@ export const GroupSection = memo(function GroupSection({
   sum,
   collapsed,
   onToggle,
-  // onAddPlaceholder,
   selected,
   isDesktop,
   h,
@@ -26,7 +25,6 @@ export const GroupSection = memo(function GroupSection({
   sum: number;
   collapsed: boolean;
   onToggle: () => void;
-  // onAddPlaceholder: () => void;
   selected: ReadonlySet<string>;
   isDesktop: boolean;
   h: SpecRowHandlers;
@@ -100,7 +98,7 @@ export const GroupSection = memo(function GroupSection({
                   <th className="text-left w-20 p-2">изобр</th>
                   <th className="text-left w-14 p-2">марка</th>
                   <th className="text-left flex-1 ..w-1/4 p-2">наименование</th>
-                  <th className="text-left w-30 p-2">кол-во</th>
+                  <th className="text-left w-34 p-2">кол-во</th>
                   <th className="text-left w-28 p-2">цена</th>
                   <th className="text-right w-28 p-2">итого</th>
                   <th className="text-left w-34 min-w-30 p-2">Статус</th>

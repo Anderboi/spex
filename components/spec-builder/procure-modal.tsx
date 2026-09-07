@@ -6,6 +6,8 @@ import { PROCUREMENT_FLOW } from "@/lib/constants";
 import { priceOf } from "@/lib/spec/pricing";
 import type { SpecBuilderContext } from "@/hooks/use-spec-builder";
 import { fmt, fmtQty, cn } from "@/lib/utils";
+import { Drawer, DrawerContent, DrawerHeader } from '../ui/drawer';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 export function ProcureModal({
   ctx,
@@ -25,10 +27,16 @@ export function ProcureModal({
     replace,
   } = ctx.stats;
 
+    const isMobile = useIsMobile();
+    
   if (scopeCount === 0) {
     return (
-      <Dialog open onOpenChange={(v) => !v && onClose()}>
-        <DialogContent className="sm:max-w-190">
+      <Drawer
+        swipeDirection={isMobile ? "down" : "right"}
+        open
+        onOpenChange={(v) => !v && onClose()}
+      >
+        <DrawerContent className="sm:max-w-190">
           <div className="py-12 text-center">
             <p className="text-lg font-semibold">Закупка ещё не началась</p>
             <p className="mt-2 text-[14px] text-fg-muted">
@@ -36,8 +44,8 @@ export function ProcureModal({
               <br />в воронке закупки и поставки.
             </p>
           </div>
-        </DialogContent>
-      </Dialog>
+        </DrawerContent>
+      </Drawer>
     );
   }
 
@@ -47,22 +55,19 @@ export function ProcureModal({
   }).filter((b) => parseFloat(b.width) > 0);
 
   return (
-    <Dialog open onOpenChange={(v) => !v && onClose()}>
-      <DialogContent className="flex max-h-[90vh] flex-col bg-bg gap-0 p-0 overflow-hidden sm:max-w-170">
+    <Drawer
+      swipeDirection={isMobile ? "down" : "right"}
+      showSwipeHandle={isMobile}
+      open
+      onOpenChange={(v) => !v && onClose()}
+    >
+      <DrawerContent className="flex @container flex-col bg-bg gap-0 p-0 overflow-hidden max-w-225 sm:w-170 sm:max-w-[90vw]">
         {/* ── шапка ───────────────────────────────────── */}
-        <DialogHeader className="flex items-start justify-between border-b border-border-subtle px-6 py-6">
+        <DrawerHeader className="flex items-start justify-between border-b border-border-subtle p-4">
           <span className="font-mono text-[12px] uppercase tracking-[.1em] text-fg-dim">
             Закупка и поставка
           </span>
-          {/* <button
-            type="button"
-            onClick={onClose}
-            className="text-[20px] leading-none"
-            aria-label="Закрыть"
-          >
-            <X className="size-5" />
-          </button> */}
-        </DialogHeader>
+        </DrawerHeader>
 
         {/* ── контент ─────────────────────────────────── */}
         <div className="min-h-0 flex-1 overflow-y-auto p-6">
@@ -221,7 +226,7 @@ export function ProcureModal({
             </div>
           )}
         </div>
-      </DialogContent>
-    </Dialog>
+      </DrawerContent>
+    </Drawer>
   );
 }
