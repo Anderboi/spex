@@ -4,13 +4,7 @@ import { PriceField } from "./price-field";
 import Field from "../layout/modal-field";
 import { LEAD_TIME_OPTIONS, UNIT_OPTIONS } from "@/lib/constants";
 import { Input } from "../ui/input";
-import {
-  Building2,
-  ChevronDown,
-  CloudUpload,
-  ExternalLink,
-  Loader2,
-} from "lucide-react";
+import { Building2, CloudUpload, ExternalLink, Loader2 } from "lucide-react";
 import Image from "next/image";
 import { SpecItem, SpecItemPatch } from "@/lib/types";
 import { ChangeEvent, useState } from "react";
@@ -21,11 +15,7 @@ import { QtyStepper } from "./qty-stepper";
 import { fmt } from "@/lib/utils";
 import { Button } from "../ui/button";
 import { AttrsEditor } from "./attrs-editor";
-import {
-  Collapsible,
-  CollapsibleContent,
-  CollapsibleTrigger,
-} from "../ui/collapsible";
+import { Separator } from "../ui/separator";
 
 const ModalReviewTab = ({
   item,
@@ -42,7 +32,6 @@ const ModalReviewTab = ({
   orgSlug: string;
   setTab: (tab: string) => void;
 }) => {
-  const [isOpen, setIsOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const p = priceOf(item);
 
@@ -105,12 +94,14 @@ const ModalReviewTab = ({
           </div>
         </label>
       </section>
-
       {/* //? Details */}
       <section className="flex flex-col gap-4 pl-4 pr-6 py-4">
+        <span className="font-semibold text-[15px] font-mono">
+          Описание продукта
+        </span>
         <div
           key={item.activeVariantId ?? "base"}
-          className="grid grid-cols-2 gap-4 "
+          className="grid grid-cols-2 gap-4"
         >
           <Field label="Наименование" className="col-span-2">
             <Input
@@ -125,20 +116,6 @@ const ModalReviewTab = ({
               onBlur={(e) => onPatch({ brand: e.target.value.trim() })}
             />
           </Field>
-
-          {/* <Field label="Единица">
-                  <select
-                    defaultValue={item.unit}
-                    onChange={(e) => onPatch({ unit: e.target.value })}
-                    className="h-10 w-full rounded-md border border-border-muted bg-bg-card px-3 text-sm"
-                  >
-                    {UNIT_OPTIONS.map((u) => (
-                      <option key={u} value={u}>
-                        {u}
-                      </option>
-                    ))}
-                  </select>
-                </Field> */}
           <Field label="Тип">
             <Input
               defaultValue={item.product_type}
@@ -163,11 +140,6 @@ const ModalReviewTab = ({
                 </option>
               ))}
             </select>
-            {/* <Input
-                    defaultValue={item.leadTime}
-                    placeholder="4–6 недель"
-                    onBlur={(e) => onPatch({ leadTime: e.target.value.trim() })}
-                  /> */}
           </Field>
         </div>
         <Field key={`url-${item.activeVariantId ?? "base"}`} label="Ссылка">
@@ -191,6 +163,24 @@ const ModalReviewTab = ({
             )}
           </div>
         </Field>
+        <div className="grid grid-cols-2 gap-4">
+          <Field label="Запас">
+            <Input
+              onFocus={(e) => e.target.select()}
+              onBlur={(e) => onPatch({ stockPct: +e.target.value })}
+              defaultValue={item.stockPct}
+              type="number"
+            />
+          </Field>
+          <Field label="Скидка %">
+            <Input
+              defaultValue={item.clientDiscountPct}
+              onFocus={(e) => e.target.select()}
+              onBlur={(e) => onPatch({ clientDiscountPct: +e.target.value })}
+              type="number"
+            />
+          </Field>
+        </div>
         {/* //? Quantity & Price */}
         <div
           key={`qp-${item.activeVariantId ?? "base"}`}
@@ -247,29 +237,7 @@ const ModalReviewTab = ({
             </Field>
           </div>
         </div>
-        <div className="flex flex-row gap-2 w-full items-center">
-          <Field label="Запас">
-            <Input defaultValue={item.stockPct} type="number" />
-          </Field>
-          <Field label="Скидка %">
-            <Input defaultValue={item.supplierDiscountPct} type="number" />
-          </Field>
-        </div>
-        <Field label="Описание">
-          <textarea
-            defaultValue={item.spec}
-            onBlur={(e) => onPatch({ spec: e.target.value.trim() })}
-            className="min-h-16 w-full rounded-lg border border-border-muted bg-bg-card p-2 text-sm"
-          />
-        </Field>
-        <Field label="Заметки">
-          <textarea
-            defaultValue={item.notes}
-            onBlur={(e) => onPatch({ notes: e.target.value })}
-            placeholder="Условия, скидки, договорённости"
-            className="min-h-20 w-full rounded-lg border border-border-muted bg-bg-card p-2 text-sm"
-          />
-        </Field>
+
         <Field label="Поставщик">
           <div className="flex items-center justify-between rounded-lg border border-border-muted bg-bg-card px-2 py-2.5">
             {item.companyName ? (
@@ -299,34 +267,33 @@ const ModalReviewTab = ({
           </div>
         </Field>
       </section>
-
-      <Collapsible
-        open={isOpen}
-        onOpenChange={setIsOpen}
-        className="p-2 border rounded-xl ml-4 mr-6 mb-4 bg-bg-card"
-      >
-        <CollapsibleTrigger
-          render={
-            <Button
-              variant="ghost"
-              size="lg"
-              className="flex items-center justify-between gap-4 h-10 w-full //mb-4"
-            >
-              <h4 className="text-sm font-semibold">Характеристики</h4>{" "}
-              <ChevronDown />
-              <span className="sr-only">Toggle details</span>
-            </Button>
-          }
+      {/* //? Attributes  */}
+      <Separator />
+      <section className="flex flex-col gap-4 pl-4 pr-6 py-4">
+        <AttrsEditor
+          type={item.type}
+          attrs={item.attrs}
+          onChange={(attrs) => onPatch({ attrs })}
         />
-
-        <CollapsibleContent className="flex flex-col gap-2">
-          <AttrsEditor
-            type={item.type}
-            attrs={item.attrs}
-            onChange={(attrs) => onPatch({ attrs })}
+      </section>
+      <Separator />
+      <section className="flex flex-col gap-4 pl-4 pr-6 py-4">
+        <Field label="Описание">
+          <textarea
+            defaultValue={item.spec}
+            onBlur={(e) => onPatch({ spec: e.target.value.trim() })}
+            className="min-h-16 w-full rounded-lg border border-border-muted bg-bg-card p-2 text-sm"
           />
-        </CollapsibleContent>
-      </Collapsible>
+        </Field>
+        <Field label="Заметки">
+          <textarea
+            defaultValue={item.notes}
+            onBlur={(e) => onPatch({ notes: e.target.value })}
+            placeholder="Условия, скидки, договорённости"
+            className="min-h-20 w-full rounded-lg border border-border-muted bg-bg-card p-2 text-sm"
+          />
+        </Field>
+      </section>
     </>
   );
 };

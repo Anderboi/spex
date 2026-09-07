@@ -25,13 +25,13 @@ export function VariantsTab({
 
   return (
     <article className="flex flex-col gap-3 px-4">
-      <div className="flex items-center justify-between">
+      <div className="flex pt-4 items-center justify-between">
         <p className="text-[13px] text-fg-muted">
           Кликните по карточке, чтобы сделать вариант активным. Он отображается
           в спецификации и экспортах.
         </p>
         <Button
-          size="sm"
+          size="lg"
           variant="outline"
           onClick={onAdd}
           className="gap-1.5 shrink-0"

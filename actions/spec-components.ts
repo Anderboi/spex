@@ -419,6 +419,31 @@ async function assertNoDuplicateSpecRef(
 }
 
 /**
+ * Собрать строки состава позиции после уже выполненных проверок доступа:
+ * полный отсортированный по position список (группы, компоненты, ссылки),
+ * пригодный для ответа клиенту и для обновления списка без перезагрузки.
+ */
+async function fetchSpecItemComponentRows(
+  c: ComponentCtx,
+  specItemId: string,
+): Promise<{ ok: true; rows: SpecItemComponentRow[] } | { ok: false; error: string }> {
+  const { data, error } = await c.supabase
+    .from("spec_item_components")
+    .select(ROW_COLUMNS)
+    .eq("spec_item_id", specItemId)
+    .eq("org_id", c.orgId)
+    .in("kind", ["component", "group", "spec_ref"])
+    .order("position", { ascending: true });
+
+  if (error) {
+    console.error("[fetchSpecItemComponentRows]", error.message);
+    return { ok: false, error: "Не удалось загрузить состав" };
+  }
+
+  return { ok: true, rows: await hydrateRefItems(c, (data ?? []).map(toClientRow)) };
+}
+
+/**
  * Элементы состава позиции — группы, компоненты и ссылки на позиции
  * (и верхнего уровня, и внутри групп), отсортированные по position внутри
  * своего контейнера. Клиент группирует их по parent_component_id.
@@ -433,19 +458,9 @@ export async function listSpecItemComponents(
   const item = await assertSpecItemInProject(base.c, specItemId);
   if (!item.ok) return fail(item.error);
 
-  const { data, error } = await base.c.supabase
-    .from("spec_item_components")
-    .select(ROW_COLUMNS)
-    .eq("spec_item_id", specItemId)
-    .eq("org_id", base.c.orgId)
-    .in("kind", ["component", "group", "spec_ref"])
-    .order("position", { ascending: true });
-
-  if (error) {
-    console.error("[listSpecItemComponents]", error.message);
-    return fail("Не удалось загрузить состав");
-  }
-  return ok(await hydrateRefItems(base.c, (data ?? []).map(toClientRow)));
+  const res = await fetchSpecItemComponentRows(base.c, specItemId);
+  if (!res.ok) return fail(res.error);
+  return ok(res.rows);
 }
 
 /** Создать компонент состава. Никогда не трогает spec_items/основную таблицу. */
@@ -657,6 +672,148 @@ export async function deleteSpecItemComponent(
 
   revalidatePath(`/${orgSlug}/projects/${projectId}`);
   return ok(null);
+}
+
+/** Направление перемещения компонента внутри группы. */
+export type SpecItemComponentMoveDirection = "up" | "down";
+
+/**
+ * Переместить компонент внутри его группы на одну позицию.
+ *
+ * Меняются местами только position текущего компонента и его соседа по той же
+ * группе (одинаковый parent_component_id). parent_component_id, kind и все
+ * остальные поля не затрагиваются: компонент не может перейти в другую группу
+ * или на верхний уровень. Группы, компоненты вне групп и обычные SpecItem не
+ * меняются. Если соседний элемент отсутствует (граница группы), ничего не
+ * меняется и возвращается ok(null). После успешного обмена возвращается свежий
+ * отсортированный список состава позиции для обновления UI без перезагрузки.
+ */
+export async function moveSpecItemComponent(
+  orgSlug: string,
+  projectId: string,
+  componentId: string,
+  direction: SpecItemComponentMoveDirection,
+): Promise<ActionResult<SpecItemComponentRow[] | null>> {
+  const base = await projectInOrg(orgSlug, projectId);
+  if (!base.c) return fail(base.error);
+
+  if (direction !== "up" && direction !== "down") {
+    return fail("Неверное направление перемещения");
+  }
+
+  // Право на изменение проекта (как у остальных действий со спецификацией).
+  if (
+    !canMutateRecord({
+      role: base.c.role,
+      userId: base.c.userId,
+      createdBy: base.c.createdBy,
+    })
+  ) {
+    return fail("Недостаточно прав");
+  }
+
+  // Исходный компонент: строка kind = 'component' организации сессии.
+  const { data: comp, error: compError } = await base.c.supabase
+    .from("spec_item_components")
+    .select("spec_item_id, parent_component_id, position")
+    .eq("id", componentId)
+    .eq("org_id", base.c.orgId)
+    .eq("kind", "component")
+    .maybeSingle();
+
+  if (compError) {
+    console.error("[moveSpecItemComponent]", compError.message);
+    return fail("Не удалось найти компонент");
+  }
+  if (!comp) return fail("Компонент не найден");
+
+  // Пока перемещение поддержано только для строк внутри группы.
+  if (!comp.parent_component_id) {
+    return ok(null);
+  }
+
+  // Его позиция спецификации обязана быть в проекте этой организации.
+  const item = await assertSpecItemInProject(base.c, comp.spec_item_id);
+  if (!item.ok) return fail(item.error);
+
+  // Родитель — настоящая группа той же позиции (не вложенная, та же org).
+  const parent = await assertParentGroupInContainer(
+    base.c,
+    comp.spec_item_id,
+    comp.parent_component_id,
+  );
+  if (!parent.ok) return fail(parent.error);
+
+  // Сосед — ближайшая строка той же группы: для «вверх» — предыдущая по
+  // position, для «вниз» — следующая.
+  let neighborQuery = base.c.supabase
+    .from("spec_item_components")
+    .select("id, position")
+    .eq("spec_item_id", comp.spec_item_id)
+    .eq("org_id", base.c.orgId)
+    .eq("parent_component_id", comp.parent_component_id)
+    .order("position", { ascending: direction === "down" });
+
+  neighborQuery =
+    direction === "up"
+      ? neighborQuery.lt("position", comp.position).limit(1)
+      : neighborQuery.gt("position", comp.position).limit(1);
+
+  const { data: neighbor, error: neighborError } =
+    await neighborQuery.maybeSingle();
+
+  if (neighborError) {
+    console.error("[moveSpecItemComponent]", neighborError.message);
+    return fail("Не удалось найти соседа в группе");
+  }
+
+  // Компонент на границе группы — соседа нет, менять нечего.
+  if (!neighbor) return ok(null);
+
+  const now = new Date().toISOString();
+
+  // Безопасный обмен position двух соседних строк одного контейнера:
+  // сначала переносим позицию соседа на компонент, затем позицию компонента
+  // на соседа. При сбое второго обновления первое откатывается назад.
+  const swapCurrent = await base.c.supabase
+    .from("spec_item_components")
+    .update({ position: neighbor.position, updated_at: now })
+    .eq("id", componentId)
+    .eq("org_id", base.c.orgId)
+    .eq("spec_item_id", comp.spec_item_id)
+    .eq("parent_component_id", comp.parent_component_id);
+
+  if (swapCurrent.error) {
+    console.error("[moveSpecItemComponent]", swapCurrent.error.message);
+    return fail("Не удалось переместить компонент");
+  }
+
+  const swapNeighbor = await base.c.supabase
+    .from("spec_item_components")
+    .update({ position: comp.position, updated_at: now })
+    .eq("id", neighbor.id)
+    .eq("org_id", base.c.orgId)
+    .eq("spec_item_id", comp.spec_item_id)
+    .eq("parent_component_id", comp.parent_component_id);
+
+  if (swapNeighbor.error) {
+    // Возвращаем компоненту его исходную позицию, чтобы не оставить дубль.
+    await base.c.supabase
+      .from("spec_item_components")
+      .update({ position: comp.position, updated_at: new Date().toISOString() })
+      .eq("id", componentId)
+      .eq("org_id", base.c.orgId)
+      .eq("spec_item_id", comp.spec_item_id)
+      .eq("parent_component_id", comp.parent_component_id);
+    console.error("[moveSpecItemComponent]", swapNeighbor.error.message);
+    return fail("Не удалось переместить компонент");
+  }
+
+  revalidatePath(`/${orgSlug}/projects/${projectId}`);
+
+  const rows = await fetchSpecItemComponentRows(base.c, comp.spec_item_id);
+  if (!rows.ok) return fail(rows.error);
+  return ok(rows.rows);
 }
 
 /**

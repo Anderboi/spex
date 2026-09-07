@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
 import {
   Search,
   ArrowUpDown,
@@ -110,6 +110,20 @@ export default function SpecBuilder({
   const currentChildren = current
     ? ctx.items.filter((child) => child.parentId === current.id)
     : [];
+
+  /**
+   * «Открыть исходную позицию» (kind = 'spec_ref' из «Состава»): переходим в
+   * DetailModal целевой позиции и запоминаем владельца состава, чтобы после
+   * закрытия вернуться к нему на вкладке «Состав».
+   */
+  const openRefFromComposition = useCallback(
+    (refId: string) => {
+      const ownerId = current?.id;
+      if (!ownerId || !ctx.items.some((i) => i.id === refId)) return;
+      ctx.openDetail(refId, { id: ownerId, tab: "components" });
+    },
+    [current, ctx],
+  );
 
   const overBudget =
     project.budget !== null && ctx.stats.totalSum > project.budget;
@@ -275,6 +289,8 @@ export default function SpecBuilder({
           item={ctx.current}
           childrenItems={currentChildren}
           onOpenItem={ctx.openDetail}
+          onOpenRefItem={openRefFromComposition}
+          initialTab={ctx.modal.kind === "detail" ? ctx.modal.tab : undefined}
           allItems={ctx.items}
           companies={companies}
           contacts={contacts}

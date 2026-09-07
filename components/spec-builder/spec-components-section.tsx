@@ -9,6 +9,8 @@ import {
   type FormEvent,
 } from "react";
 import {
+  ArrowDown,
+  ArrowUp,
   ExternalLink,
   FolderOpen,
   Link2,
@@ -32,6 +34,7 @@ import {
   deleteSpecItemComponentGroup,
   deleteSpecItemComponentRef,
   listSpecItemComponents,
+  moveSpecItemComponent,
   updateSpecItemComponent,
   updateSpecItemComponentGroup,
   updateSpecItemComponentRef,
@@ -164,6 +167,23 @@ export function SpecComponentsSection({
     }
     return refCandidates.filter((o) => !used.has(o.id));
   }, [refCandidates, rows, refFormOpen, refEditing, refCreateParentId]);
+
+  /**
+   * Итоговая стоимость состава. Считается по всем строкам списка:
+   *  - component — берём cost (null = 0);
+   *  - spec_ref — берём только additional_cost (null = 0): стоимость исходной
+   *    позиции не участвует, она уже учтена в основной таблице;
+   *  - group — сама группа ничего не стоит, но её дочерние строки лежат в том
+   *    же списке отдельными записями и учитываются как component/spec_ref.
+   */
+  const componentsTotal = useMemo(() => {
+    if (!rows) return 0;
+    return rows.reduce((sum, r) => {
+      if (r.kind === "group") return sum;
+      const value = r.kind === "spec_ref" ? r.additional_cost : r.cost;
+      return sum + (value ?? 0);
+    }, 0);
+  }, [rows]);
 
   const load = useCallback(async () => {
     setRows(null);
@@ -523,6 +543,28 @@ export function SpecComponentsSection({
     });
   };
 
+  /** Перемещение компонента на одну позицию внутри его группы. */
+  const handleMove = (
+    c: SpecItemComponentRow,
+    direction: "up" | "down",
+  ) => {
+    startTransition(async () => {
+      const res = await moveSpecItemComponent(
+        orgSlug,
+        projectId,
+        c.id,
+        direction,
+      );
+      if (!res.success) {
+        toast.error(res.error);
+        return;
+      }
+      // Сервер возвращает свежий список состава; при отсутствии соседа
+      // (граница группы) возвращается null и порядок не меняется.
+      if (res.data) setRows(res.data);
+    });
+  };
+
   const companyOf = (id: string | null) =>
     companies.find((c) => c.id === id)?.name;
   const contactOf = (id: string | null) =>
@@ -533,6 +575,24 @@ export function SpecComponentsSection({
     const supplier = [companyOf(c.company_id), contactOf(c.contact_id)]
       .filter(Boolean)
       .join(" · ");
+
+    // «Вверх»/«Вниз» есть только у компонентов внутри группы. Соседями
+    // считаются строки того же контейнера (parent_component_id) — компоненты
+    // и ссылки, — отсортированные по position, как их показывает список.
+    const inGroup = c.parent_component_id !== null;
+    const groupItems = inGroup
+      ? (rows ?? []).filter(
+          (r) => r.parent_component_id === c.parent_component_id,
+        )
+      : [];
+    const groupIndex = inGroup
+      ? groupItems.findIndex((x) => x.id === c.id)
+      : -1;
+    const canMoveUp = groupIndex > 0;
+    const canMoveDown =
+      groupIndex >= 0 && groupIndex < groupItems.length - 1;
+    const actionsDisabled = pending || formOpen;
+
     return (
       <>
         <div className="flex items-center gap-2">
@@ -546,7 +606,37 @@ export function SpecComponentsSection({
               </span>
             )}
           </div>
-          <div className="flex shrink-0 items-center gap-1">
+          <div className="flex shrink-0 flex-wrap items-center justify-end gap-1">
+            {inGroup && (
+              <>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="gap-1 px-2 text-[12.5px] font-medium text-fg-secondary hover:text-fg"
+                  aria-label={`Переместить «${c.name}» вверх`}
+                  title="Переместить вверх"
+                  onClick={() => handleMove(c, "up")}
+                  disabled={actionsDisabled || !canMoveUp}
+                >
+                  <ArrowUp className="size-3.5" />
+                  {/* Вверх */}
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="gap-1 px-2 text-[12.5px] font-medium text-fg-secondary hover:text-fg"
+                  aria-label={`Переместить «${c.name}» вниз`}
+                  title="Переместить вниз"
+                  onClick={() => handleMove(c, "down")}
+                  disabled={actionsDisabled || !canMoveDown}
+                >
+                  <ArrowDown className="size-3.5" /> 
+                  {/* Вниз */}
+                </Button>
+              </>
+            )}
             <Button
               type="button"
               variant="ghost"
@@ -557,7 +647,8 @@ export function SpecComponentsSection({
               onClick={() => openEdit(c)}
               disabled={pending || formOpen}
             >
-              <Pencil className="size-3.5" /> Редактировать
+              <Pencil className="size-3.5" />
+              {/* Редактировать */}
             </Button>
             <Button
               type="button"
@@ -569,7 +660,8 @@ export function SpecComponentsSection({
               onClick={() => setDeleting(c)}
               disabled={pending || formOpen}
             >
-              <Trash2 className="size-3.5" /> Удалить
+              <Trash2 className="size-3.5" />
+              {/* Удалить */}
             </Button>
           </div>
         </div>
@@ -626,19 +718,19 @@ export function SpecComponentsSection({
               </span>
             )}
           </div>
-          <div className="flex shrink-0 items-center gap-1">
+          <div className="flex shrink-0 flex-wrap items-center justify-end gap-1">
             {ref?.available && (
               <Button
                 type="button"
                 variant="ghost"
                 size="sm"
                 className="gap-1 px-2 text-[12.5px] font-medium text-fg-secondary hover:text-fg"
-                aria-label={`Открыть позицию ${rowLabel(r)}`}
-                title="Открыть позицию"
+                aria-label={`Открыть исходную позицию ${rowLabel(r)}`}
+                title="Открыть исходную позицию"
                 onClick={() => onOpenRefItem(ref.id)}
                 disabled={pending || formOpen}
               >
-                <ExternalLink className="size-3.5" /> Открыть
+                <ExternalLink className="size-3.5" /> Открыть исходную позицию
               </Button>
             )}
             <Button
@@ -651,7 +743,8 @@ export function SpecComponentsSection({
               onClick={() => openRefEdit(r)}
               disabled={pending || formOpen}
             >
-              <Pencil className="size-3.5" /> Редактировать
+              <Pencil className="size-3.5" /> 
+              {/* Редактировать */}
             </Button>
             <Button
               type="button"
@@ -663,7 +756,8 @@ export function SpecComponentsSection({
               onClick={() => setDeleting(r)}
               disabled={pending || formOpen}
             >
-              <Trash2 className="size-3.5" /> Удалить
+              <Trash2 className="size-3.5" /> 
+              {/* Удалить */}
             </Button>
           </div>
         </div>
@@ -1059,7 +1153,8 @@ export function SpecComponentsSection({
                           onClick={() => openGroupEdit(c)}
                           disabled={pending || formOpen}
                         >
-                          <Pencil className="size-3.5" /> Редактировать
+                          <Pencil className="size-3.5" /> 
+                          {/* Редактировать */}
                         </Button>
                         <Button
                           type="button"
@@ -1071,7 +1166,8 @@ export function SpecComponentsSection({
                           onClick={() => setDeleting(c)}
                           disabled={pending || formOpen}
                         >
-                          <Trash2 className="size-3.5" /> Удалить
+                          <Trash2 className="size-3.5" /> 
+                          {/* Удалить */}
                         </Button>
                       </div>
                     </div>

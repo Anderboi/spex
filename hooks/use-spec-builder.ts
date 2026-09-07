@@ -50,9 +50,21 @@ export type Toast = {
   action?: () => void;
 };
 
+export type DetailTab = "overview" | "components";
+
+/** Возврат к открытой ранее детализации после закрытия позиции-ссылки. */
+export type DetailReturnTo = { id: string; tab: DetailTab };
+
 export type Modal =
   | { kind: "none" }
-  | { kind: "detail"; id: string }
+  | {
+      kind: "detail";
+      id: string;
+      /** Вкладка, на которой открыть детализацию (например, после возврата из ссылки). */
+      tab?: DetailTab;
+      /** Открытая из «Состава» ссылка: после закрытия вернуться к владельцу. */
+      returnTo?: DetailReturnTo;
+    }
   | { kind: "add"; editId: string | null; parentId: string | null }
   | { kind: "add-variant"; itemId: string }
   | { kind: "delete"; ids: string[] }
@@ -1153,9 +1165,24 @@ export function useSpecBuilder({
     });
   }, []);
 
-  const closeModal = useCallback(() => setModal({ kind: "none" }), []);
+  const closeModal = useCallback(
+    () =>
+      setModal((m) =>
+        // Ссылка на позицию открыта из «Состава» другой позиции: закрывая её,
+        // возвращаемся к владельцу состава на ту же вкладку.
+        m.kind === "detail" && m.returnTo
+          ? { kind: "detail", id: m.returnTo.id, tab: m.returnTo.tab }
+          : { kind: "none" },
+      ),
+    [],
+  );
   const openDetail = useCallback(
-    (id: string) => setModal({ kind: "detail", id }),
+    (id: string, returnTo?: DetailReturnTo) =>
+      setModal(
+        returnTo
+          ? { kind: "detail", id, returnTo }
+          : { kind: "detail", id },
+      ),
     [],
   );
   const openAdd = useCallback(
@@ -1183,14 +1210,18 @@ export function useSpecBuilder({
         setCodeConflict(null);
         return;
       }
-      if (modal.kind !== "none") {
+      // Escape: сначала конфликт марки, потом верхнюю модалку. DetailModal
+      // (и вложенные диалоги) закрывает сам Dialog через onOpenChange —
+      // не обрабатываем его здесь повторно, чтобы не задваивать «возврат»
+      // к владельцу состава после закрытия позиции-ссылки.
+      if (modal.kind !== "none" && modal.kind !== "detail") {
         e.preventDefault();
-        setModal({ kind: "none" });
+        closeModal();
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [codeConflict, modal.kind]);
+  }, [codeConflict, modal.kind, closeModal]);
 
   const current =
     modal.kind === "detail"
