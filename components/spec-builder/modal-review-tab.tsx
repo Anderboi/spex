@@ -190,7 +190,7 @@ const ModalReviewTab = ({
             <Field label="Кол-во">
               <div className="flex items-center gap-2">
                 <QtyStepper
-                  editable={false}
+                  editable
                   qty={item.qty}
                   unit={item.unit}
                   onChange={onQty}

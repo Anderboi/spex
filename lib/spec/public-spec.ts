@@ -1,10 +1,17 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { SpecItem, type SpecVariant } from "../types";
 import { applyActiveVariant, rowToVariant } from "./variants";
+import {
+  buildSpecSummaryComposition,
+  type SpecSummaryCompositionNode,
+  type SpecSummaryCompositionSourceRow,
+} from "./summary-composition";
 
 export type PublicSpec = {
   project: { title: string; client_name: string | null };
   items: SpecItem[];
+  /** «Тонкая» отображаемая модель состава по spec_item_id (без служебных полей). */
+  compositions: Record<string, SpecSummaryCompositionNode[]>;
   clientView: boolean;
   createdAt: string;
 };
@@ -106,9 +113,64 @@ export async function loadPublicSpec(
       } as SpecItem),
     );
 
+  // ── Состав позиций ─────────────────────────────────────────────
+  // Одним запросом (без N+1) грузим spec_item_components для всех позиций
+  // проекта и строим «тонкую» отображаемую модель: без служебных id,
+  // company/contact и заметок. Имена/коды ссылок гидратируются из уже
+  // выбранных spec_items — отдельного запроса не нужно.
+  const compositions: Record<string, SpecSummaryCompositionNode[]> = {};
+  if (rows && rows.length > 0) {
+    const { data: compRows } = await supabase
+      .from("spec_item_components")
+      .select(
+        "id, spec_item_id, kind, name, cost, additional_cost, ref_spec_item_id, parent_component_id",
+      )
+      .in(
+        "spec_item_id",
+        rows.map((r) => r.id),
+      )
+      .eq("org_id", link.org_id)
+      .in("kind", ["component", "group", "spec_ref"])
+      .order("position", { ascending: true });
+
+    if (compRows && compRows.length > 0) {
+      const targetById = new Map(
+        rows.map((r) => [r.id, r]),
+      );
+      const byItem = new Map<string, SpecSummaryCompositionSourceRow[]>();
+
+      for (const cr of compRows) {
+        const source: SpecSummaryCompositionSourceRow = {
+          id: cr.id,
+          kind: cr.kind as SpecSummaryCompositionSourceRow["kind"],
+          name: cr.name ?? "",
+          cost: cr.cost == null ? null : Number(cr.cost),
+          additional_cost:
+            cr.additional_cost == null ? null : Number(cr.additional_cost),
+          parent_component_id: cr.parent_component_id,
+          ref_spec_item: null,
+        };
+        if (cr.kind === "spec_ref" && cr.ref_spec_item_id) {
+          const target = targetById.get(cr.ref_spec_item_id);
+          source.ref_spec_item = target
+            ? { available: true, code: target.code ?? "", name: target.name }
+            : { available: false };
+        }
+        const list = byItem.get(cr.spec_item_id);
+        if (list) list.push(source);
+        else byItem.set(cr.spec_item_id, [source]);
+      }
+
+      for (const [specItemId, sourceRows] of byItem) {
+        compositions[specItemId] = buildSpecSummaryComposition(sourceRows);
+      }
+    }
+  }
+
   return {
     project,
     items,
+    compositions,
     clientView: link.client_view === true,
     createdAt: link.created_at,
   };

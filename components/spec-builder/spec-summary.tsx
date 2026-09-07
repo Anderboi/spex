@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useEffect, useMemo, useState, useTransition } from "react";
 import {
   FileDown,
   Printer,
@@ -22,6 +22,11 @@ import {
   generatePublicLink,
   generateSpecPdf,
 } from "@/actions/spec-export";
+import { listProjectSpecCompositions } from "@/actions/spec-components";
+import {
+  buildSpecSummaryComposition,
+  type SpecSummaryCompositions,
+} from "@/lib/spec/summary-composition";
 import {
   Drawer,
   DrawerContent,
@@ -48,6 +53,30 @@ export function SpecSummary({
   const isMobile = useIsMobile();
 
   const [busy, setBusy] = useState<null | "excel" | "pdf" | "share">(null);
+
+  /** Составы позиций проекта: загружаются одним bulk-запросом при открытии. */
+  const itemIds = useMemo(
+    () => ctx.items.filter((i) => !i.isPlaceholder).map((i) => i.id),
+    [ctx.items],
+  );
+  const [compositions, setCompositions] = useState<SpecSummaryCompositions>({});
+
+  useEffect(() => {
+    let cancelled = false;
+    listProjectSpecCompositions(ctx.orgSlug, ctx.projectId, itemIds).then(
+      (res) => {
+        if (cancelled || !res.success) return;
+        const built: SpecSummaryCompositions = {};
+        for (const [itemId, rows] of Object.entries(res.data)) {
+          built[itemId] = buildSpecSummaryComposition(rows);
+        }
+        setCompositions(built);
+      },
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [ctx.orgSlug, ctx.projectId, itemIds]);
 
   const run = (kind: "excel" | "pdf" | "share", fn: () => Promise<void>) => {
     setBusy(kind);
@@ -143,7 +172,7 @@ export function SpecSummary({
         );
       }
     });
-
+ 
   return (
     <Drawer
       swipeDirection={isMobile ? "down" : "right"}
@@ -219,14 +248,6 @@ export function SpecSummary({
                 {clientView ? "Версия для клиента" : "Рабочая версия"}
               </span>
             </Button>
-            {/* <button
-              type="button"
-              onClick={onClose}
-              className="ml-2 text-[20px]"
-              aria-label="Закрыть"
-            >
-              <X className="size-5" />
-            </button> */}
           </div>
         </DrawerHeader>
         {/* ── содержимое ──────────────────────────────── */}
@@ -249,15 +270,6 @@ export function SpecSummary({
               </p>
             </div>
           </div>
-          {/*           {/* итого */}
-          {/* <div className="text-right mt-2">
-            <p className="font-mono text-[11px] uppercase tracking-widest text-fg-dim">
-              Итого
-            </p>
-            <p className=" font-mono text-[clamp(22px,4vw,32px)] font-bold tabular-nums">
-              {fmt(ctx.stats.totalSum)} ₽
-            </p>
-          </div> */}
 
           {/* полоса по статусам */}
           {!clientView && byStatus.length > 0 && (
@@ -299,7 +311,12 @@ export function SpecSummary({
               </div>
 
               {g.items.map((it) => (
-                <SummaryItemRow key={it.id} item={it} clientView={clientView} />
+                <SummaryItemRow
+                  key={it.id}
+                  item={it}
+                  clientView={clientView}
+                  composition={compositions[it.id]}
+                />
               ))}
             </div>
           ))}

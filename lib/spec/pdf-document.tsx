@@ -6,6 +6,7 @@ import { SPEC_STATUS_CONFIG } from "@/lib/spec/status";
 import { TYPE_ORDER } from "@/lib/constants";
 import { fmt, fmtQty } from "@/lib/utils";
 import { SpecItem } from "../types";
+import type { SpecSummaryCompositionNode } from "./summary-composition";
 
 registerPdfFonts();
 
@@ -121,6 +122,34 @@ const styles = StyleSheet.create({
   num: { fontSize: 8.5 },
   total: { fontSize: 10, fontWeight: "bold" },
 
+  /* состав позиции */
+  compBlock: {
+    borderLeftWidth: 1,
+    borderLeftColor: C.line,
+    marginTop: 1,
+    marginBottom: 6,
+    paddingLeft: 10,
+  },
+  compTitle: {
+    fontSize: 6.5,
+    color: C.dim,
+    letterSpacing: 1,
+    textTransform: "uppercase",
+    marginBottom: 1,
+  },
+  compNested: { paddingLeft: 10 },
+  compGroup: { fontSize: 8.5, fontWeight: "bold", marginTop: 1.5 },
+  compRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "baseline",
+    marginTop: 1.5,
+  },
+  compName: { fontSize: 8, color: C.ink, lineHeight: 1.3, paddingRight: 6, flexGrow: 1 },
+  compCode: { color: C.sub },
+  compAmount: { fontSize: 7.5, color: C.sub },
+  compMuted: { fontSize: 8, color: C.dim, marginTop: 1 },
+
   /* статус — отдельная строка под ценой, не в ряд */
   statusLine: {
     flexDirection: "row",
@@ -160,11 +189,13 @@ const styles = StyleSheet.create({
 export function SpecPdfDocument({
   project,
   items,
+  compositions = {},
   clientView = false,
   createdAt,
 }: {
   project: { title: string; client_name: string | null };
   items: SpecItem[];
+  compositions?: Record<string, SpecSummaryCompositionNode[]>;
   clientView?: boolean;
   createdAt?: string;
 }) {
@@ -217,51 +248,58 @@ export function SpecPdfDocument({
 
             {g.items.map((it) => {
               const p = priceOf(it);
+              const comp = compositions[it.id];
               return (
-                <View key={it.id} style={styles.row} wrap={false}>
-                  {!clientView && (
-                    <View style={styles.cCode}>
-                      <Text style={styles.code}>{it.code}</Text>
-                    </View>
-                  )}
-
-                  <View style={clientView ? styles.cNameWide : styles.cName}>
-                    <Text style={styles.name}>{it.name}</Text>
-                    {it.brand ? (
-                      <Text style={styles.brand}>{it.brand}</Text>
-                    ) : null}
-                  </View>
-
-                  <View style={styles.cSpec}>
-                    <Text style={styles.spec}>{it.spec || "—"}</Text>
-                  </View>
-
-                  <View style={styles.cQty}>
-                    <Text style={styles.num}>
-                      {fmtQty(p.qtyFinal)} {it.unit}
-                    </Text>
-                  </View>
-
-                  <View style={styles.cPrice}>
-                    <Text style={styles.numMuted}>{fmt(p.priceFinal)}</Text>
-                  </View>
-
-                  <View style={styles.cTotal}>
-                    <Text style={styles.total}>{fmt(p.total)} ₽</Text>
+                <View key={it.id} wrap={false}>
+                  <View style={styles.row}>
                     {!clientView && (
-                      <View style={styles.statusLine}>
-                        <View
-                          style={[
-                            styles.dot,
-                            { backgroundColor: DOT[it.status] },
-                          ]}
-                        />
-                        <Text style={styles.statusText}>
-                          {SPEC_STATUS_CONFIG[it.status].label}
-                        </Text>
+                      <View style={styles.cCode}>
+                        <Text style={styles.code}>{it.code}</Text>
                       </View>
                     )}
+
+                    <View style={clientView ? styles.cNameWide : styles.cName}>
+                      <Text style={styles.name}>{it.name}</Text>
+                      {it.brand ? (
+                        <Text style={styles.brand}>{it.brand}</Text>
+                      ) : null}
+                    </View>
+
+                    <View style={styles.cSpec}>
+                      <Text style={styles.spec}>{it.spec || "—"}</Text>
+                    </View>
+
+                    <View style={styles.cQty}>
+                      <Text style={styles.num}>
+                        {fmtQty(p.qtyFinal)} {it.unit}
+                      </Text>
+                    </View>
+
+                    <View style={styles.cPrice}>
+                      <Text style={styles.numMuted}>{fmt(p.priceFinal)}</Text>
+                    </View>
+
+                    <View style={styles.cTotal}>
+                      <Text style={styles.total}>{fmt(p.total)} ₽</Text>
+                      {!clientView && (
+                        <View style={styles.statusLine}>
+                          <View
+                            style={[
+                              styles.dot,
+                              { backgroundColor: DOT[it.status] },
+                            ]}
+                          />
+                          <Text style={styles.statusText}>
+                            {SPEC_STATUS_CONFIG[it.status].label}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
                   </View>
+
+                  {comp && comp.length > 0 ? (
+                    <PdfComposition nodes={comp} clientView={clientView} />
+                  ) : null}
                 </View>
               );
             })}
@@ -287,3 +325,84 @@ export function SpecPdfDocument({
     </Document>
   );
 }
+
+/** Блок «Состав» позиции в PDF (та же модель, что и в веб-сводке). */
+function PdfComposition({
+  nodes,
+  clientView,
+}: {
+  nodes: SpecSummaryCompositionNode[];
+  clientView: boolean;
+}) {
+  return (
+    <View style={styles.compBlock}>
+      <Text style={styles.compTitle}>Состав</Text>
+      <PdfCompositionNodes nodes={nodes} clientView={clientView} />
+    </View>
+  );
+}
+
+function PdfCompositionNodes({
+  nodes,
+  clientView,
+  nested = false,
+}: {
+  nodes: SpecSummaryCompositionNode[];
+  clientView: boolean;
+  nested?: boolean;
+}) {
+  return (
+    <View style={nested ? styles.compNested : undefined}>
+      {nodes.map((node, i) => {
+        if (node.kind === "group") {
+          return (
+            <View key={i}>
+              <Text style={styles.compGroup}>{node.name}</Text>
+              {node.children.length > 0 ? (
+                <PdfCompositionNodes
+                  nodes={node.children}
+                  clientView={clientView}
+                  nested
+                />
+              ) : null}
+            </View>
+          );
+        }
+        if (node.kind === "component") {
+          return (
+            <View key={i} style={styles.compRow}>
+              <Text style={styles.compName}>{node.name}</Text>
+              {node.cost != null ? (
+                <Text style={styles.compAmount}>{fmt(node.cost)} ₽</Text>
+              ) : null}
+            </View>
+          );
+        }
+        // spec_ref: название/код из связанного SpecItem, только additional_cost.
+        if (!node.available) {
+          return (
+            <Text key={i} style={styles.compMuted}>
+              Исходная позиция недоступна
+            </Text>
+          );
+        }
+        return (
+          <View key={i} style={styles.compRow}>
+            <Text style={styles.compName}>
+              {!clientView && node.code ? (
+                <Text style={styles.compCode}>{node.code} · </Text>
+              ) : null}
+              {node.name}
+            </Text>
+            {node.additional_cost != null ? (
+              <Text style={styles.compAmount}>
+                {fmt(node.additional_cost)} ₽ доп.
+              </Text>
+            ) : null}
+          </View>
+        );
+      })}
+    </View>
+  );
+}
+

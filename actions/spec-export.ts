@@ -8,8 +8,84 @@ import { priceOf } from "@/lib/spec/pricing";
 import { fmt, fmtQty } from "@/lib/utils";
 import { SPEC_STATUS_CONFIG } from "@/lib/spec/status";
 import * as XLSX from "xlsx";
+import { listProjectSpecCompositions } from "@/actions/spec-components";
+import {
+  buildSpecSummaryComposition,
+  type SpecSummaryCompositionNode,
+} from "@/lib/spec/summary-composition";
+import type { SpecItem } from "@/lib/types";
 
 type ExportOpts = { clientView?: boolean };
+
+/** Строка Excel для позиции спецификации (порядок ключей = порядок колонок). */
+function itemRow(it: SpecItem, client: boolean): Record<string, string> {
+  const p = priceOf(it);
+  const row: Record<string, string> = client ? {} : { Марка: it.code };
+
+  Object.assign(row, {
+    Наименование: it.name,
+    Бренд: it.brand || "",
+    Характеристика: it.spec || "",
+    ...(client ? {} : { Артикул: it.article || "" }),
+    "Кол-во": fmtQty(p.qtyFinal),
+    "Ед.": it.unit,
+    Цена: fmt(p.priceFinal),
+    Сумма: fmt(p.total),
+  });
+
+  if (!client) {
+    Object.assign(row, {
+      Статус: SPEC_STATUS_CONFIG[it.status].label,
+      Поставщик: it.companyName || "",
+      Помещения: it.rooms.join(", "),
+      Заметки: it.notes || "",
+    });
+  }
+  return row;
+}
+
+/**
+ * Раскладывает дерево состава позиции в плоские строки Excel под позицией.
+ * Группы — подзаголовки (их дети идут ниже с отступом), компоненты и ссылки —
+ * строки с названием; сумма строки состава пишется текстом (как и остальные
+ * ячейки экспорта), поэтому в общую стоимость спецификации не попадает.
+ * Ссылка на SpecItem показывает имя/код исходной позиции, но из сумм — только
+ * additional_cost: стоимость исходной позиции уже стоит в основной таблице.
+ */
+function pushCompositionRows(
+  nodes: readonly SpecSummaryCompositionNode[],
+  client: boolean,
+  depth: number,
+  out: Record<string, string>[],
+): void {
+  for (const node of nodes) {
+    const row: Record<string, string> = {};
+    const indent = "   ".repeat(depth);
+
+    if (node.kind === "group") {
+      row["Наименование"] = indent + node.name;
+      out.push(row);
+      pushCompositionRows(node.children, client, depth + 1, out);
+      continue;
+    }
+
+    if (node.kind === "component") {
+      row["Наименование"] = `${indent}— ${node.name}`;
+      if (node.cost != null) row["Сумма"] = `${fmt(node.cost)} ₽`;
+      out.push(row);
+      continue;
+    }
+
+    // kind === "spec_ref" — ссылка на исходный SpecItem.
+    if (!client && node.available && node.code) row["Марка"] = node.code;
+    row["Наименование"] = node.available
+      ? `${indent}— ${node.name ?? ""}`
+      : `${indent}— Исходная позиция недоступна`;
+    if (node.available && node.additional_cost != null)
+      row["Сумма"] = `${fmt(node.additional_cost)} ₽ доп.`;
+    out.push(row);
+  }
+}
 
 export async function exportSpecToExcel(
   orgSlug: string,
@@ -23,32 +99,29 @@ export async function exportSpecToExcel(
 
   const client = opts.clientView === true;
 
-  const rows = items.map((it) => {
-    const p = priceOf(it);
-    // порядок ключей = порядок колонок
-    const base: Record<string, string> = client ? {} : { Марка: it.code };
+  // Состав позиций: общая модель загрузки состава (bulk-запрос + гидратация
+  // ссылок на SpecItem), используется и сводкой билдера — без дублирования
+  // запросов к spec_item_components.
+  const compositions = await listProjectSpecCompositions(
+    orgSlug,
+    projectId,
+    items.map((i) => i.id),
+  );
+  if (!compositions.success) return fail(compositions.error);
+  const compByItem: Record<string, SpecSummaryCompositionNode[]> = {};
+  for (const [itemId, rows] of Object.entries(compositions.data)) {
+    compByItem[itemId] = buildSpecSummaryComposition(rows);
+  }
 
-    Object.assign(base, {
-      Наименование: it.name,
-      Бренд: it.brand || "",
-      Характеристика: it.spec || "",
-      ...(client ? {} : { Артикул: it.article || "" }),
-      "Кол-во": fmtQty(p.qtyFinal),
-      "Ед.": it.unit,
-      Цена: fmt(p.priceFinal),
-      Сумма: fmt(p.total),
-    });
-
-    if (!client) {
-      Object.assign(base, {
-        Статус: SPEC_STATUS_CONFIG[it.status].label,
-        Поставщик: it.companyName || "",
-        Помещения: it.rooms.join(", "),
-        Заметки: it.notes || "",
-      });
+  // Каждая позиция = строка; под позицией с составом идут строки состава.
+  const rows: Record<string, string>[] = [];
+  for (const it of items) {
+    rows.push(itemRow(it, client));
+    const comp = compByItem[it.id];
+    if (comp && comp.length > 0) {
+      pushCompositionRows(comp, client, 0, rows);
     }
-    return base;
-  });
+  }
 
   const wb = XLSX.utils.book_new();
   const ws = XLSX.utils.json_to_sheet(rows);

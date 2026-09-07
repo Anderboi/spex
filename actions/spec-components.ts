@@ -463,6 +463,57 @@ export async function listSpecItemComponents(
   return ok(res.rows);
 }
 
+/**
+ * Составы всех позиций проекта одним запросом (без N+1) — для сводки.
+ * Возвращает словарь spec_item_id → строки состава в той же клиентской модели,
+ * что и в listSpecItemComponents. Гидрация ссылок выполняется одним общим
+ * запросом по всем строкам. Позиции без состава в ответе отсутствуют.
+ */
+export async function listProjectSpecCompositions(
+  orgSlug: string,
+  projectId: string,
+  specItemIds: string[],
+): Promise<ActionResult<Record<string, SpecItemComponentRow[]>>> {
+  const base = await projectInOrg(orgSlug, projectId);
+  if (!base.c) return fail(base.error);
+
+  const ids = [...new Set(specItemIds.filter((id) => id.length > 0))];
+  if (ids.length === 0) return ok({});
+
+  const { data, error } = await base.c.supabase
+    .from("spec_item_components")
+    .select(`${ROW_COLUMNS}, spec_item_id`)
+    .in("spec_item_id", ids)
+    .eq("org_id", base.c.orgId)
+    .in("kind", ["component", "group", "spec_ref"])
+    .order("position", { ascending: true });
+
+  if (error) {
+    console.error("[listProjectSpecCompositions]", error.message);
+    return fail("Не удалось загрузить состав");
+  }
+
+  // spec_item_id нужен только чтобы разложить строки по позициям; наружу он
+  // не уходит — ключ словаря и есть владелец состава.
+  type RowWithOwner = SpecItemComponentRow & { spec_item_id: string };
+  const rowsWithOwner = (data ?? []).map(
+    (row) =>
+      ({ ...toClientRow(row), spec_item_id: row.spec_item_id }) as RowWithOwner,
+  );
+  const hydrated = (await hydrateRefItems(
+    base.c,
+    rowsWithOwner,
+  )) as RowWithOwner[];
+
+  const byItem: Record<string, SpecItemComponentRow[]> = {};
+  for (const row of hydrated) {
+    const list = byItem[row.spec_item_id];
+    if (list) list.push(row);
+    else byItem[row.spec_item_id] = [row];
+  }
+  return ok(byItem);
+}
+
 /** Создать компонент состава. Никогда не трогает spec_items/основную таблицу. */
 export async function createSpecItemComponent(
   orgSlug: string,

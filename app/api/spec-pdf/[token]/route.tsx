@@ -19,6 +19,7 @@ export async function GET(
     <SpecPdfDocument
       project={data.project}
       items={data.items}
+      compositions={data.compositions}
       clientView={data.clientView}
       createdAt={data.createdAt}
     />,

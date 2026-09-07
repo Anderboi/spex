@@ -2,16 +2,21 @@ import { SPEC_STATUS_CONFIG } from "@/lib/spec/status";
 import { priceOf } from "@/lib/spec/pricing";
 import { fmt, fmtQty, cn } from "@/lib/utils";
 import { SpecItem } from "@/lib/types";
+import type { SpecSummaryCompositionNode } from "@/lib/spec/summary-composition";
 
 export function SummaryItemRow({
   item,
   clientView = false,
+  composition,
 }: {
   item: SpecItem;
   clientView?: boolean;
+  /** Состав позиции (уже собранное дерево) — блок рисуется, если не пуст. */
+  composition?: SpecSummaryCompositionNode[] | null;
 }) {
   const p = priceOf(item);
   const status = SPEC_STATUS_CONFIG[item.status];
+  const nodes = composition && composition.length > 0 ? composition : null;
 
   return (
     <>
@@ -103,6 +108,115 @@ export function SummaryItemRow({
           )}
         </div>
       </div>
+
+      {/* ── состав позиции ───────────────────────────────── */}
+      {nodes && (
+        <SummaryCompositionBlock nodes={nodes} clientView={clientView} />
+      )}
     </>
   );
 }
+
+/** Блок «Состав» под позицией: группы, компоненты и ссылки на SpecItem. */
+function SummaryCompositionBlock({
+  nodes,
+  clientView,
+}: {
+  nodes: SpecSummaryCompositionNode[];
+  clientView: boolean;
+}) {
+  return (
+    <div className="mt-0.5 rounded-lg border border-border-muted bg-bg-card2/40 px-3 py-2 print:mt-1 print:break-inside-avoid print:bg-transparent">
+      <p className="font-mono text-[10px] font-semibold uppercase tracking-[.14em] text-fg-dim">
+        Состав
+      </p>
+      <div className="mt-1.5 flex flex-col gap-1.5">
+        {nodes.map((node, i) => (
+          <SummaryCompositionRow
+            key={`${node.kind}-${i}`}
+            node={node}
+            clientView={clientView}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+/** Одна строка дерева состава (группа, компонент или ссылка на позицию). */
+function SummaryCompositionRow({
+  node,
+  clientView,
+}: {
+  node: SpecSummaryCompositionNode;
+  clientView: boolean;
+}) {
+  if (node.kind === "group") {
+    return (
+      <div>
+        <p className="text-[12.5px] font-bold leading-snug text-fg">
+          {node.name}
+        </p>
+        {node.children.length > 0 ? (
+          <div className="ml-3 mt-1 flex flex-col gap-1.5 border-l border-border-muted pl-3">
+            {node.children.map((child, i) => (
+              <SummaryCompositionRow
+                key={`${child.kind}-${i}`}
+                node={child}
+                clientView={clientView}
+              />
+            ))}
+          </div>
+        ) : (
+          <p className="ml-3 mt-0.5 text-[12px] text-fg-muted">
+            Нет элементов
+          </p>
+        )}
+      </div>
+    );
+  }
+
+  if (node.kind === "component") {
+    return (
+      <div className="flex items-baseline justify-between gap-3">
+        <span className="min-w-0 flex-1 break-words text-[12.5px] font-medium leading-snug text-fg">
+          {node.name}
+        </span>
+        {node.cost != null && (
+          <span className="shrink-0 font-mono text-[12px] font-medium tabular-nums text-fg-secondary">
+            {fmt(node.cost)} ₽
+          </span>
+        )}
+      </div>
+    );
+  }
+
+  // kind === "spec_ref": название/код берутся из связанного SpecItem,
+  // учитывается только additional_cost (стоимость исходной позиции нет).
+  if (!node.available) {
+    return (
+      <p className="text-[12.5px] font-medium leading-snug text-fg-muted">
+        Исходная позиция недоступна
+      </p>
+    );
+  }
+
+  return (
+    <div className="flex items-baseline justify-between gap-3">
+      <span className="min-w-0 flex-1 break-words text-[12.5px] font-medium leading-snug text-fg">
+        {!clientView && node.code && (
+          <span className="font-mono text-[11px] text-fg-dim">
+            {node.code} ·{" "}
+          </span>
+        )}
+        {node.name}
+      </span>
+      {node.additional_cost != null && (
+        <span className="shrink-0 font-mono text-[12px] font-medium tabular-nums text-fg-secondary">
+          {fmt(node.additional_cost)} ₽ доп.
+        </span>
+      )}
+    </div>
+  );
+}
+

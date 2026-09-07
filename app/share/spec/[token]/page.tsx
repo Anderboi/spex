@@ -109,7 +109,12 @@ export default async function PublicSpecPage({ params }: Props) {
             </span>
           </div>
           {g.items.map((it) => (
-            <SummaryItemRow key={it.id} item={it} clientView={clientView} />
+            <SummaryItemRow
+              key={it.id}
+              item={it}
+              clientView={clientView}
+              composition={data.compositions[it.id]}
+            />
           ))}
         </div>
       ))}
