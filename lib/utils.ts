@@ -35,10 +35,10 @@ export const fmtDate = (iso: string) =>
     year: "numeric",
   });
 
-  export const fmtQty = (n: number) =>
-    Number.isInteger(n)
-      ? String(n)
-      : n.toFixed(2).replace(/0+$/, "").replace(/\.$/, "").replace(".", ",");
+export const fmtQty = (n: number) =>
+  Number.isInteger(n)
+    ? String(n)
+    : n.toFixed(2).replace(/0+$/, "").replace(/\.$/, "").replace(".", ",");
 
 export function fmt(n: number | string | null): string {
   return Number(n || 0).toLocaleString("ru-RU");
@@ -308,4 +308,22 @@ export const normPhone = (s?: string | null): string => {
 export function one<T>(value: T | T[] | null | undefined): T | null {
   if (Array.isArray(value)) return value[0] ?? null;
   return value ?? null;
+}
+
+export function fmtCompact(amount: number): string {
+  const sign = amount < 0 ? "−" : "";
+  const abs = Math.abs(amount);
+
+  if (abs >= 1_000_000) {
+    return `${sign}${trimDecimal(abs / 1_000_000)}м`;
+  }
+  if (abs >= 1_000) {
+    return `${sign}${trimDecimal(abs / 1_000)}т`;
+  }
+  return `${sign}${abs.toLocaleString("ru-RU")}`;
+}
+
+function trimDecimal(value: number): string {
+  const rounded = Math.round(value * 10) / 10;
+  return rounded.toLocaleString("ru-RU", { maximumFractionDigits: 1 });
 }

@@ -73,7 +73,7 @@ export const SpecRow = memo(function SpecRow({
           "bg-[repeating-linear-gradient(45deg,transparent,transparent_7px,var(--color-bg-card)_7px,var(--color-bg-card)_14px)]",
       )}
     >
-      <td className="px-3">
+      <td className="">
         <Checkbox
           className="border-border border-2"
           checked={selected}
@@ -138,7 +138,13 @@ export const SpecRow = memo(function SpecRow({
             onOpenVariants={() => h.onOpen(item.id)}
           />
         )}
-        <ServiceOperationBadges ops={ops} onOpen={h.onEditOperation} />
+      </td>
+      <td className="px-2 text-left align-middle">
+        {ops && ops.length > 0 ? (
+          <ServiceOperationBadges ops={ops} onOpen={h.onEditOperation} />
+        ) : (
+          <span className="text-[13px] text-fg-muted">—</span>
+        )}
       </td>
       {/* <td className="min-w-0 px-2 py-2 block max-w-full text-left text-[14px]">
         <div>{item.notes}</div>
@@ -187,6 +193,7 @@ export const SpecRow = memo(function SpecRow({
           {p.total > 0 ? `${fmt(p.total)} ₽` : "—"}
         </span>
       </td>
+
       <td className="px-2">
         <StatusMenu item={item} onChange={(s) => h.onStatus(item.id, s)} />
       </td>

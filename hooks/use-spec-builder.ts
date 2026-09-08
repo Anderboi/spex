@@ -19,6 +19,8 @@ import {
   SpecStatus,
   SpecType,
   TYPE_ORDER,
+  isSpecItemAllowedForOperation,
+  specItemIdsInDeliveries,
   type ServiceOperationType,
 } from "@/lib/constants";
 import {
@@ -1236,23 +1238,72 @@ export function useSpecBuilder({
   const openSummary = useCallback(() => setModal({ kind: "summary" }), []);
 
   /**
-   * Открыть форму создания операции из выделения. Заглушки в операцию
-   * не включаются: если после фильтрации позиций не осталось — toast.
+   * Открыть форму создания операции из выделения. Позиции, недоступные для
+   * этого типа операции, исключаются: заглушки, материалы со статусом
+   * «Доставлено»/«Заменить» для доставки и «Заменить» для монтажа, а также
+   * (только для доставки) материалы, уже включённые в другую доставку — их
+   * статус значения не имеет. Если после фильтрации не осталось позиций —
+   * toast и модалку не открываем.
    */
   const openServiceOperation = useCallback(
     (type: ServiceOperationType) => {
-      const eligible = itemsRef.current.some(
+      const hasReal = itemsRef.current.some(
         (i) => selected.has(i.id) && !i.isPlaceholder,
       );
-      if (!eligible) {
+      if (!hasReal) {
         showToast(
           "Выберите заполненные позиции — заглушки в операцию не включаются",
         );
         return;
       }
+
+      // Для доставки дополнительно исключаем материалы, которые уже связаны
+      // с другой доставкой (независимо от их текущего статуса).
+      const inOtherDeliveries =
+        type === "delivery" ? specItemIdsInDeliveries(operations) : null;
+
+      const eligible = itemsRef.current.some(
+        (i) =>
+          selected.has(i.id) &&
+          isSpecItemAllowedForOperation(i, type) &&
+          !(inOtherDeliveries?.has(i.id) ?? false),
+      );
+      if (!eligible) {
+        if (type === "delivery") {
+          const onlyByStatus = itemsRef.current.some(
+            (i) =>
+              selected.has(i.id) &&
+              !isSpecItemAllowedForOperation(i, type),
+          );
+          const onlyByDelivery = itemsRef.current.some(
+            (i) =>
+              selected.has(i.id) &&
+              isSpecItemAllowedForOperation(i, type) &&
+              (inOtherDeliveries?.has(i.id) ?? false),
+          );
+          if (onlyByDelivery && !onlyByStatus) {
+            showToast(
+              "Нет позиций для доставки — выбранные материалы уже включены в другую доставку",
+            );
+          } else if (onlyByStatus && !onlyByDelivery) {
+            showToast(
+              "Нет позиций для доставки — материалы со статусом «Доставлено»/«Заменить» в новую доставку не включаются",
+            );
+          } else {
+            showToast(
+              "Нет позиций для доставки — материалы уже входят в другую доставку или имеют статус «Доставлено»/«Заменить»",
+            );
+          }
+        } else {
+          showToast(
+            "Нет позиций для монтажа — материалы со статусом «Заменить» в монтаж не включаются",
+          );
+        }
+        return;
+      }
       setModal({ kind: "operation", type });
     },
-    [selected, showToast],
+    [selected, showToast, operations],
   );
 
   /**
@@ -1270,13 +1321,17 @@ export function useSpecBuilder({
    * Локально отмечает связанные позиции «Доставлено». Сервер уже записал
    * статус в рамках update/createServiceOperation — здесь только зеркалим
    * изменение в таблице, не добавляя патч в очередь сохранения.
+   * Материалы со статусом «Заменить» пропускаем — авто-отметка не должна
+   * сбрасывать осознанную замену позиции.
    */
   const markItemsDelivered = useCallback((ids: string[]) => {
     const set = new Set(ids);
     if (set.size === 0) return;
     setItems((prev) =>
       prev.map((i) =>
-        set.has(i.id) ? { ...i, status: "delivered" } : i,
+        set.has(i.id) && i.status !== "replace"
+          ? { ...i, status: "delivered" }
+          : i,
       ),
     );
   }, []);

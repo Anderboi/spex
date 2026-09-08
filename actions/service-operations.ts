@@ -5,7 +5,10 @@ import { requireOrgBySlug } from "@/lib/auth/session";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { canMutateRecord } from "@/lib/permissions";
 import { ok, fail, type ActionResult } from "@/lib/action-result";
-import type { ServiceOperationType } from "@/lib/constants";
+import {
+  SERVICE_OPERATION_BLOCKED_STATUSES,
+  type ServiceOperationType,
+} from "@/lib/constants";
 import {
   serviceOperationCreateSchema,
   serviceOperationDeleteSchema,
@@ -96,13 +99,114 @@ async function guardProject(
   return { error: null, createdBy: project.created_by };
 }
 
+/** «Короткое» описание заблокированных позиций для понятного сообщения. */
+function describeBlocked(rows: Array<{ name: string }>): string {
+  const shown = rows.slice(0, 2);
+  const names = shown.map((r) => `«${r.name}»`).join(", ");
+  const rest = rows.length - shown.length;
+  return rest > 0 ? `${names} и ещё ${rest}` : names;
+}
+
+/**
+ * Текст ошибки при создании операции, в которую попали материалы со
+ * статусом, недоступным для этого типа операции.
+ */
+function blockedStatusError(
+  type: ServiceOperationType,
+  blocked: Array<{ name: string }>,
+): string {
+  const names = describeBlocked(blocked);
+  return type === "delivery"
+    ? `Доставка не создана: ${names} — материалы со статусом «Доставлено» или «Заменить» нельзя включить в новую доставку.`
+    : `Монтаж не создан: ${names} — материалы со статусом «Заменить» нельзя включить в монтаж.`;
+}
+
+/**
+ * Один и тот же материал нельзя включить в две разные доставки.
+ *
+ * Перед созданием новой доставки (или сохранением связей существующей)
+ * проверяем service_operation_items: если выбранная позиция уже связана с
+ * какой-либо операцией типа delivery этого проекта/организации — операцию не
+ * создаём и не сохраняем. При редактировании (excludeOperationId) собственные
+ * связки редактируемой операции «другой доставкой» не считаются.
+ */
+async function assertNoOtherDelivery(
+  c: OpCtx,
+  ids: string[],
+  opts: { action: "create" | "update"; excludeOperationId?: string } = {
+    action: "create",
+  },
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (ids.length === 0) return { ok: true };
+
+  const { data: ops, error: opsErr } = await c.supabase
+    .from("service_operations")
+    .select("id")
+    .eq("type", "delivery")
+    .eq("project_id", c.projectId)
+    .eq("org_id", c.orgId);
+
+  if (opsErr) {
+    console.error("[service-operations] deliveries", opsErr.message);
+    return { ok: false, error: "Не удалось проверить доставки проекта" };
+  }
+
+  const otherOpIds = (ops ?? [])
+    .map((o) => o.id)
+    .filter((id) => id !== opts.excludeOperationId);
+  if (otherOpIds.length === 0) return { ok: true };
+
+  const { data: links, error: linksErr } = await c.supabase
+    .from("service_operation_items")
+    .select("spec_item_id")
+    .in("operation_id", otherOpIds)
+    .in("spec_item_id", ids);
+
+  if (linksErr) {
+    console.error("[service-operations] delivery links", linksErr.message);
+    return { ok: false, error: "Не удалось проверить материалы доставок" };
+  }
+
+  const takenIds = [...new Set((links ?? []).map((l) => l.spec_item_id))];
+  if (takenIds.length === 0) return { ok: true };
+
+  const { data: taken, error: itemsErr } = await c.supabase
+    .from("spec_items")
+    .select("id, name")
+    .in("id", takenIds)
+    .eq("project_id", c.projectId)
+    .eq("org_id", c.orgId);
+
+  if (itemsErr) {
+    console.error("[service-operations] delivery items", itemsErr.message);
+    return { ok: false, error: "Не удалось загрузить материалы доставки" };
+  }
+
+  const blocked = (taken ?? []).map((r) => ({ name: r.name }));
+  const names = describeBlocked(blocked);
+  const subject =
+    blocked.length === 1
+      ? "этот материал уже связан с другой доставкой"
+      : "эти материалы уже связаны с другой доставкой";
+  const prefix =
+    opts.action === "create"
+      ? "Доставка не создана"
+      : "Доставка не сохранена";
+  return { ok: false, error: `${prefix}: ${names} — ${subject}.` };
+}
+
 /**
  * Все выбранные позиции обязаны существовать в этом проекте/организации,
- * не быть удалёнными и не быть заглушками (placeholder).
+ * не быть удалёнными и не быть заглушками (placeholder). При создании
+ * операции (forbid) дополнительно проверяются статусы: материалы со
+ * статусами из SERVICE_OPERATION_BLOCKED_STATUSES в новую операцию
+ * включить нельзя. Редактирование существующей операции разрешено и для
+ * таких позиций — список позиций при обновлении не меняется пользователем.
  */
 async function assertProjectItems(
   c: OpCtx,
   ids: string[],
+  opts: { forbid?: ServiceOperationType } = {},
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   if (ids.length === 0) {
     return { ok: false, error: "Выберите хотя бы одну позицию" };
@@ -110,7 +214,7 @@ async function assertProjectItems(
 
   const { data: rows, error } = await c.supabase
     .from("spec_items")
-    .select("id, is_placeholder, org_id, project_id, deleted_at")
+    .select("id, name, status, is_placeholder, org_id, project_id, deleted_at")
     .in("id", ids)
     .eq("project_id", c.projectId)
     .eq("org_id", c.orgId);
@@ -137,6 +241,16 @@ async function assertProjectItems(
   const deleted = (rows ?? []).filter((r) => r.deleted_at !== null);
   if (deleted.length > 0) {
     return { ok: false, error: "Позиция удалена из проекта" };
+  }
+
+  if (opts.forbid) {
+    const forbidden = SERVICE_OPERATION_BLOCKED_STATUSES[opts.forbid] as string[];
+    const blocked = (rows ?? []).filter(
+      (r) => r.status !== null && forbidden.includes(r.status),
+    );
+    if (blocked.length > 0) {
+      return { ok: false, error: blockedStatusError(opts.forbid, blocked) };
+    }
   }
 
   return { ok: true };
@@ -222,6 +336,8 @@ function insertPayload(c: OpCtx, d: ServiceOperationFields) {
 /**
  * «Исполненная» доставка автоматически переводит связанные позиции в
  * spec_status = 'delivered'. Никакие ценовые поля не трогаются.
+ * Материалы со статусом «Заменить» пропускаются: их в доставленные не
+ * переводим — иначе отметка «Исполнено» «сбивала» бы статус замены.
  */
 async function markLinkedItemsDelivered(
   c: OpCtx,
@@ -237,7 +353,8 @@ async function markLinkedItemsDelivered(
     .in("id", specItemIds)
     .eq("project_id", c.projectId)
     .eq("org_id", c.orgId)
-    .is("deleted_at", null);
+    .is("deleted_at", null)
+    .neq("status", "replace");
 
   if (error) {
     console.error("[service-operations] mark delivered", error.message);
@@ -271,8 +388,18 @@ export async function createServiceOperation(
   if (guard.error) return fail(guard.error);
 
   const d = parsed.data;
-  const itemsOk = await assertProjectItems(c, d.specItemIds);
+  const itemsOk = await assertProjectItems(c, d.specItemIds, {
+    forbid: d.type,
+  });
   if (!itemsOk.ok) return fail(itemsOk.error);
+
+  // Доставка: материал не может входить в две разные доставки. Проверка идёт
+  // до вставки операции — при нарушении ничего не создаём.
+  if (d.type === "delivery") {
+    const deliveryOk = await assertNoOtherDelivery(c, d.specItemIds);
+    if (!deliveryOk.ok) return fail(deliveryOk.error);
+  }
+
   const contractorOk = await assertContractorInOrg(c, d.contractorCompanyId);
   if (!contractorOk.ok) return fail(contractorOk.error);
 

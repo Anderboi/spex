@@ -90,7 +90,7 @@ export const GroupSection = memo(function GroupSection({
               </caption>
               <thead className="text-[10px] table-fixed font-mono text-fg-muted uppercase border-b border-border-muted">
                 <tr>
-                  <th className="text-left w-10 px-3 py-2">
+                  <th className="text-left w-6 /px-3 py-2">
                     <Checkbox
                       className="border-border border-2 data-indeterminate:bg-primary/50 data-indeterminate:text-primary-foreground"
                       checked={allSelected}
@@ -101,7 +101,8 @@ export const GroupSection = memo(function GroupSection({
                   </th>
                   <th className="text-left w-20 p-2">изобр</th>
                   <th className="text-left w-14 p-2">марка</th>
-                  <th className="text-left flex-1 ..w-1/4 p-2">наименование</th>
+                  <th className="text-left w-auto p-2">наименование</th>
+                  <th className="text-left w-24 p-2">услуги</th>
                   <th className="text-left w-34 p-2">кол-во</th>
                   <th className="text-left w-28 p-2">цена</th>
                   <th className="text-right w-28 p-2">итого</th>

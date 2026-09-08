@@ -13,7 +13,12 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import Field from "@/components/layout/modal-field";
-import { SERVICE_OPERATION_CONFIG, type ServiceOperationType } from "@/lib/constants";
+import {
+  SERVICE_OPERATION_BLOCKED_STATUSES,
+  SERVICE_OPERATION_CONFIG,
+  specItemIdsInDeliveries,
+  type ServiceOperationType,
+} from "@/lib/constants";
 import type { SpecPickerCompany } from "@/lib/queries";
 import type { SpecBuilderContext } from "@/hooks/use-spec-builder";
 import {
@@ -50,15 +55,59 @@ export function ServiceOperationModal({
   const label = SERVICE_OPERATION_CONFIG[type].label;
   const isEdit = !!operation;
 
-  /** Позиции, участвующие в операции (заглушки исключаются сразу). */
-  const eligible = ctx.selectedItems.filter((i) => !i.isPlaceholder);
-  const excludedPlaceholders = ctx.selectedItems.length - eligible.length;
+  /**
+   * Позиции, участвующие в НОВОЙ операции. Сразу исключаются заглушки,
+   * материалы с недоступным статусом («Доставлено»/«Заменить» для доставки,
+   * «Заменить» для монтажа) и — только для доставки — материалы, которые уже
+   * включены в другую доставку (независимо от их текущего статуса).
+   */
+  const selectedReal = ctx.selectedItems.filter((i) => !i.isPlaceholder);
+  const excludedPlaceholders = ctx.selectedItems.length - selectedReal.length;
+  const forbiddenStatuses = SERVICE_OPERATION_BLOCKED_STATUSES[type];
+  const byStatus = selectedReal.filter(
+    (i) => !forbiddenStatuses.includes(i.status),
+  );
+  const excludedByStatus = selectedReal.length - byStatus.length;
+
+  /** Материалы, уже связанные с другой доставкой, в новую доставку не берём. */
+  const otherDeliveryIds =
+    type === "delivery"
+      ? specItemIdsInDeliveries(ctx.operations)
+      : new Set<string>();
+  const eligible = byStatus.filter((i) => !otherDeliveryIds.has(i.id));
+  const excludedByLinked = byStatus.length - eligible.length;
 
   /** В режиме редактирования показываем позиции, уже связанные с операцией. */
   const linkedItems = operation
     ? ctx.items.filter((i) => operation.spec_item_ids.includes(i.id))
     : eligible;
   const count = operation ? operation.spec_item_ids.length : linkedItems.length;
+
+  /** Среди связанных есть позиция со статусом «Заменить». */
+  const hasReplaceLinked = linkedItems.some((i) => i.status === "replace");
+
+  /** Пояснение при создании, если часть выделенных позиций исключена. */
+  const excludedNote =
+    !operation &&
+    (excludedPlaceholders > 0 || excludedByStatus > 0 || excludedByLinked > 0)
+      ? [
+          excludedPlaceholders > 0
+            ? `заглушки (${excludedPlaceholders})`
+            : "",
+          excludedByStatus > 0
+            ? type === "delivery"
+              ? `материалы со статусом «Доставлено»/«Заменить» (${excludedByStatus})`
+              : `материалы со статусом «Заменить» (${excludedByStatus})`
+            : "",
+          excludedByLinked > 0
+            ? type === "delivery"
+              ? `материалы из другой доставки (${excludedByLinked})`
+              : ""
+            : "",
+        ]
+          .filter(Boolean)
+          .join(" и ")
+      : null;
 
   const [amount, setAmount] = useState(
     operation ? String(operation.amount) : "",
@@ -68,8 +117,15 @@ export function ServiceOperationModal({
     operation?.contractor_company_id ?? "",
   );
   const [notes, setNotes] = useState(operation?.notes ?? "");
-  /** Отметка «исполнено» — показывается для доставки. */
-  const [completed, setCompleted] = useState(operation?.completed ?? false);
+  /**
+   * Отметка «исполнено» — показывается для доставки.
+   * Если связанный материал получил статус «Заменить», отметку автоматически
+   * не включаем: материал требует замены, и авто-отметка не должна
+   * «возвращать» его в «Доставлено».
+   */
+  const [completed, setCompleted] = useState(
+    operation ? operation.completed && !hasReplaceLinked : false,
+  );
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
@@ -152,9 +208,9 @@ export function ServiceOperationModal({
         </DialogHeader>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
-          {excludedPlaceholders > 0 && (
+          {excludedNote && (
             <p className="mb-3 rounded-lg border border-border-muted bg-bg-card2 px-3 py-2 text-[12.5px] text-fg-muted">
-              Заглушки ({excludedPlaceholders}) в операцию не включаются.
+              {excludedNote} не включаются в операцию.
             </p>
           )}
 
@@ -230,6 +286,12 @@ export function ServiceOperationModal({
                 При сохранении отметки связанные материалы автоматически
                 получат статус «Доставлено». Их стоимость не изменится.
               </p>
+              {hasReplaceLinked && (
+                <p className="mt-1 pl-6 text-[12px] leading-relaxed text-fg-red">
+                  Материалы со статусом «Заменить» доставленными автоматически
+                  не отмечаются.
+                </p>
+              )}
             </div>
           )}
 

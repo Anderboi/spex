@@ -1,11 +1,21 @@
 "use client";
 
+import { Wrench, Truck, AlertTriangle } from "lucide-react";
 import { SERVICE_OPERATION_CONFIG } from "@/lib/constants";
-import { fmt } from "@/lib/utils";
+import { fmt, fmtCompact, cn } from "@/lib/utils";
 import type { ServiceOperation } from "@/actions/service-operations";
+
+const OP_ICON = { installation: Wrench, delivery: Truck } as const;
+
+const MAX_VISIBLE = 2;
 
 function dateLabel(iso: string): string {
   return new Date(`${iso}T00:00:00`).toLocaleDateString("ru-RU");
+}
+
+function isOverdue(op: ServiceOperation): boolean {
+  if (op.type !== "delivery" || op.completed || !op.deadline) return false;
+  return new Date(`${op.deadline}T00:00:00`) < new Date();
 }
 
 function opTitle(op: ServiceOperation): string {
@@ -20,14 +30,14 @@ function opTitle(op: ServiceOperation): string {
   return parts.join("\n");
 }
 
-const badgeClass =
-  "inline-flex items-center gap-1 whitespace-nowrap rounded-md border border-border-muted bg-bg-card2 px-1.5 py-0.5 font-mono text-[10.5px] leading-none text-fg-secondary tabular-nums";
-
 /**
- * Компактные бейджи операций дополнительных расходов, привязанных к позиции.
- * Показываются в строке таблицы и в карточке на мобильном.
- * Когда передан onOpen — бейдж становится кнопкой и открывает операцию
- * в модалке редактирования.
+ * Тихая строка метаданных для операций доп. расходов (монтаж, доставка),
+ * привязанных к позиции. Намеренно НЕ оформлена как pill/чип — это
+ * информационная аннотация, а не элемент управления, и не должна визуально
+ * спорить со статусом позиции или со свитчером вариантов.
+ *
+ * Показываются в строке таблицы и в карточке на мобильном. Когда передан
+ * onOpen — строка кликабельна и открывает операцию в модалке редактирования.
  */
 export function ServiceOperationBadges({
   ops,
@@ -38,12 +48,32 @@ export function ServiceOperationBadges({
   onOpen?: (operationId: string) => void;
 }) {
   if (!ops || ops.length === 0) return null;
+
+  const visible = ops.slice(0, MAX_VISIBLE);
+  const hidden = ops.length - visible.length;
+
   return (
-    <div className="mt-1 flex flex-wrap gap-1">
-      {ops.map((op) => {
+    <div className="flex flex-col items-start gap-1">
+      {visible.map((op) => {
+        const Icon = OP_ICON[op.type];
+        const overdue = isOverdue(op);
         const content = (
           <>
-            {SERVICE_OPERATION_CONFIG[op.type].label} · {fmt(op.amount)} ₽
+            <Icon
+              className={cn(
+                "size-3 flex-none",
+                overdue ? "text-fg-red" : "text-fg-dim",
+              )}
+            />
+            <span
+              className={cn(
+                "font-mono text-[11px] tabular-nums",
+                overdue ? "text-fg-red" : "text-fg-muted",
+              )}
+            >
+              {fmtCompact(op.amount)} ₽
+            </span>
+            {overdue && <AlertTriangle className="size-3 text-fg-red" />}
           </>
         );
         return onOpen ? (
@@ -53,16 +83,21 @@ export function ServiceOperationBadges({
             title={opTitle(op)}
             aria-label={`Редактировать: ${opTitle(op)}`}
             onClick={() => onOpen(op.id)}
-            className={`${badgeClass} cursor-pointer transition-colors hover:border-fg-brand hover:text-fg`}
+            className="flex cursor-pointer items-center gap-1 rounded transition-colors hover:text-fg"
           >
             {content}
           </button>
         ) : (
-          <span key={op.id} title={opTitle(op)} className={badgeClass}>
+          <span
+            key={op.id}
+            title={opTitle(op)}
+            className="flex items-center gap-1"
+          >
             {content}
           </span>
         );
       })}
+      {hidden > 0 && <span className="text-[11px] text-fg-dim">+{hidden}</span>}
     </div>
   );
 }

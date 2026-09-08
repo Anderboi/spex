@@ -276,3 +276,44 @@ export const SERVICE_OPERATION_CONFIG: Record<
   delivery: { label: "Доставка" },
   installation: { label: "Монтаж" },
 };
+
+/**
+ * Статусы материалов, которые нельзя включать в новую операцию.
+ * «Доставлено» — повторную доставку не оформляем; «Заменить» — позиция
+ * ещё не готова ни к доставке, ни к монтажу.
+ */
+export const SERVICE_OPERATION_BLOCKED_STATUSES: Record<
+  ServiceOperationType,
+  SpecStatus[]
+> = {
+  delivery: ["replace", "delivered"],
+  installation: ["replace"],
+};
+
+/** Материал можно включить в новую операцию типа type. */
+export function isSpecItemAllowedForOperation(
+  item: { isPlaceholder: boolean; status: SpecStatus },
+  type: ServiceOperationType,
+): boolean {
+  if (item.isPlaceholder) return false;
+  return !SERVICE_OPERATION_BLOCKED_STATUSES[type].includes(item.status);
+}
+
+/**
+ * id позиций, уже включённых хотя бы в одну доставку. Материал может быть
+ * связан только с одной доставкой: такие позиции недоступны для НОВОЙ
+ * доставки независимо от текущего статуса материала.
+ */
+export function specItemIdsInDeliveries(
+  ops: ReadonlyArray<{
+    type: ServiceOperationType;
+    spec_item_ids: ReadonlyArray<string>;
+  }>,
+): Set<string> {
+  const ids = new Set<string>();
+  for (const op of ops) {
+    if (op.type !== "delivery") continue;
+    for (const id of op.spec_item_ids) ids.add(id);
+  }
+  return ids;
+}
