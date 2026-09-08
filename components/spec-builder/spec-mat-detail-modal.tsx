@@ -27,8 +27,10 @@ import { CompanyDialog } from "@/components/contacts/company-dialog";
 import { VariantsTab } from "./variants-tab";
 import ModalReviewTab from "./modal-review-tab";
 import { SpecComponentsSection } from "./spec-components-section";
+import { ServiceOperationDetailCards } from "./service-operation-detail-cards";
 import SaveIndicator from "../layout/save-indicator";
 import type { DetailTab } from "@/hooks/use-spec-builder";
+import type { ServiceOperation } from "@/actions/service-operations";
 
 type Company = {
   id: string;
@@ -75,6 +77,8 @@ export function DetailModal({
   onEditVariant,
   saveStatus,
   saveError,
+  ops,
+  onOpenOperation,
 }: {
   item: SpecItem;
   /** Непосредственные дети текущей позиции (для секции «Субэлементы»). */
@@ -111,6 +115,10 @@ export function DetailModal({
   onEditVariant: (variantId: string) => void;
   saveStatus: "idle" | "saving" | "saved" | "error";
   saveError: string | null;
+  /** Операции доп. расходов («Монтаж»/«Доставка»), привязанные к позиции. */
+  ops: ServiceOperation[];
+  /** Открыть операцию в модалке редактирования (с возвратом в детализацию). */
+  onOpenOperation: (operationId: string) => void;
 }) {
   const [tab, setTab] = useState<string>(initialTab ?? "overview");
   const [localCompanies, setLocalCompanies] = useState<Company[]>(companies);
@@ -192,6 +200,11 @@ export function DetailModal({
                 onQty={onQty}
                 orgSlug={orgSlug}
                 setTab={setTab}
+              />
+
+              <ServiceOperationDetailCards
+                ops={ops}
+                onOpenOperation={onOpenOperation}
               />
 
               {childrenItems.length > 0 && (

@@ -45,6 +45,7 @@ export type SpecRowHandlers = {
   onSwitchVariant: (id: string, variantId: string) => void;
   onAddVariant: (id: string) => void;
   onDraftName: (id: string, name: string) => void;
+  onEditOperation: (operationId: string) => void;
 };
 
 export const SpecRow = memo(function SpecRow({
@@ -137,7 +138,7 @@ export const SpecRow = memo(function SpecRow({
             onOpenVariants={() => h.onOpen(item.id)}
           />
         )}
-        <ServiceOperationBadges ops={ops} />
+        <ServiceOperationBadges ops={ops} onOpen={h.onEditOperation} />
       </td>
       {/* <td className="min-w-0 px-2 py-2 block max-w-full text-left text-[14px]">
         <div>{item.notes}</div>

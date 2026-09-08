@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef } from "react";
-import { Search, ArrowUpDown, AlertCircle } from "lucide-react";
+import { Search, ArrowUpDown, AlertCircle, X } from "lucide-react";
 import { useSpecBuilder } from "@/hooks/use-spec-builder";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { useDialogUrl } from "@/hooks/use-dialog-url";
@@ -28,6 +28,7 @@ import EmptyProject from "./empty-project";
 import TypeChip from "../layout/type-chip";
 import SaveIndicator from "../layout/save-indicator";
 import AddSectionPicker from "./add-section-picker";
+import { ProjectExpenses } from "./project-expenses";
 import { ServiceOperationModal } from "./service-operation-modal";
 
 export default function SpecBuilder({
@@ -100,6 +101,7 @@ export default function SpecBuilder({
       onSwitchVariant: ctx.switchVariantLocal,
       onAddVariant: ctx.addVariantLocal,
       onDraftName: (id, name) => ctx.updateItem(id, { name }),
+      onEditOperation: ctx.openServiceOperationEdit,
     }),
     [ctx],
   );
@@ -128,7 +130,7 @@ export default function SpecBuilder({
     project.budget !== null && ctx.stats.totalSum > project.budget;
 
   return (
-    <div className="relative min-h-screen w-full min-w-0 overflow-x-hidden bg-bg pb-36 text-fg">
+    <div className="relative min-h-screen w-full min-w-0 overflow-x-hidden bg-bg text-fg">
       {/* ── статус и статистика (шапка на странице: PageHeader) ── */}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pt-6 text-[13px] text-fg-muted">
         <SaveIndicator status={ctx.saveStatus} error={ctx.saveError} />
@@ -248,7 +250,7 @@ export default function SpecBuilder({
             aria-label="Скрыть"
             className="shrink-0 text-[16px] leading-none text-bg-red"
           >
-            ✕
+            <X className="size-4" />
           </button>
         </div>
       )}
@@ -261,9 +263,8 @@ export default function SpecBuilder({
       ) : (
         <>
           {ctx.groups.map((g) => (
-            <>
+            <div key={g.type}>
               <GroupSection
-                key={g.type}
                 type={g.type}
                 items={g.items}
                 sum={g.sum}
@@ -280,10 +281,16 @@ export default function SpecBuilder({
                 usedTypes={ctx.groups.map((g) => g.type)}
                 onPick={(type) => ctx.addPlaceholder(type)}
               />
-            </>
+            </div>
           ))}
         </>
       )}
+
+      {/* ── расходы проекта (доставка и монтаж) ────────────── */}
+      <ProjectExpenses
+        ops={ctx.operations}
+        onOpen={ctx.openServiceOperationEdit}
+      />
 
       {/* ── нижняя панель ─────────────────────────────────── */}
       <BottomBar ctx={ctx} />
@@ -325,6 +332,13 @@ export default function SpecBuilder({
           onEditVariant={(vid) => ctx.openEditVariant(ctx.current!.id, vid)}
           saveStatus={ctx.saveStatus}
           saveError={ctx.saveError}
+          ops={ctx.opsByItem[ctx.current.id] ?? []}
+          onOpenOperation={(operationId) =>
+            ctx.openServiceOperationEdit(operationId, {
+              kind: "detail",
+              id: ctx.current!.id,
+            })
+          }
         />
       )}
 
@@ -470,6 +484,23 @@ export default function SpecBuilder({
           onClose={ctx.closeModal}
         />
       )}
+
+      {ctx.modal.kind === "edit-operation" &&
+        (() => {
+          const { operationId } = ctx.modal;
+          const op = ctx.operations.find((o) => o.id === operationId);
+          if (!op) return null;
+          return (
+            <ServiceOperationModal
+              key={op.id}
+              type={op.type}
+              operation={op}
+              ctx={ctx}
+              companies={companies}
+              onClose={ctx.closeModal}
+            />
+          );
+        })()}
 
       <CodeConflictDialog
         conflict={ctx.codeConflict}

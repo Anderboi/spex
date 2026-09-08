@@ -27,6 +27,7 @@ type OperationRow = {
   id: string;
   type: string;
   amount: number;
+  completed: boolean;
   deadline: string | null;
   contractor_company_id: string | null;
   notes: string | null;
@@ -36,7 +37,7 @@ type OperationRow = {
 
 /** Колонки service_operations, которые возвращаются клиенту. */
 const OP_COLUMNS =
-  "id, type, amount, deadline, contractor_company_id, notes, created_at, updated_at";
+  "id, type, amount, completed, deadline, contractor_company_id, notes, created_at, updated_at";
 
 /**
  * Операция, как её получает клиент: значения + id связанных позиций и
@@ -47,6 +48,8 @@ export type ServiceOperation = {
   id: string;
   type: ServiceOperationType;
   amount: number;
+  /** Отметка «исполнено» (используется для доставки). */
+  completed: boolean;
   deadline: string | null;
   contractor_company_id: string | null;
   contractor_name: string | null;
@@ -160,6 +163,7 @@ function rowToClient(row: OperationRow): Omit<ServiceOperation, "spec_item_ids">
     id: row.id,
     type: toType(row.type),
     amount: Number(row.amount),
+    completed: row.completed,
     deadline: row.deadline,
     contractor_company_id: row.contractor_company_id,
     contractor_name: null,
@@ -208,10 +212,41 @@ function insertPayload(c: OpCtx, d: ServiceOperationFields) {
     project_id: c.projectId,
     type: d.type,
     amount: d.amount,
+    completed: d.completed,
     deadline: dbDeadline(d.deadline),
     contractor_company_id: d.contractorCompanyId,
     notes: dbNotes(d.notes),
   };
+}
+
+/**
+ * «Исполненная» доставка автоматически переводит связанные позиции в
+ * spec_status = 'delivered'. Никакие ценовые поля не трогаются.
+ */
+async function markLinkedItemsDelivered(
+  c: OpCtx,
+  specItemIds: string[],
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (specItemIds.length === 0) return { ok: true };
+  const { error } = await c.supabase
+    .from("spec_items")
+    .update({
+      status: "delivered",
+      updated_at: new Date().toISOString(),
+    })
+    .in("id", specItemIds)
+    .eq("project_id", c.projectId)
+    .eq("org_id", c.orgId)
+    .is("deleted_at", null);
+
+  if (error) {
+    console.error("[service-operations] mark delivered", error.message);
+    return {
+      ok: false,
+      error: "Не удалось отметить материалы «Доставлено»",
+    };
+  }
+  return { ok: true };
 }
 
 /* ------------------------------------------------------------------ */
@@ -271,6 +306,15 @@ export async function createServiceOperation(
     return fail("Не удалось связать позиции с операцией");
   }
 
+  // Исполненная доставка сразу отмечает связанные материалы «Доставлено».
+  if (d.type === "delivery" && d.completed) {
+    const marked = await markLinkedItemsDelivered(c, d.specItemIds);
+    if (!marked.ok) {
+      console.error("[createServiceOperation]", marked.error);
+      return fail(marked.error);
+    }
+  }
+
   const client = rowToClient(created as OperationRow);
   await hydrateContractorNames(c, [client]);
 
@@ -316,6 +360,13 @@ export async function updateServiceOperation(
   if (!itemsOk.ok) return fail(itemsOk.error);
   const contractorOk = await assertContractorInOrg(c, d.contractorCompanyId);
   if (!contractorOk.ok) return fail(contractorOk.error);
+
+  // Исполненная доставка автоматически отмечает связанные материалы
+  // «Доставлено». Обратный переход (снять отметку) статусы не откатывает.
+  if (d.type === "delivery" && d.completed && !existing.completed) {
+    const marked = await markLinkedItemsDelivered(c, d.specItemIds);
+    if (!marked.ok) return fail(marked.error);
+  }
 
   const { data: prevLinks } = await c.supabase
     .from("service_operation_items")
@@ -375,7 +426,7 @@ export async function updateServiceOperation(
   return ok({ ...client, spec_item_ids: d.specItemIds });
 }
 
-/** Удалить операцию вместе со связками (cascade в БД). */
+/** Удалить операцию вместе со связками service_operation_items. */
 export async function deleteServiceOperation(
   orgSlug: string,
   projectId: string,
@@ -389,6 +440,33 @@ export async function deleteServiceOperation(
   const c = await scoped(orgSlug, projectId);
   const guard = await guardProject(c);
   if (guard.error) return fail(guard.error);
+
+  // Операция обязана принадлежать этому проекту организации сессии.
+  const { data: existing, error: findErr } = await c.supabase
+    .from("service_operations")
+    .select("id")
+    .eq("id", operationId)
+    .eq("project_id", c.projectId)
+    .eq("org_id", c.orgId)
+    .maybeSingle();
+
+  if (findErr) {
+    console.error("[deleteServiceOperation] find", findErr.message);
+    return fail("Не удалось проверить операцию");
+  }
+  if (!existing) return fail("Операция не найдена");
+
+  // Сначала связки — чтобы удаление работало и на БД без каскада.
+  // (Если каскад включён, этот delete просто не найдёт строк.)
+  const { error: linksErr } = await c.supabase
+    .from("service_operation_items")
+    .delete()
+    .eq("operation_id", operationId);
+
+  if (linksErr) {
+    console.error("[deleteServiceOperation] links", linksErr.message);
+    return fail("Не удалось удалить связанные позиции");
+  }
 
   const { error } = await c.supabase
     .from("service_operations")

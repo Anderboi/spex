@@ -210,7 +210,7 @@ export const SpecCard = memo(function SpecCard({
         </div>
       </div>
 
-      <ServiceOperationBadges ops={ops} />
+      <ServiceOperationBadges ops={ops} onOpen={h.onEditOperation} />
     </article>
   );
 });

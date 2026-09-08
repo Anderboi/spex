@@ -77,6 +77,12 @@ export type Modal =
   | { kind: "procure" }
   | { kind: "summary" }
   | { kind: "operation"; type: ServiceOperationType }
+  | {
+      kind: "edit-operation";
+      operationId: string;
+      /** Откуда открыли редактирование — вернуться туда после закрытия. */
+      from?: { kind: "detail"; id: string };
+    }
   | { kind: "edit-variant"; itemId: string; variantId: string };
 
 export type CodeConflict = {
@@ -1191,13 +1197,17 @@ export function useSpecBuilder({
 
   const closeModal = useCallback(
     () =>
-      setModal((m) =>
+      setModal((m) => {
         // Ссылка на позицию открыта из «Состава» другой позиции: закрывая её,
         // возвращаемся к владельцу состава на ту же вкладку.
-        m.kind === "detail" && m.returnTo
-          ? { kind: "detail", id: m.returnTo.id, tab: m.returnTo.tab }
-          : { kind: "none" },
-      ),
+        if (m.kind === "detail" && m.returnTo)
+          return { kind: "detail", id: m.returnTo.id, tab: m.returnTo.tab };
+        // Редактирование операции открыто из детализации позиции: закрывая
+        // модалку операции, возвращаемся к той же детализации.
+        if (m.kind === "edit-operation" && m.from)
+          return { kind: "detail", id: m.from.id };
+        return { kind: "none" };
+      }),
     [],
   );
   const openDetail = useCallback(
@@ -1246,6 +1256,32 @@ export function useSpecBuilder({
   );
 
   /**
+   * Открыть форму редактирования существующей операции (из бейджа в строке
+   * или из детализации позиции). При переходе из детализации передаётся
+   * from — после закрытия модалки операции туда возвращаемся.
+   */
+  const openServiceOperationEdit = useCallback(
+    (operationId: string, from?: { kind: "detail"; id: string }) =>
+      setModal({ kind: "edit-operation", operationId, from }),
+    [],
+  );
+
+  /**
+   * Локально отмечает связанные позиции «Доставлено». Сервер уже записал
+   * статус в рамках update/createServiceOperation — здесь только зеркалим
+   * изменение в таблице, не добавляя патч в очередь сохранения.
+   */
+  const markItemsDelivered = useCallback((ids: string[]) => {
+    const set = new Set(ids);
+    if (set.size === 0) return;
+    setItems((prev) =>
+      prev.map((i) =>
+        set.has(i.id) ? { ...i, status: "delivered" } : i,
+      ),
+    );
+  }, []);
+
+  /**
    * После успешного создания: добавляем операцию в локальный список,
    * снимаем выделение и закрываем модалку — без полного перезапуска.
    */
@@ -1254,11 +1290,39 @@ export function useSpecBuilder({
       setOperations((prev) => [op, ...prev]);
       setSelected(new Set());
       setModal({ kind: "none" });
+      if (op.type === "delivery" && op.completed)
+        markItemsDelivered(op.spec_item_ids);
       showToast(
         `Добавлено · ${SERVICE_OPERATION_CONFIG[op.type].label} · ${fmt(op.amount)} ₽`,
       );
     },
-    [showToast],
+    [showToast, markItemsDelivered],
+  );
+
+  /** После успешного сохранения: заменяем операцию в локальном списке. */
+  const onOperationUpdated = useCallback(
+    (op: ServiceOperation) => {
+      setOperations((prev) => prev.map((x) => (x.id === op.id ? op : x)));
+      if (op.type === "delivery" && op.completed)
+        markItemsDelivered(op.spec_item_ids);
+      closeModal();
+      showToast(
+        `Сохранено · ${SERVICE_OPERATION_CONFIG[op.type].label} · ${fmt(op.amount)} ₽`,
+      );
+    },
+    [closeModal, showToast, markItemsDelivered],
+  );
+
+  /** После успешного удаления: убираем операцию из списка (бейджи обновятся сами). */
+  const onOperationDeleted = useCallback(
+    (op: ServiceOperation) => {
+      setOperations((prev) => prev.filter((x) => x.id !== op.id));
+      closeModal();
+      showToast(
+        `Удалено · ${SERVICE_OPERATION_CONFIG[op.type].label} · ${fmt(op.amount)} ₽`,
+      );
+    },
+    [closeModal, showToast],
   );
 
   // Escape закрывает верхний слой: сначала конфликт марки, потом модалку
@@ -1409,7 +1473,10 @@ export function useSpecBuilder({
     openProcure,
     openSummary,
     openServiceOperation,
+    openServiceOperationEdit,
     onOperationCreated,
+    onOperationUpdated,
+    onOperationDeleted,
     closeModal,
 
     // прочее

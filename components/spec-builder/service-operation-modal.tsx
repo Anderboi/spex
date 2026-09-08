@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Loader2 } from "lucide-react";
+import { Loader2, Trash2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -11,12 +11,18 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import Field from "@/components/layout/modal-field";
 import { SERVICE_OPERATION_CONFIG, type ServiceOperationType } from "@/lib/constants";
 import type { SpecPickerCompany } from "@/lib/queries";
 import type { SpecBuilderContext } from "@/hooks/use-spec-builder";
-import { createServiceOperation } from "@/actions/service-operations";
-import { plural } from "@/lib/utils";
+import {
+  createServiceOperation,
+  deleteServiceOperation,
+  updateServiceOperation,
+  type ServiceOperation,
+} from "@/actions/service-operations";
+import { fmt, plural } from "@/lib/utils";
 
 /** «12 300,50» и «12300.5» → число; невалидное/пустое → null. */
 function parseMoney(s: string): number | null {
@@ -29,27 +35,45 @@ function parseMoney(s: string): number | null {
 
 export function ServiceOperationModal({
   type,
+  operation,
   ctx,
   companies,
   onClose,
 }: {
   type: ServiceOperationType;
+  /** Передана — модалка открыта в режиме редактирования существующей операции. */
+  operation?: ServiceOperation;
   ctx: SpecBuilderContext;
   companies: SpecPickerCompany[];
   onClose: () => void;
 }) {
   const label = SERVICE_OPERATION_CONFIG[type].label;
+  const isEdit = !!operation;
 
   /** Позиции, участвующие в операции (заглушки исключаются сразу). */
   const eligible = ctx.selectedItems.filter((i) => !i.isPlaceholder);
   const excludedPlaceholders = ctx.selectedItems.length - eligible.length;
 
-  const [amount, setAmount] = useState("");
-  const [deadline, setDeadline] = useState("");
-  const [contractorCompanyId, setContractorCompanyId] = useState("");
-  const [notes, setNotes] = useState("");
+  /** В режиме редактирования показываем позиции, уже связанные с операцией. */
+  const linkedItems = operation
+    ? ctx.items.filter((i) => operation.spec_item_ids.includes(i.id))
+    : eligible;
+  const count = operation ? operation.spec_item_ids.length : linkedItems.length;
+
+  const [amount, setAmount] = useState(
+    operation ? String(operation.amount) : "",
+  );
+  const [deadline, setDeadline] = useState(operation?.deadline ?? "");
+  const [contractorCompanyId, setContractorCompanyId] = useState(
+    operation?.contractor_company_id ?? "",
+  );
+  const [notes, setNotes] = useState(operation?.notes ?? "");
+  /** Отметка «исполнено» — показывается для доставки. */
+  const [completed, setCompleted] = useState(operation?.completed ?? false);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   const submit = async () => {
     const value = parseMoney(amount);
@@ -61,38 +85,68 @@ export function ServiceOperationModal({
       setError("Стоимость не может быть отрицательной");
       return;
     }
-    if (eligible.length === 0) {
+    if (!operation && eligible.length === 0) {
       setError("Выберите хотя бы одну заполненную позицию");
       return;
     }
 
     setError(null);
     setBusy(true);
-    const res = await createServiceOperation(ctx.orgSlug, ctx.projectId, {
-      type,
-      specItemIds: eligible.map((i) => i.id),
-      amount: value,
-      deadline: deadline || null,
-      contractorCompanyId: contractorCompanyId || null,
-      notes,
-    });
+    const res = operation
+      ? await updateServiceOperation(ctx.orgSlug, ctx.projectId, operation.id, {
+          type,
+          specItemIds: operation.spec_item_ids,
+          amount: value,
+          completed,
+          deadline: deadline || null,
+          contractorCompanyId: contractorCompanyId || null,
+          notes,
+        })
+      : await createServiceOperation(ctx.orgSlug, ctx.projectId, {
+          type,
+          specItemIds: eligible.map((i) => i.id),
+          amount: value,
+          completed,
+          deadline: deadline || null,
+          contractorCompanyId: contractorCompanyId || null,
+          notes,
+        });
     setBusy(false);
     if (!res.success) {
       setError(res.error);
       return;
     }
-    ctx.onOperationCreated(res.data);
+    if (operation) ctx.onOperationUpdated(res.data);
+    else ctx.onOperationCreated(res.data);
+  };
+
+  const remove = async () => {
+    if (!operation) return;
+    setError(null);
+    setDeleting(true);
+    const res = await deleteServiceOperation(
+      ctx.orgSlug,
+      ctx.projectId,
+      operation.id,
+    );
+    setDeleting(false);
+    if (!res.success) {
+      setError(res.error);
+      setConfirmDelete(false);
+      return;
+    }
+    ctx.onOperationDeleted(operation);
   };
 
   return (
-    <Dialog open onOpenChange={(v) => !v && !busy && onClose()}>
+    <Dialog open onOpenChange={(v) => !v && !busy && !deleting && onClose()}>
       <DialogContent className="flex max-h-[92vh] flex-col gap-0 overflow-hidden rounded-[22px] bg-bg p-0 sm:max-w-140">
         <DialogHeader className="flex-row items-center justify-between gap-3 border-b border-border-subtle px-5 py-4">
           <DialogTitle className="text-[19px] font-bold tracking-[-.01em]">
-            {label}
+            {isEdit ? `Редактировать · ${label}` : label}
             <span className="ml-2 font-mono text-[12px] font-medium uppercase tracking-[.08em] text-fg-muted">
-              доп. расход · {eligible.length}{" "}
-              {plural(eligible.length, "позиция", "позиции", "позиций")}
+              доп. расход · {count}{" "}
+              {plural(count, "позиция", "позиции", "позиций")}
             </span>
           </DialogTitle>
         </DialogHeader>
@@ -106,7 +160,7 @@ export function ServiceOperationModal({
 
           <Field label="Позиции">
             <div className="max-h-44 overflow-y-auto rounded-lg border border-border-muted bg-bg-card">
-              {eligible.map((i) => (
+              {linkedItems.map((i) => (
                 <div
                   key={i.id}
                   className="flex items-center gap-2 border-b border-border-muted px-2.5 py-1.5 last:border-0"
@@ -160,6 +214,25 @@ export function ServiceOperationModal({
             </Field>
           </div>
 
+          {type === "delivery" && (
+            <div className="mt-4 rounded-lg border border-border-muted bg-bg-card2 px-3 py-2.5">
+              <label className="flex cursor-pointer items-center gap-2.5">
+                <Checkbox
+                  checked={completed}
+                  onCheckedChange={(v) => setCompleted(v === true)}
+                  aria-label="Доставка исполнена"
+                />
+                <span className="text-[14px] font-semibold text-fg">
+                  Исполнено
+                </span>
+              </label>
+              <p className="pl-6 text-[12px] leading-relaxed text-fg-muted">
+                При сохранении отметки связанные материалы автоматически
+                получат статус «Доставлено». Их стоимость не изменится.
+              </p>
+            </div>
+          )}
+
           <div className="mt-4">
             <Field label="Комментарий (необязательно)">
               <Textarea
@@ -187,20 +260,84 @@ export function ServiceOperationModal({
           )}
         </div>
 
-        <div className="flex items-center justify-end gap-2 border-t border-border-subtle px-5 py-3">
-          <Button variant="outline" size="lg" onClick={onClose} disabled={busy}>
-            Отмена
-          </Button>
-          <Button size="lg" onClick={() => void submit()} disabled={busy}>
-            {busy ? (
-              <>
-                <Loader2 className="size-4 animate-spin" /> Сохраняем…
-              </>
-            ) : (
-              `Добавить ${label.toLowerCase()}`
+        {confirmDelete && operation ? (
+          <div className="flex flex-col gap-3 border-t border-border-red bg-bg-red-light px-5 py-4">
+            <p className="text-[14px] font-semibold leading-snug text-fg-red">
+              Удалить операцию «{label} · {fmt(operation.amount)} ₽»?
+            </p>
+            <p className="text-[13px] leading-relaxed text-fg-secondary">
+              Операция будет удалена вместе со всеми её связями с позициями
+              спецификации. Связанные материалы не удаляются, и их стоимость
+              не изменится.
+            </p>
+            <div className="flex items-center justify-end gap-2">
+              <Button
+                variant="outline"
+                size="lg"
+                onClick={() => setConfirmDelete(false)}
+                disabled={deleting}
+              >
+                Отмена
+              </Button>
+              <Button
+                variant="destructive"
+                size="lg"
+                onClick={() => void remove()}
+                disabled={deleting}
+              >
+                {deleting ? (
+                  <>
+                    <Loader2 className="size-4 animate-spin" /> Удаляем…
+                  </>
+                ) : (
+                  <>
+                    <Trash2 className="size-4" /> Удалить
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center justify-end gap-2 border-t border-border-subtle px-5 py-3">
+            {operation && (
+              <Button
+                variant="ghost"
+                size="lg"
+                onClick={() => {
+                  setError(null);
+                  setConfirmDelete(true);
+                }}
+                disabled={busy || deleting}
+                className="mr-auto gap-2 text-fg-red"
+              >
+                <Trash2 className="size-4" /> Удалить
+              </Button>
             )}
-          </Button>
-        </div>
+            <Button
+              variant="outline"
+              size="lg"
+              onClick={onClose}
+              disabled={busy || deleting}
+            >
+              Отмена
+            </Button>
+            <Button
+              size="lg"
+              onClick={() => void submit()}
+              disabled={busy || deleting}
+            >
+              {busy ? (
+                <>
+                  <Loader2 className="size-4 animate-spin" /> Сохраняем…
+                </>
+              ) : operation ? (
+                "Сохранить"
+              ) : (
+                `Добавить ${label.toLowerCase()}`
+              )}
+            </Button>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
   );

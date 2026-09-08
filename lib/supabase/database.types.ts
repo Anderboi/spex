@@ -692,6 +692,7 @@ export type Database = {
       service_operations: {
         Row: {
           amount: number
+          completed: boolean
           contractor_company_id: string | null
           created_at: string
           deadline: string | null
@@ -704,6 +705,7 @@ export type Database = {
         }
         Insert: {
           amount: number
+          completed?: boolean
           contractor_company_id?: string | null
           created_at?: string
           deadline?: string | null
@@ -716,6 +718,7 @@ export type Database = {
         }
         Update: {
           amount?: number
+          completed?: boolean
           contractor_company_id?: string | null
           created_at?: string
           deadline?: string | null

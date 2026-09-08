@@ -351,6 +351,8 @@ export const serviceOperationFieldsSchema = z
       .number({ error: "Укажите стоимость" })
       .min(0, "Стоимость не может быть отрицательной")
       .max(1_000_000_000, "Стоимость слишком велика"),
+    /** Отметка «исполнено». Для доставки переводит материалы в «Доставлено». */
+    completed: z.boolean().default(false),
     deadline: serviceOperationDate.default(null),
     contractorCompanyId: z.string().uuid().nullable().default(null),
     notes: z.string().trim().max(4000, "Комментарий слишком длинный").default(""),
