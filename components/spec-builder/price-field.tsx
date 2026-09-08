@@ -25,7 +25,14 @@ export function PriceField({
       aria-label="Цена за единицу"
       value={draft ?? (value ? fmt(value) : "")}
       placeholder="—"
-      onFocus={() => setDraft(value ? String(value) : "")}
+      onFocus={(e) => {
+        const target = e.target;
+
+        setDraft(value ? String(value) : "");
+        setTimeout(() => {
+          target.select();
+        }, 0);
+      }}
       onChange={(e) => setDraft(e.target.value)}
       onBlur={() => {
         if (draft !== null) onCommit(draft);
@@ -34,7 +41,10 @@ export function PriceField({
       onKeyDown={(e) => {
         if (e.key === "Enter") e.currentTarget.blur();
       }}
-      className={cn(className,"w-full rounded border border-transparent bg-transparent //px-2 py-1 text-left font-mono text-[13px] tabular-nums hover:border-border-muted focus:border-fg-brand focus:outline-none")}
+      className={cn(
+        className,
+        "w-full rounded border border-transparent bg-transparent //px-2 py-1 text-left font-mono text-[13px] tabular-nums hover:border-border-muted focus:border-fg-brand focus:outline-none",
+      )}
     />
   );
 }

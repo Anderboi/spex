@@ -130,7 +130,7 @@ export default function SpecBuilder({
     project.budget !== null && ctx.stats.totalSum > project.budget;
 
   return (
-    <div className="relative min-h-screen w-full min-w-0 overflow-x-hidden bg-bg text-fg">
+    <div className="relative min-h-screen w-full min-w-0 //overflow-x-hidden bg-bg text-fg">
       {/* ── статус и статистика (шапка на странице: PageHeader) ── */}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pt-6 text-[13px] text-fg-muted">
         <SaveIndicator status={ctx.saveStatus} error={ctx.saveError} />

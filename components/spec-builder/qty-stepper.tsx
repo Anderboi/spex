@@ -8,6 +8,7 @@ import {
   InputGroupAddon,
   InputGroupInput,
 } from "../ui/input-group";
+import { cn } from "@/lib/utils";
 
 export function QtyStepper({
   qty,
@@ -15,12 +16,14 @@ export function QtyStepper({
   onChange,
   editable,
   showUnit = true,
+  isMobile,
 }: {
   qty: number;
   unit: string;
   editable: boolean;
   showUnit?: boolean;
   onChange: (d: number) => void;
+  isMobile?: boolean;
 }) {
   /** Черновик текста пока пользователь печатает; null = показываем `qty`. */
   const [draft, setDraft] = useState<string | null>(null);
@@ -47,7 +50,7 @@ export function QtyStepper({
   return (
     <ButtonGroup>
       <Button
-        className="size-6 bg-bg-card"
+        className={cn("bg-bg-card", isMobile ? "size-10" : "size-6")}
         size="sm"
         variant="outline"
         onClick={() => {
@@ -59,9 +62,17 @@ export function QtyStepper({
       >
         <Minus className="size-3" />
       </Button>
-      <InputGroup className="h-6 min-w-14 items-center bg-bg-card">
+      <InputGroup
+        className={cn(
+          "min-w-14 items-center bg-bg-card",
+          isMobile ? "h-10" : "h-6",
+        )}
+      >
         <InputGroupInput
-          className="text-center font-mono px-0! text-[13px]! tabular-nums"
+          className={cn(
+            "text-center font-mono px-0! tabular-nums",
+            isMobile ? "text-[15px]!" : "text-[13px]!",
+          )}
           value={draft ?? qty}
           readOnly={!editable}
           inputMode="decimal"
@@ -93,7 +104,7 @@ export function QtyStepper({
       </InputGroup>
       <Button
         size="sm"
-        className="size-6 bg-bg-card"
+        className={cn("bg-bg-card", isMobile ? "size-10" : "size-6")}
         variant="outline"
         onClick={() => {
           commitDraft();

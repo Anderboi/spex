@@ -8,10 +8,12 @@ export function InlineCode({
   code,
   locked,
   onCommit,
+  className,
 }: {
   code: string;
   locked: boolean;
   onCommit: (next: string) => void;
+  className?: string;
 }) {
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState(code);
@@ -49,6 +51,7 @@ export function InlineCode({
         className={cn(
           "font-mono text-[12px] font-semibold tabular-nums rounded px-1 py-0.5 //-mx-1.5",
           "hover:bg-fg-body focus-visible:outline //focus-visible:outline-2 focus-visible:outline-fg-brand",
+          className,
           locked &&
             "underline decoration-dotted decoration-fg-muted underline-offset-4",
         )}
