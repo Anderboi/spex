@@ -44,7 +44,15 @@ interface CompanyDialogProps {
   open: boolean;
   onClose: () => void;
   initialName?: string;
-  onSuccess?: (company: { id: string; name: string }) => void;
+  onSuccess?: (company: {
+    id: string;
+    name: string;
+    phone?: string | null;
+    email?: string | null;
+    website?: string | null;
+    address?: string | null;
+    note?: string | null;
+  }) => void;
 }
 
 export function CompanyDialog({
@@ -58,7 +66,7 @@ export function CompanyDialog({
 
   const form = useForm<
     z.input<typeof companySchema>,
-    any,
+    unknown,
     z.output<typeof companySchema>
   >({
     resolver: zodResolver(companySchema),
@@ -100,7 +108,7 @@ useEffect(() => {
 
       form.reset();
       onClose();
-      onSuccess?.(res.data as { id: string; name: string });
+      onSuccess?.(res.data);
     });
   };
 

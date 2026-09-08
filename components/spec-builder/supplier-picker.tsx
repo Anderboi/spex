@@ -231,6 +231,18 @@ export function SupplierPicker({
                   </div>
                 </ContactDataField>
               )}
+              {company.website && (
+                <ContactDataField label="Сайт">
+                  <a
+                    href={company.website}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="block text-fg-brand hover:underline col-span-2"
+                  >
+                    {company.website}
+                  </a>
+                </ContactDataField>
+              )}
             </div>
           </div>
         </div>

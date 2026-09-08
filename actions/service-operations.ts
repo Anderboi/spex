@@ -485,6 +485,16 @@ export async function updateServiceOperation(
   const d = parsed.data;
   const itemsOk = await assertProjectItems(c, d.specItemIds);
   if (!itemsOk.ok) return fail(itemsOk.error);
+  // При обновлении проверка нужна так же, как при создании: Server Action
+  // доступен напрямую, а не только через UI с неизменяемым списком позиций.
+  // Собственные связи операции исключаем из поиска дубликатов.
+  if (d.type === "delivery") {
+    const deliveryOk = await assertNoOtherDelivery(c, d.specItemIds, {
+      action: "update",
+      excludeOperationId: operationId,
+    });
+    if (!deliveryOk.ok) return fail(deliveryOk.error);
+  }
   const contractorOk = await assertContractorInOrg(c, d.contractorCompanyId);
   if (!contractorOk.ok) return fail(contractorOk.error);
 

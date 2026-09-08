@@ -70,6 +70,7 @@ export function DetailModal({
   onDelete,
   onShare,
   projectRooms,
+  onCompanyCreated,
   onSwitchVariant,
   onAddVariant,
   onUpdateVariant,
@@ -108,6 +109,8 @@ export function DetailModal({
   onDelete: () => void;
   onShare: () => void;
   projectRooms: string[];
+  /** Добавляет компанию в единый локальный список основной панели. */
+  onCompanyCreated: (company: Company) => void;
   onSwitchVariant: (variantId: string) => void;
   onAddVariant: () => void;
   onUpdateVariant: (variantId: string, patch: Partial<SpecVariant>) => void;
@@ -121,7 +124,6 @@ export function DetailModal({
   onOpenOperation: (operationId: string) => void;
 }) {
   const [tab, setTab] = useState<string>(initialTab ?? "overview");
-  const [localCompanies, setLocalCompanies] = useState<Company[]>(companies);
   const [showAddCompany, setShowAddCompany] = useState(false);
   const [newCompanyName, setNewCompanyName] = useState("");
 
@@ -299,7 +301,7 @@ export function DetailModal({
               // className="flex flex-col gap-4 py-4 pl-4 pr-6"
             >
               <SupplierPicker
-                companies={localCompanies}
+                companies={companies}
                 contacts={contacts}
                 companyId={item.companyId}
                 contactId={item.contactId}
@@ -356,8 +358,13 @@ export function DetailModal({
           initialName={newCompanyName}
           onClose={() => setShowAddCompany(false)}
           onSuccess={(company) => {
-            setLocalCompanies((prev) => [...prev, company]);
-            onPatch({ companyId: company.id, contactId: null });
+            onCompanyCreated(company);
+            onPatch({
+              companyId: company.id,
+              companyName: company.name,
+              contactId: null,
+              contactName: "",
+            });
             setShowAddCompany(false);
           }}
         />

@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Search, ArrowUpDown, AlertCircle, X } from "lucide-react";
 import { useSpecBuilder } from "@/hooks/use-spec-builder";
 import { useMediaQuery } from "@/hooks/use-media-query";
@@ -55,7 +55,19 @@ export default function SpecBuilder({
   library: MaterialListItem[];
 }) {
   const ctx = useSpecBuilder({ orgSlug, projectId, initialItems });
+  const [localCompanies, setLocalCompanies] = useState(companies);
   const isDesktop = useMediaQuery("(min-width: 820px)");
+
+  /** Созданную CompanyDialog запись используем сразу, без повторного fetch. */
+  const upsertLocalCompany = useCallback((company: SpecPickerCompany) => {
+    setLocalCompanies((prev) => {
+      const index = prev.findIndex((item) => item.id === company.id);
+      if (index < 0) return [...prev, company];
+      const next = [...prev];
+      next[index] = company;
+      return next;
+    });
+  }, []);
 
   const { value: dialog, close: closeDialog } = useDialogUrl("dialog");
 
@@ -307,7 +319,7 @@ export default function SpecBuilder({
           onOpenRefItem={openRefFromComposition}
           initialTab={ctx.modal.kind === "detail" ? ctx.modal.tab : undefined}
           allItems={ctx.items}
-          companies={companies}
+          companies={localCompanies}
           contacts={contacts}
           onClose={ctx.closeModal}
           onPatch={(p) => ctx.updateItem(ctx.current!.id, p)}
@@ -319,6 +331,7 @@ export default function SpecBuilder({
           onDelete={() => ctx.openDelete(ctx.current!.id)}
           onShare={() => ctx.shareItem(ctx.current!)}
           projectRooms={project.rooms}
+          onCompanyCreated={upsertLocalCompany}
           onSwitchVariant={(vid) =>
             ctx.switchVariantLocal(ctx.current!.id, vid)
           }
@@ -366,7 +379,7 @@ export default function SpecBuilder({
             <AddModalForm
               library={library.filter((m) => m.category === item.type)}
               items={ctx.items}
-              companies={companies}
+              companies={localCompanies}
               orgSlug={orgSlug}
               editing={editingLike}
               variantMode
@@ -384,7 +397,7 @@ export default function SpecBuilder({
                   imageUrl: input.imageUrl ?? null,
                   companyId: input.companyId ?? null,
                   companyName:
-                    companies.find((c) => c.id === input.companyId)?.name ?? "",
+                    localCompanies.find((c) => c.id === input.companyId)?.name ?? "",
                 });
                 ctx.closeModal();
               }}
@@ -398,7 +411,7 @@ export default function SpecBuilder({
                   imageUrl: input.imageUrl ?? null,
                   companyId: input.companyId ?? null,
                   companyName:
-                    companies.find((c) => c.id === input.companyId)?.name ?? "",
+                    localCompanies.find((c) => c.id === input.companyId)?.name ?? "",
                 });
                 ctx.closeModal();
               }}
@@ -410,7 +423,7 @@ export default function SpecBuilder({
         <AddModalForm
           library={library}
           items={ctx.items}
-          companies={companies}
+          companies={localCompanies}
           orgSlug={orgSlug}
           editing={ctx.editing}
           parentId={ctx.modal.parentId}
@@ -440,7 +453,7 @@ export default function SpecBuilder({
             <AddModalForm
               library={variantLibrary}
               items={ctx.items}
-              companies={companies}
+              companies={localCompanies}
               orgSlug={orgSlug}
               editing={null}
               variantMode
@@ -452,17 +465,17 @@ export default function SpecBuilder({
                   ctx.commitVariantFromLibrary(
                     targetItemId,
                     materials[0],
-                    companies,
+                    localCompanies,
                   );
               }}
               onFillFromLibrary={(m) =>
-                ctx.commitVariantFromLibrary(targetItemId, m, companies)
+                ctx.commitVariantFromLibrary(targetItemId, m, localCompanies)
               }
               onAddManual={(input) =>
-                ctx.commitVariantManual(targetItemId, input, companies)
+                ctx.commitVariantManual(targetItemId, input, localCompanies)
               }
               onFillManual={(input) =>
-                ctx.commitVariantManual(targetItemId, input, companies)
+                ctx.commitVariantManual(targetItemId, input, localCompanies)
               }
             />
           );
@@ -480,7 +493,7 @@ export default function SpecBuilder({
         <ServiceOperationModal
           type={ctx.modal.type}
           ctx={ctx}
-          companies={companies}
+          companies={localCompanies}
           onClose={ctx.closeModal}
         />
       )}
@@ -496,7 +509,7 @@ export default function SpecBuilder({
               type={op.type}
               operation={op}
               ctx={ctx}
-              companies={companies}
+              companies={localCompanies}
               onClose={ctx.closeModal}
             />
           );
