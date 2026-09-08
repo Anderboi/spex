@@ -92,7 +92,7 @@ export const GroupSection = memo(function GroupSection({
                 <tr>
                   <th className="text-left w-6 /px-3 py-2">
                     <Checkbox
-                      className="border-border border-2 data-indeterminate:bg-primary/50 data-indeterminate:text-primary-foreground"
+                      className="border-border border-2 data-indeterminate:bg-primary/50 data-indeterminate:text-fg-body"
                       checked={allSelected}
                       indeterminate={someSelected}
                       onCheckedChange={() => h.onToggleSelGroup(groupIds)}

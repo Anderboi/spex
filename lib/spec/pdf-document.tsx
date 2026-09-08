@@ -2,6 +2,11 @@
 import { Document, Page, Text, View, StyleSheet } from "@react-pdf/renderer";
 import { registerPdfFonts } from "./pdf-fonts";
 import { priceOf } from "@/lib/spec/pricing";
+import {
+  calcProjectTotal,
+  sumServiceOperationAmounts,
+  type ServiceOperationBudgetRow,
+} from "@/lib/spec/project-budget";
 import { SPEC_STATUS_CONFIG } from "@/lib/spec/status";
 import { TYPE_ORDER } from "@/lib/constants";
 import { fmt, fmtQty } from "@/lib/utils";
@@ -160,18 +165,37 @@ const styles = StyleSheet.create({
   dot: { width: 5, height: 5, borderRadius: 2.5, marginRight: 4 },
   statusText: { fontSize: 7.5, color: C.dim },
 
-  /* подвал */
-  foot: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
+  /* бюджет проекта (подвал) */
+  budget: {
+    marginTop: 24,
     borderTopWidth: 1.5,
     borderTopColor: C.ink,
     paddingTop: 12,
-    marginTop: 24,
   },
-  footLabel: { fontSize: 11, fontWeight: "bold" },
-  footValue: { fontSize: 16, fontWeight: "bold", letterSpacing: -0.3 },
+  budgetRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "baseline",
+    marginTop: 5,
+  },
+  budgetLabel: {
+    fontSize: 8,
+    letterSpacing: 1,
+    color: C.dim,
+    textTransform: "uppercase",
+  },
+  budgetValue: { fontSize: 10.5, fontWeight: "bold" },
+  budgetTotal: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "baseline",
+    borderTopWidth: 1,
+    borderTopColor: C.line,
+    marginTop: 8,
+    paddingTop: 8,
+  },
+  budgetTotalLabel: { fontSize: 11, fontWeight: "bold" },
+  budgetTotalValue: { fontSize: 16, fontWeight: "bold", letterSpacing: -0.3 },
 
   /* колонтитул */
   pageNo: {
@@ -190,16 +214,21 @@ export function SpecPdfDocument({
   project,
   items,
   compositions = {},
+  serviceOperations = [],
   clientView = false,
   createdAt,
 }: {
   project: { title: string; client_name: string | null };
   items: SpecItem[];
   compositions?: Record<string, SpecSummaryCompositionNode[]>;
+  /** Операции «Монтаж»/«Доставка» проекта — учитываются в общем бюджете. */
+  serviceOperations?: readonly ServiceOperationBudgetRow[];
   clientView?: boolean;
   createdAt?: string;
 }) {
   const totalSum = items.reduce((s, i) => s + priceOf(i).total, 0);
+  const serviceTotals = sumServiceOperationAmounts(serviceOperations);
+  const projectTotal = calcProjectTotal(totalSum, serviceTotals.servicesTotal);
   const date = createdAt ? new Date(createdAt) : new Date();
 
   const byType = TYPE_ORDER.map((type) => {
@@ -306,10 +335,26 @@ export function SpecPdfDocument({
           </View>
         ))}
 
-        {/* подвал */}
-        <View style={styles.foot} wrap={false}>
-          <Text style={styles.footLabel}>Всего</Text>
-          <Text style={styles.footValue}>{fmt(totalSum)} ₽</Text>
+        {/* бюджет проекта — отдельными строками */}
+        <View style={styles.budget} wrap={false}>
+          <View style={styles.budgetRow}>
+            <Text style={styles.budgetLabel}>Стоимость материалов</Text>
+            <Text style={styles.budgetValue}>{fmt(totalSum)} ₽</Text>
+          </View>
+          <View style={styles.budgetRow}>
+            <Text style={styles.budgetLabel}>Доставка</Text>
+            <Text style={styles.budgetValue}>{fmt(serviceTotals.delivery)} ₽</Text>
+          </View>
+          <View style={styles.budgetRow}>
+            <Text style={styles.budgetLabel}>Монтаж</Text>
+            <Text style={styles.budgetValue}>
+              {fmt(serviceTotals.installation)} ₽
+            </Text>
+          </View>
+          <View style={styles.budgetTotal}>
+            <Text style={styles.budgetTotalLabel}>Общий бюджет проекта</Text>
+            <Text style={styles.budgetTotalValue}>{fmt(projectTotal)} ₽</Text>
+          </View>
         </View>
 
         {/* номер страницы */}

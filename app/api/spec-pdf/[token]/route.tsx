@@ -20,6 +20,7 @@ export async function GET(
       project={data.project}
       items={data.items}
       compositions={data.compositions}
+      serviceOperations={data.serviceOperations}
       clientView={data.clientView}
       createdAt={data.createdAt}
     />,

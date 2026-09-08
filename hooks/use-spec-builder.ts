@@ -43,6 +43,10 @@ import {
 import { SPEC_STATUS_CONFIG } from "@/lib/spec/status";
 import { applyActiveVariant } from "@/lib/spec/variants";
 import { round2, sumItems } from "@/lib/spec/pricing";
+import {
+  calcProjectTotal,
+  sumServiceOperationAmounts,
+} from "@/lib/spec/project-budget";
 import { setSpecItemParent } from "@/lib/spec/tree";
 import type { MaterialListItem, SpecPickerCompany } from "@/lib/queries";
 import type { ManualSpecItemInput } from "@/lib/validations";
@@ -1433,11 +1437,13 @@ export function useSpecBuilder({
     return map;
   }, [operations]);
 
-  /** Сумма дополнительных расходов проекта — отдельный агрегат. */
-  const opsTotal = useMemo(
-    () => operations.reduce((s, op) => s + op.amount, 0),
+  /** Дополнительные расходы проекта: итог по типам + общая сумма услуг.
+   *  Операция учитывается один раз — см. lib/spec/project-budget.ts. */
+  const serviceTotals = useMemo(
+    () => sumServiceOperationAmounts(operations),
     [operations],
   );
+  const servicesTotal = serviceTotals.servicesTotal;
 
   /* ---------------------------------------------------------------- */
 
@@ -1452,7 +1458,9 @@ export function useSpecBuilder({
     stats,
     operations,
     opsByItem,
-    opsTotal,
+    serviceTotals,
+    servicesTotal,
+    projectTotal: calcProjectTotal(stats.totalSum, servicesTotal),
     filters,
     isPending,
 

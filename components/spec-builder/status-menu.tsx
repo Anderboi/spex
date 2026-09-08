@@ -14,16 +14,18 @@ import {
   statusWarning,
 } from "@/lib/spec/status";
 import { cn } from "@/lib/utils";
-import { ConfirmDialog } from '../ui/confirm-dialog';
-import { SpecItem } from '@/lib/types';
-import { SpecStatus } from '@/lib/constants';
+import { ConfirmDialog } from "../ui/confirm-dialog";
+import { SpecItem } from "@/lib/types";
+import { SpecStatus } from "@/lib/constants";
 
 export function StatusMenu({
   item,
   onChange,
+  className,
 }: {
   item: SpecItem;
   onChange: (s: SpecStatus) => void;
+  className?: string;
 }) {
   const [pending, setPending] = useState<{
     status: SpecStatus;
@@ -49,6 +51,7 @@ export function StatusMenu({
           className={cn(
             "flex h-7 items-center gap-1.5 rounded-full px-2.5 text-[12px] font-medium",
             cfg.chip,
+            className,
           )}
         >
           <span className={cn("size-1.5 rounded-full", cfg.dot)} />

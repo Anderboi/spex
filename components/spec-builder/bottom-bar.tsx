@@ -2,11 +2,16 @@
 
 import { cn, fmt, plural } from "@/lib/utils";
 import { useSidebar } from "@/components/ui/sidebar";
-import { SpecBuilderContext } from '@/hooks/use-spec-builder';
-import { ChevronUp, ListChecks, Trash2, Truck, Wrench, X } from 'lucide-react';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../ui/dropdown-menu';
-import { SPEC_STATUS_CONFIG } from '@/lib/spec/status';
-import { SPEC_STATUSES } from '@/lib/constants';
+import { SpecBuilderContext } from "@/hooks/use-spec-builder";
+import { ChevronUp, ListChecks, Trash2, Truck, Wrench, X } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "../ui/dropdown-menu";
+import { SPEC_STATUS_CONFIG } from "@/lib/spec/status";
+import { SPEC_STATUSES } from "@/lib/constants";
 
 interface BottomBarProps {
   totalCount: number;
@@ -28,7 +33,7 @@ interface BottomBarProps {
 export default function BottomBar({ ctx }: { ctx: SpecBuilderContext }) {
   const selCount = ctx.selectedItems.length;
   const selSum = ctx.selectedItems.reduce((s, i) => s + i.qty * i.price, 0);
-  
+
   const { state, isMobile } = useSidebar();
   const isCollapsed = state === "collapsed" || isMobile;
 
@@ -42,20 +47,6 @@ export default function BottomBar({ ctx }: { ctx: SpecBuilderContext }) {
       <div className="w-full max-w-295 flex items-center justify-between gap-4 bg-bg-accent text-bg rounded-[16px] py-4 px-[clamp(18px,3vw,30px)] pointer-events-auto shadow-[0_18px_50px_rgba(27,26,23,.28)]">
         {selCount === 0 ? (
           <>
-            <div className="min-w-0">
-              <p className="text-[12px] uppercase tracking-wider text-fg-muted">
-                Итого
-              </p>
-              <p className="font-mono text-[18px] font-semibold tabular-nums">
-                {fmt(ctx.stats.totalSum)} ₽
-              </p>
-            </div>
-            <p className="ml-auto text-[13px] text-fg-muted">
-              {ctx.stats.totalCount}{" "}
-              {plural(ctx.stats.totalCount, "позиция", "позиции", "позиций")}
-              {ctx.stats.placeholders > 0 &&
-                ` · ${ctx.stats.placeholders} не заполнено`}
-            </p>
             <button
               type="button"
               onClick={ctx.openProcure}
@@ -63,6 +54,28 @@ export default function BottomBar({ ctx }: { ctx: SpecBuilderContext }) {
             >
               <ListChecks className="size-4" /> Закупка
             </button>
+            <p className=" text-[13px] text-fg-muted">
+              {ctx.stats.totalCount}{" "}
+              {plural(ctx.stats.totalCount, "позиция", "позиции", "позиций")}
+              {ctx.stats.placeholders > 0 &&
+                ` · ${ctx.stats.placeholders} не заполнено`}
+            </p>
+
+            <div className="min-w-0 ml-auto flex flex-col items-end">
+              <p className="flex items-baseline gap-2 whitespace-nowrap">
+                <span className="font-mono text-[12px] tabular-nums text-fg-secondary">
+                  {fmt(ctx.stats.totalSum)} ₽ + {fmt(ctx.servicesTotal)} ₽
+                </span>
+              </p>
+              <p className="flex items-baseline gap-2 whitespace-nowrap">
+                <span className="text-[11px] uppercase tracking-wider text-fg-secondary">
+                  Итого
+                </span>
+                <span className="font-mono text-[20px] font-semibold tabular-nums">
+                  {fmt(ctx.projectTotal)} ₽
+                </span>
+              </p>
+            </div>
           </>
         ) : (
           <>

@@ -4,11 +4,17 @@ import { requireOrgBySlug } from "@/lib/auth/session";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { ok, fail, type ActionResult } from "@/lib/action-result";
 import { getProjectSpecItems } from "@/lib/queries";
-import { priceOf } from "@/lib/spec/pricing";
+import { priceOf, sumItems } from "@/lib/spec/pricing";
+import {
+  calcProjectTotal,
+  sumServiceOperationAmounts,
+} from "@/lib/spec/project-budget";
 import { fmt, fmtQty } from "@/lib/utils";
 import { SPEC_STATUS_CONFIG } from "@/lib/spec/status";
+import { SERVICE_OPERATION_CONFIG } from "@/lib/constants";
 import * as XLSX from "xlsx";
 import { listProjectSpecCompositions } from "@/actions/spec-components";
+import { listProjectServiceOperations } from "@/actions/service-operations";
 import {
   buildSpecSummaryComposition,
   type SpecSummaryCompositionNode,
@@ -122,6 +128,55 @@ export async function exportSpecToExcel(
       pushCompositionRows(comp, client, 0, rows);
     }
   }
+
+  // ── Дополнительные расходы проекта: «Монтаж»/«Доставка» ──────────
+  // amount — самостоятельная стоимость операции на уровне проекта; операция
+  // пишется одной строкой независимо от числа связанных с ней позиций.
+  const opsRes = await listProjectServiceOperations(orgSlug, projectId);
+  if (!opsRes.success) return fail(opsRes.error);
+  const ops = opsRes.data;
+
+  const opDate = (iso: string) =>
+    new Date(`${iso}T00:00:00`).toLocaleDateString("ru-RU");
+
+  for (const op of ops) {
+    const row: Record<string, string> = {
+      Наименование: SERVICE_OPERATION_CONFIG[op.type].label,
+      Сумма: `${fmt(op.amount)} ₽`,
+    };
+    if (op.deadline) row.Характеристика = `до ${opDate(op.deadline)}`;
+    if (!client) {
+      if (op.contractor_name) row.Поставщик = op.contractor_name;
+      if (op.notes) row.Заметки = op.notes;
+    }
+    rows.push(row);
+  }
+
+  // ── Бюджет проекта: материалы и услуги отдельными строками ──────
+  const materialsTotal = sumItems(items).total;
+  const serviceTotals = sumServiceOperationAmounts(ops);
+  const budgetTotal = calcProjectTotal(
+    materialsTotal,
+    serviceTotals.servicesTotal,
+  );
+
+  rows.push({});
+  rows.push({
+    Наименование: "Стоимость материалов",
+    Сумма: `${fmt(materialsTotal)} ₽`,
+  });
+  rows.push({
+    Наименование: "Доставка",
+    Сумма: `${fmt(serviceTotals.delivery)} ₽`,
+  });
+  rows.push({
+    Наименование: "Монтаж",
+    Сумма: `${fmt(serviceTotals.installation)} ₽`,
+  });
+  rows.push({
+    Наименование: "Общий бюджет проекта",
+    Сумма: `${fmt(budgetTotal)} ₽`,
+  });
 
   const wb = XLSX.utils.book_new();
   const ws = XLSX.utils.json_to_sheet(rows);

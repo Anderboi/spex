@@ -67,13 +67,13 @@ export const SpecRow = memo(function SpecRow({
   return (
     <tr
       className={cn(
-        "group border-b border-border-muted last:border-0 transition-colors hover:bg-bg-card/60",
+        "group h-16 border-b border-border-muted last:border-0 transition-colors hover:bg-bg-card/60",
         selected && "bg-bg-brand/40",
         item.isPlaceholder &&
           "bg-[repeating-linear-gradient(45deg,transparent,transparent_7px,var(--color-bg-card)_7px,var(--color-bg-card)_14px)]",
       )}
     >
-      <td className="">
+      <td className="align-middle">
         <Checkbox
           className="border-border border-2"
           checked={selected}
@@ -81,77 +81,77 @@ export const SpecRow = memo(function SpecRow({
           aria-label={`Выбрать ${item.code}`}
         />
       </td>
-      <td className="p-2">
+      <td className="p-2 align-middle">
         {item.imageUrl ? (
           <Image
             src={item.imageUrl}
             alt={item.name}
             height={64}
             width={64}
-            className="object-cover border rounded-lg"
+            className="size-16 object-cover border rounded-lg"
           />
         ) : (
           <div className="size-16 bg-bg-brand2/50 border rounded-lg"></div>
         )}
       </td>
-      <td className="px-2">
+      <td className="px-2 align-middle">
         <InlineCode
           code={item.code}
           locked={isLocked(item.status)}
           onCommit={(c) => h.onCode(item.id, c)}
         />
       </td>
-      <td className="min-w-0 px-2">
-        {item.isPlaceholder ? (
-          <div className="flex flex-col items-start gap-0.5">
-            <DraftNameField
-              value={item.name}
-              onCommit={(name) => h.onDraftName(item.id, name)}
-            />
+      <td className="min-w-0 px-2 align-middle">
+        <div className="flex min-h-9 flex-col justify-center gap-0.5">
+          {item.isPlaceholder ? (
+            <>
+              <DraftNameField
+                value={item.name}
+                onCommit={(name) => h.onDraftName(item.id, name)}
+              />
+              <button
+                type="button"
+                onClick={() => h.onFill(item.id)}
+                className="text-left text-[12.5px] cursor-pointer text-fg-muted hover:text-fg-brand hover:underline"
+              >
+                Выбрать материал из библиотеки
+              </button>
+            </>
+          ) : (
             <button
               type="button"
-              onClick={() => h.onFill(item.id)}
-              className="text-[12.5px] cursor-pointer text-fg-muted hover:text-fg-brand hover:underline"
+              onClick={() => h.onOpen(item.id)}
+              className="block max-w-full text-left cursor-pointer"
             >
-              Выбрать материал из библиотеки
+              <span className="block truncate text-[14px] font-medium text-fg hover:underline">
+                {item.name}
+              </span>
+              <span className="block truncate text-[12.5px] text-fg-muted">
+                {[item.brand, item.spec].filter(Boolean).join(" · ") || "—"}
+              </span>
             </button>
-          </div>
-        ) : (
-          <button
-            type="button"
-            onClick={() => h.onOpen(item.id)}
-            className="block max-w-full text-left cursor-pointer"
-          >
-            <span className="block truncate text-[14px] font-medium text-fg hover:underline">
-              {item.name}
-            </span>
-            <span className="block truncate text-[12.5px] text-fg-muted">
-              {[item.brand, item.spec].filter(Boolean).join(" · ") || "—"}
-            </span>
-          </button>
-        )}
-        {!item.isPlaceholder && (item.variants?.length ?? 0) > 1 && (
-          <VariantSwitcher
-            item={item}
-            onSwitch={(vid) => h.onSwitchVariant(item.id, vid)}
-            onAdd={() => h.onAddVariant(item.id)}
-            onOpenVariants={() => h.onOpen(item.id)}
-          />
-        )}
+          )}
+          {!item.isPlaceholder && (item.variants?.length ?? 0) > 1 && (
+            <VariantSwitcher
+              item={item}
+              onSwitch={(vid) => h.onSwitchVariant(item.id, vid)}
+              onAdd={() => h.onAddVariant(item.id)}
+              onOpenVariants={() => h.onOpen(item.id)}
+            />
+          )}
+        </div>
       </td>
       <td className="px-2 text-left align-middle">
-        {ops && ops.length > 0 ? (
-          <ServiceOperationBadges ops={ops} onOpen={h.onEditOperation} />
-        ) : (
-          <span className="text-[13px] text-fg-muted">—</span>
-        )}
+        <div className="flex min-h-9 flex-col justify-center gap-1">
+          {ops && ops.length > 0 ? (
+            <ServiceOperationBadges ops={ops} onOpen={h.onEditOperation} />
+          ) : (
+            <span className="text-[13px] text-fg-muted">—</span>
+          )}
+        </div>
       </td>
-      {/* <td className="min-w-0 px-2 py-2 block max-w-full text-left text-[14px]">
-        <div>{item.notes}</div>
-        <div>{item.spec}</div>
-      </td> */}
       <td className="px-2 text-right align-middle">
-        <div className="flex flex-col items-end leading-tight">
+        <div className="flex min-h-9 flex-col items-end justify-center leading-tight">
           <QtyStepper
             qty={item.qty}
             unit={item.unit}
@@ -169,7 +169,7 @@ export const SpecRow = memo(function SpecRow({
         </div>
       </td>
       <td className="px-2 text-left align-middle">
-        <div className="flex flex-col items-start leading-tight">
+        <div className="flex min-h-9 flex-col items-start justify-center leading-tight">
           <PriceField
             value={p.priceFinal}
             readOnly={p.hasPriceMod}
@@ -185,19 +185,16 @@ export const SpecRow = memo(function SpecRow({
           )}
         </div>
       </td>
-      {/* <td className="w-32 px-2 py-2.5 text-right font-mono text-[13.5px] font-semibold tabular-nums">
-        {sum > 0 ? `${fmt(sum)} ₽` : <span className="text-fg-muted">—</span>}
-      </td> */}
       <td className="px-2 text-right align-middle">
         <span className="font-mono text-[14px] font-semibold tabular-nums">
           {p.total > 0 ? `${fmt(p.total)} ₽` : "—"}
         </span>
       </td>
 
-      <td className="px-2">
-        <StatusMenu item={item} onChange={(s) => h.onStatus(item.id, s)} />
+      <td className="px-2 align-middle">
+        <StatusMenu className='w-full justify-between' item={item} onChange={(s) => h.onStatus(item.id, s)} />
       </td>
-      <td className="px-2">
+      <td className="px-2 align-middle">
         <DropdownMenu>
           <DropdownMenuTrigger
             aria-label={`Действия для ${item.code}`}

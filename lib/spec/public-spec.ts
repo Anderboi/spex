@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import type { ServiceOperationType } from "@/lib/constants";
 import { SpecItem, type SpecVariant } from "../types";
 import { applyActiveVariant, rowToVariant } from "./variants";
 import {
@@ -7,11 +8,28 @@ import {
   type SpecSummaryCompositionSourceRow,
 } from "./summary-composition";
 
+/**
+ * Операция дополнительных расходов в публичной модели. Без id и связей с
+ * позициями: для показа сводки достаточно типа, суммы и отображаемых полей.
+ * Каждая операция — это одна строка стоимости на уровне проекта.
+ */
+export type PublicServiceOperation = {
+  type: ServiceOperationType;
+  amount: number;
+  /** Отметка «исполнено» (для доставки) — на сумму операции не влияет. */
+  completed: boolean;
+  deadline: string | null;
+  contractor_name: string | null;
+  notes: string | null;
+};
+
 export type PublicSpec = {
   project: { title: string; client_name: string | null };
   items: SpecItem[];
   /** «Тонкая» отображаемая модель состава по spec_item_id (без служебных полей). */
   compositions: Record<string, SpecSummaryCompositionNode[]>;
+  /** Операции «Монтаж»/«Доставка» проекта для расчёта общего бюджета. */
+  serviceOperations: PublicServiceOperation[];
   clientView: boolean;
   createdAt: string;
 };
@@ -167,10 +185,73 @@ export async function loadPublicSpec(
     }
   }
 
+  // ── Дополнительные расходы проекта (монтаж/доставка) ────────────
+  // Операции нужны публичной сводке и PDF для расчёта общего бюджета:
+  // service_operations.amount — самостоятельный агрегат уровня проекта и не
+  // зависит от числа связанных с операцией позиций.
+  const serviceOperations: PublicServiceOperation[] = [];
+  {
+    const { data: opRows } = await supabase
+      .from("service_operations")
+      .select(
+        "type, amount, completed, deadline, contractor_company_id, notes",
+      )
+      .eq("project_id", link.project_id)
+      .eq("org_id", link.org_id)
+      .order("created_at", { ascending: true });
+
+    if (opRows && opRows.length > 0) {
+      const ops = opRows.map((r) => ({
+        type:
+          r.type === "delivery"
+            ? ("delivery" as const)
+            : ("installation" as const),
+        amount: Number(r.amount ?? 0),
+        completed: r.completed === true,
+        deadline: r.deadline,
+        contractor_company_id: r.contractor_company_id,
+        notes: r.notes,
+      }));
+
+      // «Свежие» названия подрядчиков — как в рабочей модели операций.
+      const companyIds = [
+        ...new Set(
+          ops
+            .map((o) => o.contractor_company_id)
+            .filter((v): v is string => !!v),
+        ),
+      ];
+      const nameById = new Map<string, string>();
+      if (companyIds.length > 0) {
+        const { data: companies } = await supabase
+          .from("companies")
+          .select("id, name")
+          .in("id", companyIds)
+          .eq("org_id", link.org_id);
+        for (const co of companies ?? []) nameById.set(co.id, co.name);
+      }
+
+      for (const op of ops) {
+        serviceOperations.push({
+          type: op.type,
+          amount: op.amount,
+          completed: op.completed,
+          deadline: op.deadline,
+          contractor_name:
+            (op.contractor_company_id &&
+              nameById.get(op.contractor_company_id)) ||
+            null,
+          notes: op.notes,
+        });
+      }
+    }
+  }
+
   return {
     project,
     items,
     compositions,
+    serviceOperations,
     clientView: link.client_view === true,
     createdAt: link.created_at,
   };

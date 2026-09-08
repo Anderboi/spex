@@ -61,19 +61,19 @@ export function ServiceOperationBadges({
           <>
             <Icon
               className={cn(
-                "size-3 flex-none",
+                "size-3 flex-none shrink-0",
                 overdue ? "text-fg-red" : "text-fg-dim",
               )}
             />
             <span
               className={cn(
-                "font-mono text-[11px] tabular-nums",
+                "font-mono text-[11px] leading-none tabular-nums",
                 overdue ? "text-fg-red" : "text-fg-muted",
               )}
             >
               {fmtCompact(op.amount)} ₽
             </span>
-            {overdue && <AlertTriangle className="size-3 text-fg-red" />}
+            {overdue && <AlertTriangle className="size-3 flex-none shrink-0 text-fg-red" />}
           </>
         );
         return onOpen ? (
@@ -83,7 +83,12 @@ export function ServiceOperationBadges({
             title={opTitle(op)}
             aria-label={`Редактировать: ${opTitle(op)}`}
             onClick={() => onOpen(op.id)}
-            className="flex cursor-pointer items-center gap-1 rounded transition-colors hover:text-fg"
+            className={cn(
+              "flex cursor-pointer items-center gap-1 rounded transition-colors",
+              overdue
+                ? "hover:text-fg-red/80"
+                : "hover:text-fg [&>svg]:hover:text-fg-secondary",
+            )}
           >
             {content}
           </button>
@@ -97,7 +102,7 @@ export function ServiceOperationBadges({
           </span>
         );
       })}
-      {hidden > 0 && <span className="text-[11px] text-fg-dim">+{hidden}</span>}
+      {hidden > 0 && <span className="pl-4 text-[11px] leading-none text-fg-dim">+{hidden}</span>}
     </div>
   );
 }

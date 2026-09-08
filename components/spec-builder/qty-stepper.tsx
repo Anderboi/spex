@@ -47,7 +47,7 @@ export function QtyStepper({
   return (
     <ButtonGroup>
       <Button
-        className="size-7 bg-bg-card"
+        className="size-6 bg-bg-card"
         size="sm"
         variant="outline"
         onClick={() => {
@@ -59,9 +59,9 @@ export function QtyStepper({
       >
         <Minus className="size-3" />
       </Button>
-      <InputGroup className="h-7 min-w-16 items-center bg-bg-card">
+      <InputGroup className="h-6 min-w-14 items-center bg-bg-card">
         <InputGroupInput
-          className="text-center font-mono px-0! text-[12px] tabular-nums"
+          className="text-center font-mono px-0! text-[13px]! tabular-nums"
           value={draft ?? qty}
           readOnly={!editable}
           inputMode="decimal"
@@ -93,7 +93,7 @@ export function QtyStepper({
       </InputGroup>
       <Button
         size="sm"
-        className="size-7 bg-bg-card"
+        className="size-6 bg-bg-card"
         variant="outline"
         onClick={() => {
           commitDraft();
