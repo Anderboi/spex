@@ -1,6 +1,7 @@
 import { z } from "zod";
 import {
   CODE_PATTERN,
+  SERVICE_OPERATION_TYPES,
   SPEC_STATUSES,
   SPEC_TYPES,
   TYPE_ORDER,
@@ -315,6 +316,72 @@ export const manualSpecItemSchema = z
       message: "Скидка заказчику больше вашей — позиция уйдёт в минус",
     },
   );
+
+
+/* ------------------------------------------------------------------ */
+/*  Дополнительные расходы проекта: операции «Монтаж» и «Доставка»     */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Дата в формате «ГГГГ-ММ-ДД» (колонка date). Пустая строка и null
+ * означают «срок не задан»; пустая строка приходит из input[type=date],
+ * когда пользователь ничего не выбрал.
+ */
+const serviceOperationDate = z.union([
+  z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Некорректная дата"),
+  z.literal(""),
+  z.null(),
+]);
+
+/**
+ * Поля операции. Стоимость неотрицательна и считается ОДИН раз на операцию
+ * (агрегат), а не на каждую связанную позицию.
+ */
+export const serviceOperationFieldsSchema = z
+  .object({
+    type: z.enum(SERVICE_OPERATION_TYPES, {
+      error: "Неверный тип операции",
+    }),
+    /** Связанные позиции спецификации. Непустой список без повторов. */
+    specItemIds: z
+      .array(z.string().uuid("Некорректный идентификатор позиции"))
+      .min(1, "Выберите хотя бы одну позицию")
+      .max(500, "Слишком много позиций"),
+    amount: z.coerce
+      .number({ error: "Укажите стоимость" })
+      .min(0, "Стоимость не может быть отрицательной")
+      .max(1_000_000_000, "Стоимость слишком велика"),
+    deadline: serviceOperationDate.default(null),
+    contractorCompanyId: z.string().uuid().nullable().default(null),
+    notes: z.string().trim().max(4000, "Комментарий слишком длинный").default(""),
+  })
+  .refine(
+    (d) => new Set(d.specItemIds).size === d.specItemIds.length,
+    { message: "Позиции не должны повторяться", path: ["specItemIds"] },
+  );
+
+export type ServiceOperationFields = z.infer<
+  typeof serviceOperationFieldsSchema
+>;
+
+/** Создание операции из выделенных позиций. */
+export const serviceOperationCreateSchema = serviceOperationFieldsSchema;
+export type ServiceOperationCreateInput = ServiceOperationFields;
+
+/**
+ * Обновление операции: полная замена значимых полей. Список позиций
+ * обязателен — операция не может остаться без связанных позиций.
+ */
+export const serviceOperationUpdateSchema = serviceOperationFieldsSchema;
+export type ServiceOperationUpdateInput = ServiceOperationFields;
+
+/** Удаление операции. */
+export const serviceOperationDeleteSchema = z.object({
+  operationId: z.string().uuid(),
+});
+export type ServiceOperationDeleteInput = z.infer<
+  typeof serviceOperationDeleteSchema
+>;
 
 export type ManualSpecItemInput = z.infer<typeof manualSpecItemSchema>;
 

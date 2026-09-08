@@ -28,6 +28,7 @@ import EmptyProject from "./empty-project";
 import TypeChip from "../layout/type-chip";
 import SaveIndicator from "../layout/save-indicator";
 import AddSectionPicker from "./add-section-picker";
+import { ServiceOperationModal } from "./service-operation-modal";
 
 export default function SpecBuilder({
   orgSlug,
@@ -271,6 +272,7 @@ export default function SpecBuilder({
                 allItems={ctx.items}
                 selected={ctx.selected}
                 isDesktop={isDesktop}
+                opsByItem={ctx.opsByItem}
                 h={handlers}
               />
               <AddSectionPicker
@@ -458,6 +460,15 @@ export default function SpecBuilder({
 
       {ctx.modal.kind === "summary" && (
         <SpecSummary ctx={ctx} project={project} onClose={ctx.closeModal} />
+      )}
+
+      {ctx.modal.kind === "operation" && (
+        <ServiceOperationModal
+          type={ctx.modal.type}
+          ctx={ctx}
+          companies={companies}
+          onClose={ctx.closeModal}
+        />
       )}
 
       <CodeConflictDialog

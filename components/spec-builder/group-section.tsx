@@ -7,6 +7,7 @@ import { fmt, plural, cn } from "@/lib/utils";
 import { SpecItem } from '@/lib/types';
 import { SpecCard } from './spec-card';
 import { Checkbox } from '../ui/checkbox';
+import type { ServiceOperation } from "@/actions/service-operations";
 
 export const GroupSection = memo(function GroupSection({
   type,
@@ -17,6 +18,7 @@ export const GroupSection = memo(function GroupSection({
   onToggle,
   selected,
   isDesktop,
+  opsByItem,
   h,
 }: {
   type: string;
@@ -27,6 +29,8 @@ export const GroupSection = memo(function GroupSection({
   onToggle: () => void;
   selected: ReadonlySet<string>;
   isDesktop: boolean;
+  /** Операции доп. расходов, сгруппированные по позициям. */
+  opsByItem?: Record<string, ServiceOperation[]>;
   h: SpecRowHandlers;
 }) {
   const sectionId = `group-${type}`;
@@ -112,6 +116,7 @@ export const GroupSection = memo(function GroupSection({
                     item={it}
                     allItems={allItems}
                     selected={selected.has(it.id)}
+                    ops={opsByItem?.[it.id]}
                     h={h}
                   />
                 ))}
@@ -125,6 +130,7 @@ export const GroupSection = memo(function GroupSection({
                   item={it}
                   allItems={allItems}
                   selected={selected.has(it.id)}
+                  ops={opsByItem?.[it.id]}
                   h={h}
                 />
               ))}

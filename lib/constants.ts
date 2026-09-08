@@ -255,3 +255,24 @@ export const ATTR_PRESETS: Record<string, string[]> = {
 };
 
 export const STOCK_HINT_TYPES = new Set<SpecType>(["Отделка", "Текстиль"]);
+
+/* ------------------------------------------------------------------ */
+/*  Дополнительные расходы проекта: операции «Монтаж» и «Доставка»     */
+/* ------------------------------------------------------------------ */
+
+/** Ключи БД (service_operations.type). */
+export const SERVICE_OPERATION_TYPES = [
+  "delivery",
+  "installation",
+] as const;
+
+export type ServiceOperationType = (typeof SERVICE_OPERATION_TYPES)[number];
+
+/** Подписи для UI. */
+export const SERVICE_OPERATION_CONFIG: Record<
+  ServiceOperationType,
+  { label: string }
+> = {
+  delivery: { label: "Доставка" },
+  installation: { label: "Монтаж" },
+};

@@ -652,6 +652,104 @@ export type Database = {
         }
         Relationships: []
       }
+      service_operation_items: {
+        Row: {
+          operation_id: string
+          spec_item_id: string
+        }
+        Insert: {
+          operation_id: string
+          spec_item_id: string
+        }
+        Update: {
+          operation_id?: string
+          spec_item_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "service_operation_items_operation_id_fkey"
+            columns: ["operation_id"]
+            isOneToOne: false
+            referencedRelation: "service_operations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_operation_items_spec_item_id_fkey"
+            columns: ["spec_item_id"]
+            isOneToOne: false
+            referencedRelation: "spec_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_operation_items_spec_item_id_fkey"
+            columns: ["spec_item_id"]
+            isOneToOne: false
+            referencedRelation: "spec_items_priced"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      service_operations: {
+        Row: {
+          amount: number
+          contractor_company_id: string | null
+          created_at: string
+          deadline: string | null
+          id: string
+          notes: string | null
+          org_id: string
+          project_id: string
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          contractor_company_id?: string | null
+          created_at?: string
+          deadline?: string | null
+          id?: string
+          notes?: string | null
+          org_id: string
+          project_id: string
+          type: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          contractor_company_id?: string | null
+          created_at?: string
+          deadline?: string | null
+          id?: string
+          notes?: string | null
+          org_id?: string
+          project_id?: string
+          type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "service_operations_contractor_company_id_fkey"
+            columns: ["contractor_company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_operations_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "service_operations_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sessions: {
         Row: {
           expires: string

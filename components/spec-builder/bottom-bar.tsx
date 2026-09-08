@@ -3,7 +3,7 @@
 import { cn, fmt, plural } from "@/lib/utils";
 import { useSidebar } from "@/components/ui/sidebar";
 import { SpecBuilderContext } from '@/hooks/use-spec-builder';
-import { ChevronUp, ListChecks, Trash2, X } from 'lucide-react';
+import { ChevronUp, ListChecks, Trash2, Truck, Wrench, X } from 'lucide-react';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '../ui/dropdown-menu';
 import { SPEC_STATUS_CONFIG } from '@/lib/spec/status';
 import { SPEC_STATUSES } from '@/lib/constants';
@@ -89,6 +89,20 @@ export default function BottomBar({ ctx }: { ctx: SpecBuilderContext }) {
             </div>
 
             <div className="ml-auto flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => ctx.openServiceOperation("installation")}
+                className="flex h-9 items-center gap-1.5 rounded-lg border border-border-muted px-3 text-[13px]"
+              >
+                <Wrench className="size-3.5" /> Монтаж
+              </button>
+              <button
+                type="button"
+                onClick={() => ctx.openServiceOperation("delivery")}
+                className="flex h-9 items-center gap-1.5 rounded-lg border border-border-muted px-3 text-[13px]"
+              >
+                <Truck className="size-3.5" /> Доставка
+              </button>
               <DropdownMenu>
                 <DropdownMenuTrigger className="flex h-9 items-center gap-1.5 rounded-lg border border-border-muted px-3 text-[13px]">
                   Статус <ChevronUp className="size-3.5 opacity-60" />

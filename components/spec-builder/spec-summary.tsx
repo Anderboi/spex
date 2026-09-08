@@ -13,7 +13,12 @@ import {
 
 import { Button } from "@/components/ui/button";
 import { SPEC_STATUS_CONFIG } from "@/lib/spec/status";
-import { SPEC_STATUSES, TYPE_ORDER } from "@/lib/constants";
+import {
+  SERVICE_OPERATION_CONFIG,
+  SERVICE_OPERATION_TYPES,
+  SPEC_STATUSES,
+  TYPE_ORDER,
+} from "@/lib/constants";
 import { priceOf } from "@/lib/spec/pricing";
 import type { SpecBuilderContext } from "@/hooks/use-spec-builder";
 import { fmt, cn } from "@/lib/utils";
@@ -111,6 +116,17 @@ export function SpecSummary({
     const sum = items.reduce((a, i) => a + priceOf(i).total, 0);
     return { type, items, count: items.length, sum };
   }).filter((g) => g.count > 0);
+
+  /* ── дополнительные расходы: «Монтаж и доставка» ──────────────── */
+  const ops = ctx.operations;
+  const opsTotal = ctx.opsTotal;
+  const opsGrouped = SERVICE_OPERATION_TYPES.map((t) => {
+    const list = ops.filter((o) => o.type === t);
+    const sum = list.reduce((s, o) => s + o.amount, 0);
+    return { type: t, list, sum };
+  }).filter((g) => g.list.length > 0);
+  const opDate = (iso: string) =>
+    new Date(`${iso}T00:00:00`).toLocaleDateString("ru-RU");
 
   const handleExcel = () =>
     run("excel", async () => {
@@ -320,16 +336,78 @@ export function SpecSummary({
               ))}
             </div>
           ))}
+
+          {/* монтаж и доставка */}
+          {opsGrouped.length > 0 && (
+            <div className="mt-6 print:break-inside-avoid">
+              <div className="flex items-center justify-between border-b border-fg pb-2">
+                <span className="font-mono text-[12px] font-semibold uppercase tracking-[.12em]">
+                  Монтаж и доставка{" "}
+                  <span className="text-fg-dim">· {ops.length}</span>
+                </span>
+                <span className="font-mono font-semibold tabular-nums">
+                  {fmt(opsTotal)} ₽
+                </span>
+              </div>
+
+              {opsGrouped.map((g) => (
+                <div key={g.type} className="pt-2">
+                  {g.list.map((op) => (
+                    <div
+                      key={op.id}
+                      className="flex items-baseline gap-2 py-1 leading-tight"
+                    >
+                      <span className="w-24 shrink-0 font-mono text-[11.5px] uppercase tracking-wide text-fg-muted">
+                        {SERVICE_OPERATION_CONFIG[op.type].label}
+                      </span>
+                      {op.deadline && (
+                        <span className="shrink-0 font-mono text-[11.5px] text-fg-dim">
+                          до {opDate(op.deadline)}
+                        </span>
+                      )}
+                      <span className="min-w-0 flex-1 truncate text-[12.5px] text-fg-dim-text">
+                        {op.contractor_name ?? "подрядчик не указан"}
+                        {op.notes ? ` · ${op.notes}` : ""}
+                      </span>
+                      <span className="shrink-0 font-mono text-[13px] font-semibold tabular-nums">
+                        {fmt(op.amount)} ₽
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
         {/* подвал */}
         <DrawerFooter className="border-t border-fg">
-          <div className="mt-2 flex items-end justify-between border-fg pt-4 print:break-inside-avoid">
-            <span className="text-[16px] font-mono tracking-[-.01em] text-fg-muted uppercase font-bold">
-              Итого
-            </span>
-            <span className="text-[24px] font-mono font-bold tracking-[-.01em]">
-              {fmt(ctx.stats.totalSum)} ₽
-            </span>
+          <div className="mt-2 flex items-end justify-between gap-6 border-fg pt-4 print:break-inside-avoid">
+            <div className="flex min-w-0 flex-col gap-1">
+              <span className="font-mono text-[13px] uppercase tracking-[-.01em] text-fg-muted font-bold">
+                Итого по позициям
+              </span>
+              {opsTotal > 0 && (
+                <span className="font-mono text-[11px] uppercase tracking-[.12em] text-fg-muted">
+                  Монтаж и доставка
+                </span>
+              )}
+              <span className="font-mono text-[14px] uppercase tracking-[-.01em] text-fg font-bold">
+                Итого с доп. расходами
+              </span>
+            </div>
+            <div className="flex shrink-0 flex-col items-end gap-1">
+              <span className="font-mono text-[15px] font-bold tabular-nums">
+                {fmt(ctx.stats.totalSum)} ₽
+              </span>
+              {opsTotal > 0 && (
+                <span className="font-mono text-[12px] text-fg-muted tabular-nums">
+                  + {fmt(opsTotal)} ₽
+                </span>
+              )}
+              <span className="font-mono text-[24px] font-bold tracking-[-.01em] tabular-nums">
+                {fmt(ctx.stats.totalSum + opsTotal)} ₽
+              </span>
+            </div>
           </div>
         </DrawerFooter>
       </DrawerContent>

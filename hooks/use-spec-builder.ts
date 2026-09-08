@@ -15,9 +15,11 @@ import { SpecItem, SpecItemPatch, type SpecVariant } from "@/lib/types";
 import {
   PICKING_FLOW,
   PROCUREMENT_FLOW,
+  SERVICE_OPERATION_CONFIG,
   SpecStatus,
   SpecType,
   TYPE_ORDER,
+  type ServiceOperationType,
 } from "@/lib/constants";
 import {
   createManualSpecItem,
@@ -26,6 +28,10 @@ import {
   restoreSpecItems,
   setSpecItemCode,
 } from "@/actions/specifications";
+import {
+  listProjectServiceOperations,
+  type ServiceOperation,
+} from "@/actions/service-operations";
 import {
   addVariant,
   deleteVariant,
@@ -70,6 +76,7 @@ export type Modal =
   | { kind: "delete"; ids: string[] }
   | { kind: "procure" }
   | { kind: "summary" }
+  | { kind: "operation"; type: ServiceOperationType }
   | { kind: "edit-variant"; itemId: string; variantId: string };
 
 export type CodeConflict = {
@@ -108,6 +115,23 @@ export function useSpecBuilder({
 
   const filters = useSpecFilters();
   const persist = useSpecPersistence(orgSlug, projectId);
+
+  /** Операции дополнительных расходов проекта («Монтаж»/«Доставка»). */
+  const [operations, setOperations] = useState<ServiceOperation[]>([]);
+
+  /**
+   * Первичная загрузка операций проекта. Таблица позиций не блокируется;
+   * после успешного сохранения список обновляется локально (см. onOperationCreated).
+   */
+  useEffect(() => {
+    let cancelled = false;
+    listProjectServiceOperations(orgSlug, projectId).then((res) => {
+      if (!cancelled && res.success) setOperations(res.data);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [orgSlug, projectId]);
 
   /** Актуальный список без ожидания ре-рендера — нужен для вычисления патчей. */
   const itemsRef = useRef(items);
@@ -1201,6 +1225,42 @@ export function useSpecBuilder({
   const openProcure = useCallback(() => setModal({ kind: "procure" }), []);
   const openSummary = useCallback(() => setModal({ kind: "summary" }), []);
 
+  /**
+   * Открыть форму создания операции из выделения. Заглушки в операцию
+   * не включаются: если после фильтрации позиций не осталось — toast.
+   */
+  const openServiceOperation = useCallback(
+    (type: ServiceOperationType) => {
+      const eligible = itemsRef.current.some(
+        (i) => selected.has(i.id) && !i.isPlaceholder,
+      );
+      if (!eligible) {
+        showToast(
+          "Выберите заполненные позиции — заглушки в операцию не включаются",
+        );
+        return;
+      }
+      setModal({ kind: "operation", type });
+    },
+    [selected, showToast],
+  );
+
+  /**
+   * После успешного создания: добавляем операцию в локальный список,
+   * снимаем выделение и закрываем модалку — без полного перезапуска.
+   */
+  const onOperationCreated = useCallback(
+    (op: ServiceOperation) => {
+      setOperations((prev) => [op, ...prev]);
+      setSelected(new Set());
+      setModal({ kind: "none" });
+      showToast(
+        `Добавлено · ${SERVICE_OPERATION_CONFIG[op.type].label} · ${fmt(op.amount)} ₽`,
+      );
+    },
+    [showToast],
+  );
+
   // Escape закрывает верхний слой: сначала конфликт марки, потом модалку
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -1241,6 +1301,25 @@ export function useSpecBuilder({
     [items, selected],
   );
 
+  /** Операции, привязанные к каждой позиции (для бейджей в строке/карточке). */
+  const opsByItem = useMemo(() => {
+    const map: Record<string, ServiceOperation[]> = {};
+    for (const op of operations) {
+      for (const id of op.spec_item_ids) {
+        const list = map[id];
+        if (list) list.push(op);
+        else map[id] = [op];
+      }
+    }
+    return map;
+  }, [operations]);
+
+  /** Сумма дополнительных расходов проекта — отдельный агрегат. */
+  const opsTotal = useMemo(
+    () => operations.reduce((s, op) => s + op.amount, 0),
+    [operations],
+  );
+
   /* ---------------------------------------------------------------- */
 
   return {
@@ -1252,6 +1331,9 @@ export function useSpecBuilder({
     groups,
     visibleIds,
     stats,
+    operations,
+    opsByItem,
+    opsTotal,
     filters,
     isPending,
 
@@ -1326,6 +1408,8 @@ export function useSpecBuilder({
     openBulkDelete,
     openProcure,
     openSummary,
+    openServiceOperation,
+    onOperationCreated,
     closeModal,
 
     // прочее

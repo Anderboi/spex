@@ -24,6 +24,8 @@ import Image from "next/image";
 import { VariantSwitcher } from './variant-switcher';
 import { ParentSubMenu } from './parent-submenu';
 import { DraftNameField } from '../layout/draft-name-field';
+import { ServiceOperationBadges } from './service-operation-badges';
+import type { ServiceOperation } from "@/actions/service-operations";
 
 export type SpecRowHandlers = {
   onOpen: (id: string) => void;
@@ -49,11 +51,14 @@ export const SpecRow = memo(function SpecRow({
   item,
   allItems,
   selected,
+  ops,
   h,
 }: {
   item: SpecItem;
   allItems: SpecItem[];
   selected: boolean;
+  /** Операции доп. расходов, связанные с этой позицией. */
+  ops?: ServiceOperation[];
   h: SpecRowHandlers;
 }) {
   const p = priceOf(item);
@@ -132,6 +137,7 @@ export const SpecRow = memo(function SpecRow({
             onOpenVariants={() => h.onOpen(item.id)}
           />
         )}
+        <ServiceOperationBadges ops={ops} />
       </td>
       {/* <td className="min-w-0 px-2 py-2 block max-w-full text-left text-[14px]">
         <div>{item.notes}</div>

@@ -20,16 +20,21 @@ import type { SpecRowHandlers } from "./spec-row";
 import { ParentSubMenu } from "./parent-submenu";
 import { SpecItem } from "@/lib/types";
 import { priceOf } from "@/lib/spec/pricing";
+import { ServiceOperationBadges } from './service-operation-badges';
+import type { ServiceOperation } from "@/actions/service-operations";
 
 export const SpecCard = memo(function SpecCard({
   item,
   allItems,
   selected,
+  ops,
   h,
 }: {
   item: SpecItem;
   allItems: SpecItem[];
   selected: boolean;
+  /** Операции доп. расходов, связанные с этой позицией. */
+  ops?: ServiceOperation[];
   h: SpecRowHandlers;
 }) {
   const p = priceOf(item);
@@ -204,6 +209,8 @@ export const SpecCard = memo(function SpecCard({
           <StatusMenu item={item} onChange={(s) => h.onStatus(item.id, s)} />
         </div>
       </div>
+
+      <ServiceOperationBadges ops={ops} />
     </article>
   );
 });
