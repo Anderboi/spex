@@ -170,8 +170,10 @@ export const SpecRow = memo(function SpecRow({
       </td>
       <td className="px-2 text-left align-middle">
         <div className="flex min-h-9 flex-col items-start justify-center leading-tight">
+          {/* Редактируется и показывается базовая цена; со скидкой
+              справа-под ней — итоговая цена за единицу из priceOf(). */}
           <PriceField
-            value={p.priceFinal}
+            value={p.priceBase}
             readOnly={p.hasPriceMod}
             onCommit={(v) => h.onPrice(item.id, v)}
           />
@@ -180,7 +182,7 @@ export const SpecRow = memo(function SpecRow({
               className="mt-0.5 font-mono text-[10.5px] text-fg-dim"
               title={`Базовая ${fmt(p.priceBase)} ₽, скидка ${item.clientDiscountPct}% (−${fmt(p.discountAmount)} ₽)`}
             >
-              {fmt(p.priceBase)} −{item.clientDiscountPct}%
+              {fmt(p.priceFinal)} ₽ (−{item.clientDiscountPct}%)
             </span>
           )}
         </div>

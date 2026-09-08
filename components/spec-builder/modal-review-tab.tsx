@@ -214,7 +214,7 @@ const ModalReviewTab = ({
             <Field label="Цена за ед.">
               <PriceField
                 readOnly={p.hasPriceMod}
-                value={item.price}
+                value={p.priceBase}
                 onCommit={onPrice}
                 className="text-[18px]! p-0! text-left! font-semibold tabular-nums"
               />

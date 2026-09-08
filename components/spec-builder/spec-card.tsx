@@ -19,7 +19,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Checkbox } from "@/components/ui/checkbox";
 import { InlineCode } from "./inline-code";
 import { StatusMenu } from "./status-menu";
 import { QtyStepper } from "./qty-stepper";
@@ -29,7 +28,6 @@ import type { SpecRowHandlers } from "./spec-row";
 import { ParentSubMenu } from "./parent-submenu";
 import { SpecItem } from "@/lib/types";
 import { priceOf } from "@/lib/spec/pricing";
-import { ServiceOperationBadges } from "./service-operation-badges";
 import type { ServiceOperation } from "@/actions/service-operations";
 import { PriceField } from "./price-field";
 import { Button } from "../ui/button";
@@ -98,9 +96,9 @@ export const SpecCard = memo(function SpecCard({
                   <span className="line-clamp-2 //text-[14px] font-semibold text-fg">
                     {item.name}
                   </span>
-                  {(item.brand || item.article) && (
+                  {(item.brand || item.spec) && (
                     <span className="mt-1 block truncate text-[13px] text-fg-secondary">
-                      {[item.brand, item.article].filter(Boolean).join(" · ")}
+                      {[item.brand, item.spec].filter(Boolean).join(" · ")}
                     </span>
                   )}
                 </span>
@@ -187,7 +185,7 @@ export const SpecCard = memo(function SpecCard({
                 value={p.priceBase}
                 readOnly={p.hasPriceMod}
                 className="text-lg! pr-2 text-right!"
-                onCommit={(v: any) => h.onPrice(item.id, v)}
+                onCommit={(v) => h.onPrice(item.id, v)}
               />
               ₽
             </div>
@@ -211,8 +209,8 @@ export const SpecCard = memo(function SpecCard({
             {(p.hasQtyMod || p.hasPriceMod) && (
               <p className="mt-1 font-mono text-[10.5px] leading-3 text-fg-dim">
                 {[
-                  p.hasQtyMod &&
-                    `(${fmt(p.priceFinal)}₽ - ${fmt(p.discountAmount)}%) x (${fmtQty(p.qtyBase)} ${item.unit} + ${item.stockPct}% запас)`,
+                  `${fmtQty(p.qtyFinal)} ${item.unit} × ${fmt(p.priceFinal)} ₽`,
+                  p.hasQtyMod && `+${item.stockPct}% запас`,
                   p.hasPriceMod && `−${item.clientDiscountPct}% скидка`,
                 ]
                   .filter(Boolean)
@@ -240,6 +238,7 @@ export const SpecCard = memo(function SpecCard({
           size="icon-lg"
           variant="secondary"
           className="rounded-xl h-10 px-8"
+          onClick={() => h.onOpen(item.id)}
         >
           <Link className="size-4" />
         </Button>
