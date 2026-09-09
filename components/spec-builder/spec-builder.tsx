@@ -22,7 +22,7 @@ import { SpecItem } from "@/lib/types";
 import BottomBar from "./bottom-bar";
 import AddModalForm from "./add-spec-mat-modal-form";
 import { ProcureModal } from "./procure-modal";
-import { SpecSummary } from "./spec-summary";
+import { SpecSummary } from "./summary/spec-summary";
 import EmptyFilter from "./empty-filter";
 import EmptyProject from "./empty-project";
 import TypeChip from "../layout/type-chip";
@@ -397,7 +397,8 @@ export default function SpecBuilder({
                   imageUrl: input.imageUrl ?? null,
                   companyId: input.companyId ?? null,
                   companyName:
-                    localCompanies.find((c) => c.id === input.companyId)?.name ?? "",
+                    localCompanies.find((c) => c.id === input.companyId)
+                      ?.name ?? "",
                 });
                 ctx.closeModal();
               }}
@@ -411,7 +412,8 @@ export default function SpecBuilder({
                   imageUrl: input.imageUrl ?? null,
                   companyId: input.companyId ?? null,
                   companyName:
-                    localCompanies.find((c) => c.id === input.companyId)?.name ?? "",
+                    localCompanies.find((c) => c.id === input.companyId)
+                      ?.name ?? "",
                 });
                 ctx.closeModal();
               }}

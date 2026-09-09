@@ -4,16 +4,16 @@ import { SidebarTrigger } from "../ui/sidebar";
 
 interface PageHeaderProps {
   title: string;
-  description?: string;
   children?: React.ReactNode;
   className?: string;
+  editButton?: React.ReactNode;
 }
 
 export function PageHeader({
   title,
-  description,
   children,
   className,
+  editButton,
 }: PageHeaderProps) {
   return (
     <header className={`flex flex-col py-2 ${className}`}>
@@ -23,16 +23,13 @@ export function PageHeader({
       <div
         className={`flex flex-col sm:flex-row sm:items-end //pb-4 sm:justify-between gap-4 //pt-[clamp(28px,5vw,48px)] `}
       >
-        <PageTitle>{title}</PageTitle>
+        <div className="flex items-end">
+          <PageTitle>{title}</PageTitle>
+          {editButton && <div className="ml-2">{editButton}</div>}
+        </div>
         {children && (
           <div className="flex items-center gap-3 shrink-0">{children}</div>
         )}
-
-        {/* {description && (
-          <p className="text-[15px] mt-2 text-pretty text-fg-secondary font-normal">
-            {description}
-          </p>
-        )} */}
       </div>
     </header>
   );

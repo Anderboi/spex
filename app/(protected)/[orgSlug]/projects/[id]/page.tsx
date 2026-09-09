@@ -1,7 +1,8 @@
 import SpecBuilder from "@/components/spec-builder/spec-builder";
+import { EditProjectDialog } from "@/components/project/edit-project-dialog";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
-import { Plus } from "lucide-react";
+import { Edit, Plus } from "lucide-react";
 import {
   getMaterials,
   getProjectById,
@@ -36,13 +37,32 @@ export default async function ProjectSpecification({
   // Открытие диалогов — через URL (?dialog=...), существующие search params
   // при этом сохраняются. Сами модалки рендерит SpecBuilder.
   const base = `/${orgSlug}/projects/${id}`;
+  const editHref = withSearchParams(base, sp, { action: "edit", dialog: null });
   const addHref = withSearchParams(base, sp, { dialog: "add" });
   const procureHref = withSearchParams(base, sp, { dialog: "procure" });
   const summaryHref = withSearchParams(base, sp, { dialog: "summary" });
 
   return (
     <>
-      <PageHeader title={project.title}>
+      <PageHeader
+        title={project.title}
+        editButton={
+          <Button
+            nativeButton={false}
+            variant="ghost"
+            className="text-fg-muted"
+            render={
+              <Link
+                href={editHref}
+                aria-label="Редактировать данные проекта"
+                title="Редактировать данные проекта"
+              />
+            }
+          >
+            <Edit className="size-4" />
+          </Button>
+        }
+      >
         <div className="flex flex-wrap items-center justify-end gap-2">
           <Button
             nativeButton={false}
@@ -69,6 +89,7 @@ export default async function ProjectSpecification({
           </Button>
         </div>
       </PageHeader>
+      <EditProjectDialog orgSlug={orgSlug} project={project} />
       <SpecBuilder
         orgSlug={orgSlug}
         projectId={id}

@@ -54,6 +54,7 @@ export async function upsertProject(
     if (!data) return { success: false, error: "Проект не найден" }; // чужой org_id
 
     revalidatePath(`/${orgSlug}/projects`);
+    revalidatePath(`/${orgSlug}/projects/${id}`);
     return { success: true, data };
   }
 
@@ -68,7 +69,7 @@ export async function upsertProject(
     return { success: false, error: "Не удалось создать проект" };
   }
 
-  revalidatePath("/projects");
+  revalidatePath(`/${orgSlug}/projects`);
   return ok({ id: data.id as string });
 }
 

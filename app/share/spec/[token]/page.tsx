@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { loadPublicSpec } from "@/lib/spec/public-spec";
-import { SummaryItemRow } from "@/components/spec-builder/summary-item-row";
+import { SummaryItemRow } from "@/components/spec-builder/summary/summary-item-row";
 import { SPEC_STATUS_CONFIG } from "@/lib/spec/status";
 import { SPEC_STATUSES, TYPE_ORDER } from "@/lib/constants";
 import { priceOf } from "@/lib/spec/pricing";

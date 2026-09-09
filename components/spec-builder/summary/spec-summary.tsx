@@ -38,7 +38,7 @@ import {
   DrawerFooter,
   DrawerHeader,
   DrawerTitle,
-} from "../ui/drawer";
+} from "../../ui/drawer";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { SummaryItemRow } from "./summary-item-row";
 
@@ -187,7 +187,7 @@ export function SpecSummary({
         );
       }
     });
- 
+
   return (
     <Drawer
       swipeDirection={isMobile ? "down" : "right"}
@@ -197,7 +197,7 @@ export function SpecSummary({
     >
       <DrawerContent className="flex w-full max-w-225 @container sm:w-170 sm:max-w-[90vw] flex-col bg-bg gap-0 m-0 overflow-hidden print:max-h-none print:shadow-none">
         {/* ── шапка ───────────────────────────────────── */}
-        <DrawerHeader className="flex flex-col items-start gap-4 border-b border-border-subtle p-4 print:hidden">
+        <DrawerHeader className="flex flex-col items-start gap-4 border-b-[0.5px] border-border-muted p-4 print:hidden">
           <DrawerTitle className="sr-only">
             Сводка спецификации · {project.title}
           </DrawerTitle>
@@ -249,7 +249,7 @@ export function SpecSummary({
               onClick={() => setClientView((v) => !v)}
               className={cn(
                 clientView
-                  ? "border-fg bg-bg-accent text-bg"
+                  ? "border-fg bg-bg-accent text-bg hover:text-white"
                   : "border-border-muted text-fg-secondary hover:border-fg",
               )}
               aria-pressed={clientView}
@@ -259,7 +259,7 @@ export function SpecSummary({
               ) : (
                 <EyeOff className="size-4" />
               )}
-              <span className={cn(isMobile && 'hidden')}>
+              <span className={cn(isMobile && "hidden")}>
                 {clientView ? "Версия для клиента" : "Рабочая версия"}
               </span>
             </Button>
@@ -269,12 +269,12 @@ export function SpecSummary({
 
         <div className=" flex-1 overflow-y-auto p-4 print:overflow-visible">
           {/* заголовок */}
-          <div className="flex items-end justify-between gap-5 border-b border-fg pb-3 print:break-inside-avoid">
+          <div className="flex items-end justify-between gap-5 border-b-[1.5px] border-fg pb-3 print:break-inside-avoid">
             <div>
               <p className="font-mono text-[11px] uppercase tracking-widest text-fg-dim">
                 {project.client_name || "Без заказчика"}
               </p>
-              <h1 className="mt-2 text-[clamp(28px,5vw,40px)] font-bold leading-none tracking-[-.02em]">
+              <h1 className="mt-2 text-[clamp(28px,5vw,40px)] leading-none tracking-[-.02em]">
                 {project.title}
               </h1>
             </div>
@@ -316,7 +316,7 @@ export function SpecSummary({
           {/* группы */}
           {byType.map((g) => (
             <div key={g.type} className="mt-6 print:break-inside-avoid-page">
-              <div className="flex items-center justify-between border-b border-fg pb-2">
+              <div className="flex items-center justify-between border-b-[0.5px] border-border-muted pb-2">
                 <span className="font-mono text-[12px] font-semibold uppercase tracking-[.12em]">
                   {g.type} <span className="text-fg-dim">· {g.count}</span>
                 </span>
@@ -339,7 +339,7 @@ export function SpecSummary({
           {/* монтаж и доставка */}
           {opsGrouped.length > 0 && (
             <div className="mt-6 print:break-inside-avoid">
-              <div className="flex items-center justify-between border-b border-fg pb-2">
+              <div className="flex items-center justify-between border-b-[0.5px] border-border-muted pb-2">
                 <span className="font-mono text-[12px] font-semibold uppercase tracking-[.12em]">
                   Монтаж и доставка{" "}
                   <span className="text-fg-dim">· {ops.length}</span>
@@ -381,13 +381,13 @@ export function SpecSummary({
           )}
         </div>
         {/* подвал — бюджет проекта отдельными строками */}
-        <DrawerFooter className="border-t border-fg">
-          <div className="mt-2 flex flex-col border-fg pt-4 print:break-inside-avoid">
+        <DrawerFooter className="border-t-[0.5px] border-border-muted">
+          <div className="flex flex-col border-fg pt-4 print:break-inside-avoid">
             <div className="flex items-baseline justify-between gap-6">
               <span className="font-mono text-[12px] uppercase tracking-[.12em] text-fg-muted">
                 Стоимость материалов
               </span>
-              <span className="shrink-0 font-mono text-[15px] font-bold tabular-nums">
+              <span className="shrink-0 font-mono text-[15px] tabular-nums">
                 {fmt(ctx.stats.totalSum)} ₽
               </span>
             </div>
@@ -395,7 +395,7 @@ export function SpecSummary({
               <span className="font-mono text-[12px] uppercase tracking-[.12em] text-fg-muted">
                 Доставка
               </span>
-              <span className="shrink-0 font-mono text-[15px] font-bold tabular-nums">
+              <span className="shrink-0 font-mono text-[15px] tabular-nums">
                 {fmt(ctx.serviceTotals.delivery)} ₽
               </span>
             </div>
@@ -403,12 +403,12 @@ export function SpecSummary({
               <span className="font-mono text-[12px] uppercase tracking-[.12em] text-fg-muted">
                 Монтаж
               </span>
-              <span className="shrink-0 font-mono text-[15px] font-bold tabular-nums">
+              <span className="shrink-0 font-mono text-[15px] tabular-nums">
                 {fmt(ctx.serviceTotals.installation)} ₽
               </span>
             </div>
-            <div className="mt-3 flex items-baseline justify-between gap-6 border-t border-fg pt-3">
-              <span className="font-mono text-[13px] font-bold uppercase tracking-[-.01em]">
+            <div className="mt-3 flex items-baseline justify-between gap-6 border-t-[1.5px] border-fg pt-3">
+              <span className="font-mono text-[13px] uppercase tracking-[-.01em]">
                 Общий бюджет проекта
               </span>
               <span className="font-mono text-[24px] font-bold tracking-[-.01em] tabular-nums">

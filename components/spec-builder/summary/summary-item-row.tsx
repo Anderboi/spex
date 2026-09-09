@@ -35,7 +35,7 @@ export function SummaryItemRow({
           </span>
         )}
 
-        <span className="min-w-0 flex flex-col items-start truncate font-semibold">
+        <span className="min-w-0 flex flex-col items-start truncate text-[14px]">
           {item.name}
           {item.brand && (
             <span className="font-mono text-[10.5px] font-normal text-fg-dim">
@@ -55,7 +55,7 @@ export function SummaryItemRow({
           {fmt(p.priceFinal)}
         </span>
 
-        <span className="text-right text-[14px] font-bold tabular-nums">
+        <span className="text-right font-mono text-[14px] font-medium tabular-nums">
           {fmt(p.total)} ₽
         </span>
 
@@ -79,7 +79,7 @@ export function SummaryItemRow({
                   {item.code}
                 </span>
               )}
-              <span className="truncate text-[14px] font-semibold">
+              <span className="truncate text-[14px]">
                 {item.name}
               </span>
             </p>
@@ -89,7 +89,7 @@ export function SummaryItemRow({
               </p>
             )}
           </div>
-          <span className="flex-none text-right text-[15px] font-bold tabular-nums">
+          <span className="flex-none text-right text-[15px] tabular-nums">
             {fmt(p.total)} ₽
           </span>
         </div>
@@ -126,7 +126,7 @@ function SummaryCompositionBlock({
   clientView: boolean;
 }) {
   return (
-    <div className="mt-0.5 rounded-lg border border-border-muted bg-bg-card2/40 px-3 py-2 print:mt-1 print:break-inside-avoid print:bg-transparent">
+    <div className="mt-0.5 border-l border-border-muted pl-3 py-2 print:mt-1 print:break-inside-avoid print:bg-transparent">
       <p className="font-mono text-[10px] font-semibold uppercase tracking-[.14em] text-fg-dim">
         Состав
       </p>
@@ -154,7 +154,7 @@ function SummaryCompositionRow({
   if (node.kind === "group") {
     return (
       <div>
-        <p className="text-[12.5px] font-bold leading-snug text-fg">
+        <p className="text-[12.5px] leading-snug text-fg">
           {node.name}
         </p>
         {node.children.length > 0 ? (
@@ -179,7 +179,7 @@ function SummaryCompositionRow({
   if (node.kind === "component") {
     return (
       <div className="flex items-baseline justify-between gap-3">
-        <span className="min-w-0 flex-1 break-words text-[12.5px] font-medium leading-snug text-fg">
+        <span className="min-w-0 flex-1 wrap-break-word text-[12.5px] font-medium leading-snug text-fg">
           {node.name}
         </span>
         {node.cost != null && (
@@ -203,7 +203,7 @@ function SummaryCompositionRow({
 
   return (
     <div className="flex items-baseline justify-between gap-3">
-      <span className="min-w-0 flex-1 break-words text-[12.5px] font-medium leading-snug text-fg">
+      <span className="min-w-0 flex-1 wrap-break-word text-[12.5px] font-medium leading-snug text-fg">
         {!clientView && node.code && (
           <span className="font-mono text-[11px] text-fg-dim">
             {node.code} ·{" "}

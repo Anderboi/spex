@@ -8,7 +8,8 @@ const buttonVariants = cva(
   {
     variants: {
       variant: {
-        default: "bg-primary text-fg-primary text-white hover:bg-primary/80",
+        default:
+          "bg-primary text-fg-primary text-white hover:text-white/60 hover:bg-primary/80",
         outline:
           "border-border bg-bg hover:bg-bg-muted hover:text-fg aria-expanded:bg-bg-muted aria-expanded:text-fg dark:border-input dark:bg-bg-input/30 dark:hover:bg-bg-input/50",
         secondary:
@@ -37,8 +38,8 @@ const buttonVariants = cva(
       variant: "default",
       size: "default",
     },
-  }
-)
+  },
+);
 
 function Button({
   className,
