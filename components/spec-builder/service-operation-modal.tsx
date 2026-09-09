@@ -17,6 +17,7 @@ import {
   SERVICE_OPERATION_BLOCKED_STATUSES,
   SERVICE_OPERATION_CONFIG,
   specItemIdsInDeliveries,
+  specItemIdsInInstallations,
   type ServiceOperationType,
 } from "@/lib/constants";
 import type { SpecPickerCompany } from "@/lib/queries";
@@ -58,8 +59,10 @@ export function ServiceOperationModal({
   /**
    * Позиции, участвующие в НОВОЙ операции. Сразу исключаются заглушки,
    * материалы с недоступным статусом («Доставлено»/«Заменить» для доставки,
-   * «Заменить» для монтажа) и — только для доставки — материалы, которые уже
-   * включены в другую доставку (независимо от их текущего статуса).
+   * «Заменить» для монтажа) и материалы, которые уже включены в другую
+   * операцию того же типа — в другую доставку или в другой монтаж
+   * (независимо от их текущего статуса). Доставка и монтаж независимы:
+   * материал из доставки доступен для монтажа и наоборот.
    */
   const selectedReal = ctx.selectedItems.filter((i) => !i.isPlaceholder);
   const excludedPlaceholders = ctx.selectedItems.length - selectedReal.length;
@@ -69,12 +72,14 @@ export function ServiceOperationModal({
   );
   const excludedByStatus = selectedReal.length - byStatus.length;
 
-  /** Материалы, уже связанные с другой доставкой, в новую доставку не берём. */
-  const otherDeliveryIds =
+  /** Материалы, уже связанные с другой операцией того же типа, не берём. */
+  const otherLinkedIds =
     type === "delivery"
       ? specItemIdsInDeliveries(ctx.operations)
-      : new Set<string>();
-  const eligible = byStatus.filter((i) => !otherDeliveryIds.has(i.id));
+      : type === "installation"
+        ? specItemIdsInInstallations(ctx.operations)
+        : new Set<string>();
+  const eligible = byStatus.filter((i) => !otherLinkedIds.has(i.id));
   const excludedByLinked = byStatus.length - eligible.length;
 
   /** В режиме редактирования показываем позиции, уже связанные с операцией. */
@@ -102,7 +107,7 @@ export function ServiceOperationModal({
           excludedByLinked > 0
             ? type === "delivery"
               ? `материалы из другой доставки (${excludedByLinked})`
-              : ""
+              : `материалы из другого монтажа (${excludedByLinked})`
             : "",
         ]
           .filter(Boolean)

@@ -196,6 +196,81 @@ async function assertNoOtherDelivery(
 }
 
 /**
+ * Один и тот же материал нельзя смонтировать дважды: нельзя включить его в две
+ * разные операции монтажа.
+ *
+ * Перед созданием нового монтажа (или сохранением связей существующего)
+ * проверяем service_operation_items: если выбранная позиция уже связана с
+ * какой-либо операцией типа installation этого проекта/организации — операцию
+ * не создаём и не сохраняем. При редактировании (excludeOperationId) собственные
+ * связки редактируемой операции «другим монтажом» не считаются. Правило
+ * действует независимо от статуса материала; связи с доставками не проверяются —
+ * доставка и монтаж независимы.
+ */
+async function assertNoOtherInstallation(
+  c: OpCtx,
+  ids: string[],
+  opts: { action: "create" | "update"; excludeOperationId?: string } = {
+    action: "create",
+  },
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (ids.length === 0) return { ok: true };
+
+  const { data: ops, error: opsErr } = await c.supabase
+    .from("service_operations")
+    .select("id")
+    .eq("type", "installation")
+    .eq("project_id", c.projectId)
+    .eq("org_id", c.orgId);
+
+  if (opsErr) {
+    console.error("[service-operations] installations", opsErr.message);
+    return { ok: false, error: "Не удалось проверить монтажи проекта" };
+  }
+
+  const otherOpIds = (ops ?? [])
+    .map((o) => o.id)
+    .filter((id) => id !== opts.excludeOperationId);
+  if (otherOpIds.length === 0) return { ok: true };
+
+  const { data: links, error: linksErr } = await c.supabase
+    .from("service_operation_items")
+    .select("spec_item_id")
+    .in("operation_id", otherOpIds)
+    .in("spec_item_id", ids);
+
+  if (linksErr) {
+    console.error("[service-operations] installation links", linksErr.message);
+    return { ok: false, error: "Не удалось проверить материалы монтажей" };
+  }
+
+  const takenIds = [...new Set((links ?? []).map((l) => l.spec_item_id))];
+  if (takenIds.length === 0) return { ok: true };
+
+  const { data: taken, error: itemsErr } = await c.supabase
+    .from("spec_items")
+    .select("id, name")
+    .in("id", takenIds)
+    .eq("project_id", c.projectId)
+    .eq("org_id", c.orgId);
+
+  if (itemsErr) {
+    console.error("[service-operations] installation items", itemsErr.message);
+    return { ok: false, error: "Не удалось загрузить материалы монтажа" };
+  }
+
+  const blocked = (taken ?? []).map((r) => ({ name: r.name }));
+  const names = describeBlocked(blocked);
+  const subject =
+    blocked.length === 1
+      ? "этот материал уже связан с другим монтажом"
+      : "эти материалы уже связаны с другим монтажом";
+  const prefix =
+    opts.action === "create" ? "Монтаж не создан" : "Монтаж не сохранён";
+  return { ok: false, error: `${prefix}: ${names} — ${subject}.` };
+}
+
+/**
  * Все выбранные позиции обязаны существовать в этом проекте/организации,
  * не быть удалёнными и не быть заглушками (placeholder). При создании
  * операции (forbid) дополнительно проверяются статусы: материалы со
@@ -400,6 +475,14 @@ export async function createServiceOperation(
     if (!deliveryOk.ok) return fail(deliveryOk.error);
   }
 
+  // Монтаж: один материал нельзя смонтировать дважды. Проверка идёт до вставки
+  // операции — при нарушении ничего не создаём. Связи с доставками материал не
+  // блокируют: доставка и монтаж независимы.
+  if (d.type === "installation") {
+    const installOk = await assertNoOtherInstallation(c, d.specItemIds);
+    if (!installOk.ok) return fail(installOk.error);
+  }
+
   const contractorOk = await assertContractorInOrg(c, d.contractorCompanyId);
   if (!contractorOk.ok) return fail(contractorOk.error);
 
@@ -495,6 +578,18 @@ export async function updateServiceOperation(
     });
     if (!deliveryOk.ok) return fail(deliveryOk.error);
   }
+  // Монтаж проверяем так же, как доставку: Server Action доступен напрямую,
+  // а не только через UI с неизменяемым списком позиций. Материал нельзя
+  // перенести в другой монтаж; собственные связи текущей операции «другим
+  // монтажом» не считаются. Доставка и монтаж независимы.
+  if (d.type === "installation") {
+    const installOk = await assertNoOtherInstallation(c, d.specItemIds, {
+      action: "update",
+      excludeOperationId: operationId,
+    });
+    if (!installOk.ok) return fail(installOk.error);
+  }
+
   const contractorOk = await assertContractorInOrg(c, d.contractorCompanyId);
   if (!contractorOk.ok) return fail(contractorOk.error);
 

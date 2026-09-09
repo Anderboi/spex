@@ -317,3 +317,23 @@ export function specItemIdsInDeliveries(
   }
   return ids;
 }
+
+/**
+ * id позиций, уже включённых хотя бы в один монтаж. Один и тот же материал
+ * нельзя смонтировать дважды: такие позиции недоступны для НОВОГО монтажа
+ * независимо от текущего статуса материала. Связи с доставками при этом не
+ * проверяются — доставка и монтаж независимы.
+ */
+export function specItemIdsInInstallations(
+  ops: ReadonlyArray<{
+    type: ServiceOperationType;
+    spec_item_ids: ReadonlyArray<string>;
+  }>,
+): Set<string> {
+  const ids = new Set<string>();
+  for (const op of ops) {
+    if (op.type !== "installation") continue;
+    for (const id of op.spec_item_ids) ids.add(id);
+  }
+  return ids;
+}

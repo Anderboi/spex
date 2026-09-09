@@ -21,6 +21,7 @@ import {
   TYPE_ORDER,
   isSpecItemAllowedForOperation,
   specItemIdsInDeliveries,
+  specItemIdsInInstallations,
   type ServiceOperationType,
 } from "@/lib/constants";
 import {
@@ -1245,8 +1246,9 @@ export function useSpecBuilder({
    * Открыть форму создания операции из выделения. Позиции, недоступные для
    * этого типа операции, исключаются: заглушки, материалы со статусом
    * «Доставлено»/«Заменить» для доставки и «Заменить» для монтажа, а также
-   * (только для доставки) материалы, уже включённые в другую доставку — их
-   * статус значения не имеет. Если после фильтрации не осталось позиций —
+   * материалы, уже включённые в другую операцию того же типа — в другую
+   * доставку или в другой монтаж (независимо от их текущего статуса).
+   * Доставка и монтаж независимы. Если после фильтрации не осталось позиций —
    * toast и модалку не открываем.
    */
   const openServiceOperation = useCallback(
@@ -1261,35 +1263,42 @@ export function useSpecBuilder({
         return;
       }
 
-      // Для доставки дополнительно исключаем материалы, которые уже связаны
-      // с другой доставкой (независимо от их текущего статуса).
+      // Один материал нельзя включить в две операции одного типа: для доставки
+      // исключаем материалы из другой доставки, для монтажа — из другого
+      // монтажа. Связи с операцией другого типа материал не блокируют.
       const inOtherDeliveries =
         type === "delivery" ? specItemIdsInDeliveries(operations) : null;
+      const inOtherInstallations =
+        type === "installation"
+          ? specItemIdsInInstallations(operations)
+          : null;
+      const linkedToOther = (id: string) =>
+        (inOtherDeliveries?.has(id) ?? false) ||
+        (inOtherInstallations?.has(id) ?? false);
 
       const eligible = itemsRef.current.some(
         (i) =>
           selected.has(i.id) &&
           isSpecItemAllowedForOperation(i, type) &&
-          !(inOtherDeliveries?.has(i.id) ?? false),
+          !linkedToOther(i.id),
       );
       if (!eligible) {
+        const onlyByStatus = itemsRef.current.some(
+          (i) =>
+            selected.has(i.id) && !isSpecItemAllowedForOperation(i, type),
+        );
+        const onlyByLinked = itemsRef.current.some(
+          (i) =>
+            selected.has(i.id) &&
+            isSpecItemAllowedForOperation(i, type) &&
+            linkedToOther(i.id),
+        );
         if (type === "delivery") {
-          const onlyByStatus = itemsRef.current.some(
-            (i) =>
-              selected.has(i.id) &&
-              !isSpecItemAllowedForOperation(i, type),
-          );
-          const onlyByDelivery = itemsRef.current.some(
-            (i) =>
-              selected.has(i.id) &&
-              isSpecItemAllowedForOperation(i, type) &&
-              (inOtherDeliveries?.has(i.id) ?? false),
-          );
-          if (onlyByDelivery && !onlyByStatus) {
+          if (onlyByLinked && !onlyByStatus) {
             showToast(
               "Нет позиций для доставки — выбранные материалы уже включены в другую доставку",
             );
-          } else if (onlyByStatus && !onlyByDelivery) {
+          } else if (onlyByStatus && !onlyByLinked) {
             showToast(
               "Нет позиций для доставки — материалы со статусом «Доставлено»/«Заменить» в новую доставку не включаются",
             );
@@ -1298,10 +1307,20 @@ export function useSpecBuilder({
               "Нет позиций для доставки — материалы уже входят в другую доставку или имеют статус «Доставлено»/«Заменить»",
             );
           }
-        } else {
-          showToast(
-            "Нет позиций для монтажа — материалы со статусом «Заменить» в монтаж не включаются",
-          );
+        } else if (type === "installation") {
+          if (onlyByLinked && !onlyByStatus) {
+            showToast(
+              "Нет позиций для монтажа — выбранные материалы уже включены в другой монтаж",
+            );
+          } else if (onlyByStatus && !onlyByLinked) {
+            showToast(
+              "Нет позиций для монтажа — материалы со статусом «Заменить» в монтаж не включаются",
+            );
+          } else {
+            showToast(
+              "Нет позиций для монтажа — материалы уже входят в другой монтаж или имеют статус «Заменить»",
+            );
+          }
         }
         return;
       }
