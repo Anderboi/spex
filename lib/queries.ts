@@ -25,6 +25,7 @@ import { applyActiveVariant, rowToVariant } from './spec/variants';
 export type SpecPickerCompany = {
   id: string;
   name: string;
+  category?: string[] | null;
   phone?: string | null;
   email?: string | null;
   website?: string | null;
@@ -46,7 +47,7 @@ export const getSpecPickerData = cache(async (orgSlug: string) => {
   const [companiesRes, contactsRes] = await Promise.all([
     supabase
       .from("companies")
-      .select("id, name, phone, email, website, address, note")
+      .select("id, name, category, phone, email, website, address, note")
       .eq("org_id", orgId)
       .order("name"),
     supabase

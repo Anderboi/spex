@@ -131,7 +131,7 @@ export function DetailModal({
     <Dialog open onOpenChange={(v) => !v && onClose()}>
       <DialogContent
         showCloseButton={false}
-        className="max-h-[90vh] flex-col bg-bg sm:max-w-3xl p-0 gap-0"
+        className="max-h-[90vh] flex flex-col bg-bg sm:max-w-3xl p-0 gap-0"
       >
         <DialogHeader className="border-b p-4">
           <div className="flex items-center justify-between">

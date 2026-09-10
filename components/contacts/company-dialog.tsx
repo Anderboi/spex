@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useTransition } from "react";
+import { useCallback, useEffect, useTransition } from "react";
 import { useForm, SubmitHandler } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Loader2 } from "lucide-react";
@@ -44,6 +44,17 @@ interface CompanyDialogProps {
   open: boolean;
   onClose: () => void;
   initialName?: string;
+  /** Передана — карточка открыта для существующей компании (редактирование). */
+  company?: {
+    id: string;
+    name: string;
+    category?: string[] | null;
+    phone?: string | null;
+    email?: string | null;
+    website?: string | null;
+    address?: string | null;
+    note?: string | null;
+  } | null;
   onSuccess?: (company: {
     id: string;
     name: string;
@@ -60,9 +71,26 @@ export function CompanyDialog({
   open,
   onClose,
   initialName,
+  company,
   onSuccess,
 }: CompanyDialogProps) {
   const [isPending, startTransition] = useTransition();
+  const isEdit = !!company;
+
+  /** Значения формы: редактирование существующей компании либо создание. */
+  const formValues = useCallback(
+    (): z.input<typeof companySchema> => ({
+      id: company?.id,
+      name: company?.name ?? initialName ?? "",
+      category: company?.category ?? [],
+      website: company?.website ?? "",
+      email: company?.email ?? "",
+      phone: company?.phone ?? "",
+      address: company?.address ?? "",
+      note: company?.note ?? "",
+    }),
+    [company, initialName],
+  );
 
   const form = useForm<
     z.input<typeof companySchema>,
@@ -70,32 +98,14 @@ export function CompanyDialog({
     z.output<typeof companySchema>
   >({
     resolver: zodResolver(companySchema),
-    defaultValues: {
-      id: undefined,
-      name: initialName ?? "",
-      category: [],
-      website: "",
-      email: "",
-      phone: "",
-      address: "",
-      note: "",
-    },
+    defaultValues: formValues(),
   });
 
-useEffect(() => {
-  if (open) {
-    form.reset({
-      id: undefined,
-      name: initialName ?? "",
-      category: [],
-      website: "",
-      email: "",
-      phone: "",
-      address: "",
-      note: "",
-    });
-  }
-}, [open, initialName, form]);
+  useEffect(() => {
+    if (open) {
+      form.reset(formValues());
+    }
+  }, [open, formValues, form]);
 
   const onSubmit: SubmitHandler<CompanyInput> = (values) => {
     startTransition(async () => {
@@ -125,7 +135,9 @@ const { handleOpenChange, showConfirm, confirmDiscard, cancelDiscard  } =
       <Dialog open={open} onOpenChange={handleOpenChange}>
         <DialogContent className="sm:max-w-125 bg-bg-card">
           <DialogHeader className="border-b border-border-subtle py-2">
-            <DialogTitle>Добавить компанию</DialogTitle>
+            <DialogTitle>
+              {isEdit ? "Карточка компании" : "Добавить компанию"}
+            </DialogTitle>
             <DialogDescription>
               Поставщики, салоны и подрядчики для спецификаций.
             </DialogDescription>

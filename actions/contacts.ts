@@ -41,6 +41,8 @@ export async function upsertCompany(orgSlug: string, input: CompanyInput) {
       };
     }
     revalidatePath(`/${orgSlug}/contacts`);
+    // ← компания могла быть подрядчиком операций на страницах проектов
+    revalidatePath(`/${orgSlug}/projects`, "layout");
     return { success: true as const, data };
   }
 
@@ -60,6 +62,8 @@ export async function upsertCompany(orgSlug: string, input: CompanyInput) {
   }
 
   revalidatePath(`/${orgSlug}/contacts`);
+  // ← компания могла быть подрядчиком операций на страницах проектов
+  revalidatePath(`/${orgSlug}/projects`, "layout");
   return { success: true as const, data };
 }
 
@@ -82,6 +86,8 @@ export async function deleteCompany(orgSlug: string, id: string) {
 
   revalidatePath(`/${orgSlug}/contacts`);
   revalidatePath(`/${orgSlug}/materials`); // ← у материалов пропал поставщик
+  // ← у операций проектов подрядчик обнуляется (FK ON DELETE SET NULL)
+  revalidatePath(`/${orgSlug}/projects`, "layout");
   return { success: true as const };
 }
 

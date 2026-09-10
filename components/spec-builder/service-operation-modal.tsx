@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Loader2, Trash2 } from "lucide-react";
+import { Building2, Loader2, Trash2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import Field from "@/components/layout/modal-field";
+import { CompanyDialog } from "@/components/contacts/company-dialog";
 import {
   SERVICE_OPERATION_BLOCKED_STATUSES,
   SERVICE_OPERATION_CONFIG,
@@ -135,6 +136,10 @@ export function ServiceOperationModal({
   const [busy, setBusy] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  /** Карточка выбранного подрядчика — открывается поверх модалки операции. */
+  const [showContractorCard, setShowContractorCard] = useState(false);
+  const contractorCompany =
+    companies.find((c) => c.id === contractorCompanyId) ?? null;
 
   const submit = async () => {
     const value = parseMoney(amount);
@@ -260,18 +265,32 @@ export function ServiceOperationModal({
 
           <div className="mt-4">
             <Field label="Подрядчик (необязательно)">
-              <select
-                value={contractorCompanyId}
-                onChange={(e) => setContractorCompanyId(e.target.value)}
-                className="h-10 w-full rounded-lg border border-border-muted bg-bg-card px-2.5 text-[14px] text-fg outline-none"
-              >
-                <option value="">Не указан</option>
-                {companies.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
+              <div className="flex items-center gap-2">
+                <select
+                  value={contractorCompanyId}
+                  onChange={(e) => setContractorCompanyId(e.target.value)}
+                  className="h-10 min-w-0 flex-1 rounded-lg border border-border-muted bg-bg-card px-2.5 text-[14px] text-fg outline-none"
+                >
+                  <option value="">Не указан</option>
+                  {companies.map((c) => (
+                    <option key={c.id} value={c.id}>
+                      {c.name}
+                    </option>
+                  ))}
+                </select>
+                {contractorCompany && (
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="lg"
+                    onClick={() => setShowContractorCard(true)}
+                    disabled={busy || deleting}
+                    className="shrink-0 gap-1.5"
+                  >
+                    <Building2 className="size-4" /> Карточка
+                  </Button>
+                )}
+              </div>
             </Field>
           </div>
 
@@ -406,6 +425,15 @@ export function ServiceOperationModal({
           </div>
         )}
       </DialogContent>
+
+      {contractorCompany && showContractorCard && (
+        <CompanyDialog
+          orgSlug={ctx.orgSlug}
+          open={showContractorCard}
+          company={contractorCompany}
+          onClose={() => setShowContractorCard(false)}
+        />
+      )}
     </Dialog>
   );
 }
