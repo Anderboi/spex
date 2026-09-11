@@ -17,7 +17,7 @@ export function ContactsSort() {
         value={sort}
         onChange={(e) => update({ sort: e.target.value as ContactsSort })}
         aria-label="Сортировка"
-        className="h-10 cursor-pointer appearance-none rounded-lg border border-border bg-bg-card pl-3 pr-7 font-mono text-xs text-fg outline-none transition-colors hover:bg-bg-brand/50"
+        className="h-10 cursor-pointer appearance-none rounded-lg border border-border bg-bg-card pl-3 pr-4 font-mono text-sm text-fg outline-none transition-colors hover:bg-bg-brand/50"
       >
         {CONTACTS_SORT_OPTIONS.map((o) => (
           <option key={o.value} value={o.value}>

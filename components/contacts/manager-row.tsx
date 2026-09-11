@@ -73,7 +73,7 @@ export const ManagerRow = memo(
           <div className="flex shrink-0 items-center gap-0.5 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
             <Button
               variant="ghost"
-              size="icon-xs"
+              size="icon-lg"
               aria-label={`Редактировать контакт ${manager.name}`}
               onClick={() => onEdit(manager.id)}
               className="text-fg-muted hover:text-fg"
@@ -82,7 +82,7 @@ export const ManagerRow = memo(
             </Button>
             <Button
               variant="ghost"
-              size="icon-xs"
+              size="icon-lg"
               aria-label={`Удалить контакт ${manager.name}`}
               onClick={() => setShowDeleteDialog(true)}
               className="text-fg-muted hover:text-destructive"

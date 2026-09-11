@@ -45,6 +45,19 @@ const CONTACT_FORMS = {
 const pluralizeContacts = (n: number) =>
   `${n} ${CONTACT_FORMS[ruPlural.select(n) as keyof typeof CONTACT_FORMS]}`;
 
+const areCategoriesEqual = (
+  a: string[] | undefined | null,
+  b: string[] | undefined | null,
+): boolean => {
+  if (a === b) return true;
+  if (!a || !b) return !a?.length && !b?.length;
+  if (a.length !== b.length) return false;
+  for (let i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) return false;
+  }
+  return true;
+};
+
 interface CompanyCardProps {
   company: CompanyRow;
   managers: ContactRow[];
@@ -98,7 +111,7 @@ export const CompanyCard = memo(
           }}
           className="overflow-hidden rounded-2xl border border-border bg-bg-card"
         >
-          <div className="flex items-start gap-3 p-4 sm:gap-4 sm:p-5">
+          <div className="flex items-start gap-3 p-4 sm:gap-4 sm:p-5 group">
             {company.logo_url ? (
               <div className="relative size-10 shrink-0 overflow-hidden rounded-lg border border-border bg-bg-card2 sm:size-11">
                 <Image
@@ -176,10 +189,10 @@ export const CompanyCard = memo(
                 </p>
               )}
             </div>
-            <div className="flex shrink-0 items-center gap-1">
+            <div className="flex shrink-0 items-center gap-0.5 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
               <Button
                 variant="ghost"
-                size="icon-sm"
+                size="icon-lg"
                 aria-label={`Редактировать компанию ${company.name}`}
                 onClick={() => onEditCompany(company.id)}
                 className="text-fg-muted cursor-pointer hover:text-fg"
@@ -188,7 +201,7 @@ export const CompanyCard = memo(
               </Button>
               <Button
                 variant="ghost"
-                size="icon-sm"
+                size="icon-lg"
                 aria-label={`Удалить компанию ${company.name}`}
                 onClick={() => setShowDeleteDialog(true)}
                 className="text-fg-muted cursor-pointer hover:text-destructive"
@@ -202,7 +215,6 @@ export const CompanyCard = memo(
             <div className="flex items-center justify-between px-3 py-2.5 sm:px-5">
               <button
                 type="button"
-                
                 onClick={() => setOpen((v) => !v)}
                 aria-expanded={open}
                 aria-controls={panelId}
@@ -285,7 +297,11 @@ export const CompanyCard = memo(
         prevProps.company.email !== nextProps.company.email ||
         prevProps.company.website !== nextProps.company.website ||
         prevProps.company.note !== nextProps.company.note ||
-        prevProps.company.logo_url !== nextProps.company.logo_url
+        prevProps.company.logo_url !== nextProps.company.logo_url ||
+        !areCategoriesEqual(
+          prevProps.company.category,
+          nextProps.company.category,
+        )
       ) {
         return false;
       }
