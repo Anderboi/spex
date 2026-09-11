@@ -84,13 +84,16 @@ export function ContactsList({
 
   const query = searchParams.get("query") ?? "";
 
-  // Диалоги управляются URL:
+  // Диалоги и режим открытия управляются URL:
   //   ?dialog=company                — добавить компанию
+  //   ?dialog=company&id=X           — редактировать компанию X
   //   ?dialog=contact                — добавить контакт
+  //   ?dialog=contact&id=X           — редактировать контакт X
   //   ?dialog=contact&company_id=X   — контакт для конкретной компании
   //   ?dialog=contact&independent=1  — независимый специалист
-  const isCompanyOpen = dialog === "company";
-  const isContactOpen = dialog === "contact";
+  const isCompanyDialog = dialog === "company";
+  const isContactDialog = dialog === "contact";
+  const editId = searchParams.get("id");
   const fixedCompanyId = searchParams.get("company_id") ?? undefined;
   const independentOnly = searchParams.get("independent") === "1";
 
@@ -100,6 +103,28 @@ export function ContactsList({
   );
 
   const [data, dispatch] = useOptimistic(baseData, directoryReducer);
+
+  /** Сущность, открытая для редактирования, ищется в текущем списке. */
+  const editingCompany = useMemo(
+    () =>
+      isCompanyDialog && editId
+        ? data.companies.find((c) => c.id === editId)
+        : undefined,
+    [isCompanyDialog, editId, data.companies],
+  );
+
+  const editingContact = useMemo(
+    () =>
+      isContactDialog && editId
+        ? (data.managers.find((m) => m.id === editId) ??
+          data.independentContacts.find((c) => c.id === editId))
+        : undefined,
+    [isContactDialog, editId, data.managers, data.independentContacts],
+  );
+
+  // Диалог открыт при создании (без id) либо при найденной записи для правки.
+  const isCompanyOpen = isCompanyDialog && (!editId || !!editingCompany);
+  const isContactOpen = isContactDialog && (!editId || !!editingContact);
 
   const managersByCompanyId = useMemo(() => {
     const map = new Map<string, ContactRow[]>();
@@ -114,8 +139,6 @@ export function ContactsList({
 
     return map;
   }, [data.managers]);
-
-  const expandByDefault = data.companies.length <= 5;
 
   const handleRemoveCompany = (id: string) => {
     startTransition(async () => {
@@ -141,6 +164,15 @@ export function ContactsList({
         console.error("Failed to delete contact:", error);
       }
     });
+  };
+
+  // Режим редактирования: id записи кладём в URL, данные берёт диалог.
+  const handleEditCompany = (id: string) => {
+    openDialog("company", { id });
+  };
+
+  const handleEditContact = (id: string) => {
+    openDialog("contact", { id });
   };
 
   return (
@@ -199,9 +231,10 @@ export function ContactsList({
                   onAddManager={(companyId) =>
                     openDialog("contact", { company_id: companyId })
                   }
+                  onEditCompany={handleEditCompany}
+                  onEditManager={handleEditContact}
                   onRemoveManager={handleRemoveContact}
                   onRemoveCompany={handleRemoveCompany}
-                  defaultOpen={expandByDefault}
                 />
               ))}
             </li>
@@ -234,6 +267,7 @@ export function ContactsList({
               <ContactCard
                 key={contact.id}
                 contact={contact}
+                onEdit={handleEditContact}
                 onRemove={handleRemoveContact}
               />
             ))}
@@ -244,12 +278,14 @@ export function ContactsList({
       <CompanyDialog
         orgSlug={orgSlug}
         open={isCompanyOpen}
+        company={editingCompany}
         onClose={closeDialog}
       />
       <ContactDialog
         orgSlug={orgSlug}
         open={isContactOpen}
         companies={data.companies}
+        contact={editingContact}
         fixedCompanyId={fixedCompanyId}
         independentOnly={independentOnly}
         onClose={closeDialog}

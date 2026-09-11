@@ -11,7 +11,7 @@ import { ChangeEvent, useState } from "react";
 import { priceOf } from "@/lib/spec/pricing";
 import { toast } from "sonner";
 import { uploadMaterialImage } from "@/actions/materials";
-import { QtyStepper } from "./qty-stepper";
+import { QtyStepper } from "../layout/qty-stepper";
 import { fmt } from "@/lib/utils";
 import { Button } from "../ui/button";
 import { AttrsEditor } from "./attrs-editor";

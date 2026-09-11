@@ -1,7 +1,14 @@
 "use client";
 
 import { memo } from "react";
-import { Copy, Eraser, MoreHorizontal, Plus, Share2, Trash2 } from "lucide-react";
+import {
+  Copy,
+  Eraser,
+  MoreHorizontal,
+  Plus,
+  Share2,
+  Trash2,
+} from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -18,13 +25,13 @@ import { cn } from "@/lib/utils";
 import { SpecStatus } from "@/lib/constants";
 import { SpecItem } from "@/lib/types";
 import { PriceField } from "./price-field";
-import { QtyStepper } from "./qty-stepper";
+import { QtyStepper } from "../layout/qty-stepper";
 import { priceOf } from "@/lib/spec/pricing";
 import Image from "next/image";
-import { VariantSwitcher } from './variant-switcher';
-import { ParentSubMenu } from './parent-submenu';
-import { DraftNameField } from '../layout/draft-name-field';
-import { ServiceOperationBadges } from './service-operation-badges';
+import { VariantSwitcher } from "./variant-switcher";
+import { ParentSubMenu } from "./parent-submenu";
+import { DraftNameField } from "../layout/draft-name-field";
+import { ServiceOperationBadges } from "./service-operation-badges";
 import type { ServiceOperation } from "@/actions/service-operations";
 
 export type SpecRowHandlers = {
@@ -194,7 +201,11 @@ export const SpecRow = memo(function SpecRow({
       </td>
 
       <td className="px-2 align-middle">
-        <StatusMenu className='w-full justify-between' item={item} onChange={(s) => h.onStatus(item.id, s)} />
+        <StatusMenu
+          className="w-full justify-between"
+          item={item}
+          onChange={(s) => h.onStatus(item.id, s)}
+        />
       </td>
       <td className="px-2 align-middle">
         <DropdownMenu>

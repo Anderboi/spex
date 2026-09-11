@@ -194,7 +194,7 @@
   body {
     scrollbar-width: none !important;
     -ms-overflow-style: none !important;
-    grid-template-columns: [code] 56px [name] minmax(0,1fr) [qty] 88px [price] 96px [total] 104px [status] 120px;
+    /* grid-template-columns: [code] 56px [name] minmax(0,1fr) [qty] 88px [price] 96px [total] 104px [status] 120px; */
   }
 
   *::-webkit-scrollbar {

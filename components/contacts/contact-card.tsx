@@ -1,7 +1,7 @@
 "use client";
 
 import { memo, useState } from "react";
-import { Trash2 } from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ContactRow } from "@/lib/validations";
 import { initials } from "@/lib/utils";
@@ -18,11 +18,12 @@ import {
 
 interface ContactCardProps {
   contact: ContactRow;
+  onEdit: (id: string) => void;
   onRemove: (id: string) => void;
 }
 
 export const ContactCard = memo(
-  function ContactCard({ contact, onRemove }: ContactCardProps) {
+  function ContactCard({ contact, onEdit, onRemove }: ContactCardProps) {
     const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
     const handleConfirmDelete = () => {
@@ -77,15 +78,26 @@ export const ContactCard = memo(
               <p className="mt-2 text-xs text-fg-muted">{contact.note}</p>
             )}
           </div>
-          <Button
-            variant="ghost"
-            size="icon-xs"
-            aria-label={`Удалить контакт ${contact.name}`}
-            onClick={() => setShowDeleteDialog(true)}
-            className="cursor-pointer text-fg-muted hover:text-destructive"
-          >
-            <Trash2 className="size-4 shrink-0" />
-          </Button>
+          <div className="flex shrink-0 items-center gap-1">
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              aria-label={`Редактировать контакт ${contact.name}`}
+              onClick={() => onEdit(contact.id)}
+              className="cursor-pointer text-fg-muted hover:text-fg"
+            >
+              <Pencil className="size-4 shrink-0" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              aria-label={`Удалить контакт ${contact.name}`}
+              onClick={() => setShowDeleteDialog(true)}
+              className="cursor-pointer text-fg-muted hover:text-destructive"
+            >
+              <Trash2 className="size-4 shrink-0" />
+            </Button>
+          </div>
         </li>
 
         <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>

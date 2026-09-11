@@ -21,7 +21,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { InlineCode } from "./inline-code";
 import { StatusMenu } from "./status-menu";
-import { QtyStepper } from "./qty-stepper";
+import { QtyStepper } from "../layout/qty-stepper";
 import { isLocked } from "@/lib/spec/status";
 import { fmt, cn, fmtQty } from "@/lib/utils";
 import type { SpecRowHandlers } from "./spec-row";

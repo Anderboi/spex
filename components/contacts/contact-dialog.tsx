@@ -1,6 +1,6 @@
 "use client";
 
-import { useTransition, useEffect } from "react";
+import { useCallback, useTransition, useEffect } from "react";
 import { useForm, SubmitHandler } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Loader2 } from "lucide-react";
@@ -39,6 +39,17 @@ interface ContactDialogProps {
   fixedCompanyId?: string;
   /** Режим "независимый специалист" (без привязки к компании) */
   independentOnly?: boolean;
+  /** Передан — карточка открыта для существующего контакта (редактирование). */
+  contact?: {
+    id: string;
+    name: string;
+    phone?: string | null;
+    title?: string | null;
+    email?: string | null;
+    category?: string[] | null;
+    note?: string | null;
+    company_id?: string | null;
+  } | null;
 }
 
 export function ContactDialog({
@@ -49,10 +60,27 @@ export function ContactDialog({
   companies = [],
   fixedCompanyId,
   independentOnly = false,
+  contact,
 }: ContactDialogProps) {
   const [isPending, startTransition] = useTransition();
+  const isEdit = !!contact;
 
   const defaultCompanyId = independentOnly ? null : (fixedCompanyId ?? null);
+
+  /** Значения формы: редактирование существующего контакта либо создание. */
+  const formValues = useCallback(
+    (): z.input<typeof contactSchema> => ({
+      id: contact?.id,
+      name: contact?.name ?? "",
+      phone: contact?.phone ?? "",
+      title: contact?.title ?? "",
+      email: contact?.email ?? "",
+      note: contact?.note ?? "",
+      company_id: contact ? (contact.company_id ?? null) : defaultCompanyId,
+      category: contact?.category ?? [],
+    }),
+    [contact, defaultCompanyId],
+  );
 
   const form = useForm<
     z.input<typeof contactSchema>,
@@ -60,32 +88,15 @@ export function ContactDialog({
     z.output<typeof contactSchema>
   >({
     resolver: zodResolver(contactSchema),
-    defaultValues: {
-      id: undefined,
-      name: "",
-      phone: "",
-      title: "",
-      email: "",
-      note: "",
-      company_id: defaultCompanyId,
-      category: [],
-    },
+    defaultValues: formValues(),
   });
 
   // Сброс формы и установка начальных значений при изменении пропсов или открытии
   useEffect(() => {
     if (open) {
-      form.reset({
-        name: "",
-        title: "",
-        email: "",
-        phone: "",
-        note: "",
-        company_id: defaultCompanyId,
-        category: [],
-      });
+      form.reset(formValues());
     }
-  }, [open, fixedCompanyId, independentOnly, form, defaultCompanyId]);
+  }, [open, formValues, form]);
 
   const categories = form.watch("category") || [];
 
@@ -149,7 +160,11 @@ export function ContactDialog({
       <DialogContent className="sm:max-w-125">
         <DialogHeader className="border-b border-border-subtle py-2">
           <DialogTitle>
-            {independentOnly ? "Добавить специалиста" : "Добавить контакт"}
+            {isEdit
+              ? "Карточка контакта"
+              : independentOnly
+                ? "Добавить специалиста"
+                : "Добавить контакт"}
           </DialogTitle>
           <DialogDescription>
             {independentOnly

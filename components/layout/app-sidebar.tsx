@@ -15,10 +15,10 @@ import { cn } from "@/lib/utils";
 import { BookUser, Folder, Layers, Settings } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { UserProfile } from "./layout/user-profile";
-import { OrgSwitcher, UserOrgItem } from "./orgs/org-switcher";
+import { UserProfile } from "./user-profile";
+import { OrgSwitcher, UserOrgItem } from "../orgs/org-switcher";
 import { can, OrgRole } from "@/lib/permissions";
-import { Separator } from './ui/separator';
+import { Separator } from "../ui/separator";
 
 const NAV = [
   { seg: "projects", label: "Проекты", icon: Folder },
@@ -49,7 +49,6 @@ export function AppSidebar({
           Spex
         </span> */}
         <OrgSwitcher currentSlug={currentSlug} organizations={organizations} />
-        
       </SidebarHeader>
       <Separator className="border-border-muted" />
       <SidebarContent>
@@ -118,7 +117,7 @@ export function AppSidebar({
             </SidebarMenuItem>
           </SidebarMenu>
         </SidebarGroup>
-        </SidebarFooter>
+      </SidebarFooter>
     </Sidebar>
   );
 }

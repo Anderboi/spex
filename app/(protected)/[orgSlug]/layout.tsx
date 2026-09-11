@@ -1,6 +1,10 @@
-import { AppSidebar } from "@/components/app-sidebar";
-import { ConfirmProvider } from '@/components/confirm-provider';
-import { SidebarInset, SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
+import { AppSidebar } from "@/components/layout/app-sidebar";
+import { ConfirmProvider } from "@/components/confirm-provider";
+import {
+  SidebarInset,
+  SidebarProvider,
+  SidebarTrigger,
+} from "@/components/ui/sidebar";
 import { requireOrgBySlug } from "@/lib/auth/session";
 
 export default async function OrgLayout({

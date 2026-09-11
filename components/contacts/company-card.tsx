@@ -6,6 +6,7 @@ import {
   Globe,
   Mail,
   MapPin,
+  Pencil,
   Phone,
   Plus,
   Trash2,
@@ -14,7 +15,6 @@ import {
 import { Button } from "@/components/ui/button";
 import { CompanyRow, ContactRow } from "@/lib/validations";
 import {
-  formatContactsCount,
   initials,
   normalizeWebsite,
   telHref,
@@ -47,8 +47,9 @@ const pluralizeContacts = (n: number) =>
 interface CompanyCardProps {
   company: CompanyRow;
   managers: ContactRow[];
-  defaultOpen?: boolean;
   onAddManager: (companyId: string) => void;
+  onEditCompany: (id: string) => void;
+  onEditManager: (id: string) => void;
   onRemoveManager: (id: string) => void;
   onRemoveCompany: (id: string) => void;
 }
@@ -58,11 +59,12 @@ export const CompanyCard = memo(
     company,
     managers,
     onAddManager,
-    defaultOpen = false,
+    onEditCompany,
+    onEditManager,
     onRemoveManager,
     onRemoveCompany,
   }: CompanyCardProps) {
-    const [open, setOpen] = useState(true);
+    const [open, setOpen] = useState(managers.length > 0);
     const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
     const titleId = useId();
@@ -161,21 +163,33 @@ export const CompanyCard = memo(
                 </p>
               )}
             </div>
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              aria-label={`Удалить компанию ${company.name}`}
-              onClick={() => setShowDeleteDialog(true)}
-              className="text-fg-muted cursor-pointer hover:text-destructive"
-            >
-              <Trash2 className="size-4 shrink-0" />
-            </Button>
+            <div className="flex shrink-0 items-center gap-1">
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label={`Редактировать компанию ${company.name}`}
+                onClick={() => onEditCompany(company.id)}
+                className="text-fg-muted cursor-pointer hover:text-fg"
+              >
+                <Pencil className="size-4 shrink-0" />
+              </Button>
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                aria-label={`Удалить компанию ${company.name}`}
+                onClick={() => setShowDeleteDialog(true)}
+                className="text-fg-muted cursor-pointer hover:text-destructive"
+              >
+                <Trash2 className="size-4 shrink-0" />
+              </Button>
+            </div>
           </div>
 
           <div className="border-t border-border bg-bg-card2">
             <div className="flex items-center justify-between px-3 py-2.5 sm:px-5">
               <button
                 type="button"
+                
                 onClick={() => setOpen((v) => !v)}
                 aria-expanded={open}
                 aria-controls={panelId}
@@ -209,6 +223,7 @@ export const CompanyCard = memo(
                       <ManagerRow
                         key={m.id}
                         manager={m}
+                        onEdit={onEditManager}
                         onRemove={onRemoveManager}
                       />
                     ))}
@@ -247,7 +262,6 @@ export const CompanyCard = memo(
     );
   },
   (prevProps, nextProps) => {
-    if (prevProps.defaultOpen !== nextProps.defaultOpen) return false;
     if (prevProps.company !== nextProps.company) {
       // Сравниваем по ключевым свойствам компании
       if (
