@@ -1,9 +1,18 @@
 "use client";
 
-import { useCallback, useEffect, useTransition } from "react";
+import {
+  useCallback,
+  useEffect,
+  useState,
+  useTransition,
+  type ChangeEvent,
+  type ClipboardEvent,
+} from "react";
 import { useForm, SubmitHandler } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Loader2 } from "lucide-react";
+import { CloudUpload, Loader2, Trash2 } from "lucide-react";
+import Image from "next/image";
+import { toast } from "sonner";
 
 import { companySchema, CompanyInput } from "@/lib/validations";
 import { Button } from "@/components/ui/button";
@@ -23,7 +32,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { upsertCompany } from "@/actions/contacts";
+import { upsertCompany, uploadContactImage } from "@/actions/contacts";
 import z from "zod";
 import { CategoryMultiSelect } from "../layout/category-multiselect";
 import { TYPE_ORDER } from "@/lib/constants";
@@ -54,6 +63,7 @@ interface CompanyDialogProps {
     website?: string | null;
     address?: string | null;
     note?: string | null;
+    logo_url?: string | null;
   } | null;
   onSuccess?: (company: {
     id: string;
@@ -63,6 +73,7 @@ interface CompanyDialogProps {
     website?: string | null;
     address?: string | null;
     note?: string | null;
+    logo_url?: string | null;
   }) => void;
 }
 
@@ -75,6 +86,7 @@ export function CompanyDialog({
   onSuccess,
 }: CompanyDialogProps) {
   const [isPending, startTransition] = useTransition();
+  const [isUploading, setIsUploading] = useState(false);
   const isEdit = !!company;
 
   /** Значения формы: редактирование существующей компании либо создание. */
@@ -88,6 +100,7 @@ export function CompanyDialog({
       phone: company?.phone ?? "",
       address: company?.address ?? "",
       note: company?.note ?? "",
+      logo_url: company?.logo_url ?? null,
     }),
     [company, initialName],
   );
@@ -122,6 +135,62 @@ export function CompanyDialog({
     });
   };
 
+  const logoUrl = form.watch("logo_url");
+
+  /** Общая загрузка: используется и file picker'ом, и вставкой из буфера. */
+  const uploadImageFile = useCallback(
+    async (file: File) => {
+      setIsUploading(true);
+      try {
+        const fd = new FormData();
+        fd.append("file", file);
+        const res = await uploadContactImage(
+          orgSlug,
+          fd,
+          "company",
+          form.getValues("logo_url") ?? null,
+        );
+        if (!res.success) {
+          toast.error(res.error);
+          return;
+        }
+        form.setValue("logo_url", res.url, { shouldDirty: true });
+      } catch {
+        toast.error("Не удалось загрузить изображение");
+      } finally {
+        setIsUploading(false);
+      }
+    },
+    [orgSlug, form],
+  );
+
+  const handleFile = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (file) void uploadImageFile(file);
+  };
+
+  /** Ctrl+V / Cmd+V: перехватываем только картинки, обычный текст не трогаем. */
+  const handlePaste = (e: ClipboardEvent<HTMLDivElement>) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      if (item.kind === "file" && item.type.startsWith("image/")) {
+        const file = item.getAsFile();
+        if (file) {
+          e.preventDefault();
+          void uploadImageFile(file);
+          return;
+        }
+      }
+    }
+  };
+
+  const handleRemoveImage = () => {
+    form.setValue("logo_url", null, { shouldDirty: true });
+  };
+
  const isDirty = form.formState.isDirty;
 
 const { handleOpenChange, showConfirm, confirmDiscard, cancelDiscard  } =
@@ -133,7 +202,10 @@ const { handleOpenChange, showConfirm, confirmDiscard, cancelDiscard  } =
   return (
     <>
       <Dialog open={open} onOpenChange={handleOpenChange}>
-        <DialogContent className="sm:max-w-125 bg-bg-card">
+        <DialogContent
+          className="sm:max-w-125 bg-bg-card"
+          onPaste={handlePaste}
+        >
           <DialogHeader className="border-b border-border-subtle py-2">
             <DialogTitle>
               {isEdit ? "Карточка компании" : "Добавить компанию"}
@@ -150,6 +222,56 @@ const { handleOpenChange, showConfirm, confirmDiscard, cancelDiscard  } =
               })}
               className="flex flex-col gap-4"
             >
+              {/* Логотип: file picker, Ctrl+V, замена, удаление */}
+              <section className="flex items-center gap-4">
+                <div className="relative flex size-20 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-border bg-bg-card2">
+                  {logoUrl ? (
+                    <Image
+                      src={logoUrl}
+                      alt="Логотип компании"
+                      fill
+                      sizes="80px"
+                      className="object-contain"
+                    />
+                  ) : (
+                    <span className="text-xs text-fg-muted">Нет логотипа</span>
+                  )}
+                  {isUploading && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-bg-card/60">
+                      <Loader2 className="size-5 animate-spin text-fg-muted" />
+                    </div>
+                  )}
+                </div>
+                <div className="flex flex-col gap-2">
+                  <label className="inline-flex w-fit cursor-pointer items-center gap-2 rounded-md border border-border bg-bg-card2 px-3 py-1.5 text-sm hover:bg-bg-card">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={handleFile}
+                      disabled={isUploading}
+                    />
+                    <CloudUpload className="size-4 text-fg-muted" />
+                    {logoUrl ? "Заменить логотип" : "Загрузить логотип"}
+                  </label>
+                  <span className="text-xs text-fg-muted">
+                    JPG/PNG до 5 МБ или Ctrl+V
+                  </span>
+                  {logoUrl && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={handleRemoveImage}
+                      disabled={isUploading}
+                      className="w-fit cursor-pointer text-fg-muted hover:text-destructive"
+                    >
+                      <Trash2 className="size-4 shrink-0" /> Удалить логотип
+                    </Button>
+                  )}
+                </div>
+              </section>
+
               {/* Название компании */}
               <FormField
                 control={form.control}

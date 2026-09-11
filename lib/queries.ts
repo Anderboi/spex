@@ -490,6 +490,7 @@ export type CompanyListItem = {
   website: string | null;
   address: string | null;
   note: string | null;
+  logo_url: string | null;
 };
 
 export type ContactListItem = {
@@ -502,6 +503,7 @@ export type ContactListItem = {
   note: string | null;
   company_id: string | null;
   company_name: string | null;
+  avatar_url: string | null;
 };
 
 export async function getCompanies(orgSlug: string): Promise<CompanyRow[]> {
@@ -510,7 +512,7 @@ export async function getCompanies(orgSlug: string): Promise<CompanyRow[]> {
 
   const { data, error } = await supabase
     .from("companies")
-    .select("id, name, category, phone, email, website,address, note")
+    .select("id, name, category, phone, email, website,address, note, logo_url")
     .eq("org_id", orgId)
     .order("created_at", { ascending: false });
 
@@ -552,13 +554,13 @@ export const getCounterparties = cache(async (orgSlug: string) => {
   const [companiesRes, contactsRes] = await Promise.all([
     supabase
       .from("companies")
-      .select("id, name, category, phone, email, website, address, note")
+      .select("id, name, category, phone, email, website, address, note, logo_url")
       .eq("org_id", orgId)
       .order("name"),
     supabase
       .from("contacts")
       .select(
-        "id, name, title, category, phone, email, note, company_id, companies(name)",
+        "id, name, title, category, phone, email, note, company_id, avatar_url, companies(name)",
       )
       .eq("org_id", orgId)
       .order("name"),
@@ -578,6 +580,7 @@ export const getCounterparties = cache(async (orgSlug: string) => {
     website: r.website ?? null,
     address: r.address ?? null,
     note: r.note ?? null,
+    logo_url: r.logo_url ?? null,
   }));
 
   const contacts: ContactListItem[] = (contactsRes.data ?? []).map((r) => ({
@@ -590,6 +593,7 @@ export const getCounterparties = cache(async (orgSlug: string) => {
     note: r.note ?? null,
     company_id: r.company_id,
     company_name: one<{ name: string }>(r.companies)?.name ?? null,
+    avatar_url: r.avatar_url ?? null,
   }));
 
   return { companies, contacts };

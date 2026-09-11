@@ -65,6 +65,7 @@ export const companySchema = z.object({
   address: z.string().trim().max(300).optional().nullable(),
   category: categoriesSchema,
   note: z.string().max(2000).optional().nullable(),
+  logo_url: z.string().trim().max(2048).optional().nullable(),
 });
 
 export type CompanyInput = z.infer<typeof companySchema>;
@@ -81,6 +82,7 @@ export const contactSchema = z.object({
   category: categoriesSchema,
   note: z.string().max(2000).optional().nullable(),
   company_id: z.string().uuid().optional().nullable(),
+  avatar_url: z.string().trim().max(2048).optional().nullable(),
   // created_by: z.string().optional().nullable(),
 });
 

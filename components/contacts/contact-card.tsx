@@ -3,6 +3,7 @@
 import { memo, useState } from "react";
 import { Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import Image from "next/image";
 import { ContactRow } from "@/lib/validations";
 import { initials } from "@/lib/utils";
 import {
@@ -34,9 +35,21 @@ export const ContactCard = memo(
     return (
       <>
         <li className="flex items-start gap-3 rounded-xl border border-border bg-bg-card p-4">
-          <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-bg-brand2 text-sm font-medium text-fg-body">
-            {initials(contact.name)}
-          </div>
+          {contact.avatar_url ? (
+            <div className="relative size-10 shrink-0 overflow-hidden rounded-full border border-border">
+              <Image
+                src={contact.avatar_url}
+                alt={contact.name}
+                fill
+                sizes="40px"
+                className="object-cover"
+              />
+            </div>
+          ) : (
+            <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-bg-brand2 text-sm font-medium text-fg-body">
+              {initials(contact.name)}
+            </div>
+          )}
           <div className="min-w-0 flex-1 space-y-2">
             <div className="flex flex-wrap items-baseline gap-x-2">
               <span className="font-medium text-fg-body">{contact.name}</span>
@@ -131,7 +144,8 @@ export const ContactCard = memo(
       prevProps.contact.title === nextProps.contact.title &&
       prevProps.contact.email === nextProps.contact.email &&
       prevProps.contact.phone === nextProps.contact.phone &&
-      prevProps.contact.note === nextProps.contact.note
+      prevProps.contact.note === nextProps.contact.note &&
+      prevProps.contact.avatar_url === nextProps.contact.avatar_url
     );
   },
 );

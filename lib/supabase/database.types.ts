@@ -75,6 +75,7 @@ export type Database = {
           created_by: string | null
           email: string | null
           id: string
+          logo_url: string | null
           name: string
           note: string | null
           org_id: string
@@ -88,6 +89,7 @@ export type Database = {
           created_by?: string | null
           email?: string | null
           id?: string
+          logo_url?: string | null
           name: string
           note?: string | null
           org_id: string
@@ -101,6 +103,7 @@ export type Database = {
           created_by?: string | null
           email?: string | null
           id?: string
+          logo_url?: string | null
           name?: string
           note?: string | null
           org_id?: string
@@ -126,6 +129,7 @@ export type Database = {
       }
       contacts: {
         Row: {
+          avatar_url: string | null
           category: string[]
           company_id: string | null
           created_at: string
@@ -139,6 +143,7 @@ export type Database = {
           title: string | null
         }
         Insert: {
+          avatar_url?: string | null
           category: string[]
           company_id?: string | null
           created_at?: string
@@ -152,6 +157,7 @@ export type Database = {
           title?: string | null
         }
         Update: {
+          avatar_url?: string | null
           category?: string[]
           company_id?: string | null
           created_at?: string

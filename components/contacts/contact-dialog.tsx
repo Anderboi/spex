@@ -1,9 +1,18 @@
 "use client";
 
-import { useCallback, useTransition, useEffect } from "react";
+import {
+  useCallback,
+  useTransition,
+  useEffect,
+  useState,
+  type ChangeEvent,
+  type ClipboardEvent,
+} from "react";
 import { useForm, SubmitHandler } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Loader2 } from "lucide-react";
+import { CloudUpload, Loader2, Trash2 } from "lucide-react";
+import Image from "next/image";
+import { toast } from "sonner";
 
 import { contactSchema, ContactInput, CompanyInput } from "@/lib/validations";
 import { Button } from "@/components/ui/button";
@@ -23,7 +32,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { upsertContact } from "@/actions/contacts"; // Импорт вашей Server Action
+import { upsertContact, uploadContactImage } from "@/actions/contacts"; // Импорт вашей Server Action
 import z from "zod";
 import { CategoryMultiSelect } from "../layout/category-multiselect";
 import { TYPE_ORDER } from "@/lib/constants";
@@ -49,6 +58,7 @@ interface ContactDialogProps {
     category?: string[] | null;
     note?: string | null;
     company_id?: string | null;
+    avatar_url?: string | null;
   } | null;
 }
 
@@ -63,6 +73,7 @@ export function ContactDialog({
   contact,
 }: ContactDialogProps) {
   const [isPending, startTransition] = useTransition();
+  const [isUploading, setIsUploading] = useState(false);
   const isEdit = !!contact;
 
   const defaultCompanyId = independentOnly ? null : (fixedCompanyId ?? null);
@@ -78,6 +89,7 @@ export function ContactDialog({
       note: contact?.note ?? "",
       company_id: contact ? (contact.company_id ?? null) : defaultCompanyId,
       category: contact?.category ?? [],
+      avatar_url: contact?.avatar_url ?? null,
     }),
     [contact, defaultCompanyId],
   );
@@ -155,9 +167,65 @@ export function ContactDialog({
 
   const showCompanySelect = !fixedCompanyId && !independentOnly;
 
+  const avatarUrl = form.watch("avatar_url");
+
+  /** Общая загрузка: используется и file picker'ом, и вставкой из буфера. */
+  const uploadImageFile = useCallback(
+    async (file: File) => {
+      setIsUploading(true);
+      try {
+        const fd = new FormData();
+        fd.append("file", file);
+        const res = await uploadContactImage(
+          orgSlug,
+          fd,
+          "contact",
+          form.getValues("avatar_url") ?? null,
+        );
+        if (!res.success) {
+          toast.error(res.error);
+          return;
+        }
+        form.setValue("avatar_url", res.url, { shouldDirty: true });
+      } catch {
+        toast.error("Не удалось загрузить изображение");
+      } finally {
+        setIsUploading(false);
+      }
+    },
+    [orgSlug, form],
+  );
+
+  const handleFile = (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (file) void uploadImageFile(file);
+  };
+
+  /** Ctrl+V / Cmd+V: перехватываем только картинки, обычный текст не трогаем. */
+  const handlePaste = (e: ClipboardEvent<HTMLDivElement>) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      if (item.kind === "file" && item.type.startsWith("image/")) {
+        const file = item.getAsFile();
+        if (file) {
+          e.preventDefault();
+          void uploadImageFile(file);
+          return;
+        }
+      }
+    }
+  };
+
+  const handleRemoveImage = () => {
+    form.setValue("avatar_url", null, { shouldDirty: true });
+  };
+
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-125">
+      <DialogContent className="sm:max-w-125" onPaste={handlePaste}>
         <DialogHeader className="border-b border-border-subtle py-2">
           <DialogTitle>
             {isEdit
@@ -178,6 +246,56 @@ export function ContactDialog({
             onSubmit={form.handleSubmit(onSubmit)}
             className="flex flex-col gap-4"
           >
+            {/* Фото специалиста: file picker, Ctrl+V, замена, удаление */}
+            <section className="flex items-center gap-4">
+              <div className="relative flex size-20 shrink-0 items-center justify-center overflow-hidden rounded-full border border-border bg-bg-card2">
+                {avatarUrl ? (
+                  <Image
+                    src={avatarUrl}
+                    alt="Фото контакта"
+                    fill
+                    sizes="80px"
+                    className="object-cover"
+                  />
+                ) : (
+                  <span className="text-xs text-fg-muted">Нет фото</span>
+                )}
+                {isUploading && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-bg-card/60">
+                    <Loader2 className="size-5 animate-spin text-fg-muted" />
+                  </div>
+                )}
+              </div>
+              <div className="flex flex-col gap-2">
+                <label className="inline-flex w-fit cursor-pointer items-center gap-2 rounded-md border border-border bg-bg-card2 px-3 py-1.5 text-sm hover:bg-bg-card">
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleFile}
+                    disabled={isUploading}
+                  />
+                  <CloudUpload className="size-4 text-fg-muted" />
+                  {avatarUrl ? "Заменить фото" : "Загрузить фото"}
+                </label>
+                <span className="text-xs text-fg-muted">
+                  JPG/PNG до 5 МБ или Ctrl+V
+                </span>
+                {avatarUrl && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleRemoveImage}
+                    disabled={isUploading}
+                    className="w-fit cursor-pointer text-fg-muted hover:text-destructive"
+                  >
+                    <Trash2 className="size-4 shrink-0" /> Удалить фото
+                  </Button>
+                )}
+              </div>
+            </section>
+
             {/* Вывод ошибки от сервера */}
             {form.formState.errors.root && (
               <div className="rounded-md bg-destructive/15 p-3 text-sm text-destructive">

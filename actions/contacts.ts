@@ -9,6 +9,95 @@ import {
 } from "@/lib/validations";
 import { assertCanMutate, forbidden, scoped } from "@/lib/db/guard";
 import { can } from "@/lib/permissions";
+import { requireOrgBySlug } from "@/lib/auth/session";
+import { createAdminClient } from "@/lib/supabase/admin";
+
+// --- ИЗОБРАЖЕНИЯ (Storage) ---
+
+/**
+ * Публичный bucket с логотипами компаний и фото специалистов.
+ * Создаётся вручную в Supabase Dashboard (лимит 5 МБ, разрешены image/*).
+ */
+const CONTACT_IMAGES_BUCKET = "company-images";
+const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
+
+/**
+ * Достаёт путь внутри bucket из public URL, если файл принадлежит
+ * CONTACT_IMAGES_BUCKET. Для чужих URL (другие bucket / внешние ссылки)
+ * возвращает null — такие файлы не трогаем.
+ */
+function storagePathFromUrl(url: string | null | undefined): string | null {
+  if (!url) return null;
+  const marker = `/storage/v1/object/public/${CONTACT_IMAGES_BUCKET}/`;
+  const idx = url.indexOf(marker);
+  if (idx === -1) return null;
+  const path = url.slice(idx + marker.length).split("?")[0];
+  return path ? decodeURIComponent(path) : null;
+}
+
+/** Best-effort удаление файла из Storage: ошибка не должна ломать запись в БД. */
+async function removeStoredImage(
+  supabase: ReturnType<typeof createAdminClient>,
+  url: string | null | undefined,
+) {
+  const path = storagePathFromUrl(url);
+  if (!path) return;
+  const { error } = await supabase.storage
+    .from(CONTACT_IMAGES_BUCKET)
+    .remove([path]);
+  if (error) console.error("[removeStoredImage]", error.message);
+}
+
+/**
+ * Загрузка логотипа компании или фото специалиста.
+ *
+ * kind = "company" → {orgId}/companies/{uuid}.{ext}
+ * kind = "contact" → {orgId}/contacts/{uuid}.{ext}
+ *
+ * При успешной загрузке старый файл (previousUrl) удаляется, если он
+ * принадлежал bucket company-images.
+ */
+export async function uploadContactImage(
+  orgSlug: string,
+  formData: FormData,
+  kind: "company" | "contact",
+  previousUrl?: string | null,
+): Promise<{ success: true; url: string } | { success: false; error: string }> {
+  const { orgId } = await requireOrgBySlug(orgSlug);
+
+  const file = formData.get("file");
+  if (!file || typeof file === "string") {
+    return { success: false, error: "Файл не найден" };
+  }
+  if (!file.type.startsWith("image/")) {
+    return { success: false, error: "Нужно изображение" };
+  }
+  if (file.size > MAX_IMAGE_SIZE) {
+    return { success: false, error: "Файл больше 5 МБ" };
+  }
+
+  const supabase = createAdminClient();
+  const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
+  const folder = kind === "company" ? "companies" : "contacts";
+  const path = `${orgId}/${folder}/${crypto.randomUUID()}.${ext}`;
+
+  const { error } = await supabase.storage
+    .from(CONTACT_IMAGES_BUCKET)
+    .upload(path, file, { contentType: file.type, upsert: false });
+
+  if (error) {
+    console.error("[uploadContactImage]", error.message);
+    return { success: false, error: "Не удалось загрузить изображение" };
+  }
+
+  // Замена: старый файл больше не нужен.
+  await removeStoredImage(supabase, previousUrl);
+
+  const { data } = supabase.storage
+    .from(CONTACT_IMAGES_BUCKET)
+    .getPublicUrl(path);
+  return { success: true, url: data.publicUrl };
+}
 
 // --- КОМПАНИИ ---
 
@@ -25,6 +114,15 @@ export async function upsertCompany(orgSlug: string, input: CompanyInput) {
     const guard = await assertCanMutate(orgSlug, "companies", id);
     if (!guard.ok) return guard.response;
 
+    // Текущий логотип нужен, чтобы удалить заменённый/очищенный файл.
+    const { data: existing } = await guard.ctx.supabase
+      .from("companies")
+      .select("logo_url")
+      .eq("id", id)
+      .eq("org_id", guard.ctx.orgId)
+      .maybeSingle();
+    const previousLogo = existing?.logo_url ?? null;
+
     const { data, error } = await guard.ctx.supabase
       .from("companies")
       .update(fields)
@@ -40,6 +138,14 @@ export async function upsertCompany(orgSlug: string, input: CompanyInput) {
         error: "Не удалось сохранить компанию",
       };
     }
+
+    // Логотип заменён или очищен — старый файл удаляем (best-effort).
+    const nextLogo =
+      fields.logo_url === undefined ? previousLogo : (fields.logo_url ?? null);
+    if (previousLogo && previousLogo !== nextLogo) {
+      await removeStoredImage(guard.ctx.supabase, previousLogo);
+    }
+
     revalidatePath(`/${orgSlug}/contacts`);
     // ← компания могла быть подрядчиком операций на страницах проектов
     revalidatePath(`/${orgSlug}/projects`, "layout");
@@ -70,6 +176,15 @@ export async function upsertCompany(orgSlug: string, input: CompanyInput) {
 export async function deleteCompany(orgSlug: string, id: string) {
   const guard = await assertCanMutate(orgSlug, "companies", id);
   if (!guard.ok) return guard.response;
+
+  // 1. Логотип: берём URL и удаляем файл из Storage (best-effort).
+  const { data: existing } = await guard.ctx.supabase
+    .from("companies")
+    .select("logo_url")
+    .eq("id", id)
+    .eq("org_id", guard.ctx.orgId)
+    .maybeSingle();
+  await removeStoredImage(guard.ctx.supabase, existing?.logo_url ?? null);
 
   // FK: contacts.company_id → SET NULL, materials.company_id → SET NULL
   // контакты станут независимыми, материалы останутся без поставщика
@@ -110,6 +225,15 @@ export async function upsertContact(
     const guard = await assertCanMutate(orgSlug, "contacts", id);
     if (!guard.ok) return guard.response;
 
+    // Текущее фото нужно, чтобы удалить заменённый/очищенный файл.
+    const { data: existing } = await guard.ctx.supabase
+      .from("contacts")
+      .select("avatar_url")
+      .eq("id", id)
+      .eq("org_id", guard.ctx.orgId)
+      .maybeSingle();
+    const previousAvatar = existing?.avatar_url ?? null;
+
     // компания обязана быть из той же организации
     if (companyId) {
       const { data: co } = await guard.ctx.supabase
@@ -133,6 +257,16 @@ export async function upsertContact(
       console.error("[upsertContact:update]", error.message);
       return { success: false as const, error: "Не удалось сохранить контакт" };
     }
+
+    // Фото заменено или очищено — старый файл удаляем (best-effort).
+    const nextAvatar =
+      fields.avatar_url === undefined
+        ? previousAvatar
+        : (fields.avatar_url ?? null);
+    if (previousAvatar && previousAvatar !== nextAvatar) {
+      await removeStoredImage(guard.ctx.supabase, previousAvatar);
+    }
+
     revalidatePath(`/${orgSlug}/contacts`);
     return { success: true as const, data };
   }
@@ -173,6 +307,15 @@ export async function upsertContact(
 export async function deleteContact(orgSlug: string, id: string) {
   const guard = await assertCanMutate(orgSlug, "contacts", id);
   if (!guard.ok) return guard.response;
+
+  // 1. Фото: берём URL и удаляем файл из Storage (best-effort).
+  const { data: existing } = await guard.ctx.supabase
+    .from("contacts")
+    .select("avatar_url")
+    .eq("id", id)
+    .eq("org_id", guard.ctx.orgId)
+    .maybeSingle();
+  await removeStoredImage(guard.ctx.supabase, existing?.avatar_url ?? null);
 
   const { error } = await guard.ctx.supabase
     .from("contacts")

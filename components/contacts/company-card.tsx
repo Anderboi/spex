@@ -13,6 +13,7 @@ import {
   UserRound,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import Image from "next/image";
 import { CompanyRow, ContactRow } from "@/lib/validations";
 import {
   initials,
@@ -98,9 +99,21 @@ export const CompanyCard = memo(
           className="overflow-hidden rounded-2xl border border-border bg-bg-card"
         >
           <div className="flex items-start gap-3 p-4 sm:gap-4 sm:p-5">
-            <div className="bg-bg-brand text-fg-brand flex size-10 shrink-0 items-center justify-center rounded-lg font-serif text-base sm:size-11 sm:text-lg">
-              {initials(company.name)}
-            </div>
+            {company.logo_url ? (
+              <div className="relative size-10 shrink-0 overflow-hidden rounded-lg border border-border bg-bg-card2 sm:size-11">
+                <Image
+                  src={company.logo_url}
+                  alt={company.name}
+                  fill
+                  sizes="44px"
+                  className="object-contain"
+                />
+              </div>
+            ) : (
+              <div className="bg-bg-brand text-fg-brand flex size-10 shrink-0 items-center justify-center rounded-lg font-serif text-base sm:size-11 sm:text-lg">
+                {initials(company.name)}
+              </div>
+            )}
             <div className="min-w-0 flex-1">
               <div className="flex flex-wrap items-center gap-4">
                 <h3
@@ -271,7 +284,8 @@ export const CompanyCard = memo(
         prevProps.company.phone !== nextProps.company.phone ||
         prevProps.company.email !== nextProps.company.email ||
         prevProps.company.website !== nextProps.company.website ||
-        prevProps.company.note !== nextProps.company.note
+        prevProps.company.note !== nextProps.company.note ||
+        prevProps.company.logo_url !== nextProps.company.logo_url
       ) {
         return false;
       }
