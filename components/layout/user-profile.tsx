@@ -7,6 +7,13 @@ import { LogoutDialog } from "../auth/logout-dialog";
 import { initials } from "@/lib/utils";
 import { ChevronDown } from "lucide-react";
 import { redirect } from "next/navigation";
+import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "../ui/sidebar";
+import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuTrigger,
+} from "../ui/dropdown-menu";
 
 interface UserProfileProps {
   user?: {
@@ -77,76 +84,81 @@ export function UserProfile({ user, orgSlug }: UserProfileProps) {
   };
 
   return (
-    <>
-      <div className="relative" ref={menuRef}>
-        {/* Popover Menu */}
-        {isPopoverOpen && (
-          <div className="absolute bottom-full left-0 mb-2 w-full min-w-55 bg-bg-card border border-border-muted rounded-[14px] p-1.5 shadow-[0_12px_32px_rgba(0,0,0,.12)] z-50 transition-all animate-in fade-in slide-in-from-bottom-2 duration-150">
-            <div className="px-3 py-2 border-b border-border-subtle mb-1">
-              <div className="text-[13px] font-semibold text-fg truncate">
-                {userName}
+    <SidebarMenu>
+      <SidebarMenuItem
+        className="relative"
+        // ref={menuRef}
+      >
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            className="w-full hover:bg-bg-card rounded-lg cursor-pointer"
+            render={<SidebarMenuButton size="lg" aria-label="Open user menu" />}
+          >
+            <Avatar>
+              <AvatarImage
+                className="bg-fg-brand"
+                src={user.image || ""}
+                alt="User avatar"
+              />
+              <AvatarFallback className="bg-bg-brand border border-fg-brand text-fg-brand">
+                {initial}
+              </AvatarFallback>
+            </Avatar>
+
+            <div className="flex-1 flex flex-col text-left min-w-0">
+              <span className="text-sm font-semibold truncate">{userName}</span>
+              <span className="text-xs text-fg-muted truncate">{role}</span>
+            </div>
+            <ChevronDown size={16} className="text-fg-muted" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent
+            align="end"
+            className="bg-bg w-(--radix-dropdown-menu-trigger-width) min-w-56 rounded-lg"
+            side={"right"}
+            sideOffset={4}
+          >
+            <div>
+              <div className="px-3 py-2 border-b border-border-subtle mb-1">
+                <div className="text-[13px] font-semibold text-fg truncate">
+                  {userName}
+                </div>
+                <div className="text-[11.5px] text-fg-muted truncate mt-0.5">
+                  {userEmail}
+                </div>
               </div>
-              <div className="text-[11.5px] text-fg-muted truncate mt-0.5">
-                {userEmail}
-              </div>
+
+              <button
+                onClick={() => {
+                  setIsPopoverOpen(false);
+                  redirect(`${orgSlug}/settings/team`);
+                }}
+                className="w-full flex items-center gap-2.5 px-2.5 py-2 text-[13px] font-medium text-fg-secondary rounded-[8px] hover:bg-bg-select hover:text-fg transition-colors cursor-pointer text-left"
+              >
+                Профиль и студия
+              </button>
+
+              <div className="my-1 border-t border-border-subtle" />
+
+              <button
+                type="button"
+                onClick={handleLogoutClick}
+                className="w-full flex items-center gap-2.5 px-2.5 py-2 text-[13px] font-medium text-fg-red rounded-[8px] hover:bg-bg-red-light transition-colors cursor-pointer text-left"
+              >
+                <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
+                  <path
+                    d="M6 14H3.33C2.6 14 2 13.4 2 12.67V3.33C2 2.6 2.6 2 3.33 2H6M11.33 11.33L14.67 8l-3.34-3.33M6 8h8.67"
+                    stroke="currentColor"
+                    strokeWidth="1.3"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+                Выйти
+              </button>
             </div>
-
-            <button
-              onClick={() => {
-                setIsPopoverOpen(false);
-                redirect(`${orgSlug}/settings/team`);
-              }}
-              className="w-full flex items-center gap-2.5 px-2.5 py-2 text-[13px] font-medium text-fg-secondary rounded-[8px] hover:bg-bg-select hover:text-fg transition-colors cursor-pointer text-left"
-            >
-              Профиль и студия
-            </button>
-
-            <div className="my-1 border-t border-border-subtle" />
-
-            <button
-              type="button"
-              onClick={handleLogoutClick}
-              className="w-full flex items-center gap-2.5 px-2.5 py-2 text-[13px] font-medium text-fg-red rounded-[8px] hover:bg-bg-red-light transition-colors cursor-pointer text-left"
-            >
-              <svg width="15" height="15" viewBox="0 0 16 16" fill="none">
-                <path
-                  d="M6 14H3.33C2.6 14 2 13.4 2 12.67V3.33C2 2.6 2.6 2 3.33 2H6M11.33 11.33L14.67 8l-3.34-3.33M6 8h8.67"
-                  stroke="currentColor"
-                  strokeWidth="1.3"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
-              Выйти
-            </button>
-          </div>
-        )}
-
-        {/* User Trigger Button */}
-        <button
-          type="button"
-          onClick={() => setIsPopoverOpen(!isPopoverOpen)}
-          className={`w-full flex items-center gap-3 p-2 rounded-[12px] border border-transparent transition-colors cursor-pointer ${
-            isPopoverOpen
-              ? "bg-bg-select border-border-muted"
-              : "hover:bg-bg-select"
-          }`}
-        >
-          <div className="size-8 rounded-[8px] bg-bg-accent text-bg flex items-center justify-center font-mono text-[12px] font-bold flex-none">
-            {initial}
-          </div>
-
-          <div className="flex-1 text-left min-w-0">
-            <div className="text-[13px] font-semibold text-fg leading-tight truncate">
-              {userName}
-            </div>
-            <div className="text-[11px] text-fg-muted leading-tight truncate mt-0.5">
-              {role}
-            </div>
-          </div>
-          <ChevronDown size={16} className="text-fg-muted" />
-        </button>
-      </div>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </SidebarMenuItem>
 
       {/* Диалог подтверждения с состоянием загрузки */}
       <LogoutDialog
@@ -156,6 +168,6 @@ export function UserProfile({ user, orgSlug }: UserProfileProps) {
         onClose={() => setIsLogoutDialogOpen(false)}
         onConfirm={handleConfirmLogout}
       />
-    </>
+    </SidebarMenu>
   );
 }

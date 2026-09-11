@@ -3,7 +3,6 @@
 import {
   Sidebar,
   SidebarContent,
-  SidebarFooter,
   SidebarGroup,
   SidebarHeader,
   SidebarMenu,
@@ -45,13 +44,11 @@ export function AppSidebar({
   return (
     <Sidebar variant="sidebar" collapsible="icon">
       <SidebarHeader className="font-heading text-xl flex flex-row items-center justify-between">
-        {/* <span className="group-data-[collapsible=icon]:hidden truncate font-semibold">
-          Spex
-        </span> */}
+       
         <OrgSwitcher currentSlug={currentSlug} organizations={organizations} />
       </SidebarHeader>
       <Separator className="border-border-muted" />
-      <SidebarContent>
+      <SidebarContent className="justify-between">
         <SidebarGroup>
           <SidebarMenu className="gap-1">
             {NAV.map(({ seg, label, icon: Icon }) => {
@@ -73,9 +70,7 @@ export function AppSidebar({
                       <Link
                         href={href}
                         aria-current={active ? "page" : undefined}
-                        className={cn(
-                          "flex gap-4 w-full font-medium items-center",
-                        )}
+                        className="flex gap-4 w-full font-medium items-center"
                       />
                     }
                   >
@@ -87,18 +82,18 @@ export function AppSidebar({
             })}
           </SidebarMenu>
         </SidebarGroup>
-      </SidebarContent>
-      <SidebarSeparator />
-      <SidebarFooter>
+
         <SidebarGroup>
           <SidebarMenu>
             <SidebarMenuItem>
               {can(currentRole, "member:invite") && (
                 <SidebarMenuButton
+                  className="cursor-pointer hover:bg-bg-card/60 h-10 px-4 text-fg-secondary/80 hover:text-fg-body"
+                  size={"default"}
                   render={
                     <Link
                       href={`/${currentSlug}/settings/team`}
-                      className="flex h-10 items-center gap-2 rounded-md px-3 text-sm text-fg-secondary hover:bg-bg-card/60"
+                      className="flex gap-4 w-full font-medium items-center"
                     />
                   }
                 >
@@ -111,13 +106,12 @@ export function AppSidebar({
             <SidebarMenuItem>
               <SidebarMenuButton
                 render={<UserProfile orgSlug={currentSlug} user={user} />}
-              >
-                {/* <SidebarMenuBadge>24</SidebarMenuBadge> */}
-              </SidebarMenuButton>
+              ></SidebarMenuButton>
             </SidebarMenuItem>
           </SidebarMenu>
         </SidebarGroup>
-      </SidebarFooter>
+      </SidebarContent>
+      <SidebarSeparator />
     </Sidebar>
   );
 }
