@@ -43,7 +43,7 @@ export function CategoryMultiSelect({
         <span
           role="combobox"
           aria-expanded={open}
-          className="w-full min-h-8 h-auto border flex rounded-lg items-center justify-between px-3 py-1.5 font-normal //bg-bg //hover:bg-bg border-border"
+          className="w-full min-h-10 h-auto border flex rounded-lg items-center justify-between px-3 py-1.5 font-normal //bg-bg //hover:bg-bg border-border"
         >
           <div className="flex flex-wrap gap-1 items-center max-w-[calc(100%-20px)]">
             {selected.length === 0 ? (

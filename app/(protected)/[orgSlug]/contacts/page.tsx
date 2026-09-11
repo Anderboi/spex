@@ -47,6 +47,7 @@ async function ContactsData({
     companiesCount,
     independentCount,
     pageCount,
+    independentPageCount,
   } = await getContactsDirectory(orgSlug, filters);
 
   return (
@@ -61,9 +62,15 @@ async function ContactsData({
         companiesCount={companiesCount}
         independentCount={independentCount}
         tab={filters.tab}
+        page={filters.page}
       />
 
-      <ContactsPagination page={filters.page} pageCount={pageCount} />
+      {/* Пагинация вне suspense-границы списка: при клиентской навигации она не
+          размонтируется и не мигает. Объём страниц читает сама из своих пропсов. */}
+      <ContactsPagination
+        pageCount={pageCount}
+        independentPageCount={independentPageCount}
+      />
     </>
   );
 }

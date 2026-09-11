@@ -28,17 +28,35 @@ function pageNumbers(current: number, total: number): (number | "ellipsis")[] {
   return pages;
 }
 
-export function ContactsPagination({
-  page,
-  pageCount,
-}: {
-  page: number;
+interface ContactsPaginationProps {
+  /** Всего страниц активной вкладки. */
   pageCount: number;
-}) {
+  /** Всего страниц вкладки специалистов — у вкладок разный объём. */
+  independentPageCount: number;
+}
+
+/**
+ * Пагинация справочника.
+ *
+ * Номер страницы и активная вкладка читаются из URL, а не из пропсов: так
+ * компонент остаётся живым при клиентской навигации (не размонтируется вместе
+ * с suspense-границей списка) и сам выбирает нужный объём страниц.
+ */
+export function ContactsPagination({
+  pageCount,
+  independentPageCount,
+}: ContactsPaginationProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  if (pageCount <= 1) return null;
+  const tab = searchParams.get("tab") === "independent" ? "independent" : "companies";
+  const total = tab === "companies" ? pageCount : independentPageCount;
+  const page = Math.min(
+    Math.max(Number(searchParams.get("page") ?? 1) || 1, 1),
+    total,
+  );
+
+  if (total <= 1) return null;
 
   const href = (p: number) => {
     const params = new URLSearchParams(searchParams.toString());
@@ -67,7 +85,7 @@ export function ContactsPagination({
         </span>
       )}
 
-      {pageNumbers(page, pageCount).map((p, i) =>
+      {pageNumbers(page, total).map((p, i) =>
         p === "ellipsis" ? (
           <span key={`e-${i}`} className="px-1 text-fg-muted">
             …
@@ -76,6 +94,7 @@ export function ContactsPagination({
           <Link
             key={p}
             href={href(p)}
+            aria-current={p === page ? "page" : undefined}
             className={cn(base, p === page ? active : idle)}
           >
             {p}
@@ -83,7 +102,7 @@ export function ContactsPagination({
         ),
       )}
 
-      {page < pageCount ? (
+      {page < total ? (
         <Link
           href={href(page + 1)}
           aria-label="Следующая страница"

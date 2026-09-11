@@ -606,6 +606,7 @@ export type ContactsDirectory = {
   companiesCount: number;
   independentCount: number;
   pageCount: number;
+  independentPageCount: number;
 };
 
 export async function getContactsDirectory(
@@ -672,17 +673,12 @@ export async function getContactsDirectory(
     });
   }
 
-  // Пагинация только для активной вкладки; для неактивной нужен лишь счётчик.
-  if (filters.tab === "companies") {
-    companiesQuery = companiesQuery.range(from, to);
-  } else {
-    companiesQuery = companiesQuery.range(0, 0);
-  }
-  if (filters.tab === "independent") {
-    independentQuery = independentQuery.range(from, to);
-  } else {
-    independentQuery = independentQuery.range(0, 0);
-  }
+  // Обе вкладки отдаём сразу: это два параллельных запроса к разным таблицам,
+  // которые и так выполняются, а выбрасывание данных неактивной вкладки заставляло
+  // при её открытии идти на сервер заново. Пагинация при этом применяется к обеим
+  // вкладкам — `page` относится к активной, вторая отдаётся той же страницей.
+  companiesQuery = companiesQuery.range(from, to);
+  independentQuery = independentQuery.range(from, to);
 
   const [companiesRes, independentRes] = await Promise.all([
     companiesQuery,
@@ -698,18 +694,16 @@ export async function getContactsDirectory(
     throw new Error("Не удалось загрузить контакты");
   }
 
-  const companies = (
-    filters.tab === "companies" ? (companiesRes.data ?? []) : []
-  ) as CompanyRow[];
-  const independentContacts = (
-    filters.tab === "independent" ? (independentRes.data ?? []) : []
-  ) as ContactRow[];
+  const companies = (companiesRes.data ?? []) as CompanyRow[];
+  const independentContacts = (independentRes.data ?? []) as ContactRow[];
   const companiesCount = companiesRes.count ?? 0;
   const independentCount = independentRes.count ?? 0;
 
-  const totalForTab =
-    filters.tab === "companies" ? companiesCount : independentCount;
-  const pageCount = Math.max(1, Math.ceil(totalForTab / CONTACTS_PAGE_SIZE));
+  const pageCount = Math.max(1, Math.ceil(companiesCount / CONTACTS_PAGE_SIZE));
+  const independentPageCount = Math.max(
+    1,
+    Math.ceil(independentCount / CONTACTS_PAGE_SIZE),
+  );
 
   let managers: ContactRow[] = [];
   if (companies.length > 0) {
@@ -735,6 +729,7 @@ export async function getContactsDirectory(
     companiesCount,
     independentCount,
     pageCount,
+    independentPageCount,
   };
 }
 export type UserOrganization = {

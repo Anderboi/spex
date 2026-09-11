@@ -1,14 +1,16 @@
 "use client";
 
 import {
+  useEffect,
   useMemo,
   useOptimistic,
+  useRef,
   useState,
   useTransition,
   type ReactNode,
 } from "react";
 import { Button } from "@/components/ui/button";
-import { Building2, Plus, UserPlus } from "lucide-react";
+import { Building2, Plus, RotateCcw, UserPlus } from "lucide-react";
 import Link from "next/link";
 import { CompanyCard } from "./company-card";
 import { CompanyContactsSheet } from "./company-contacts-sheet";
@@ -34,6 +36,8 @@ interface ContactsListProps {
   companiesCount: number;
   independentCount: number;
   tab: ContactsTab;
+  /** Номер страницы из URL: нужен только как сигнал «список сменился». */
+  page: number;
 }
 
 type DirectoryData = {
@@ -78,6 +82,7 @@ export function ContactsList({
   companiesCount,
   independentCount,
   tab,
+  page,
 }: ContactsListProps) {
   const searchParams = useSearchParams();
   const { update, isPending } = useContactsUrl();
@@ -92,7 +97,12 @@ export function ContactsList({
   /** Компания, контакты которой открыты в панели (оверлей, высота сетки не меняется). */
   const [openCompanyId, setOpenCompanyId] = useState<string | null>(null);
 
+  /** Якорь начала списка: к нему возвращаемся при смене страницы, чтобы после
+      пагинации не оказаться в середине нового списка. */
+  const listTopRef = useRef<HTMLDivElement | null>(null);
+
   const query = searchParams.get("query") ?? "";
+  const category = searchParams.get("category");
 
   // Диалоги и режим открытия управляются URL:
   //   ?dialog=company                — добавить компанию
@@ -215,6 +225,37 @@ export function ContactsList({
     [openCompanyId, managersByCompanyId],
   );
 
+  const scrollListToTop = () => {
+    listTopRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  // Возврат к началу списка при смене страницы. Первый рендер пропускаем, чтобы
+  // не дёргать страницу при открытии.
+  const isFirstRender = useRef(true);
+  useEffect(() => {
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+    scrollListToTop();
+  }, [page]);
+
+  /** Сброс поиска и категории — выход из пустого результата. `tab`, сортировка
+      и страница сбрасываются вместе с ними (page удаляется при смене query). */
+  const handleResetFilters = () => {
+    update({ query: "", category: null });
+  };
+
+  /** Переключение вкладки: данные обеих вкладок уже в пропсах, поэтому серверный
+      рендер не нужен — но список надо вернуть к началу, как при смене страницы. */
+  const handleSelectTab = (next: ContactsTab) => {
+    if (next === tab) return;
+    update({ tab: next });
+    scrollListToTop();
+  };
+
+  const isFiltered = Boolean(query || category);
+
   return (
     <>
       <div
@@ -224,14 +265,14 @@ export function ContactsList({
         <div role="tablist" className="mb-4 flex gap-1 border-b border-border">
           <TabButton
             active={tab === "companies"}
-            onClick={() => update({ tab: "companies" })}
+            onClick={() => handleSelectTab("companies")}
           >
             Компании
             <Count>{companiesCount}</Count>
           </TabButton>
           <TabButton
             active={tab === "independent"}
-            onClick={() => update({ tab: "independent" })}
+            onClick={() => handleSelectTab("independent")}
           >
             Специалисты
             <Count>{independentCount}</Count>
@@ -239,19 +280,23 @@ export function ContactsList({
         </div>
       </div>
 
-      <ul>
+      <div ref={listTopRef} className="scroll-mt-4">
         {tab === "companies" ? (
           data.companies.length === 0 ? (
             <EmptyState
               icon={<Building2 className="size-6" />}
-              title={query ? "Ничего не найдено" : "Нет компаний"}
+              title={isFiltered ? "Ничего не найдено" : "Нет компаний"}
               body={
-                query
-                  ? "Попробуйте изменить поисковый запрос."
+                isFiltered
+                  ? "Попробуйте изменить поисковый запрос или категорию."
                   : "Добавьте первого поставщика или салон."
               }
               action={
-                !query && (
+                isFiltered ? (
+                  <Button variant="outline" onClick={handleResetFilters}>
+                    <RotateCcw className="mr-2 size-4" /> Сбросить фильтры
+                  </Button>
+                ) : (
                   <Button
                     nativeButton={false}
                     render={<Link href={hrefFor("company")} />}
@@ -264,7 +309,7 @@ export function ContactsList({
           ) : (
             /* Высота карточек задана их структурой (три зоны фиксированной высоты),
                поэтому карточки в сетке совпадают по высоте без растягивания. */
-            <li className="grid grid-cols-1 gap-4 md:grid-cols-2">
+            <ul className="grid grid-cols-1 gap-4 md:grid-cols-2">
               {data.companies.map((c) => (
                 <CompanyCard
                   key={c.id}
@@ -275,19 +320,23 @@ export function ContactsList({
                   onRemoveCompany={handleRemoveCompany}
                 />
               ))}
-            </li>
+            </ul>
           )
         ) : data.independentContacts.length === 0 ? (
           <EmptyState
             icon={<UserPlus className="size-6" />}
-            title={query ? "Ничего не найдено" : "Нет независимых контактов"}
+            title={isFiltered ? "Ничего не найдено" : "Нет независимых контактов"}
             body={
-              query
-                ? "Попробуйте изменить запрос."
+              isFiltered
+                ? "Попробуйте изменить поисковый запрос или категорию."
                 : "Добавьте фрилансеров, мастеров или подрядчиков."
             }
             action={
-              !query && (
+              isFiltered ? (
+                <Button variant="outline" onClick={handleResetFilters}>
+                  <RotateCcw className="mr-2 size-4" /> Сбросить фильтры
+                </Button>
+              ) : (
                 <Button
                   nativeButton={false}
                   render={
@@ -311,7 +360,7 @@ export function ContactsList({
             ))}
           </ul>
         )}
-      </ul>
+      </div>
 
       <CompanyContactsSheet
         company={openCompany}
