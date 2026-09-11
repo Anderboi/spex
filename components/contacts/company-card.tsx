@@ -3,25 +3,22 @@
 import { memo, useId, useMemo, useState } from "react";
 import Image from "next/image";
 import {
-  ChevronDown,
+  ChevronRight,
   Globe,
   Mail,
   MapPin,
   Pencil,
   Phone,
   Plus,
+  StickyNote,
   Trash2,
-  Users,
+  UserRound,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { CompanyRow, ContactRow } from "@/lib/validations";
-import {
-  formatContactsCount,
-  initials,
-  normalizeWebsite,
-  telHref,
-} from "@/lib/utils";
-import { ManagerRow } from "./manager-row";
+import { initials, normalizeWebsite, telHref } from "@/lib/utils";
+import { ContactAvatarStack } from "./contact-avatar";
+import { MAX_AVATARS, pluralizeContacts } from "./contact-shared";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -32,9 +29,6 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "../ui/alert-dialog";
-
-/** Сколько контактов показываем в «рельсе» до раскрытия полного списка. */
-const VISIBLE_MANAGERS = 3;
 
 /** Сколько категорий показываем чипами, остальные сворачиваем в «+N». */
 const VISIBLE_CATEGORIES = 2;
@@ -52,42 +46,41 @@ const areCategoriesEqual = (
   return true;
 };
 
-const pluralizeContacts = formatContactsCount;
-
 interface CompanyCardProps {
   company: CompanyRow;
   managers: ContactRow[];
-  onAddManager: (companyId: string) => void;
+  /** Открывает панель контактов (группа, а не конкретный человек). */
+  onOpenContacts: (companyId: string) => void;
   onEditCompany: (id: string) => void;
-  onEditManager: (id: string) => void;
-  onRemoveManager: (id: string) => void;
   onRemoveCompany: (id: string) => void;
 }
 
 /**
  * Карточка компании в справочнике.
  *
- * Раскладка рассчитана на сетку из 2–3 колонок, поэтому ширина ориентировочная
- * и адаптируется контейнерными запросами (`@container` / `@[...]:`), а не
- * вьюпортными брейкпоинтами:
- *   шапка (логотип · название · категории · счётчик · действия)
- *   рельса контактов (первые {@link VISIBLE_MANAGERS} + «показать всех»)
- *   подвал реквизитов (адрес · телефон · почта · сайт)
+ * Высота задана структурой, а не содержимым: у карточки три зоны фиксированной
+ * высоты, и ни одна из них не зависит от количества контактов или длины данных.
+ * Поэтому карточки одинаковые по построению, а не потому что их растянули друг
+ * под друга:
+ *   зона 1 — логотип, название (ровно 2 строки), категории
+ *   зона 2 — строка-слот контактов: стек аватаров + имя, открывает панель
+ *   зона 3 — реквизиты (сетка 2×2) и однострочный превью заметки
+ *
+ * Контакты живут в оверлее (`CompanyContactsSheet`), поэтому высота сетки
+ * не меняется при просмотре.
  */
 export const CompanyCard = memo(
   function CompanyCard({
     company,
     managers,
-    onAddManager,
+    onOpenContacts,
     onEditCompany,
-    onEditManager,
-    onRemoveManager,
     onRemoveCompany,
   }: CompanyCardProps) {
-    const [expanded, setExpanded] = useState(false);
     const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
     const titleId = useId();
+    const contactRowLabel = `Контакты компании ${company.name}`;
 
     const website = useMemo(
       () => normalizeWebsite(company.website),
@@ -113,12 +106,8 @@ export const CompanyCard = memo(
     const shownCategories = categories.slice(0, VISIBLE_CATEGORIES);
     const restCategories = categories.length - shownCategories.length;
 
-    // Если контактов мало, «раскрывать» нечего — список показывается целиком.
-    const isExpanded = expanded || managers.length <= VISIBLE_MANAGERS;
-    const visibleManagers = isExpanded
-      ? managers
-      : managers.slice(0, VISIBLE_MANAGERS);
-    const hiddenCount = managers.length - visibleManagers.length;
+    const firstManager = managers[0];
+    const otherManagers = Math.max(managers.length - 1, 0);
 
     return (
       <>
@@ -126,64 +115,65 @@ export const CompanyCard = memo(
           aria-labelledby={titleId}
           style={{
             contentVisibility: "auto",
-            containIntrinsicSize: "0 280px",
+            containIntrinsicSize: "0 220px",
           }}
-          className="group @container flex flex-col overflow-hidden rounded-2xl border border-border bg-bg-card transition-colors hover:border-border-muted"
+          className="group @container flex h-full flex-col overflow-hidden rounded-2xl border border-border bg-bg-card transition-colors hover:border-border-muted"
         >
-          {/* Шапка: логотип-якорь, название, категории, действия */}
+          {/* Зона 1: логотип-якорь, название, категории, действия */}
           <header className="flex items-start gap-3 p-4">
             {company.logo_url ? (
-              <div className="relative size-12.5 shrink-0 overflow-hidden rounded-lg border border-border-subtle bg-bg-card2">
+              <div className="relative size-17 shrink-0 overflow-hidden rounded-lg border border-border-subtle bg-bg-card2">
                 <Image
                   src={company.logo_url}
                   alt=""
                   fill
-                  sizes="44px"
+                  sizes="50px"
                   className="object-contain"
                 />
               </div>
             ) : (
               <div
                 aria-hidden
-                className="flex size-12.5 shrink-0 items-center justify-center rounded-lg bg-bg-brand font-serif text-base text-fg-brand"
+                className="flex size-17 shrink-0 items-center justify-center rounded-lg bg-bg-brand font-serif text-base text-fg-brand"
               >
                 {initials(company.name)}
               </div>
             )}
 
             <div className="min-w-0 flex-1">
+              {/* Ровно 2 строки: иначе карточки с коротким и длинным названием
+                  разъезжаются по высоте и ломают выравнивание в строке сетки. */}
               <h3
                 id={titleId}
-                className="line-clamp-2 font-serif text-base font-semibold leading-snug text-fg-body"
+                className="line-clamp-2 h-10 wrap-break-word font-serif text-base font-semibold leading-snug text-fg-body"
               >
                 {company.name}
               </h3>
 
-              <div className="mt-1.5 flex items-center gap-1.5">
-                {shownCategories.map((cat) => (
-                  <span
-                    key={cat}
-                    className="max-w-28 truncate rounded-full border border-fg-brand/50 bg-bg-brand/30 px-2 py-0.5 text-xs font-medium text-fg-brand"
-                  >
-                    {cat}
-                  </span>
-                ))}
-                {restCategories > 0 && (
-                  <span
-                    className="shrink-0 rounded-full border border-border bg-bg-card2 px-2 py-0.5 text-xs font-medium text-fg-muted"
-                    title={categories.join(", ")}
-                  >
-                    +{restCategories}
-                  </span>
-                )}
-                {managers.length > 0 && (
-                  <span className="ml-auto shrink-0 whitespace-nowrap font-mono text-xs tabular-nums text-fg-muted">
-                    {pluralizeContacts(managers.length)}
-                  </span>
-                )}
-              </div>
+              {shownCategories.length > 0 || restCategories > 0 ? (
+                <div className="mt-1.5 flex items-center gap-1.5">
+                  {shownCategories.map((cat) => (
+                    <span
+                      key={cat}
+                      className="min-w-0 truncate rounded-full border border-fg-brand/50 bg-bg-brand/30 px-2 py-0.5 text-xs font-medium text-fg-brand"
+                    >
+                      {cat}
+                    </span>
+                  ))}
+                  {restCategories > 0 && (
+                    <span
+                      className="shrink-0 rounded-full border border-border bg-bg-card2 px-2 py-0.5 text-xs font-medium text-fg-muted"
+                      title={categories.join(", ")}
+                    >
+                      +{restCategories}
+                    </span>
+                  )}
+                </div>
+              ) : null}
             </div>
 
+            {/* Действия остаются в шапке свёрнутой карточки: правка компании —
+                частое действие и не должна требовать лишнего клика. */}
             <div className="flex shrink-0 items-center gap-0.5 transition-opacity group-focus-within:opacity-100 max-md:opacity-100 md:opacity-0 md:group-hover:opacity-100">
               <Button
                 variant="ghost"
@@ -206,58 +196,49 @@ export const CompanyCard = memo(
             </div>
           </header>
 
-          {/* Рельса контактов: люди — основной контент карточки, а не аккордеон */}
-          {managers.length > 0 ? (
-            <div className="divide-y divide-border-subtle border-t border-border-subtle">
-              <ul className="divide-y divide-border-subtle">
-                {visibleManagers.map((m) => (
-                  <ManagerRow
-                    key={m.id}
-                    manager={m}
-                    onEdit={onEditManager}
-                    onRemove={onRemoveManager}
-                  />
-                ))}
-              </ul>
-
-              {hiddenCount > 0 ? (
-                <button
-                  type="button"
-                  onClick={() => setExpanded(true)}
-                  className="flex w-full cursor-pointer items-center gap-1.5 px-3 py-2 text-xs font-medium text-fg-muted transition-colors hover:bg-bg-card2 hover:text-fg"
+          {/* Зона 2: строка-слот контактов — всегда одна строка независимо от
+              количества людей. Открывает панель контактов, высота сетки не меняется. */}
+          <button
+            type="button"
+            onClick={() => onOpenContacts(company.id)}
+            aria-label={contactRowLabel}
+            aria-haspopup="dialog"
+            className="flex min-h-14 w-full cursor-pointer items-center gap-2.5 border-t border-border-subtle px-4 py-2 text-left transition-colors hover:bg-bg-card2"
+          >
+            {managers.length > 0 ? (
+              <>
+                <ContactAvatarStack
+                  contacts={managers}
+                  size="xs"
+                  max={MAX_AVATARS}
+                />
+                <span className="min-w-0 flex-1 truncate text-sm text-fg-body">
+                  {firstManager?.name}
+                  {otherManagers > 0 && (
+                    <span className="text-fg-muted"> +{otherManagers}</span>
+                  )}
+                </span>
+              </>
+            ) : (
+              <>
+                <span
+                  aria-hidden
+                  className="flex size-7 shrink-0 items-center justify-center rounded-full border border-dashed border-border-dash text-fg-icon"
                 >
-                  <ChevronDown className="size-3.5 shrink-0" />
-                  Показать всех ({managers.length})
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={() => onAddManager(company.id || "")}
-                  className="flex w-full cursor-pointer items-center gap-1.5 px-3 py-2 text-xs font-medium text-fg-muted transition-colors hover:bg-bg-card2 hover:text-fg"
-                >
-                  <Plus className="size-3.5 shrink-0" />
+                  <Plus className="size-3.5" />
+                </span>
+                <span className="min-w-0 flex-1 truncate text-sm text-fg-muted">
                   Добавить контакт
-                </button>
-              )}
-            </div>
-          ) : (
-            <button
-              type="button"
-              onClick={() => onAddManager(company.id || "")}
-              className="flex w-full cursor-pointer items-center gap-2 border-t border-border-subtle px-4 py-3 text-sm text-fg-muted transition-colors hover:bg-bg-card2 hover:text-fg"
-            >
-              <Users className="size-4 shrink-0 text-fg-icon" />
-              Пока нет контактов — добавить представителя
-            </button>
-          )}
+                </span>
+              </>
+            )}
+            <ChevronRight className="size-4 shrink-0 text-fg-icon" />
+          </button>
 
-          {/* Подвал реквизитов: фиксированный ритм, длинные значения обрезаются */}
-          {(company.address ||
-            company.phone ||
-            company.email ||
-            websiteHref) && (
-            <footer className="mt-auto grid grid-cols-1 gap-x-6 gap-y-1 border-t border-border-subtle px-4 py-3 text-xs text-fg-muted @[24rem]:grid-cols-2">
-              {company.address && (
+          {/* Зона 3: реквизиты и превью заметки, прижаты к низу карточки */}
+          <div className="mt-auto">
+            <div className="grid grid-cols-1 gap-x-6 gap-y-1 border-t border-border-subtle px-4 py-3 text-xs text-fg-muted @[24rem]:grid-cols-2">
+              {company.address ? (
                 <span
                   className="flex min-w-0 items-center gap-1.5"
                   title={company.address}
@@ -265,8 +246,14 @@ export const CompanyCard = memo(
                   <MapPin className="size-3.5 shrink-0 text-fg-icon" />
                   <span className="truncate">{company.address}</span>
                 </span>
+              ) : (
+                <span className="flex min-w-0 items-center gap-1.5">
+                  <MapPin className="size-3.5 shrink-0 text-fg-icon" />
+                  <span className="truncate">Адрес не указан</span>
+                </span>
               )}
-              {company.phone && (
+
+              {company.phone ? (
                 <a
                   href={telHref(company.phone)}
                   title={company.phone}
@@ -275,8 +262,14 @@ export const CompanyCard = memo(
                   <Phone className="size-3.5 shrink-0 text-fg-icon" />
                   <span className="truncate">{company.phone}</span>
                 </a>
+              ) : (
+                <span className="flex min-w-0 items-center gap-1.5">
+                  <Phone className="size-3.5 shrink-0 text-fg-icon" />
+                  <span className="truncate">Телефон не указан</span>
+                </span>
               )}
-              {company.email && (
+
+              {company.email ? (
                 <a
                   href={`mailto:${company.email}`}
                   title={company.email}
@@ -285,8 +278,9 @@ export const CompanyCard = memo(
                   <Mail className="size-3.5 shrink-0 text-fg-icon" />
                   <span className="truncate">{company.email}</span>
                 </a>
-              )}
-              {websiteHref && websiteLabel && (
+              ) : null}
+
+              {websiteHref && websiteLabel ? (
                 <a
                   href={websiteHref}
                   target="_blank"
@@ -297,22 +291,31 @@ export const CompanyCard = memo(
                   <Globe className="size-3.5 shrink-0 text-fg-icon" />
                   <span className="truncate">{websiteLabel}</span>
                 </a>
-              )}
-            </footer>
-          )}
+              ) : null}
+            </div>
 
-          {/* Заметка сворачиваемая: длинный текст не ломает ритм сетки */}
-          {company.note && (
-            <details className="group/note border-t border-border-subtle">
-              <summary className="flex cursor-pointer list-none items-center gap-1.5 px-4 py-2.5 text-xs font-medium text-fg-muted transition-colors hover:bg-bg-card2 hover:text-fg">
-                <ChevronDown className="size-3.5 shrink-0 transition-transform group-open/note:rotate-180" />
-                Заметка
-              </summary>
-              <p className="whitespace-pre-line px-4 pb-3 text-xs leading-relaxed text-fg-body">
-                {company.note}
-              </p>
-            </details>
-          )}
+            {/* Превью заметки в одну строку: полный текст — в панели контактов.
+                Строка резервируется всегда, чтобы высота не зависела от наличия. */}
+            <p className="flex min-h-9 items-center gap-1.5 border-t border-border-subtle px-4 text-xs text-fg-muted">
+              {company.note ? (
+                <>
+                  <StickyNote className="size-3.5 shrink-0 text-fg-icon" />
+                  <span className="truncate" title={company.note}>
+                    {company.note}
+                  </span>
+                </>
+              ) : (
+                <>
+                  <UserRound className="size-3.5 shrink-0 text-fg-icon" />
+                  <span className="truncate">
+                    {managers.length > 0
+                      ? `${pluralizeContacts(managers.length)} · открыть контакты`
+                      : "Контакты не добавлены"}
+                  </span>
+                </>
+              )}
+            </p>
+          </div>
         </article>
 
         <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>

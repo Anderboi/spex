@@ -93,7 +93,7 @@ export default function TypeChipsSection({
 
   return (
     <div
-      className={`mt-4 w-full transition-opacity ${isPending ? "opacity-60" : "opacity-100"} ${className}`}
+      className={`//mt-4 w-full transition-opacity ${isPending ? "opacity-60" : "opacity-100"} ${className}`}
     >
       {/* 1. МОБИЛЬНАЯ ВЕРСИЯ (< sm): Селект */}
       <div className="block sm:hidden w-full">
@@ -101,7 +101,7 @@ export default function TypeChipsSection({
           <select
             value={activeCategory}
             onChange={(e) => handleSelectCategory(e.target.value)}
-            className="w-full h-10 rounded-lg bg-bg-card border border-border px-3.5 pr-8 text-sm text-fg-body font-sans appearance-none focus:outline-none focus:ring-1 focus:ring-border cursor-pointer shadow-sm"
+            className="w-full h-10 rounded-lg bg-bg-card border border-border px-3.5 pr-8 text-sm text-fg-body font-sans appearance-none focus:outline-none focus:ring-1 focus:ring-border cursor-pointer //shadow-sm"
           >
             {allTypes.map((label) => (
               <option key={label} value={label} className="bg-bg-card text-fg">
@@ -125,7 +125,7 @@ export default function TypeChipsSection({
           <ChevronLeft className="size-4" />
         </button>
 
-        <div className="[mask-image:linear-gradient(to_right,transparent,black_24px,black_calc(100%-24px),transparent)]">
+        <div className="mask-[linear-gradient(to_right,transparent,black_24px,black_calc(100%-24px),transparent)]">
           <div
             ref={scrollRef}
             onMouseDown={handleMouseDown}
@@ -152,7 +152,7 @@ export default function TypeChipsSection({
                   className={`shrink-0 rounded-full px-4 text-sm font-sans transition-colors cursor-pointer ${
                     on
                       ? "bg-bg-accent text-bg border border-bg-accent hover:bg-bg-accent/90"
-                      : "bg-bg-card text-fg-body border border-border hover:text-white hover:bg-bg-hover"
+                      : "bg-bg-card text-fg-body border border-border hover:text-fg hover:bg-bg-brand/10 hover:border-fg"
                   }`}
                 >
                   {label}

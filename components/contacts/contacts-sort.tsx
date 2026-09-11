@@ -5,14 +5,20 @@ import { useSearchParams } from "next/navigation";
 import { useContactsUrl } from "./use-contacts-url";
 import { CONTACTS_SORT_OPTIONS } from "@/lib/contacts/filters";
 import type { ContactsSort } from "@/lib/types";
+import { cn } from '@/lib/utils';
 
-export function ContactsSort() {
+export function ContactsSort({ isMobile=true }: { isMobile?: boolean }) {
   const searchParams = useSearchParams();
   const { update } = useContactsUrl();
   const sort = (searchParams.get("sort") ?? "created_desc") as ContactsSort;
 
   return (
-    <div className="relative inline-flex items-center">
+    <div
+      className={cn(
+        isMobile ? "sm:hidden flex":"hidden! sm:flex",
+        "relative inline-flex items-center ",
+      )}
+    >
       <select
         value={sort}
         onChange={(e) => update({ sort: e.target.value as ContactsSort })}

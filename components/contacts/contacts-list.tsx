@@ -1,10 +1,17 @@
 "use client";
 
-import { useMemo, useOptimistic, useTransition, type ReactNode } from "react";
+import {
+  useMemo,
+  useOptimistic,
+  useState,
+  useTransition,
+  type ReactNode,
+} from "react";
 import { Button } from "@/components/ui/button";
 import { Building2, Plus, UserPlus } from "lucide-react";
 import Link from "next/link";
 import { CompanyCard } from "./company-card";
+import { CompanyContactsSheet } from "./company-contacts-sheet";
 import { CompanyRow, ContactRow } from "@/lib/validations";
 import { deleteCompany, deleteContact } from "@/actions/contacts";
 import { CompanyDialog } from "./company-dialog";
@@ -82,6 +89,9 @@ export function ContactsList({
   } = useDialogUrl("dialog", CONTACT_DIALOG_CLEANUP);
   const [, startTransition] = useTransition();
 
+  /** Компания, контакты которой открыты в панели (оверлей, высота сетки не меняется). */
+  const [openCompanyId, setOpenCompanyId] = useState<string | null>(null);
+
   const query = searchParams.get("query") ?? "";
 
   // Диалоги и режим открытия управляются URL:
@@ -141,6 +151,10 @@ export function ContactsList({
   }, [data.managers]);
 
   const handleRemoveCompany = (id: string) => {
+    // Панель контактов удаляемой компании закрываем сразу — иначе она останется
+    // открытой поверх уже несуществующей записи.
+    setOpenCompanyId((current) => (current === id ? null : current));
+
     startTransition(async () => {
       dispatch({ type: "removeCompany", companyId: id });
 
@@ -168,12 +182,38 @@ export function ContactsList({
 
   // Режим редактирования: id записи кладём в URL, данные берёт диалог.
   const handleEditCompany = (id: string) => {
+    setOpenCompanyId(null);
     openDialog("company", { id });
   };
 
   const handleEditContact = (id: string) => {
+    setOpenCompanyId(null);
     openDialog("contact", { id });
   };
+
+  const handleAddManager = (companyId: string) => {
+    setOpenCompanyId(null);
+    openDialog("contact", { company_id: companyId });
+  };
+
+  const handleOpenContacts = (companyId: string) => {
+    setOpenCompanyId(companyId);
+  };
+
+  /** Компания и её контакты для открытой панели — берём из оптимистичных данных,
+      чтобы удаление контакта сразу отражалось в панели. */
+  const openCompany = useMemo(
+    () =>
+      openCompanyId
+        ? data.companies.find((c) => c.id === openCompanyId)
+        : undefined,
+    [openCompanyId, data.companies],
+  );
+
+  const openCompanyManagers = useMemo(
+    () => (openCompanyId ? managersByCompanyId.get(openCompanyId) || [] : []),
+    [openCompanyId, managersByCompanyId],
+  );
 
   return (
     <>
@@ -222,18 +262,16 @@ export function ContactsList({
               }
             />
           ) : (
-            <li className="grid grid-cols-1 items-start gap-4 md:grid-cols-2">
+            /* Высота карточек задана их структурой (три зоны фиксированной высоты),
+               поэтому карточки в сетке совпадают по высоте без растягивания. */
+            <li className="grid grid-cols-1 gap-4 md:grid-cols-2">
               {data.companies.map((c) => (
                 <CompanyCard
                   key={c.id}
                   company={c}
                   managers={managersByCompanyId.get(c.id) || []}
-                  onAddManager={(companyId) =>
-                    openDialog("contact", { company_id: companyId })
-                  }
+                  onOpenContacts={handleOpenContacts}
                   onEditCompany={handleEditCompany}
-                  onEditManager={handleEditContact}
-                  onRemoveManager={handleRemoveContact}
                   onRemoveCompany={handleRemoveCompany}
                 />
               ))}
@@ -274,6 +312,16 @@ export function ContactsList({
           </ul>
         )}
       </ul>
+
+      <CompanyContactsSheet
+        company={openCompany}
+        managers={openCompanyManagers}
+        onClose={() => setOpenCompanyId(null)}
+        onAddManager={handleAddManager}
+        onEditManager={handleEditContact}
+        onEditCompany={handleEditCompany}
+        onRemoveManager={handleRemoveContact}
+      />
 
       <CompanyDialog
         orgSlug={orgSlug}

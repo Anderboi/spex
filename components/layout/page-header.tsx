@@ -21,7 +21,7 @@ export function PageHeader({
         <SidebarTrigger />
       </div>
       <div
-        className={`flex flex-col sm:flex-row sm:items-end //pb-4 sm:justify-between gap-4 //pt-[clamp(28px,5vw,48px)] `}
+        className={`flex flex-row items-end justify-between gap-4 //pt-[clamp(28px,5vw,48px)] `}
       >
         <div className="flex items-end">
           <PageTitle>{title}</PageTitle>
