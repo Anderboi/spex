@@ -222,7 +222,7 @@ export function ContactsList({
               }
             />
           ) : (
-            <li className="flex flex-col gap-4">
+            <li className="grid grid-cols-1 items-start gap-4 md:grid-cols-2">
               {data.companies.map((c) => (
                 <CompanyCard
                   key={c.id}

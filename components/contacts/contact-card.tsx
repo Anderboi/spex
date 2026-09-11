@@ -3,9 +3,8 @@
 import { memo, useState } from "react";
 import { Pencil, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import Image from "next/image";
 import { ContactRow } from "@/lib/validations";
-import { initials } from "@/lib/utils";
+import { ContactAvatar } from "./contact-avatar";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -34,22 +33,12 @@ export const ContactCard = memo(
 
     return (
       <>
-        <li className="flex items-start gap-3 rounded-xl border border-border bg-bg-card p-4">
-          {contact.avatar_url ? (
-            <div className="relative size-10 shrink-0 overflow-hidden rounded-full border border-border">
-              <Image
-                src={contact.avatar_url}
-                alt={contact.name}
-                fill
-                sizes="40px"
-                className="object-cover"
-              />
-            </div>
-          ) : (
-            <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-bg-brand2 text-sm font-medium text-fg-body">
-              {initials(contact.name)}
-            </div>
-          )}
+        <li className="group flex items-start gap-3 rounded-xl border border-border bg-bg-card p-4 transition-colors hover:border-border-muted">
+          <ContactAvatar
+            name={contact.name}
+            avatarUrl={contact.avatar_url}
+            size="md"
+          />
           <div className="min-w-0 flex-1 space-y-2">
             <div className="flex flex-wrap items-baseline gap-x-2">
               <span className="font-medium text-fg-body">{contact.name}</span>
@@ -80,7 +69,8 @@ export const ContactCard = memo(
               {contact.phone && (
                 <a
                   href={`tel:${contact.phone}`}
-                  className="hover:text-fg-muted"
+                  title={contact.phone}
+                  className="truncate font-mono tabular-nums hover:text-fg-muted"
                 >
                   {contact.phone}
                 </a>
@@ -91,10 +81,10 @@ export const ContactCard = memo(
               <p className="mt-2 text-xs text-fg-muted">{contact.note}</p>
             )}
           </div>
-          <div className="flex shrink-0 items-center gap-1">
+          <div className="flex shrink-0 items-center gap-0.5 transition-opacity group-focus-within:opacity-100 max-md:opacity-100 md:opacity-0 md:group-hover:opacity-100">
             <Button
               variant="ghost"
-              size="icon-xs"
+              size="icon-sm"
               aria-label={`Редактировать контакт ${contact.name}`}
               onClick={() => onEdit(contact.id)}
               className="cursor-pointer text-fg-muted hover:text-fg"
@@ -103,7 +93,7 @@ export const ContactCard = memo(
             </Button>
             <Button
               variant="ghost"
-              size="icon-xs"
+              size="icon-sm"
               aria-label={`Удалить контакт ${contact.name}`}
               onClick={() => setShowDeleteDialog(true)}
               className="cursor-pointer text-fg-muted hover:text-destructive"

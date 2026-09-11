@@ -3,8 +3,8 @@
 import { Mail, Pencil, Phone, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { ContactRow } from "@/lib/validations";
-import { initials } from "@/lib/utils";
 import { memo, useState } from "react";
+import { ContactAvatar } from "./contact-avatar";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -33,47 +33,55 @@ export const ManagerRow = memo(
 
     return (
       <>
-        <li className="group flex items-center gap-3 rounded-lg px-3 py-2.5 transition-colors hover:bg-bg-card">
-          <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-bg-brand2 text-xs font-medium text-fg">
-            {initials(manager.name)}
-          </div>
+        <li className="group/manager flex items-center gap-3 px-4 py-2.5 transition-colors hover:bg-bg-card2">
+          <ContactAvatar
+            name={manager.name}
+            avatarUrl={manager.avatar_url}
+            size="sm"
+          />
           <div className="min-w-0 flex-1">
             <div className="flex flex-wrap items-baseline gap-x-2">
-              <span className="text-sm font-medium text-fg">
+              <span className="truncate text-sm font-medium text-fg">
                 {manager.name}
               </span>
               {manager.title ? (
-                <span className="text-xs text-fg-muted">{manager.title}</span>
+                <span className="truncate text-xs text-fg-muted">
+                  {manager.title}
+                </span>
               ) : null}
             </div>
             <div className="mt-0.5 flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-fg-muted">
               {manager.email ? (
                 <a
                   href={`mailto:${manager.email}`}
-                  className="inline-flex items-center gap-1.5 hover:text-fg"
+                  title={manager.email}
+                  className="inline-flex min-w-0 items-center gap-1.5 hover:text-fg"
                 >
-                  <Mail className="size-3" /> {manager.email}
+                  <Mail className="size-3 shrink-0 text-fg-icon" />
+                  <span className="truncate">{manager.email}</span>
                 </a>
               ) : null}
               {manager.phone ? (
                 <a
                   href={`tel:${manager.phone}`}
-                  className="inline-flex items-center gap-1.5 hover:text-fg"
+                  title={manager.phone}
+                  className="inline-flex min-w-0 items-center gap-1.5 font-mono tabular-nums hover:text-fg"
                 >
-                  <Phone className="size-3" /> {manager.phone}
+                  <Phone className="size-3 shrink-0 text-fg-icon" />
+                  <span className="truncate">{manager.phone}</span>
                 </a>
               ) : null}
             </div>
             {manager.note ? (
-              <p className="mt-1 text-xs leading-relaxed text-fg-muted">
+              <p className="mt-1 line-clamp-2 text-xs leading-relaxed text-fg-muted">
                 {manager.note}
               </p>
             ) : null}
           </div>
-          <div className="flex shrink-0 items-center gap-0.5 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
+          <div className="flex shrink-0 items-center gap-0.5 transition-opacity group-focus-within/manager:opacity-100 max-md:opacity-100 md:opacity-0 md:group-hover/manager:opacity-100">
             <Button
               variant="ghost"
-              size="icon-lg"
+              size="icon-sm"
               aria-label={`Редактировать контакт ${manager.name}`}
               onClick={() => onEdit(manager.id)}
               className="text-fg-muted hover:text-fg"
@@ -82,7 +90,7 @@ export const ManagerRow = memo(
             </Button>
             <Button
               variant="ghost"
-              size="icon-lg"
+              size="icon-sm"
               aria-label={`Удалить контакт ${manager.name}`}
               onClick={() => setShowDeleteDialog(true)}
               className="text-fg-muted hover:text-destructive"
@@ -121,7 +129,9 @@ export const ManagerRow = memo(
       prevProps.manager.name === nextProps.manager.name &&
       prevProps.manager.title === nextProps.manager.title &&
       prevProps.manager.email === nextProps.manager.email &&
-      prevProps.manager.phone === nextProps.manager.phone
+      prevProps.manager.phone === nextProps.manager.phone &&
+      prevProps.manager.note === nextProps.manager.note &&
+      prevProps.manager.avatar_url === nextProps.manager.avatar_url
     );
   },
 );

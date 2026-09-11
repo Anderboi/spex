@@ -1,6 +1,7 @@
 "use client";
 
 import { memo, useId, useMemo, useState } from "react";
+import Image from "next/image";
 import {
   ChevronDown,
   Globe,
@@ -10,12 +11,12 @@ import {
   Phone,
   Plus,
   Trash2,
-  UserRound,
+  Users,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import Image from "next/image";
 import { CompanyRow, ContactRow } from "@/lib/validations";
 import {
+  formatContactsCount,
   initials,
   normalizeWebsite,
   telHref,
@@ -32,18 +33,11 @@ import {
   AlertDialogTitle,
 } from "../ui/alert-dialog";
 
-const ruPlural = new Intl.PluralRules("ru-RU");
-const CONTACT_FORMS = {
-  zero: "контактов",
-  one: "контакт",
-  two: "контакта", // Intl может не возвращать two для ru-RU, но для TS-безопасности лучше покрыть
-  few: "контакта",
-  many: "контактов",
-  other: "контактов",
-};
+/** Сколько контактов показываем в «рельсе» до раскрытия полного списка. */
+const VISIBLE_MANAGERS = 3;
 
-const pluralizeContacts = (n: number) =>
-  `${n} ${CONTACT_FORMS[ruPlural.select(n) as keyof typeof CONTACT_FORMS]}`;
+/** Сколько категорий показываем чипами, остальные сворачиваем в «+N». */
+const VISIBLE_CATEGORIES = 2;
 
 const areCategoriesEqual = (
   a: string[] | undefined | null,
@@ -58,6 +52,8 @@ const areCategoriesEqual = (
   return true;
 };
 
+const pluralizeContacts = formatContactsCount;
+
 interface CompanyCardProps {
   company: CompanyRow;
   managers: ContactRow[];
@@ -68,6 +64,16 @@ interface CompanyCardProps {
   onRemoveCompany: (id: string) => void;
 }
 
+/**
+ * Карточка компании в справочнике.
+ *
+ * Раскладка рассчитана на сетку из 2–3 колонок, поэтому ширина ориентировочная
+ * и адаптируется контейнерными запросами (`@container` / `@[...]:`), а не
+ * вьюпортными брейкпоинтами:
+ *   шапка (логотип · название · категории · счётчик · действия)
+ *   рельса контактов (первые {@link VISIBLE_MANAGERS} + «показать всех»)
+ *   подвал реквизитов (адрес · телефон · почта · сайт)
+ */
 export const CompanyCard = memo(
   function CompanyCard({
     company,
@@ -78,11 +84,10 @@ export const CompanyCard = memo(
     onRemoveManager,
     onRemoveCompany,
   }: CompanyCardProps) {
-    const [open, setOpen] = useState(managers.length > 0);
+    const [expanded, setExpanded] = useState(false);
     const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
     const titleId = useId();
-    const panelId = useId();
 
     const website = useMemo(
       () => normalizeWebsite(company.website),
@@ -97,9 +102,23 @@ export const CompanyCard = memo(
       onRemoveCompany(company.id);
     };
 
-    const categories = Array.isArray(company.category)
-      ? Array.from(new Set(company.category.filter(Boolean)))
-      : [];
+    const categories = useMemo(
+      () =>
+        Array.isArray(company.category)
+          ? Array.from(new Set(company.category.filter(Boolean)))
+          : [],
+      [company.category],
+    );
+
+    const shownCategories = categories.slice(0, VISIBLE_CATEGORIES);
+    const restCategories = categories.length - shownCategories.length;
+
+    // Если контактов мало, «раскрывать» нечего — список показывается целиком.
+    const isExpanded = expanded || managers.length <= VISIBLE_MANAGERS;
+    const visibleManagers = isExpanded
+      ? managers
+      : managers.slice(0, VISIBLE_MANAGERS);
+    const hiddenCount = managers.length - visibleManagers.length;
 
     return (
       <>
@@ -107,156 +126,193 @@ export const CompanyCard = memo(
           aria-labelledby={titleId}
           style={{
             contentVisibility: "auto",
-            containIntrinsicSize: "0 180px",
+            containIntrinsicSize: "0 280px",
           }}
-          className="overflow-hidden rounded-2xl border border-border bg-bg-card"
+          className="group @container flex flex-col overflow-hidden rounded-2xl border border-border bg-bg-card transition-colors hover:border-border-muted"
         >
-          <div className="flex items-start gap-3 p-4 sm:gap-4 sm:p-5 group">
+          {/* Шапка: логотип-якорь, название, категории, действия */}
+          <header className="flex items-start gap-3 p-4">
             {company.logo_url ? (
-              <div className="relative size-10 shrink-0 overflow-hidden rounded-lg border border-border bg-bg-card2 sm:size-11">
+              <div className="relative size-12.5 shrink-0 overflow-hidden rounded-lg border border-border-subtle bg-bg-card2">
                 <Image
                   src={company.logo_url}
-                  alt={company.name}
+                  alt=""
                   fill
                   sizes="44px"
                   className="object-contain"
                 />
               </div>
             ) : (
-              <div className="bg-bg-brand text-fg-brand flex size-10 shrink-0 items-center justify-center rounded-lg font-serif text-base sm:size-11 sm:text-lg">
+              <div
+                aria-hidden
+                className="flex size-12.5 shrink-0 items-center justify-center rounded-lg bg-bg-brand font-serif text-base text-fg-brand"
+              >
                 {initials(company.name)}
               </div>
             )}
+
             <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-center gap-4">
-                <h3
-                  id={titleId}
-                  className="font-serif text-lg font-semibold leading-tight text-fg-body"
-                >
-                  {company.name}
-                </h3>
-                <div className="flex flex-wrap gap-2">
-                  {categories.length > 0 ? (
-                    categories.map((cat) => (
-                      <span
-                        key={cat}
-                        className="rounded-full border border-fg-brand/50 bg-bg-brand/30 text-fg-brand px-2 py-0.5 text-xs font-medium"
-                      >
-                        {cat}
-                      </span>
-                    ))
-                  ) : (
-                    <span className="text-xs text-fg-muted">Без категории</span>
-                  )}
-                </div>
-              </div>
-              <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-sm text-fg-muted">
-                {company.address && (
-                  <span className="inline-flex items-center gap-1.5">
-                    <MapPin className="size-4 shrink-0" /> {company.address}
+              <h3
+                id={titleId}
+                className="line-clamp-2 font-serif text-base font-semibold leading-snug text-fg-body"
+              >
+                {company.name}
+              </h3>
+
+              <div className="mt-1.5 flex items-center gap-1.5">
+                {shownCategories.map((cat) => (
+                  <span
+                    key={cat}
+                    className="max-w-28 truncate rounded-full border border-fg-brand/50 bg-bg-brand/30 px-2 py-0.5 text-xs font-medium text-fg-brand"
+                  >
+                    {cat}
+                  </span>
+                ))}
+                {restCategories > 0 && (
+                  <span
+                    className="shrink-0 rounded-full border border-border bg-bg-card2 px-2 py-0.5 text-xs font-medium text-fg-muted"
+                    title={categories.join(", ")}
+                  >
+                    +{restCategories}
                   </span>
                 )}
-                {company.phone && (
-                  <a
-                    href={telHref(company.phone)}
-                    className="inline-flex items-center gap-1.5 hover:text-fg"
-                  >
-                    <Phone className="size-4 shrink-0" /> {company.phone}
-                  </a>
-                )}
-                {company.email && (
-                  <a
-                    href={`mailto:${company.email}`}
-                    className="inline-flex items-center gap-1.5 hover:text-fg"
-                  >
-                    <Mail className="size-4 shrink-0" /> {company.email}
-                  </a>
-                )}
-                {websiteHref && websiteLabel && (
-                  <a
-                    href={websiteHref}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="inline-flex items-center gap-1.5 hover:text-fg"
-                  >
-                    <Globe className="size-4 shrink-0" /> {websiteLabel}
-                  </a>
+                {managers.length > 0 && (
+                  <span className="ml-auto shrink-0 whitespace-nowrap font-mono text-xs tabular-nums text-fg-muted">
+                    {pluralizeContacts(managers.length)}
+                  </span>
                 )}
               </div>
-              {company.note && (
-                <p className="mt-3 text-sm leading-relaxed text-fg-muted">
-                  {company.note}
-                </p>
-              )}
             </div>
-            <div className="flex shrink-0 items-center gap-0.5 opacity-100 transition-opacity sm:opacity-0 sm:group-hover:opacity-100">
+
+            <div className="flex shrink-0 items-center gap-0.5 transition-opacity group-focus-within:opacity-100 max-md:opacity-100 md:opacity-0 md:group-hover:opacity-100">
               <Button
                 variant="ghost"
-                size="icon-lg"
+                size="icon-sm"
                 aria-label={`Редактировать компанию ${company.name}`}
                 onClick={() => onEditCompany(company.id)}
-                className="text-fg-muted cursor-pointer hover:text-fg"
+                className="cursor-pointer text-fg-muted hover:text-fg"
               >
                 <Pencil className="size-4 shrink-0" />
               </Button>
               <Button
                 variant="ghost"
-                size="icon-lg"
+                size="icon-sm"
                 aria-label={`Удалить компанию ${company.name}`}
                 onClick={() => setShowDeleteDialog(true)}
-                className="text-fg-muted cursor-pointer hover:text-destructive"
+                className="cursor-pointer text-fg-muted hover:text-destructive"
               >
                 <Trash2 className="size-4 shrink-0" />
               </Button>
             </div>
-          </div>
+          </header>
 
-          <div className="border-t border-border bg-bg-card2">
-            <div className="flex items-center justify-between px-3 py-2.5 sm:px-5">
-              <button
-                type="button"
-                onClick={() => setOpen((v) => !v)}
-                aria-expanded={open}
-                aria-controls={panelId}
-                className="inline-flex items-center gap-1.5 text-sm font-medium text-fg"
-              >
-                <ChevronDown
-                  className={`size-4 transition-transform ${open ? "" : "-rotate-90"}`}
-                />
-                <UserRound className="size-4 shrink-0 text-fg-muted" />
-                {pluralizeContacts(managers.length)}
-              </button>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => onAddManager(company.id || "")}
-                className="cursor-pointer"
-              >
-                <Plus className="size-4 shrink-0" /> Добавить контакт
-              </Button>
+          {/* Рельса контактов: люди — основной контент карточки, а не аккордеон */}
+          {managers.length > 0 ? (
+            <div className="divide-y divide-border-subtle border-t border-border-subtle">
+              <ul className="divide-y divide-border-subtle">
+                {visibleManagers.map((m) => (
+                  <ManagerRow
+                    key={m.id}
+                    manager={m}
+                    onEdit={onEditManager}
+                    onRemove={onRemoveManager}
+                  />
+                ))}
+              </ul>
+
+              {hiddenCount > 0 ? (
+                <button
+                  type="button"
+                  onClick={() => setExpanded(true)}
+                  className="flex w-full cursor-pointer items-center gap-1.5 px-3 py-2 text-xs font-medium text-fg-muted transition-colors hover:bg-bg-card2 hover:text-fg"
+                >
+                  <ChevronDown className="size-3.5 shrink-0" />
+                  Показать всех ({managers.length})
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => onAddManager(company.id || "")}
+                  className="flex w-full cursor-pointer items-center gap-1.5 px-3 py-2 text-xs font-medium text-fg-muted transition-colors hover:bg-bg-card2 hover:text-fg"
+                >
+                  <Plus className="size-3.5 shrink-0" />
+                  Добавить контакт
+                </button>
+              )}
             </div>
-            {open ? (
-              <div className="px-2 pb-2">
-                {managers.length === 0 ? (
-                  <p className="px-3 py-4 text-sm text-fg-muted">
-                    Пока нет контактов. Добавьте представителя или менеджера
-                    компании.
-                  </p>
-                ) : (
-                  <ul className="flex flex-col gap-1">
-                    {managers.map((m) => (
-                      <ManagerRow
-                        key={m.id}
-                        manager={m}
-                        onEdit={onEditManager}
-                        onRemove={onRemoveManager}
-                      />
-                    ))}
-                  </ul>
-                )}
-              </div>
-            ) : null}
-          </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => onAddManager(company.id || "")}
+              className="flex w-full cursor-pointer items-center gap-2 border-t border-border-subtle px-4 py-3 text-sm text-fg-muted transition-colors hover:bg-bg-card2 hover:text-fg"
+            >
+              <Users className="size-4 shrink-0 text-fg-icon" />
+              Пока нет контактов — добавить представителя
+            </button>
+          )}
+
+          {/* Подвал реквизитов: фиксированный ритм, длинные значения обрезаются */}
+          {(company.address ||
+            company.phone ||
+            company.email ||
+            websiteHref) && (
+            <footer className="mt-auto grid grid-cols-1 gap-x-6 gap-y-1 border-t border-border-subtle px-4 py-3 text-xs text-fg-muted @[24rem]:grid-cols-2">
+              {company.address && (
+                <span
+                  className="flex min-w-0 items-center gap-1.5"
+                  title={company.address}
+                >
+                  <MapPin className="size-3.5 shrink-0 text-fg-icon" />
+                  <span className="truncate">{company.address}</span>
+                </span>
+              )}
+              {company.phone && (
+                <a
+                  href={telHref(company.phone)}
+                  title={company.phone}
+                  className="flex min-w-0 items-center gap-1.5 font-mono tabular-nums transition-colors hover:text-fg"
+                >
+                  <Phone className="size-3.5 shrink-0 text-fg-icon" />
+                  <span className="truncate">{company.phone}</span>
+                </a>
+              )}
+              {company.email && (
+                <a
+                  href={`mailto:${company.email}`}
+                  title={company.email}
+                  className="flex min-w-0 items-center gap-1.5 transition-colors hover:text-fg"
+                >
+                  <Mail className="size-3.5 shrink-0 text-fg-icon" />
+                  <span className="truncate">{company.email}</span>
+                </a>
+              )}
+              {websiteHref && websiteLabel && (
+                <a
+                  href={websiteHref}
+                  target="_blank"
+                  rel="noreferrer"
+                  title={websiteLabel}
+                  className="flex min-w-0 items-center gap-1.5 transition-colors hover:text-fg"
+                >
+                  <Globe className="size-3.5 shrink-0 text-fg-icon" />
+                  <span className="truncate">{websiteLabel}</span>
+                </a>
+              )}
+            </footer>
+          )}
+
+          {/* Заметка сворачиваемая: длинный текст не ломает ритм сетки */}
+          {company.note && (
+            <details className="group/note border-t border-border-subtle">
+              <summary className="flex cursor-pointer list-none items-center gap-1.5 px-4 py-2.5 text-xs font-medium text-fg-muted transition-colors hover:bg-bg-card2 hover:text-fg">
+                <ChevronDown className="size-3.5 shrink-0 transition-transform group-open/note:rotate-180" />
+                Заметка
+              </summary>
+              <p className="whitespace-pre-line px-4 pb-3 text-xs leading-relaxed text-fg-body">
+                {company.note}
+              </p>
+            </details>
+          )}
         </article>
 
         <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
