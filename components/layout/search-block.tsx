@@ -1,54 +1,82 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Loader2, Search, X } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { useProjectsUrl } from "@/hooks/use-projects-url";
 import { cn } from "@/lib/utils";
 
-interface SearchProps {
+/** Минимальный контракт URL-хука раздела, достаточный для строки поиска. */
+type SearchUrlHook = () => {
+  update: (patch: { query: string }) => void;
+  isPending: boolean;
+};
+
+interface SearchBlockProps {
+  /**
+   * Хук URL-обновления того раздела, в котором стоит поиск. Раньше компонент
+   * жёстко использовал `useProjectsUrl`, из-за чего поиск в контактах и
+   * материалах обновлял URL через парсер фильтров проектов и брал чужой
+   * `isPending`. Значение по умолчанию — для страницы проектов.
+   */
+  useSearchUrl?: SearchUrlHook;
   placeholder?: string;
   className?: string;
 }
 
 export function SearchBlock({
+  useSearchUrl = useProjectsUrl,
   placeholder = "Поиск проекта по адресу, клиенту, названию...",
   className,
-}: SearchProps) {
-   const searchParams = useSearchParams();
-   const { update, isPending } = useProjectsUrl();
+}: SearchBlockProps) {
+  const { update, isPending } = useSearchUrl();
+  const searchParams = useSearchParams();
 
-   const urlQuery = searchParams.get("query") ?? "";
+  const urlQuery = searchParams.get("query") ?? "";
 
-   const [value, setValue] = useState(urlQuery);
+  // Производное состояние вместо setState в эффекте: пока URL не изменился
+  // извне, источник истины для поля — то, что ввёл пользователь.
+  const [state, setState] = useState({ value: urlQuery, urlQuery });
+  if (state.urlQuery !== urlQuery) {
+    setState({ value: urlQuery, urlQuery });
+  }
 
-   useEffect(() => {
-     setValue((currentValue) => {
-       // Пока пользователь ввёл новое значение,
-       // не перезаписываем его старым URL.
-       if (currentValue.trim() !== urlQuery) {
-         return currentValue;
-       }
+  const value = state.value;
 
-       return urlQuery;
-     });
-   }, [urlQuery]);
+  /** Последний запрос, который мы сами отправили в URL. Нужен, чтобы отложенный
+      сброс не перебивал внешнее изменение URL (например, клик по чипу категории). */
+  const sentQuery = useRef<string | null>(null);
 
-   useEffect(() => {
-     const query = value.trim();
+  useEffect(() => {
+    const query = value.trim();
 
-     if (query === urlQuery) {
-       return;
-     }
+    if (query === urlQuery) {
+      // URL догнал поле — отложенный сброс больше не нужен.
+      sentQuery.current = query;
+      return;
+    }
 
-     const timer = setTimeout(() => {
-       update({ query });
-     }, 350);
+    if (sentQuery.current === query) {
+      // Значение уже отправлено (или URL изменился независимо от нас) — не дублируем навигацию.
+      return;
+    }
 
-     return () => clearTimeout(timer);
-   }, [value, urlQuery, update]);
+    const timer = setTimeout(() => {
+      sentQuery.current = query;
+      update({ query });
+    }, 350);
 
-   const busy = isPending || value.trim() !== urlQuery;
+    return () => clearTimeout(timer);
+  }, [value, urlQuery, update]);
+
+  /** Очистка применяется сразу: ждать дебаунс на явное действие незачем. */
+  const handleClear = () => {
+    sentQuery.current = "";
+    setState({ value: "", urlQuery });
+    update({ query: "" });
+  };
+
+  const busy = isPending || value.trim() !== urlQuery;
 
   return (
     <div
@@ -64,15 +92,17 @@ export function SearchBlock({
       )}
       <input
         value={value}
-        onChange={(e) => setValue(e.target.value)}
+        onChange={(e) => setState({ value: e.target.value, urlQuery })}
         placeholder={placeholder}
         aria-label={placeholder}
+        autoComplete="off"
+        enterKeyHint="search"
         className="min-w-0 flex-1 bg-transparent text-[16px] text-fg outline-none placeholder:text-fg-muted"
       />
       {value.length > 0 && (
         <button
           type="button"
-          onClick={() => setValue("")}
+          onClick={handleClear}
           aria-label="Очистить поиск"
           className="flex size-6 shrink-0 items-center justify-center rounded-md text-fg-muted transition-colors hover:bg-bg-brand hover:text-fg"
         >

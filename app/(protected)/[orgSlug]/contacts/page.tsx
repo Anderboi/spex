@@ -50,6 +50,19 @@ async function ContactsData({
     independentPageCount,
   } = await getContactsDirectory(orgSlug, filters);
 
+  // Зажимаем страницу по границам активной вкладки. Номер мог остаться от другой
+  // вкладки (например `?page=4` после перехода на специалистов с одной страницей):
+  // тогда список пуст, а пагинация при `pageCount = 1` скрыта — тупик без выхода.
+  //
+  // Оговорка: запрос уже выполнен с исходным номером, поэтому такая выборка
+  // приходит пустой (лишний дешёвый `range` по индексу). Считать точные границы
+  // до выборки можно только отдельным count-запросом — это лишний round trip на
+  // каждый рендер страницы, что для редкого случая не оправдано. Зажим нужен
+  // ради консистентности того, что видит пользователь.
+  const activePageCount =
+    filters.tab === "companies" ? pageCount : independentPageCount;
+  if (filters.page > activePageCount) filters.page = activePageCount;
+
   return (
     <>
       <ContactsToolbar />

@@ -3,7 +3,6 @@ import { ConfirmProvider } from "@/components/confirm-provider";
 import {
   SidebarInset,
   SidebarProvider,
-  SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { requireOrgBySlug } from "@/lib/auth/session";
 
@@ -17,7 +16,6 @@ export default async function OrgLayout({
   const { orgSlug } = await params;
   const { user, userId, orgId, role, organizations } =
     await requireOrgBySlug(orgSlug);
-  console.log("[createInvite] userId:", userId, "orgId:", orgId);
 
   return (
     <SidebarProvider>
