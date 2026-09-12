@@ -70,18 +70,28 @@ async function MaterialsData({
     getMaterialBrands(orgSlug),
   ]);
 
+  // Номер страницы мог остаться от другой выборки (`?page=9` после смены
+  // категории): выборка приходит пустой, а пагинация зажата до реального
+  // диапазона — тупик без выхода. Повторяем запрос уже с последней страницей:
+  // лишний round trip случается только в этом редком случае.
+  let materials = items;
+  if (items.length === 0 && filters.page > pageCount) {
+    filters.page = pageCount;
+    materials = (await getMaterialsPage(orgSlug, filters)).items;
+  }
+
   return (
     <>
       <MaterialsToolbar brands={brands} />
 
       <MaterialsClient
         orgSlug={orgSlug}
-        initialMaterials={items}
+        initialMaterials={materials}
         companies={counterparties.companies}
         contacts={counterparties.contacts}
       />
 
-      <MaterialsPagination page={filters.page} pageCount={pageCount} />
+      <MaterialsPagination pageCount={pageCount} />
     </>
   );
 }

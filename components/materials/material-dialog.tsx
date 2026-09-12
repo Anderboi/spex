@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, type ChangeEvent } from "react";
+import { useState, useEffect, useMemo, type ChangeEvent } from "react";
 import {
   Dialog,
   DialogContent,
@@ -148,6 +148,16 @@ export function MaterialDialog({
 
   const selectedCompany = companies.find((c) => c.id === currentCompanyId);
   const selectedContact = contacts.find((c) => c.id === currentContactId);
+
+  /** Компания выбранного менеджера: показываем её рядом с именем, иначе по
+      контакту непонятно, чей он. */
+  const companyNameById = useMemo(
+    () => new Map(companies.map((c) => [c.id, c.name])),
+    [companies],
+  );
+  const selectedContactCompany = selectedContact?.company_id
+    ? companyNameById.get(selectedContact.company_id)
+    : undefined;
 
   const onSubmit: SubmitHandler<FormValues> = (values) => {
     const payload: MaterialInput = {
@@ -422,8 +432,9 @@ export function MaterialDialog({
                                   <User className="size-4 shrink-0 text-muted-foreground" />
                                   <span className="truncate">
                                     {selectedContact.name}
-                                    {selectedContact.name &&
-                                      ` (${selectedContact.name})`}
+                                    {selectedContactCompany
+                                      ? ` (${selectedContactCompany})`
+                                      : ""}
                                   </span>
                                 </div>
                               ) : currentCompanyId && selectedCompany ? (
@@ -510,10 +521,13 @@ export function MaterialDialog({
                                 {contacts.map((contact) => {
                                   const isSelected =
                                     currentContactId === contact.id;
+                                  const companyName = contact.company_id
+                                    ? companyNameById.get(contact.company_id)
+                                    : undefined;
                                   return (
                                     <CommandItem
                                       key={`contact-${contact.id}`}
-                                      value={`contact ${contact.name} ${contact.name || ""}`}
+                                      value={`contact ${contact.name} ${companyName ?? ""}`}
                                       onSelect={() => {
                                         form.setValue("contact_id", contact.id);
                                         form.setValue(
@@ -536,9 +550,9 @@ export function MaterialDialog({
                                         <span className="font-medium">
                                           {contact.name}
                                         </span>
-                                        {contact.name && (
+                                        {companyName && (
                                           <span className="text-xs text-muted-foreground">
-                                            {contact.name}
+                                            {companyName}
                                           </span>
                                         )}
                                       </div>

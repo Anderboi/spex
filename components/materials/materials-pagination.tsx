@@ -28,15 +28,21 @@ function pageNumbers(current: number, total: number): (number | "ellipsis")[] {
   return pages;
 }
 
-export function MaterialsPagination({
-  page,
-  pageCount,
-}: {
-  page: number;
-  pageCount: number;
-}) {
+/**
+ * Пагинация библиотеки материалов.
+ *
+ * Номер страницы читается из URL, а не из пропсов: серверный зажим страницы
+ * (см. materials/page.tsx) и подсветка активной страницы должны совпадать,
+ * даже если в ссылке остался номер за пределами диапазона.
+ */
+export function MaterialsPagination({ pageCount }: { pageCount: number }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
+
+  const page = Math.min(
+    Math.max(Number(searchParams.get("page") ?? 1) || 1, 1),
+    pageCount,
+  );
 
   if (pageCount <= 1) return null;
 
@@ -76,6 +82,7 @@ export function MaterialsPagination({
           <Link
             key={p}
             href={href(p)}
+            aria-current={p === page ? "page" : undefined}
             className={cn(base, p === page ? active : idle)}
           >
             {p}
