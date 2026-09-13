@@ -39,9 +39,28 @@ function MaterialCardSkeleton() {
 }
 
 /**
+ * Скелетон компактной строки: превью 88px и четыре строки текста справа —
+ * раскладка `MobileMaterialRow`, чтобы на мобильной ширине высота не прыгала.
+ */
+function MaterialRowSkeleton() {
+  return (
+    <div className="flex items-start gap-3 rounded-xl border border-border bg-bg-card p-2.5">
+      <Skeleton className="size-22 shrink-0 rounded-lg" />
+      <div className="min-w-0 flex-1 space-y-1">
+        <Skeleton className="h-4 w-28 rounded-full" />
+        <Skeleton className="h-4 w-3/4" />
+        <Skeleton className="h-3 w-1/2" />
+        <Skeleton className="h-4 w-24" />
+      </div>
+    </div>
+  );
+}
+
+/**
  * Скелет страницы материалов: повторяет раскладку реального экрана — строку
- * тулбара (поиск + три селекта), ряд категорий и сетку карточек с теми же
- * брейкпоинтами, чтобы при загрузке данных не было скачка высоты.
+ * тулбара (поиск + фильтры), ряд категорий и список, который на мобильной
+ * ширине состоит из компактных строк, а с `md` — из сетки карточек с теми же
+ * брейкпоинтами. Совпадение раскладок убирает скачок высоты при загрузке.
  */
 export function MaterialsSkeleton() {
   return (
@@ -51,12 +70,15 @@ export function MaterialsSkeleton() {
       aria-busy="true"
       aria-label="Загрузка библиотеки материалов"
     >
-      {/* Тулбар: поиск, производитель, статус, сортировка */}
+      {/* Тулбар: поиск, фильтры (на sm+ — производитель, статус, сортировка) */}
       <div className="mt-5 flex flex-wrap items-center gap-3">
-        <Skeleton className="h-10 min-w-60 flex-1 rounded-lg" />
-        <Skeleton className="h-10 w-40 rounded-lg" />
-        <Skeleton className="h-10 w-36 rounded-lg" />
-        <Skeleton className="h-10 w-40 rounded-lg" />
+        <Skeleton className="h-10 min-w-0 flex-1 rounded-lg sm:min-w-60" />
+        <Skeleton className="h-10 w-28 rounded-lg sm:hidden" />
+        <div className="hidden items-center gap-3 sm:flex">
+          <Skeleton className="h-10 w-40 rounded-lg" />
+          <Skeleton className="h-10 w-36 rounded-lg" />
+          <Skeleton className="h-10 w-40 rounded-lg" />
+        </div>
       </div>
 
       {/* Категории: селект на мобиле, чипсы на десктопе */}
@@ -69,8 +91,13 @@ export function MaterialsSkeleton() {
         </div>
       </div>
 
-      {/* Сетка карточек: те же брейкпоинты, что у реального списка */}
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      {/* Список: компактные строки на мобиле, сетка карточек с md */}
+      <div className="grid grid-cols-1 gap-3 md:hidden">
+        {Array.from({ length: 6 }, (_, i) => (
+          <MaterialRowSkeleton key={i} />
+        ))}
+      </div>
+      <div className="hidden gap-4 md:grid md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
         {Array.from({ length: 8 }, (_, i) => (
           <MaterialCardSkeleton key={i} />
         ))}

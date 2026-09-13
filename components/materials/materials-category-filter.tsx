@@ -6,6 +6,10 @@ import { Button } from "@/components/ui/button";
 import { TYPE_ORDER } from "@/lib/constants";
 import { useSearchParams } from "next/navigation";
 import { useMaterialsUrl } from "../../hooks/use-materials-url";
+import {
+  MaterialsFilterSelect,
+  type FilterSelectOption,
+} from "./materials-filter-select";
 import { cn } from "@/lib/utils";
 
 const ALL_LABEL = "Все типы";
@@ -18,7 +22,7 @@ export function MaterialsCategoryFilter({ className }: { className?: string }) {
 
   const select = (category: string | null) => update({ category });
 
-  const options: { label: string; value: string | null }[] = [
+  const options: FilterSelectOption<string>[] = [
     { label: ALL_LABEL, value: null },
     ...TYPE_ORDER.map((t) => ({ label: t, value: t })),
   ];
@@ -71,20 +75,20 @@ export function MaterialsCategoryFilter({ className }: { className?: string }) {
         className,
       )}
     >
-      {/* Мобильная версия: селект */}
+      {/* Мобильная версия: тот же shadcn-селект, что и остальные фильтры.
+          Важен `align="start"` внутри `MaterialsFilterSelect`: триггер здесь
+          во всю ширину, и при выравнивании попапа по центру он вылезал бы за
+          вьюпорт — на мобильном это расширяет layout viewport и «увозит» всю
+          страницу. */}
       <div className="block w-full sm:hidden">
-        <select
-          value={activeCategory ?? ""}
-          onChange={(e) => select(e.target.value || null)}
-          aria-label="Категория"
-          className="h-10 w-full cursor-pointer appearance-none rounded-lg border border-border bg-bg-card px-3.5 pr-8 text-sm text-fg shadow-sm outline-none focus:ring-1 focus:ring-border"
-        >
-          {options.map((o) => (
-            <option key={o.label} value={o.value ?? ""}>
-              {o.label}
-            </option>
-          ))}
-        </select>
+        <MaterialsFilterSelect
+          ariaLabel="Категория"
+          placeholder={ALL_LABEL}
+          className="w-full"
+          value={activeCategory}
+          onChange={select}
+          options={options}
+        />
       </div>
 
       {/* Десктоп: чипсы с drag-to-scroll */}

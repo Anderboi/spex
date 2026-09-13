@@ -165,7 +165,7 @@ export function MaterialsClient({
   return (
     <article>
       <div
-        className={`grid grid-cols-1 gap-4 transition-opacity md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 ${
+        className={`grid grid-cols-1 gap-3 transition-opacity md:grid-cols-2 md:gap-4 lg:grid-cols-3 xl:grid-cols-4 ${
           isPending ? "opacity-60" : ""
         }`}
       >

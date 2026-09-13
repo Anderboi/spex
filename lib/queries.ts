@@ -227,29 +227,62 @@ export async function getMaterialsPage(
   return { items: (data ?? []).map(toMaterialListItem), pageCount };
 }
 
-export async function getMaterialBrands(orgSlug: string): Promise<string[]> {
+/**
+ * Список производителей для фильтра библиотеки.
+ *
+ * `failed` отличает «ни у одного материала не заполнен бренд» от «запрос не
+ * выполнился»: раньше оба случая давали одинаково пустой фильтр, который
+ * выглядел как «производители не подгружаются».
+ */
+export type MaterialBrands = {
+  items: string[];
+  failed: boolean;
+};
+
+export async function getMaterialBrands(
+  orgSlug: string,
+): Promise<MaterialBrands> {
   const { orgId } = await requireOrgBySlug(orgSlug);
   const supabase = createAdminClient();
 
-  const { data, error } = await supabase
-    .from("materials")
-    .select("brand")
-    .eq("org_id", orgId)
-    .is("deleted_at", null)
-    .not("brand", "is", null)
-    .order("brand", { ascending: true });
+  // Одна повторная попытка: страница выполняет четыре запроса параллельно, и
+  // одиночный таймаут PostgREST (504 на холодном старте) иначе молча оставлял
+  // фильтр пустым, хотя данные на месте.
+  let failed = false;
 
-  if (error) {
-    console.error("[getMaterialBrands]", error.message);
-    return [];
+  for (let attempt = 1; attempt <= 2; attempt++) {
+    const { data, error } = await supabase
+      .from("materials")
+      .select("brand")
+      .eq("org_id", orgId)
+      .is("deleted_at", null)
+      .not("brand", "is", null)
+      .order("brand", { ascending: true });
+
+    if (!error) {
+      const brands = new Set<string>();
+      for (const row of data ?? []) {
+        const brand = row.brand?.trim();
+        if (brand) brands.add(brand);
+      }
+      return { items: [...brands], failed: false };
+    }
+
+    failed = true;
+    console.error("[getMaterialBrands] запрос не удался", {
+      orgSlug,
+      orgId,
+      attempt,
+      code: error.code,
+      message: error.message,
+      details: error.details,
+      hint: error.hint,
+    });
+
+    if (attempt === 1) await new Promise((r) => setTimeout(r, 400));
   }
 
-  const brands = new Set<string>();
-  for (const row of data ?? []) {
-    const brand = row.brand?.trim();
-    if (brand) brands.add(brand);
-  }
-  return [...brands];
+  return { items: [], failed };
 }
 
 export async function getMaterialById(orgSlug: string, id: string) {

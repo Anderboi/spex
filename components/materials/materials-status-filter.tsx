@@ -2,27 +2,47 @@
 
 import { useSearchParams } from "next/navigation";
 import { useMaterialsUrl } from "../../hooks/use-materials-url";
-import type { MaterialStatus } from "@/lib/materials/filters";
+import {
+  MATERIALS_STATUSES,
+  type MaterialStatus,
+} from "@/lib/materials/filters";
+import { MaterialsFilterSelect } from "./materials-filter-select";
 
-export function MaterialsStatusFilter() {
+const STATUS_OPTIONS: { label: string; value: MaterialStatus | null }[] = [
+  { label: "Все статусы", value: null },
+  { label: "Активные", value: "active" },
+  { label: "В архиве", value: "archived" },
+];
+
+function isMaterialStatus(value: string): value is MaterialStatus {
+  return (MATERIALS_STATUSES as readonly string[]).includes(value);
+}
+
+export function MaterialsStatusFilter({
+  side,
+  className,
+}: {
+  side?: "top" | "bottom";
+  className?: string;
+}) {
   const searchParams = useSearchParams();
   const { update } = useMaterialsUrl();
-  const status = searchParams.get("status") ?? "";
+  const raw = searchParams.get("status") ?? "";
+
+  // Неизвестное значение в URL сервер трактует как «без фильтра»
+  // (`parseMaterialsFilters` → `.catch(null)`), поэтому и триггер должен
+  // показывать «Все статусы», а не пустую подпись.
+  const status = isMaterialStatus(raw) ? raw : null;
 
   return (
-    <select
+    <MaterialsFilterSelect
+      ariaLabel="Статус"
+      placeholder="Все статусы"
+      side={side}
+      className={className}
       value={status}
-      onChange={(e) =>
-        update({
-          status: e.target.value ? (e.target.value as MaterialStatus) : null,
-        })
-      }
-      aria-label="Статус"
-      className="h-10 cursor-pointer appearance-none rounded-lg border border-border bg-bg-card px-3 font-mono text-xs text-fg outline-none transition-colors hover:bg-bg-brand/50"
-    >
-      <option value="">Все статусы</option>
-      <option value="active">Активные</option>
-      <option value="archived">В архиве</option>
-    </select>
+      onChange={(value) => update({ status: value })}
+      options={STATUS_OPTIONS}
+    />
   );
 }

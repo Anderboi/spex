@@ -44,7 +44,7 @@ export default async function MaterialsLibraryPage({
           }
           className="h-10 bg-fg"
         >
-          <Plus className="size-4" /> Добавить в библиотеку
+          <Plus className="size-4" /> Добавить
         </Button>
       </PageHeader>
       <Suspense fallback={<MaterialsSkeleton />}>
