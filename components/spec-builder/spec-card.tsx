@@ -52,7 +52,9 @@ export const SpecCard = memo(function SpecCard({
   return (
     <article
       className={cn(
-        "rounded-3xl shadow-lg border border-transparent bg-bg-card p-3",
+        // `relative` — чтобы бейдж-чекбокс позиционировался от карточки,
+        // а не от ближайшего positioned-предка страницы.
+        "relative rounded-3xl shadow-lg border border-transparent bg-bg-card p-3",
         selected && "border-fg-brand bg-bg-brand/30",
         item.isPlaceholder && "border-dashed",
       )}
@@ -72,8 +74,16 @@ export const SpecCard = memo(function SpecCard({
             <ImageIcon className="size-6 text-fg-muted" />
           </div>
         )}
-        <div className="absolute bg-bg-card p-1.5 rounded-md">
-          <Checkbox className=" size-4" />
+        {/* Выбор позиции — тот же чекбокс, что в табличной (web) версии:
+            checked из пропа `selected`, переключение через onToggleSel.
+            Бейдж лежит поверх угла превью и не участвует в потоке. */}
+        <div className="absolute top-3 left-3 rounded-md bg-bg-card p-1.5">
+          <Checkbox
+            className="size-4 cursor-pointer border-border border-2"
+            checked={selected}
+            onCheckedChange={() => h.onToggleSel(item.id)}
+            aria-label={`Выбрать ${item.code}`}
+          />
         </div>
         <div className="flex min-w-0 flex-1 items-start gap-1">
           <div className="min-w-0 flex-1">
