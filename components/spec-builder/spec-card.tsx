@@ -31,6 +31,7 @@ import { priceOf } from "@/lib/spec/pricing";
 import type { ServiceOperation } from "@/actions/service-operations";
 import { PriceField } from "./price-field";
 import { Button } from "../ui/button";
+import { Checkbox } from "../ui/checkbox";
 
 export const SpecCard = memo(function SpecCard({
   item,
@@ -62,186 +63,205 @@ export const SpecCard = memo(function SpecCard({
           <Image
             src={item.imageUrl}
             alt={item.name}
-            height={120}
-            width={120}
-            className="size-30 object-cover border rounded-xl"
+            height={96}
+            width={96}
+            className="size-24 shrink-0 rounded-xl border object-cover"
           />
         ) : (
-          <div className="size-30! aspect-square bg-bg-brand2/50 border items-center flex justify-center rounded-xl">
+          <div className="flex size-24 shrink-0 items-center justify-center rounded-xl border bg-bg-brand2/50">
             <ImageIcon className="size-6 text-fg-muted" />
           </div>
         )}
-        <div className="flex flex-col w-full">
-          <div className="flex">
-            <div className="min-w-0 flex-1">
-              <InlineCode
-                code={item.code}
-                locked={isLocked(item.status)}
-                onCommit={(c) => h.onCode(item.id, c)}
-              />
-              {item.isPlaceholder ? (
-                <span
-                  // type="button"
-                  // onClick={() => h.onFill(item.id)}
-                  className="mt-1 block text-left text-[13.5px] font-medium text-fg-muted underline decoration-dotted underline-offset-4"
-                >
-                  Позиция не заполнена — выбрать материал
-                </span>
-              ) : (
-                <span
-                  // type="button"
-                  // onClick={() => h.onOpen(item.id)}
-                  className="mt-1 block w-full text-left"
-                >
-                  <span className="line-clamp-2 //text-[14px] font-semibold text-fg">
-                    {item.name}
-                  </span>
-                  {(item.brand || item.spec) && (
-                    <span className="mt-1 block truncate text-[13px] text-fg-secondary">
-                      {[item.brand, item.spec].filter(Boolean).join(" · ")}
-                    </span>
-                  )}
-                </span>
-              )}
-
-              {/* {item.rooms.length > 0 && (
-            <p className="mt-1 truncate text-[11.5px] text-fg-secondary">
-              {item.rooms.join(", ")}
-            </p>
-          )} */}
-            </div>
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                aria-label={`Действия для ${item.code}`}
-                className="flex size-8 shrink-0 items-center justify-center rounded-md text-fg-muted hover:bg-bg-select"
+        <div className="absolute bg-bg-card p-1.5 rounded-md">
+          <Checkbox className=" size-4" />
+        </div>
+        <div className="flex min-w-0 flex-1 items-start gap-1">
+          <div className="min-w-0 flex-1">
+            <InlineCode
+              code={item.code}
+              locked={isLocked(item.status)}
+              onCommit={(c) => h.onCode(item.id, c)}
+            />
+            {item.isPlaceholder ? (
+              <button
+                type="button"
+                onClick={() => h.onFill(item.id)}
+                className="mt-1 block text-left text-[14px] font-medium text-fg-muted underline decoration-dotted underline-offset-4"
               >
-                <MoreHorizontal className="size-4" />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-52 bg-bg-card">
-                <DropdownMenuItem
-                  onClick={() => h.onOpen(item.id)}
-                  className="text-[13px]"
-                >
-                  Открыть карточку
-                </DropdownMenuItem>
-                <ParentSubMenu
-                  item={item}
-                  allItems={allItems}
-                  onSetParent={(parentId) => h.onSetParent(item.id, parentId)}
-                />
-                <DropdownMenuItem
-                  onClick={() => h.onAddChild(item.id)}
-                  className="gap-2 text-[13px]"
-                >
-                  <Plus className="size-3.5" /> Добавить субэлемент
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => h.onDuplicate(item.id)}
-                  className="gap-2 text-[13px]"
-                >
-                  <Copy className="size-3.5" /> Дублировать
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => h.onShare(item)}
-                  className="gap-2 text-[13px]"
-                >
-                  <Share2 className="size-3.5" /> Поделиться
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem
-                  onClick={() => h.onClear(item.id)}
-                  className="gap-2 text-[13px]"
-                >
-                  <Eraser className="size-3.5" /> Очистить, оставив марку
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onClick={() => h.onDelete(item.id)}
-                  className="gap-2 text-[13px] text-fg-red"
-                >
-                  <Trash2 className="size-3.5" /> Удалить
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+                Позиция не заполнена — выбрать материал
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => h.onOpen(item.id)}
+                className="mt-1 block w-full text-left"
+              >
+                <span className="line-clamp-2 text-[15px] font-semibold leading-snug text-fg text-balance">
+                  {item.name}
+                </span>
+                {(item.brand || item.spec) && (
+                  <span className="mt-0.5 block truncate text-[12.5px] text-fg-secondary">
+                    {[item.brand, item.spec].filter(Boolean).join(" · ")}
+                  </span>
+                )}
+              </button>
+            )}
           </div>
-          <article className="mt-2 flex items-center justify-between gap-2">
-            <div className="flex items-center gap-2">
-              {/* × */}
-              <QtyStepper
-                isMobile
-                qty={item.qty}
-                unit={item.unit}
-                showUnit={false}
-                editable
-                onChange={(d) => h.onQty(item.id, d)}
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              aria-label={`Действия для ${item.code}`}
+              className="-mr-1 -mt-1 flex size-11 shrink-0 items-center justify-center rounded-lg text-fg-muted hover:bg-bg-select"
+            >
+              <MoreHorizontal className="size-4" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-52 bg-bg-card">
+              <DropdownMenuItem
+                onClick={() => h.onOpen(item.id)}
+                className="text-[13px]"
+              >
+                Открыть карточку
+              </DropdownMenuItem>
+              <ParentSubMenu
+                item={item}
+                allItems={allItems}
+                onSetParent={(parentId) => h.onSetParent(item.id, parentId)}
               />
-              {/* <span className="font-mono text-[12.5px] text-fg-secondary"> */}
-              {/* {fmtQty(p.qtyFinal)}  */}
-              {/* {item.unit} */}
-              {/* × {fmt(p.priceFinal)} ₽ */}
-              {/* </span> */}
-            </div>
-            <div className="text-lg font-semibold flex items-center">
+              <DropdownMenuItem
+                onClick={() => h.onAddChild(item.id)}
+                className="gap-2 text-[13px]"
+              >
+                <Plus className="size-3.5" /> Добавить субэлемент
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => h.onDuplicate(item.id)}
+                className="gap-2 text-[13px]"
+              >
+                <Copy className="size-3.5" /> Дублировать
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => h.onShare(item)}
+                className="gap-2 text-[13px]"
+              >
+                <Share2 className="size-3.5" /> Поделиться
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem
+                onClick={() => h.onClear(item.id)}
+                className="gap-2 text-[13px]"
+              >
+                <Eraser className="size-3.5" /> Очистить, оставив марку
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => h.onDelete(item.id)}
+                className="gap-2 text-[13px] text-fg-red"
+              >
+                <Trash2 className="size-3.5" /> Удалить
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
+      </div>
+
+      {/* Количество и цена за единицу. Отдельные строки во всю ширину
+          карточки: в колонке рядом с превью для них не хватало места и
+          сумма цены обрезалась. */}
+      {!item.isPlaceholder && (
+        <div className="mt-3 flex flex-col gap-2 rounded-2xl border border-border-muted bg-bg-card2/60 px-2 py-2">
+          <div className="flex //flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
+            <span className="shrink-0 text-[11px] font-medium font-mono uppercase text-fg-muted">
+              Количество
+            </span>
+            <QtyStepper
+              isMobile
+              qty={item.qty}
+              unit={item.unit}
+              editable
+              onChange={(d) => h.onQty(item.id, d)}
+              className="ml-auto min-w-0 flex-1"
+            />
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
+            <span className="shrink-0 text-[11px] font-medium font-mono uppercase text-fg-muted">
+              Цена за {item.unit}
+            </span>
+            <div className="ml-auto flex min-w-0 flex-1 items-baseline justify-end gap-1">
               <PriceField
                 value={p.priceBase}
                 readOnly={p.hasPriceMod}
-                className="text-lg! pr-2 text-right!"
+                className="min-w-0 text-right! text-[16px]!"
                 onCommit={(v) => h.onPrice(item.id, v)}
               />
-              ₽
+              <span className="shrink-0 font-mono text-[12.5px] text-fg-secondary">
+                ₽
+              </span>
             </div>
-          </article>
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Price line: qty × price = total, with modifier footnote */}
       <div className="mt-3 border-t border-border-muted pt-2">
-        <div className="flex">
-          <div>
-            <div className="flex flex-col">
-              <span className="text-fg-muted font-mono leading-4 text-sm">
-                Итого
-              </span>
-              <span className="mr-auto font-mono text-xl font-semibold tabular-nums">
-                {p.total > 0 ? `${fmt(p.total)} ₽` : "—"}
-              </span>
-            </div>
+        <div className="min-w-0 flex-1 flex justify-between">
+          <p className="text-[11px] font-medium font-mono uppercase tracking-wider text-fg-muted">
+            Итого
+          </p>
+          <div className="flex flex-col items-end justify-end">
+            <p className="font-mono text-[21px] font-semibold leading-tight tabular-nums">
+              {p.total > 0 ? `${fmt(p.total)} ₽` : "—"}
+            </p>
 
             {(p.hasQtyMod || p.hasPriceMod) && (
-              <p className="mt-1 font-mono text-[10.5px] leading-3 text-fg-dim">
-                {[
-                  `${fmtQty(p.qtyFinal)} ${item.unit} × ${fmt(p.priceFinal)} ₽`,
-                  p.hasQtyMod && `+${item.stockPct}% запас`,
-                  p.hasPriceMod && `−${item.clientDiscountPct}% скидка`,
-                ]
-                  .filter(Boolean)
-                  .join(" · ")}
-              </p>
+              <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 font-mono text-[11.5px] leading-4 text-fg-dim">
+                <span className="whitespace-nowrap">
+                  {fmtQty(p.qtyFinal)} {item.unit} × {fmt(p.priceFinal)} ₽
+                </span>
+                {p.hasQtyMod && (
+                  <span className="whitespace-nowrap">
+                    +{item.stockPct}% запас
+                  </span>
+                )}
+                {p.hasPriceMod && (
+                  <span className="whitespace-nowrap">
+                    −{item.clientDiscountPct}% скидка
+                  </span>
+                )}
+              </div>
             )}
           </div>
-          <div className="ml-auto">
-            <StatusMenu item={item} onChange={(s) => h.onStatus(item.id, s)} />
-          </div>
         </div>
+        {/* <div className="shrink-0">
+          <StatusMenu item={item} onChange={(s) => h.onStatus(item.id, s)} />
+        </div> */}
       </div>
 
-      <div className="mt-2.5 flex w-full border-t border-border-muted gap-4 pt-2.5">
-        {/* <StatusMenu item={item} onChange={(s) => h.onStatus(item.id, s)} /> */}
-
+      <div className="mt-2.5 grid grid-cols-2 gap-4 border-t border-border-muted pt-2.5">
+        <StatusMenu
+          className="h-10 px-6"
+          item={item}
+          onChange={(s) => h.onStatus(item.id, s)}
+        />
         <Button
           size="lg"
-          onClick={() => h.onOpen(item.id)}
-          className="rounded-xl h-10 flex-1 px-8"
+          onClick={() =>
+            item.isPlaceholder ? h.onFill(item.id) : h.onOpen(item.id)
+          }
+          className="h-10 flex-1 rounded-full"
         >
-          Детали
+          {item.isPlaceholder ? "Выбрать материал" : "Детали"}
         </Button>
-        <Button
+
+        {/* <Button
+          type="button"
+          variant="outline"
           size="icon-lg"
-          variant="secondary"
-          className="rounded-xl h-10 px-8"
-          onClick={() => h.onOpen(item.id)}
+          onClick={() => h.onShare(item)}
+          title="Поделиться"
+          aria-label={`Скопировать ссылку на позицию ${item.code}`}
+          className="size-11 shrink-0 rounded-xl border-border-muted bg-bg-card text-fg-secondary hover:text-fg"
         >
           <Link className="size-4" />
-        </Button>
+        </Button> */}
       </div>
 
       {/* {ops && ops.length > 0 && ( */}

@@ -38,11 +38,10 @@ export default async function MaterialsLibraryPage({
           nativeButton={false}
           render={
             <Link
-              className="flex flex-row items-center gap-2"
+              className="flex flex-row items-center gap-2 h-10 bg-bg-accent border-none rounded-lg px-6 text-[15px] font-semibold cursor-pointer"
               href={createHref}
             />
           }
-          className="h-10 bg-fg"
         >
           <Plus className="size-4" /> Добавить
         </Button>

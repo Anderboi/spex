@@ -17,6 +17,7 @@ export function QtyStepper({
   editable,
   showUnit = true,
   isMobile,
+  className,
 }: {
   qty: number;
   unit: string;
@@ -24,6 +25,7 @@ export function QtyStepper({
   showUnit?: boolean;
   onChange: (d: number) => void;
   isMobile?: boolean;
+  className?: string;
 }) {
   /** Черновик текста пока пользователь печатает; null = показываем `qty`. */
   const [draft, setDraft] = useState<string | null>(null);
@@ -48,7 +50,7 @@ export function QtyStepper({
   };
 
   return (
-    <ButtonGroup>
+    <ButtonGroup className={cn("shrink-0", className)}>
       <Button
         className={cn("bg-bg-card", isMobile ? "size-10" : "size-6")}
         size="sm"
@@ -64,13 +66,13 @@ export function QtyStepper({
       </Button>
       <InputGroup
         className={cn(
-          "min-w-14 items-center bg-bg-card",
+          "min-w-14 items-baseline bg-bg-card",
           isMobile ? "h-10" : "h-6",
         )}
       >
         <InputGroupInput
           className={cn(
-            "text-center font-mono px-0! tabular-nums",
+            "text-right font-mono px-0! tabular-nums",
             isMobile ? "text-[15px]!" : "text-[13px]!",
           )}
           value={draft ?? qty}

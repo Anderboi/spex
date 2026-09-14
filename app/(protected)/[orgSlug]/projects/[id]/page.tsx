@@ -1,8 +1,9 @@
 import SpecBuilder from "@/components/spec-builder/spec-builder";
 import { EditProjectDialog } from "@/components/project/edit-project-dialog";
+import { ProjectActions } from "@/components/project/project-actions";
 import { PageHeader } from "@/components/layout/page-header";
 import { Button } from "@/components/ui/button";
-import { Edit, Plus } from "lucide-react";
+import { Edit } from "lucide-react";
 import {
   getMaterials,
   getProjectById,
@@ -64,29 +65,11 @@ export default async function ProjectSpecification({
         }
       >
         <div className="flex flex-wrap items-center justify-end gap-2">
-          <Button
-            nativeButton={false}
-            render={<Link href={addHref} />}
-            className="flex h-10 items-center gap-1.5 rounded-lg bg-bg-accent px-4 text-[13.5px] font-semibold text-bg"
-          >
-            <Plus className="size-4" /> Добавить
-          </Button>
-          <Button
-            nativeButton={false}
-            variant="outline"
-            render={<Link href={procureHref} />}
-            className="flex h-10 items-center gap-1.5 rounded-lg border border-border-muted bg-bg-card px-3 text-[13.5px] font-semibold text-fg hover:border-fg"
-          >
-            Закупка
-          </Button>
-          <Button
-            nativeButton={false}
-            variant="outline"
-            render={<Link href={summaryHref} />}
-            className="flex h-10 items-center gap-1.5 rounded-lg border border-border-muted bg-bg-card px-3 text-[13.5px] font-semibold text-fg hover:border-fg"
-          >
-            Сводка
-          </Button>
+          <ProjectActions
+            addHref={addHref}
+            procureHref={procureHref}
+            summaryHref={summaryHref}
+          />
         </div>
       </PageHeader>
       <EditProjectDialog orgSlug={orgSlug} project={project} />

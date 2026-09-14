@@ -1,7 +1,7 @@
 "use client";
 
 import { COVER_PALETTE, STATUS_CONFIG, TYPE_COLORS } from "@/lib/constants";
-import { fmtDate, plural } from "@/lib/utils";
+import { fmtCompact, fmtDate, plural } from "@/lib/utils";
 import type { ProjectListItem } from "@/lib/queries";
 import { ProjectStatus } from "@/lib/validations";
 import Link from "next/link";
@@ -161,8 +161,10 @@ export function ProjectCard({
           <div>
             <div className="font-mono text-[17px] font-semibold text-fg leading-none truncate">
               {/* {fmtRub(project.budget)} */}
-              {project.budget.toLocaleString("ru-RU").replace(/,/g, "\u2009") +
-                "₽"}
+              {fmtCompact(project.budget)
+                // .toLocaleString("ru-RU")
+                // .replace(/,/g, "\u2009")
+                 + " ₽"}
             </div>
             <div className="text-[11px] font-mono capitalize text-fg-muted mt-1 leading-tight">
               Бюджет
