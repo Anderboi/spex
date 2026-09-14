@@ -4,8 +4,12 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Search, ArrowUpDown, AlertCircle, X } from "lucide-react";
 import { useSpecBuilder } from "@/hooks/use-spec-builder";
 import { useMediaQuery } from "@/hooks/use-media-query";
+import { useSpecDensity } from "@/hooks/use-spec-density";
 import { useDialogUrl } from "@/hooks/use-dialog-url";
 import { GroupSection } from "./group-section";
+import { DensitySwitcher } from "./density-switcher";
+import { SpecFilterSheet } from "./spec-filter-sheet";
+import { ActiveFilterChips } from "./active-filter-chips";
 import { DetailModal } from "./spec-mat-detail-modal";
 import { CodeConflictDialog } from "./code-conflict-dialog";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -57,6 +61,7 @@ export default function SpecBuilder({
   const ctx = useSpecBuilder({ orgSlug, projectId, initialItems });
   const [localCompanies, setLocalCompanies] = useState(companies);
   const isDesktop = useMediaQuery("(min-width: 820px)");
+  const { density, setDensity } = useSpecDensity();
 
   /** Созданную CompanyDialog запись используем сразу, без повторного fetch. */
   const upsertLocalCompany = useCallback((company: SpecPickerCompany) => {
@@ -167,7 +172,7 @@ export default function SpecBuilder({
         )}
       </div>
 
-      {/* ── поиск и сортировка ────────────────────────────── */}
+      {/* ── поиск, фильтры и сортировка ───────────────────── */}
       <div className="mt-4 flex gap-2">
         <div className="relative min-w-0 flex-1">
           <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-fg-muted" />
@@ -176,53 +181,76 @@ export default function SpecBuilder({
             onChange={(e) => ctx.filters.setQuery(e.target.value)}
             placeholder="Название, бренд, марка, артикул"
             aria-label="Поиск по спецификации"
-            className="h-9 w-full rounded-lg border border-border-muted bg-bg-card pl-9 pr-3 text-sm outline-none focus:border-fg-brand"
+            className="h-10 w-full rounded-lg border border-border-muted bg-bg-card pl-9 pr-3 text-sm outline-none focus:border-fg-brand"
           />
         </div>
-        <button
-          type="button"
-          onClick={() =>
-            ctx.filters.setSort(
-              ctx.filters.sort === "code"
-                ? "az"
-                : ctx.filters.sort === "az"
-                  ? "sum"
-                  : "code",
-            )
-          }
-          className="flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-border-muted px-3 text-[13px] text-fg-secondary"
-        >
-          <ArrowUpDown className="size-3.5" />
-          {ctx.filters.sort === "code"
-            ? "По марке"
-            : ctx.filters.sort === "az"
-              ? "А→Я"
-              : "По сумме"}
-        </button>
+        {isDesktop ? (
+          // На широких экранах сортировка переключается одной кнопкой по кругу.
+          <button
+            type="button"
+            onClick={() =>
+              ctx.filters.setSort(
+                ctx.filters.sort === "code"
+                  ? "az"
+                  : ctx.filters.sort === "az"
+                    ? "sum"
+                    : "code",
+              )
+            }
+            className="flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-border-muted px-3 text-[13px] text-fg-secondary"
+          >
+            <ArrowUpDown className="size-3.5" />
+            {ctx.filters.sort === "code"
+              ? "По марке"
+              : ctx.filters.sort === "az"
+                ? "А→Я"
+                : "По сумме"}
+          </button>
+        ) : (
+          // На узких экранах статус и сортировка уезжают в нижнюю шторку —
+          // как на страницах материалов и контактов.
+          <>
+          <SpecFilterSheet filters={ctx.filters} items={ctx.items} />
+          <DensitySwitcher value={density} onChange={setDensity} />
+          </>
+        )}
       </div>
 
-      {/* ── чипсы типов ───────────────────────────────────── */}
-      <div className="-mx-4 mt-3 flex gap-1.5 overflow-x-auto px-4 pb-1 sm:mx-0 sm:px-0">
-        <TypeChip
-          label="Все типы"
-          active={ctx.filters.activeType === "Все типы"}
-          count={ctx.items.length}
-          onClick={() => ctx.filters.setActiveType("Все типы")}
-        />
-        {TYPE_ORDER.map((t) => {
-          const n = ctx.items.filter((i) => i.type === t).length;
-          if (n === 0) return null;
-          return (
-            <TypeChip
-              key={t}
-              label={t}
-              count={n}
-              active={ctx.filters.activeType === t}
-              onClick={() => ctx.filters.setActiveType(t)}
-            />
-          );
-        })}
-      </div>
+      {/* ── чипсы типов (веб-версия) ─────────────────────── */}
+      {isDesktop && (
+        <div className="mt-3 flex gap-1.5 overflow-x-auto pb-1">
+          <TypeChip
+            label="Все типы"
+            active={ctx.filters.activeType === "Все типы"}
+            count={ctx.items.length}
+            onClick={() => ctx.filters.setActiveType("Все типы")}
+          />
+          {TYPE_ORDER.map((t) => {
+            const n = ctx.items.filter((i) => i.type === t).length;
+            if (n === 0) return null;
+            return (
+              <TypeChip
+                key={t}
+                label={t}
+                count={n}
+                active={ctx.filters.activeType === t}
+                onClick={() => ctx.filters.setActiveType(t)}
+              />
+            );
+          })}
+        </div>
+      )}
+
+      {/* ── активные фильтры и вид списка (мобильная версия) ── */}
+      {!isDesktop && (
+        <div className="mt-2 flex items-center gap-2">
+          <ActiveFilterChips
+            filters={ctx.filters}
+            className="flex-1 pb-1"
+          />
+          {/* <DensitySwitcher value={density} onChange={setDensity} /> */}
+        </div>
+      )}
 
       {/* ── баннер «требуют замены» ───────────────────────── */}
       {ctx.stats.replace.count > 0 && !ctx.replaceHidden && (
@@ -285,6 +313,7 @@ export default function SpecBuilder({
                 allItems={ctx.items}
                 selected={ctx.selected}
                 isDesktop={isDesktop}
+                density={density}
                 opsByItem={ctx.opsByItem}
                 h={handlers}
               />

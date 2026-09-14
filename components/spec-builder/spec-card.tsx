@@ -1,31 +1,15 @@
 "use client";
 
 import { memo } from "react";
-import {
-  Copy,
-  Eraser,
-  MoreHorizontal,
-  Plus,
-  Share2,
-  Trash2,
-  Image as ImageIcon,
-  Link,
-} from "lucide-react";
+import { Image as ImageIcon } from "lucide-react";
 import Image from "next/image";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import { InlineCode } from "./inline-code";
 import { StatusMenu } from "./status-menu";
+import { SpecItemActions } from "./spec-item-actions";
 import { QtyStepper } from "../layout/qty-stepper";
 import { isLocked } from "@/lib/spec/status";
 import { fmt, cn, fmtQty } from "@/lib/utils";
 import type { SpecRowHandlers } from "./spec-row";
-import { ParentSubMenu } from "./parent-submenu";
 import { SpecItem } from "@/lib/types";
 import { priceOf } from "@/lib/spec/pricing";
 import type { ServiceOperation } from "@/actions/service-operations";
@@ -117,58 +101,12 @@ export const SpecCard = memo(function SpecCard({
               </button>
             )}
           </div>
-          <DropdownMenu>
-            <DropdownMenuTrigger
-              aria-label={`Действия для ${item.code}`}
-              className="-mr-1 -mt-1 flex size-11 shrink-0 items-center justify-center rounded-lg text-fg-muted hover:bg-bg-select"
-            >
-              <MoreHorizontal className="size-4" />
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-52 bg-bg-card">
-              <DropdownMenuItem
-                onClick={() => h.onOpen(item.id)}
-                className="text-[13px]"
-              >
-                Открыть карточку
-              </DropdownMenuItem>
-              <ParentSubMenu
-                item={item}
-                allItems={allItems}
-                onSetParent={(parentId) => h.onSetParent(item.id, parentId)}
-              />
-              <DropdownMenuItem
-                onClick={() => h.onAddChild(item.id)}
-                className="gap-2 text-[13px]"
-              >
-                <Plus className="size-3.5" /> Добавить субэлемент
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => h.onDuplicate(item.id)}
-                className="gap-2 text-[13px]"
-              >
-                <Copy className="size-3.5" /> Дублировать
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => h.onShare(item)}
-                className="gap-2 text-[13px]"
-              >
-                <Share2 className="size-3.5" /> Поделиться
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem
-                onClick={() => h.onClear(item.id)}
-                className="gap-2 text-[13px]"
-              >
-                <Eraser className="size-3.5" /> Очистить, оставив марку
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                onClick={() => h.onDelete(item.id)}
-                className="gap-2 text-[13px] text-fg-red"
-              >
-                <Trash2 className="size-3.5" /> Удалить
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
+          <SpecItemActions
+            className="-mr-1 -mt-1 size-11"
+            item={item}
+            allItems={allItems}
+            h={h}
+          />
         </div>
       </div>
 

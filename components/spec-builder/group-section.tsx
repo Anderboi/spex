@@ -6,6 +6,9 @@ import { SpecRow, type SpecRowHandlers } from "./spec-row";
 import { fmt, plural, cn } from "@/lib/utils";
 import { SpecItem } from '@/lib/types';
 import { SpecCard } from './spec-card';
+import { SpecListRow } from './spec-list-row';
+import { SpecCompactCard } from './spec-compact-card';
+import type { SpecDensity } from "@/hooks/use-spec-density";
 import { Checkbox } from '../ui/checkbox';
 import type { ServiceOperation } from "@/actions/service-operations";
 
@@ -18,6 +21,7 @@ export const GroupSection = memo(function GroupSection({
   onToggle,
   selected,
   isDesktop,
+  density,
   opsByItem,
   h,
 }: {
@@ -29,6 +33,8 @@ export const GroupSection = memo(function GroupSection({
   onToggle: () => void;
   selected: ReadonlySet<string>;
   isDesktop: boolean;
+  /** Плотность списка на узких экранах: таблица рисуется только на десктопе. */
+  density: SpecDensity;
   /** Операции доп. расходов, сгруппированные по позициям. */
   opsByItem?: Record<string, ServiceOperation[]>;
   h: SpecRowHandlers;
@@ -123,6 +129,32 @@ export const GroupSection = memo(function GroupSection({
                 ))}
               </tbody>
             </table>
+          ) : density === "row" ? (
+            <div className="flex flex-col">
+              {items.map((it) => (
+                <SpecListRow
+                  key={it.id}
+                  item={it}
+                  allItems={allItems}
+                  selected={selected.has(it.id)}
+                  ops={opsByItem?.[it.id]}
+                  h={h}
+                />
+              ))}
+            </div>
+          ) : density === "compact" ? (
+            <div className="flex flex-col gap-2 pt-2">
+              {items.map((it) => (
+                <SpecCompactCard
+                  key={it.id}
+                  item={it}
+                  allItems={allItems}
+                  selected={selected.has(it.id)}
+                  ops={opsByItem?.[it.id]}
+                  h={h}
+                />
+              ))}
+            </div>
           ) : (
             <div className="flex flex-col gap-2 pt-2">
               {items.map((it) => (

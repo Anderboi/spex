@@ -17,6 +17,7 @@ export function QtyStepper({
   editable,
   showUnit = true,
   isMobile,
+  dense,
   className,
 }: {
   qty: number;
@@ -25,6 +26,9 @@ export function QtyStepper({
   showUnit?: boolean;
   onChange: (d: number) => void;
   isMobile?: boolean;
+  /** Средний размер (32px) — для компактных раскладок, где `isMobile`
+   *  (40px) не помещается, но тач-таргет ещё нужен. */
+  dense?: boolean;
   className?: string;
 }) {
   /** Черновик текста пока пользователь печатает; null = показываем `qty`. */
@@ -49,10 +53,18 @@ export function QtyStepper({
     setDraft(null);
   };
 
+  const btnSize = isMobile ? "size-10" : dense ? "size-8" : "size-6";
+  const fieldSize = isMobile ? "h-10" : dense ? "h-8" : "h-6";
+  const fieldText = isMobile
+    ? "text-[15px]!"
+    : dense
+      ? "text-[14px]!"
+      : "text-[13px]!";
+
   return (
     <ButtonGroup className={cn("shrink-0", className)}>
       <Button
-        className={cn("bg-bg-card", isMobile ? "size-10" : "size-6")}
+        className={cn("bg-bg-card", btnSize)}
         size="sm"
         variant="outline"
         onClick={() => {
@@ -66,14 +78,14 @@ export function QtyStepper({
       </Button>
       <InputGroup
         className={cn(
-          "min-w-14 items-baseline bg-bg-card",
-          isMobile ? "h-10" : "h-6",
+          "min-w-14 items-baseline sm:items-center bg-bg-card",
+          fieldSize,
         )}
       >
         <InputGroupInput
           className={cn(
             "text-right font-mono px-0! tabular-nums",
-            isMobile ? "text-[15px]!" : "text-[13px]!",
+            fieldText,
           )}
           value={draft ?? qty}
           readOnly={!editable}
@@ -82,7 +94,10 @@ export function QtyStepper({
           onFocus={(e) => {
             if (!editable) return;
             setDraft(String(qty));
-            requestAnimationFrame(() => e.currentTarget.select());
+            // `currentTarget` обнуляется после обработчика события, поэтому
+            // в rAF передаём сам элемент, а не синтетическое событие.
+            const input = e.currentTarget;
+            requestAnimationFrame(() => input.select());
           }}
           onChange={(e) => {
             if (editable) setDraft(e.target.value);
@@ -106,7 +121,7 @@ export function QtyStepper({
       </InputGroup>
       <Button
         size="sm"
-        className={cn("bg-bg-card", isMobile ? "size-10" : "size-6")}
+        className={cn("bg-bg-card", btnSize)}
         variant="outline"
         onClick={() => {
           commitDraft();

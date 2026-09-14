@@ -2,9 +2,13 @@
 
 import { useCallback, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import type { SpecStatus } from '@/lib/constants';
+import { SPEC_STATUSES, type SpecStatus } from '@/lib/constants';
 
 export type SpecSort = "code" | "az" | "sum";
+
+/** Контракт фильтров спецификации: нужен потребителям (шторка фильтров),
+ *  чтобы не тянуть тип через пропсы вручную. */
+export type SpecFilters = ReturnType<typeof useSpecFilters>;
 
 export function useSpecFilters() {
   const sp = useSearchParams();
@@ -26,7 +30,14 @@ export function useSpecFilters() {
 
   const query = sp.get("q") ?? "";
   const activeType = sp.get("type") ?? "Все типы";
-  const statusFilter = (sp.get("status") as SpecStatus | null) ?? null;
+  // Неизвестное значение в URL — то же, что «без фильтра»: иначе шторка
+  // показывала бы «Все статусы», а список оставался пустым.
+  const statusRaw = sp.get("status") ?? "";
+  const statusFilter: SpecStatus | null = (
+    SPEC_STATUSES as readonly string[]
+  ).includes(statusRaw)
+    ? (statusRaw as SpecStatus)
+    : null;
   const sort = (sp.get("sort") as SpecSort) ?? "code";
 
   return useMemo(
