@@ -83,17 +83,14 @@ export const SpecListRow = memo(function SpecListRow({
         />
       </div>
 
-      <div className="min-w-0 flex-1">
-        <span className="flex min-w-0 items-center gap-1">
-         
-          <span
-            className={cn(
-              "truncate text-[14px] font-medium",
-              fill && "text-fg-muted italic",
-            )}
-          >
-            {item.name}
-          </span>
+      <div className="min-w-0 flex-1 h-full flex flex-col truncate justify-between">
+        <span
+          className={cn(
+            "truncate text-[14px] font-medium",
+            fill && "text-fg-muted italic",
+          )}
+        >
+          {item.name}
         </span>
 
         <span className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[12px] text-fg-muted">

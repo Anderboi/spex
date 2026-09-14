@@ -2,6 +2,7 @@ import SpecBuilder from "@/components/spec-builder/spec-builder";
 import { EditProjectDialog } from "@/components/project/edit-project-dialog";
 import { ProjectActions } from "@/components/project/project-actions";
 import { PageHeader } from "@/components/layout/page-header";
+import { PageBreadcrumbs } from "@/components/layout/page-breadcrumbs";
 import { Button } from "@/components/ui/button";
 import { Edit } from "lucide-react";
 import {
@@ -47,6 +48,14 @@ export default async function ProjectSpecification({
     <>
       <PageHeader
         title={project.title}
+        breadcrumbs={
+          <PageBreadcrumbs
+            items={[
+              { label: "Проекты", href: `/${orgSlug}/projects` },
+              { label: project.title },
+            ]}
+          />
+        }
         editButton={
           <Button
             nativeButton={false}

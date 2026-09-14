@@ -197,7 +197,7 @@ export default function SpecBuilder({
                     : "code",
               )
             }
-            className="flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-border-muted px-3 text-[13px] text-fg-secondary"
+            className="flex h-10 shrink-0 items-center gap-1.5 rounded-lg border border-border-muted px-3 text-[13px] text-fg-secondary"
           >
             <ArrowUpDown className="size-3.5" />
             {ctx.filters.sort === "code"

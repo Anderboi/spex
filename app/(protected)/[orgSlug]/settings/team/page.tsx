@@ -29,8 +29,6 @@ export default async function TeamSettingsPage({ params }: Props) {
       <div className="space-y-6">
         <PageHeader
           title="Управление командой"
-          description="Управляйте составом вашей организации, ролями и доступами
-              сотрудников"
         >
           {hasAdminAccess && <InviteDialog orgSlug={orgSlug} />}
         </PageHeader>

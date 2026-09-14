@@ -7,6 +7,8 @@ interface PageHeaderProps {
   children?: React.ReactNode;
   className?: string;
   editButton?: React.ReactNode;
+  /** Хлебные крошки (`PageBreadcrumbs`) — рендерятся в строке с `SidebarTrigger`. */
+  breadcrumbs?: React.ReactNode;
 }
 
 export function PageHeader({
@@ -14,11 +16,13 @@ export function PageHeader({
   children,
   className,
   editButton,
+  breadcrumbs,
 }: PageHeaderProps) {
   return (
     <header className={`flex flex-col py-2 ${className}`}>
       <div className="flex h-10 shrink-0 items-center gap-2">
         <SidebarTrigger />
+        {breadcrumbs && <div className="min-w-0 flex-1">{breadcrumbs}</div>}
       </div>
       {/* Заголовок и действия. На узких экранах действия переносятся на
           следующую строку (`flex-wrap` + `gap-y`), а не выдавливают контент
