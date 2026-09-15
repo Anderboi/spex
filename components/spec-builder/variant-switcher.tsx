@@ -9,7 +9,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { fmt, cn } from "@/lib/utils";
+import { fmt, cn, plural } from "@/lib/utils";
 import { SpecItem } from "@/lib/types";
 import Image from "next/image";
 
@@ -25,6 +25,9 @@ export function VariantSwitcher({
   onOpenVariants: () => void;
 }) {
   const variants = item.variants ?? [];
+  // Единственный вариант — это сам базовый материал позиции («Основной»),
+  // выбирать нечего: пилюля появляется со второй записи, то есть с первой
+  // замены, и из неё же добавляют следующие.
   if (variants.length < 2) return null;
 
   const active = variants.find((v) => v.isActive);
@@ -42,7 +45,8 @@ export function VariantSwitcher({
         className="inline-flex h-7 w-fit items-center gap-1.5 rounded-full border border-border-muted bg-bg-card px-2.5 text-[12px] font-medium text-fg hover:border-fg-muted"
       >
         <Layers className="size-3.5 text-fg-muted" />
-        {variants.length} варианта
+        {variants.length}{" "}
+        {plural(variants.length, "вариант", "варианта", "вариантов")}
         {bestSaving > 0 && (
           <span className="rounded-full bg-bg-green-light px-1.5 py-0.5 text-[11px] font-semibold text-fg-green">
             −{fmt(bestSaving)} ₽
@@ -52,6 +56,9 @@ export function VariantSwitcher({
       <DropdownMenuContent align="start" className="w-80 bg-bg-card p-1.5">
         {variants.map((v) => {
           const delta = active ? v.price - active.price : 0;
+          const meta = [v.brand, v.label].filter(Boolean).join(" · ");
+          // снимок базового материала уже подписан «Основной» — не дублируем
+          const activeNote = v.isActive && v.label !== "Основной";
           return (
             <DropdownMenuItem
               key={v.id}
@@ -91,10 +98,10 @@ export function VariantSwitcher({
                 </div>
                 <span
                   className="block truncate text-[11.5px] text-fg-dim"
-                  title={[v.brand, v.label].filter(Boolean).join(" · ")}
+                  title={meta}
                 >
-                  {[v.brand, v.label].filter(Boolean).join(" · ") || "—"}
-                  {v.isActive && " · Основной"}
+                  {meta || "—"}
+                  {activeNote && " · Основной"}
                 </span>
               </div>
 

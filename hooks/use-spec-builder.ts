@@ -106,6 +106,48 @@ export type UseSpecBuilderArgs = {
   initialItems: SpecItem[];
 };
 
+/**
+ * Добавляет в локальный список снимок базового материала, если сервер создал
+ * его вместе с новой заменой (`addVariant` возвращает его в `base`).
+ * Снимок приходит активным, когда активного варианта не было, — то есть
+ * отображаемый материал позиции не меняется.
+ */
+function withBaseVariant(
+  variants: SpecVariant[],
+  base: SpecVariant | null,
+): SpecVariant[] {
+  if (!base || variants.some((v) => v.id === base.id)) return variants;
+  return [base, ...variants];
+}
+
+/**
+ * Поля позиции, которые фактически принадлежат материалу: в варианте они —
+ * источник истины, в spec_items остаются общей копией.
+ */
+const MATERIAL_FIELD_MAP: Record<string, keyof SpecVariant> = {
+  name: "name",
+  brand: "brand",
+  article: "article",
+  spec: "spec",
+  price: "price",
+  product_url: "productUrl",
+  imageUrl: "imageUrl",
+  leadTime: "leadTime",
+  companyId: "companyId",
+  contactId: "contactId",
+  companyName: "companyName",
+};
+
+/** Выделяет из патча позиции поля материала (null — таких полей нет). */
+function materialPatchOf(patch: SpecItemPatch): Partial<SpecVariant> | null {
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(patch)) {
+    const field = MATERIAL_FIELD_MAP[key];
+    if (field) out[field] = value;
+  }
+  return Object.keys(out).length > 0 ? (out as Partial<SpecVariant>) : null;
+}
+
 /* ------------------------------------------------------------------ */
 
 export function useSpecBuilder({
@@ -179,6 +221,48 @@ export function useSpecBuilder({
   /* ---------------------------------------------------------------- */
 
   /**
+   * Оптимистично правит поля варианта; активный вариант пересчитывается
+   * в плоские поля позиции.
+   *
+   * Объявлено до `updateItem` намеренно: правки полей материала из строки и
+   * карточки (цена, название, поставщик) зеркалятся в активный вариант —
+   * см. `updateItem`.
+   */
+  const updateVariantLocal = useCallback(
+    (itemId: string, variantId: string, patch: Partial<SpecVariant>) => {
+      setItems((prev) =>
+        prev.map((it) => {
+          if (it.id !== itemId) return it;
+          const variants = it.variants.map((v) =>
+            v.id === variantId ? { ...v, ...patch } : v,
+          );
+          return applyActiveVariant({ ...it, variants });
+        }),
+      );
+
+      // camelCase (UI) → snake_case (БД)
+      const dbPatch: Record<string, unknown> = {};
+      const map: Record<string, string> = {
+        productUrl: "product_url",
+        imageUrl: "image_url",
+        leadTime: "lead_time",
+        companyId: "company_id",
+        contactId: "contact_id",
+        companyName: "company_name_snapshot",
+      };
+      for (const [k, val] of Object.entries(patch)) {
+        dbPatch[map[k] ?? k] = val;
+      }
+
+      startTransition(async () => {
+        const res = await updateVariant(orgSlug, itemId, variantId, dbPatch);
+        if (!res.success) showToast(res.error);
+      });
+    },
+    [orgSlug, showToast],
+  );
+
+  /**
    * Единственный путь изменения позиции.
    * Патч вычисляется вне setItems — побочные эффекты в updater-функции
    * дублируются в StrictMode и при конкурентном рендере.
@@ -193,8 +277,18 @@ export function useSpecBuilder({
 
       setItems((prev) => prev.map((i) => (i.id === id ? { ...i, ...p } : i)));
       persist.push(id, p);
+
+      // Материал позиции физически хранится в активном варианте, а плоские
+      // поля spec_items — общая копия: `applyActiveVariant` перекрывает их при
+      // каждой загрузке. Без зеркалирования правка цены/названия/поставщика
+      // в строке терялась бы при следующем открытии проекта.
+      const material = materialPatchOf(p);
+      const active = material
+        ? current.variants.find((v) => v.isActive)
+        : undefined;
+      if (active && material) updateVariantLocal(id, active.id, material);
     },
-    [persist],
+    [persist, updateVariantLocal],
   );
 
   /** Несколько позиций разом (групповые операции). */
@@ -398,6 +492,7 @@ export function useSpecBuilder({
         setItems((prev) =>
           prev.map((it) => {
             if (it.id !== itemId) return it;
+            const variants = withBaseVariant(it.variants, res.data.base);
             const newVariant: SpecVariant = {
               id: res.data.id,
               specItemId: it.id,
@@ -414,9 +509,9 @@ export function useSpecBuilder({
               companyName,
               label: m.name,
               isActive: false,
-              position: it.variants.length,
+              position: variants.length,
             };
-            return { ...it, variants: [...it.variants, newVariant] };
+            return { ...it, variants: [...variants, newVariant] };
           }),
         );
         showToast(`Вариант добавлен · ${m.name}`);
@@ -468,6 +563,7 @@ export function useSpecBuilder({
         setItems((prev) =>
           prev.map((it) => {
             if (it.id !== itemId) return it;
+            const variants = withBaseVariant(it.variants, res.data.base);
             const newVariant: SpecVariant = {
               id: res.data.id,
               specItemId: it.id,
@@ -484,48 +580,13 @@ export function useSpecBuilder({
               companyName,
               label: input.name || "Альтернатива",
               isActive: false,
-              position: it.variants.length,
+              position: variants.length,
             };
-            return { ...it, variants: [...it.variants, newVariant] };
+            return { ...it, variants: [...variants, newVariant] };
           }),
         );
         showToast(`Вариант добавлен · ${input.name}`);
         setModal({ kind: "none" });
-      });
-    },
-    [orgSlug, showToast],
-  );
-
-  /** Оптимистично правит поля варианта; активный пересчитывается в плоские. */
-  const updateVariantLocal = useCallback(
-    (itemId: string, variantId: string, patch: Partial<SpecVariant>) => {
-      setItems((prev) =>
-        prev.map((it) => {
-          if (it.id !== itemId) return it;
-          const variants = it.variants.map((v) =>
-            v.id === variantId ? { ...v, ...patch } : v,
-          );
-          return applyActiveVariant({ ...it, variants });
-        }),
-      );
-
-      // camelCase (UI) → snake_case (БД)
-      const dbPatch: Record<string, unknown> = {};
-      const map: Record<string, string> = {
-        productUrl: "product_url",
-        imageUrl: "image_url",
-        leadTime: "lead_time",
-        companyId: "company_id",
-        contactId: "contact_id",
-        companyName: "company_name_snapshot",
-      };
-      for (const [k, val] of Object.entries(patch)) {
-        dbPatch[map[k] ?? k] = val;
-      }
-
-      startTransition(async () => {
-        const res = await updateVariant(orgSlug, itemId, variantId, dbPatch);
-        if (!res.success) showToast(res.error);
       });
     },
     [orgSlug, showToast],
@@ -884,6 +945,11 @@ export function useSpecBuilder({
         code,
         rooms: [], // назначения не копируем: это разные места
         status: src.isPlaceholder ? "draft" : "picked",
+        // Варианты — отдельные записи в БД, и копию позиции сервер их не
+        // создаёт: если оставить здесь варианты источника, пилюля показывала
+        // бы чужие варианты (переключение уходило бы в никуда).
+        variants: [],
+        activeVariantId: null,
       });
       commitNew([copy], `Создана копия · ${code}`);
     },
