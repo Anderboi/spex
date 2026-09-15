@@ -5,8 +5,13 @@ import { Search, ArrowUpDown, AlertCircle, X } from "lucide-react";
 import { useSpecBuilder } from "@/hooks/use-spec-builder";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { useSpecDensity } from "@/hooks/use-spec-density";
+import { useContainerWidth } from "@/hooks/use-container-width";
 import { useDialogUrl } from "@/hooks/use-dialog-url";
 import { GroupSection } from "./group-section";
+import {
+  SPEC_LIST_MIN_CONTAINER,
+  resolveSpecListLayout,
+} from "./spec-table";
 import { DensitySwitcher } from "./density-switcher";
 import { SpecFilterSheet } from "./spec-filter-sheet";
 import { ActiveFilterChips } from "./active-filter-chips";
@@ -62,6 +67,15 @@ export default function SpecBuilder({
   const [localCompanies, setLocalCompanies] = useState(companies);
   const isDesktop = useMediaQuery("(min-width: 820px)");
   const { density, setDensity } = useSpecDensity();
+
+  /**
+   * Раскладку списка выбираем по ширине контейнера, а не окна: сайдбар
+   * сворачивается независимо от viewport, а таблице нужны свои 896px
+   * (см. spec-table.ts). Замер приходит до отрисовки, поэтому таблица не
+   * мигает карточками.
+   */
+  const [contentRef, contentWidth] = useContainerWidth<HTMLDivElement>();
+  const layout = resolveSpecListLayout(contentWidth, density);
 
   /** Созданную CompanyDialog запись используем сразу, без повторного fetch. */
   const upsertLocalCompany = useCallback((company: SpecPickerCompany) => {
@@ -147,7 +161,10 @@ export default function SpecBuilder({
     project.budget !== null && ctx.stats.totalSum > project.budget;
 
   return (
-    <div className="relative min-h-screen w-full min-w-0 bg-bg text-fg">
+    <div
+      ref={contentRef}
+      className="relative min-h-screen w-full min-w-0 bg-bg text-fg"
+    >
       {/* ── статус и статистика (шапка на странице: PageHeader) ── */}
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2 pt-2 sm:pt-6 text-[13px] text-fg-muted">
         <SaveIndicator status={ctx.saveStatus} error={ctx.saveError} />
@@ -211,7 +228,11 @@ export default function SpecBuilder({
           // как на страницах материалов и контактов.
           <>
           <SpecFilterSheet filters={ctx.filters} items={ctx.items} />
-          <DensitySwitcher value={density} onChange={setDensity} />
+          {/* Плотность управляет только карточками: пока контейнер вмещает
+              list-раскладку, переключатель не нужен (см. resolveSpecListLayout). */}
+          {contentWidth > 0 && contentWidth < SPEC_LIST_MIN_CONTAINER && (
+            <DensitySwitcher value={density} onChange={setDensity} />
+          )}
           </>
         )}
       </div>
@@ -312,8 +333,7 @@ export default function SpecBuilder({
                 onToggle={() => ctx.toggleCollapsed(g.type)}
                 allItems={ctx.items}
                 selected={ctx.selected}
-                isDesktop={isDesktop}
-                density={density}
+                layout={layout}
                 opsByItem={ctx.opsByItem}
                 h={handlers}
               />

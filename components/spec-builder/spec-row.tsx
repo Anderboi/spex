@@ -32,6 +32,7 @@ import { VariantSwitcher } from "./variant-switcher";
 import { ParentSubMenu } from "./parent-submenu";
 import { DraftNameField } from "../layout/draft-name-field";
 import { ServiceOperationBadges } from "./service-operation-badges";
+import { SPEC_COL_IMAGE, SPEC_COL_SERVICES } from "./spec-table";
 import type { ServiceOperation } from "@/actions/service-operations";
 
 export type SpecRowHandlers = {
@@ -88,7 +89,9 @@ export const SpecRow = memo(function SpecRow({
           aria-label={`Выбрать ${item.code}`}
         />
       </td>
-      <td className="p-2 align-middle">
+      {/* Классы колонок обязаны совпадать с `th` в group-section.tsx: иначе
+          скрытая колонка сдвинет тело относительно шапки. */}
+      <td className={cn("p-2 align-middle", SPEC_COL_IMAGE)}>
         {item.imageUrl ? (
           <Image
             src={item.imageUrl}
@@ -109,7 +112,7 @@ export const SpecRow = memo(function SpecRow({
         />
       </td>
       <td className="min-w-0 px-2 align-middle">
-        <div className="flex min-h-9 flex-col justify-center gap-0.5">
+        <div className="flex min-h-10 flex-col justify-center gap-0.5">
           {item.isPlaceholder ? (
             <>
               <DraftNameField
@@ -130,10 +133,16 @@ export const SpecRow = memo(function SpecRow({
               onClick={() => h.onOpen(item.id)}
               className="block max-w-full text-left cursor-pointer"
             >
-              <span className="block truncate text-[14px] font-medium text-fg hover:underline">
+              <span
+                className="block truncate text-[14px] font-medium text-fg hover:underline"
+                title={item.name}
+              >
                 {item.name}
               </span>
-              <span className="block truncate text-[12.5px] text-fg-muted">
+              <span
+                className="block truncate text-[12.5px] text-fg-muted"
+                title={[item.brand, item.spec].filter(Boolean).join(" · ")}
+              >
                 {[item.brand, item.spec].filter(Boolean).join(" · ") || "—"}
               </span>
             </button>
@@ -148,7 +157,7 @@ export const SpecRow = memo(function SpecRow({
           )}
         </div>
       </td>
-      <td className="px-2 text-left align-middle">
+      <td className={cn("px-2 text-left align-middle", SPEC_COL_SERVICES)}>
         <div className="flex min-h-9 flex-col justify-center gap-1">
           {ops && ops.length > 0 ? (
             <ServiceOperationBadges ops={ops} onOpen={h.onEditOperation} />

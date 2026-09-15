@@ -190,6 +190,8 @@ const ModalReviewTab = ({
             <Field label="Кол-во">
               <div className="flex items-center gap-2">
                 <QtyStepper
+                className='w-32'
+                dense
                   editable
                   qty={item.qty}
                   unit={item.unit}
@@ -199,7 +201,7 @@ const ModalReviewTab = ({
                 <select
                   defaultValue={item.unit}
                   onChange={(e) => onPatch({ unit: e.target.value })}
-                  className="h-6 w-full rounded-sm font-mono //border border-border-muted bg-bg-card px-3 text-sm"
+                  className="h-6 flex-1 w-full rounded-sm font-mono //border border-border-muted bg-bg-card px-3 text-sm"
                 >
                   {UNIT_OPTIONS.map((u) => (
                     <option key={u} value={u}>

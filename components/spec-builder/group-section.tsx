@@ -8,7 +8,13 @@ import { SpecItem } from '@/lib/types';
 import { SpecCard } from './spec-card';
 import { SpecListRow } from './spec-list-row';
 import { SpecCompactCard } from './spec-compact-card';
-import type { SpecDensity } from "@/hooks/use-spec-density";
+import {
+  SPEC_COL_IMAGE,
+  SPEC_COL_SERVICES,
+  SPEC_TABLE_CLASS,
+  SPEC_TABLE_SCROLL,
+  type SpecListLayout,
+} from "./spec-table";
 import { Checkbox } from '../ui/checkbox';
 import type { ServiceOperation } from "@/actions/service-operations";
 
@@ -20,8 +26,7 @@ export const GroupSection = memo(function GroupSection({
   collapsed,
   onToggle,
   selected,
-  isDesktop,
-  density,
+  layout,
   opsByItem,
   h,
 }: {
@@ -32,9 +37,8 @@ export const GroupSection = memo(function GroupSection({
   collapsed: boolean;
   onToggle: () => void;
   selected: ReadonlySet<string>;
-  isDesktop: boolean;
-  /** Плотность списка на узких экранах: таблица рисуется только на десктопе. */
-  density: SpecDensity;
+  /** Раскладка списка: таблица — только когда контейнер её вмещает. */
+  layout: SpecListLayout;
   /** Операции доп. расходов, сгруппированные по позициям. */
   opsByItem?: Record<string, ServiceOperation[]>;
   h: SpecRowHandlers;
@@ -89,47 +93,65 @@ export const GroupSection = memo(function GroupSection({
 
       {!collapsed && (
         <div id={sectionId}>
-          {isDesktop ? (
-            <table className="w-full table-fixed">
-              <caption className="sr-only">
-                {type} — позиции спецификации
-              </caption>
-              <thead className="text-[10px] table-fixed font-mono text-fg-muted uppercase border-b border-border-muted">
-                <tr>
-                  <th className="text-left w-6 /px-3 py-2">
-                    <Checkbox
-                      className="border-border border-2 data-indeterminate:bg-primary/50 data-indeterminate:text-fg-body"
-                      checked={allSelected}
-                      indeterminate={someSelected}
-                      onCheckedChange={() => h.onToggleSelGroup(groupIds)}
-                      aria-label={`Выбрать все позиции типа ${type}`}
+          {layout === "table" ? (
+            <div
+              // `overflow-x-auto` — страховка: если таблица всё же шире
+              // контейнера (зум, крупный минимальный шрифт), её прокручивают,
+              // а не теряют колонку наименования. Фокусируемая область нужна,
+              // чтобы до правых колонок можно было добраться с клавиатуры.
+              role="region"
+              aria-label={`${type} — таблица позиций`}
+              tabIndex={0}
+              className={SPEC_TABLE_SCROLL}
+            >
+              <table className={SPEC_TABLE_CLASS}>
+                <caption className="sr-only">
+                  {type} — позиции спецификации
+                </caption>
+                <thead className="text-[10px] font-mono text-fg-muted uppercase border-b border-border-muted">
+                  <tr>
+                    <th className="w-6 p-2 text-left">
+                      <Checkbox
+                        className="border-border border-2 data-indeterminate:bg-primary/50 data-indeterminate:text-fg-body"
+                        checked={allSelected}
+                        indeterminate={someSelected}
+                        onCheckedChange={() => h.onToggleSelGroup(groupIds)}
+                        aria-label={`Выбрать все позиции типа ${type}`}
+                      />
+                    </th>
+                    <th className={cn("w-20 p-2 text-left", SPEC_COL_IMAGE)}>
+                      изобр
+                    </th>
+                    <th className="w-14 p-2 text-left">марка</th>
+                    {/* Наименование — единственная колонка без своей ширины:
+                        весь остаток контейнера достаётся ей, а «пол» задаёт
+                        min-width самой таблицы (см. spec-table.ts). */}
+                    <th className="w-auto p-2 text-left">наименование</th>
+                    <th className={cn("w-24 p-2 text-left", SPEC_COL_SERVICES)}>
+                      услуги
+                    </th>
+                    <th className="w-34 p-2 text-left">кол-во</th>
+                    <th className="w-28 p-2 text-left">цена</th>
+                    <th className="w-28 p-2 text-right">итого</th>
+                    <th className="w-34 p-2 text-left">Статус</th>
+                    <th className="w-12 p-2 text-left"></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {items.map((it) => (
+                    <SpecRow
+                      key={it.id}
+                      item={it}
+                      allItems={allItems}
+                      selected={selected.has(it.id)}
+                      ops={opsByItem?.[it.id]}
+                      h={h}
                     />
-                  </th>
-                  <th className="text-left w-20 p-2">изобр</th>
-                  <th className="text-left w-14 p-2">марка</th>
-                  <th className="text-left w-auto p-2">наименование</th>
-                  <th className="text-left w-24 p-2">услуги</th>
-                  <th className="text-left w-34 p-2">кол-во</th>
-                  <th className="text-left w-28 p-2">цена</th>
-                  <th className="text-right w-28 p-2">итого</th>
-                  <th className="text-left w-34 min-w-30 p-2">Статус</th>
-                  <th className="text-left w-12 p-2"></th>
-                </tr>
-              </thead>
-              <tbody>
-                {items.map((it) => (
-                  <SpecRow
-                    key={it.id}
-                    item={it}
-                    allItems={allItems}
-                    selected={selected.has(it.id)}
-                    ops={opsByItem?.[it.id]}
-                    h={h}
-                  />
-                ))}
-              </tbody>
-            </table>
-          ) : density === "row" ? (
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : layout === "list" ? (
             <div className="flex flex-col">
               {items.map((it) => (
                 <SpecListRow
@@ -142,7 +164,7 @@ export const GroupSection = memo(function GroupSection({
                 />
               ))}
             </div>
-          ) : density === "compact" ? (
+          ) : layout === "compact" ? (
             <div className="flex flex-col gap-2 pt-2">
               {items.map((it) => (
                 <SpecCompactCard
