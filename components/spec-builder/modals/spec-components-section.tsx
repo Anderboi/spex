@@ -48,7 +48,7 @@ import type {
 import {
   SpecItemRefPicker,
   type SpecItemRefOption,
-} from "./spec-item-ref-picker";
+} from "../layout/spec-item-ref-picker";
 
 type CompanyOption = { id: string; name: string };
 type ContactOption = { id: string; name: string; company_id: string | null };
@@ -97,15 +97,21 @@ export function SpecComponentsSection({
   /** Форма создания новой группы. */
   const [groupAdding, setGroupAdding] = useState(false);
   /** Редактируемая группа (форма открыта с заполненным названием). */
-  const [groupEditing, setGroupEditing] = useState<SpecItemComponentRow | null>(null);
+  const [groupEditing, setGroupEditing] = useState<SpecItemComponentRow | null>(
+    null,
+  );
   const [groupName, setGroupName] = useState("");
 
   /** Форма добавления/редактирования ссылки на позицию спецификации. */
   const [refAdding, setRefAdding] = useState(false);
   /** Редактируемая ссылка (форма открыта с заполненными значениями). */
-  const [refEditing, setRefEditing] = useState<SpecItemComponentRow | null>(null);
+  const [refEditing, setRefEditing] = useState<SpecItemComponentRow | null>(
+    null,
+  );
   /** id группы, в которую добавляется ссылка (null — верхний уровень). */
-  const [refCreateParentId, setRefCreateParentId] = useState<string | null>(null);
+  const [refCreateParentId, setRefCreateParentId] = useState<string | null>(
+    null,
+  );
   const [refSpecItemId, setRefSpecItemId] = useState("");
   const [refAdditionalCost, setRefAdditionalCost] = useState("");
 
@@ -131,7 +137,8 @@ export function SpecComponentsSection({
         .map((it) => ({
           id: it.id,
           code: it.code,
-          name: it.name || (it.code ? `Марка ${it.code}` : "Позиция без названия"),
+          name:
+            it.name || (it.code ? `Марка ${it.code}` : "Позиция без названия"),
           type: it.type,
         })),
     [specItems, specItemId],
@@ -530,9 +537,7 @@ export function SpecComponentsSection({
         return;
       }
       // Убираем строку из локального списка.
-      setRows((prev) =>
-        prev ? prev.filter((r) => r.id !== target.id) : prev,
-      );
+      setRows((prev) => (prev ? prev.filter((r) => r.id !== target.id) : prev));
       toast.success(
         target.kind === "group"
           ? "Группа удалена из состава"
@@ -544,10 +549,7 @@ export function SpecComponentsSection({
   };
 
   /** Перемещение компонента на одну позицию внутри его группы. */
-  const handleMove = (
-    c: SpecItemComponentRow,
-    direction: "up" | "down",
-  ) => {
+  const handleMove = (c: SpecItemComponentRow, direction: "up" | "down") => {
     startTransition(async () => {
       const res = await moveSpecItemComponent(
         orgSlug,
@@ -589,8 +591,7 @@ export function SpecComponentsSection({
       ? groupItems.findIndex((x) => x.id === c.id)
       : -1;
     const canMoveUp = groupIndex > 0;
-    const canMoveDown =
-      groupIndex >= 0 && groupIndex < groupItems.length - 1;
+    const canMoveDown = groupIndex >= 0 && groupIndex < groupItems.length - 1;
     const actionsDisabled = pending || formOpen;
 
     return (
@@ -632,7 +633,7 @@ export function SpecComponentsSection({
                   onClick={() => handleMove(c, "down")}
                   disabled={actionsDisabled || !canMoveDown}
                 >
-                  <ArrowDown className="size-3.5" /> 
+                  <ArrowDown className="size-3.5" />
                   {/* Вниз */}
                 </Button>
               </>
@@ -743,7 +744,7 @@ export function SpecComponentsSection({
               onClick={() => openRefEdit(r)}
               disabled={pending || formOpen}
             >
-              <Pencil className="size-3.5" /> 
+              <Pencil className="size-3.5" />
               {/* Редактировать */}
             </Button>
             <Button
@@ -756,7 +757,7 @@ export function SpecComponentsSection({
               onClick={() => setDeleting(r)}
               disabled={pending || formOpen}
             >
-              <Trash2 className="size-3.5" /> 
+              <Trash2 className="size-3.5" />
               {/* Удалить */}
             </Button>
           </div>
@@ -782,12 +783,11 @@ export function SpecComponentsSection({
     r.kind === "spec_ref" ? refRow(r) : componentRow(r);
 
   return (
-
     <div className="flex flex-col gap-3 p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-[12.5px] text-fg-muted">
-          Дополнительные элементы позиции. Они не появляются отдельной строкой
-          в основной таблице и не участвуют в закупке, сводках и экспорте.
+          Дополнительные элементы позиции. Они не появляются отдельной строкой в
+          основной таблице и не участвуют в закупке, сводках и экспорте.
         </p>
         {!formOpen && (
           <div className="flex flex-wrap items-center gap-2">
@@ -1153,7 +1153,7 @@ export function SpecComponentsSection({
                           onClick={() => openGroupEdit(c)}
                           disabled={pending || formOpen}
                         >
-                          <Pencil className="size-3.5" /> 
+                          <Pencil className="size-3.5" />
                           {/* Редактировать */}
                         </Button>
                         <Button
@@ -1166,7 +1166,7 @@ export function SpecComponentsSection({
                           onClick={() => setDeleting(c)}
                           disabled={pending || formOpen}
                         >
-                          <Trash2 className="size-3.5" /> 
+                          <Trash2 className="size-3.5" />
                           {/* Удалить */}
                         </Button>
                       </div>
@@ -1220,4 +1220,3 @@ export function SpecComponentsSection({
     </div>
   );
 }
-

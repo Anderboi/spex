@@ -3,8 +3,8 @@
 import { memo } from "react";
 import { Layers, Wrench } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
-import { InlineCode } from "./inline-code";
-import { StatusMenu } from "./status-menu";
+import { InlineCode } from "./layout/inline-code";
+import { StatusMenu } from "./layout/status-menu";
 import { isLocked } from "@/lib/spec/status";
 import { priceOf } from "@/lib/spec/pricing";
 import { cn, fmt } from "@/lib/utils";

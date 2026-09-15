@@ -1,7 +1,7 @@
 "use client";
 
 import { ContactsSort } from "./contacts-sort";
-import TypeChipsSection from "../spec-builder/type-chips-section";
+import TypeChipsSection from "../spec-builder/layout/type-chips-section";
 import { SearchBlock } from "../layout/search-block";
 import { useContactsUrl } from "./use-contacts-url";
 

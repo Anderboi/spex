@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { Plus } from "lucide-react";
 import { TYPE_ORDER, type SpecType } from "@/lib/constants";
 import { cn } from "@/lib/utils";
-import { Button } from "../ui/button";
+import { Button } from "../../ui/button";
 
 /**
  * Черновик как способ «завести» пустую секцию.
@@ -55,7 +55,7 @@ export default function AddSectionPicker({
 
   return (
     <div ref={ref} className="relative mt-3">
-      <div className='flex gap-2'>
+      <div className="flex gap-2">
         <Button
           variant="secondary"
           onClick={() => setOpen((v) => !v)}

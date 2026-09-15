@@ -1,9 +1,9 @@
 "use client";
 
-import { PriceField } from "./price-field";
-import Field from "../layout/modal-field";
+import { PriceField } from "../layout/price-field";
+import Field from "../../layout/modal-field";
 import { LEAD_TIME_OPTIONS, UNIT_OPTIONS } from "@/lib/constants";
-import { Input } from "../ui/input";
+import { Input } from "../../ui/input";
 import { Building2, CloudUpload, ExternalLink, Loader2 } from "lucide-react";
 import Image from "next/image";
 import { SpecItem, SpecItemPatch } from "@/lib/types";
@@ -11,12 +11,12 @@ import { ChangeEvent, useState } from "react";
 import { priceOf } from "@/lib/spec/pricing";
 import { toast } from "sonner";
 import { uploadMaterialImage } from "@/actions/materials";
-import { QtyStepper } from "../layout/qty-stepper";
+import { QtyStepper } from "../../layout/qty-stepper";
 import { fmt } from "@/lib/utils";
-import { Button } from "../ui/button";
+import { Button } from "../../ui/button";
 import { AttrsEditor } from "@/components/layout/attrs-editor";
 import { MaterialTypePicker } from "@/components/layout/material-type-picker";
-import { Separator } from "../ui/separator";
+import { Separator } from "../../ui/separator";
 
 const ModalReviewTab = ({
   item,
@@ -192,8 +192,8 @@ const ModalReviewTab = ({
             <Field label="Кол-во">
               <div className="flex items-center gap-2">
                 <QtyStepper
-                className='w-32'
-                dense
+                  className="w-32"
+                  dense
                   editable
                   qty={item.qty}
                   unit={item.unit}

@@ -3,9 +3,9 @@
 import { memo } from "react";
 import { Image as ImageIcon } from "lucide-react";
 import Image from "next/image";
-import { InlineCode } from "./inline-code";
-import { StatusMenu } from "./status-menu";
-import { SpecItemActions } from "./spec-item-actions";
+import { InlineCode } from "./layout/inline-code";
+import { StatusMenu } from "./layout/status-menu";
+import { SpecItemActions } from "./layout/spec-item-actions";
 import { QtyStepper } from "../layout/qty-stepper";
 import { isLocked } from "@/lib/spec/status";
 import { fmt, cn, fmtQty } from "@/lib/utils";
@@ -13,10 +13,10 @@ import type { SpecRowHandlers } from "./spec-row";
 import { SpecItem } from "@/lib/types";
 import { priceOf } from "@/lib/spec/pricing";
 import type { ServiceOperation } from "@/actions/service-operations";
-import { PriceField } from "./price-field";
+import { PriceField } from "./layout/price-field";
 import { Button } from "../ui/button";
 import { Checkbox } from "../ui/checkbox";
-import { VariantSwitcherMobile } from './variant-switcher-mobile';
+import { VariantSwitcherMobile } from "./layout/variant-switcher-mobile";
 
 export const SpecCard = memo(function SpecCard({
   item,

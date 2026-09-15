@@ -22,9 +22,9 @@ import {
   CommandSeparator,
 } from "@/components/ui/command";
 import { cn } from "@/lib/utils";
-import CopyButton from "../layout/copy-button";
-import Field from "../layout/modal-field";
-import { Avatar } from "../ui/avatar";
+import CopyButton from "../../layout/copy-button";
+import Field from "../../layout/modal-field";
+import { Avatar } from "../../ui/avatar";
 
 export function SupplierPicker({
   companies,
@@ -223,7 +223,7 @@ export function SupplierPicker({
               )}
               {company.address && (
                 <ContactDataField label="Адрес">
-                  <div className='flex gap-2'>
+                  <div className="flex gap-2">
                     <span className="block text-fg-brand hover:underline col-span-2">
                       {company.address}
                     </span>

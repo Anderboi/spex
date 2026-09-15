@@ -17,21 +17,21 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Checkbox } from "@/components/ui/checkbox";
-import { InlineCode } from "./inline-code";
-import { StatusMenu } from "./status-menu";
+import { InlineCode } from "./layout/inline-code";
+import { StatusMenu } from "./layout/status-menu";
 import { isLocked } from "@/lib/spec/status";
 import { fmt, fmtQty } from "@/lib/utils";
 import { cn } from "@/lib/utils";
 import { SpecStatus } from "@/lib/constants";
 import { SpecItem } from "@/lib/types";
-import { PriceField } from "./price-field";
+import { PriceField } from "./layout/price-field";
 import { QtyStepper } from "../layout/qty-stepper";
 import { priceOf } from "@/lib/spec/pricing";
 import Image from "next/image";
-import { VariantSwitcher } from "./variant-switcher";
-import { ParentSubMenu } from "./parent-submenu";
+import { VariantSwitcher } from "./layout/variant-switcher";
+import { ParentSubMenu } from "./layout/parent-submenu";
 import { DraftNameField } from "../layout/draft-name-field";
-import { ServiceOperationBadges } from "./service-operation-badges";
+import { ServiceOperationBadges } from "./layout/service-operation-badges";
 import type { ServiceOperation } from "@/actions/service-operations";
 
 export type SpecRowHandlers = {

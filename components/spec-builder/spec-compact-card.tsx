@@ -2,16 +2,18 @@
 
 import { memo } from "react";
 import {
+  Circle,
   CornerDownRight,
+  Dot,
   Image as ImageIcon,
   Layers,
   Wrench,
 } from "lucide-react";
 import Image from "next/image";
 import { Checkbox } from "@/components/ui/checkbox";
-import { InlineCode } from "./inline-code";
-import { StatusMenu } from "./status-menu";
-import { SpecItemActions } from "./spec-item-actions";
+import { InlineCode } from "./layout/inline-code";
+import { StatusMenu } from "./layout/status-menu";
+import { SpecItemActions } from "./layout/spec-item-actions";
 import { QtyStepper } from "../layout/qty-stepper";
 import { isLocked } from "@/lib/spec/status";
 import { priceOf } from "@/lib/spec/pricing";
@@ -99,9 +101,9 @@ export const SpecCompactCard = memo(function SpecCompactCard({
 
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-center gap-1.5">
-            {item.parentId && (
+            {/* {item.parentId && (
               <CornerDownRight className="size-3 shrink-0 text-fg-muted" />
-            )}
+            )} */}
             <span className="relative z-10 min-w-0">
               <InlineCode
                 code={item.code}
@@ -126,7 +128,7 @@ export const SpecCompactCard = memo(function SpecCompactCard({
 
           <span
             className={cn(
-              "mt-0.5 line-clamp-2 block text-[14px] font-medium leading-snug break-words",
+              "mt-0.5 line-clamp-2 block text-[14px] font-medium leading-snug wrap-break-word",
               fill && "text-fg-muted italic",
             )}
           >
@@ -140,20 +142,40 @@ export const SpecCompactCard = memo(function SpecCompactCard({
             <span className="min-w-0 truncate">
               {fill ? "Позиция не заполнена" : brandSpec || "—"}
             </span>
-            {p.hasQtyMod && (
+            {/* {item.product_type && (
+              <span
+                className="flex shrink-0 items-center gap-1 font-mono text-[12px]"
+                // title={`Тип: ${item.product_type}`}
+              >
+                <Circle className="size-1.5" fill="#9a958a" /> */}
+                {/* <Layers className="size-2.5" /> */}
+                {/* {item.product_type} */}
+              {/* </span>
+            )} */}
+            {/* {p.hasQtyMod && (
               <span
                 className="shrink-0 font-mono text-[11px]"
                 title={`Запас +${item.stockPct}%: ${fmtQty(p.qtyBase)} ${item.unit} по плану, ${fmtQty(p.qtyFinal)} ${item.unit} к закупке`}
               >
                 +{item.stockPct}%
               </span>
-            )}
-            {p.hasPriceMod && (
+            )} */}
+            {/* {p.hasPriceMod && (
               <span
                 className="shrink-0 font-mono text-[11px]"
                 title={`Скидка клиенту −${item.clientDiscountPct}%: ${fmt(p.priceFinal)} ₽ за ${item.unit}`}
               >
                 −{item.clientDiscountPct}%
+              </span>
+            )} */}
+
+            {opsCount > 0 && (
+              <span
+                className="flex shrink-0 items-center gap-0.5 rounded border border-border-muted px-1 font-mono text-[10.5px]"
+                title={`Доп. расходы по позиции: ${opsCount}`}
+              >
+                <Wrench className="size-2.5" />
+                {opsCount}
               </span>
             )}
             {variantsCount > 1 && (
@@ -163,15 +185,6 @@ export const SpecCompactCard = memo(function SpecCompactCard({
               >
                 <Layers className="size-2.5" />
                 {variantsCount}
-              </span>
-            )}
-            {opsCount > 0 && (
-              <span
-                className="flex shrink-0 items-center gap-0.5 rounded border border-border-muted px-1 font-mono text-[10.5px]"
-                title={`Доп. расходы по позиции: ${opsCount}`}
-              >
-                <Wrench className="size-2.5" />
-                {opsCount}
               </span>
             )}
           </span>

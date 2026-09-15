@@ -18,8 +18,8 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "../ui/dropdown-menu";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "../ui/sheet";
+} from "../../ui/dropdown-menu";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "../../ui/sheet";
 import { SPEC_STATUS_CONFIG } from "@/lib/spec/status";
 import { SPEC_STATUSES } from "@/lib/constants";
 

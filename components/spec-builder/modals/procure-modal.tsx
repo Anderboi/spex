@@ -6,8 +6,8 @@ import { PROCUREMENT_FLOW } from "@/lib/constants";
 import { priceOf } from "@/lib/spec/pricing";
 import type { SpecBuilderContext } from "@/hooks/use-spec-builder";
 import { fmt, fmtQty, cn } from "@/lib/utils";
-import { Drawer, DrawerContent, DrawerHeader } from '../ui/drawer';
-import { useIsMobile } from '@/hooks/use-mobile';
+import { Drawer, DrawerContent, DrawerHeader } from "../../ui/drawer";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 export function ProcureModal({
   ctx,
@@ -27,8 +27,8 @@ export function ProcureModal({
     replace,
   } = ctx.stats;
 
-    const isMobile = useIsMobile();
-    
+  const isMobile = useIsMobile();
+
   if (scopeCount === 0) {
     return (
       <Drawer

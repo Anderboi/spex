@@ -13,11 +13,11 @@ import {
   resolveSpecListLayout,
   showsServices,
 } from "./spec-table";
-import { DensitySwitcher } from "./density-switcher";
+import { DensitySwitcher } from "./layout/density-switcher";
 import { SpecFilterSheet } from "./spec-filter-sheet";
-import { ActiveFilterChips } from "./active-filter-chips";
-import { DetailModal } from "./spec-mat-detail-modal";
-import { CodeConflictDialog } from "./code-conflict-dialog";
+import { ActiveFilterChips } from "./layout/active-filter-chips";
+import { DetailModal } from "./modals/spec-mat-detail-modal";
+import { CodeConflictDialog } from "./modals/code-conflict-dialog";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { isLocked } from "@/lib/spec/status";
 import type { SpecRowHandlers } from "./spec-row";
@@ -29,17 +29,17 @@ import type {
 import { ALL_CATEGORIES, TYPE_ORDER } from "@/lib/constants";
 import { fmt, plural, cn } from "@/lib/utils";
 import { SpecItem } from "@/lib/types";
-import BottomBar from "./bottom-bar";
-import AddModalForm from "./add-spec-mat-modal-form";
-import { ProcureModal } from "./procure-modal";
+import BottomBar from "./layout/bottom-bar";
+import AddModalForm from "./modals/add-spec-mat-modal-form";
+import { ProcureModal } from "./modals/procure-modal";
 import { SpecSummary } from "./summary/spec-summary";
 import EmptyFilter from "./empty-filter";
 import EmptyProject from "./empty-project";
 import TypeChip from "../layout/type-chip";
 import SaveIndicator from "../layout/save-indicator";
-import AddSectionPicker from "./add-section-picker";
+import AddSectionPicker from "./layout/add-section-picker";
 import { ProjectExpenses } from "./project-expenses";
-import { ServiceOperationModal } from "./service-operation-modal";
+import { ServiceOperationModal } from "./modals/service-operation-modal";
 
 export default function SpecBuilder({
   orgSlug,
@@ -235,12 +235,12 @@ export default function SpecBuilder({
           // На узких экранах статус и сортировка уезжают в нижнюю шторку —
           // как на страницах материалов и контактов.
           <>
-          <SpecFilterSheet filters={ctx.filters} items={ctx.items} />
-          {/* Плотность управляет только карточками: пока контейнер вмещает
+            <SpecFilterSheet filters={ctx.filters} items={ctx.items} />
+            {/* Плотность управляет только карточками: пока контейнер вмещает
               list-раскладку, переключатель не нужен (см. resolveSpecListLayout). */}
-          {contentWidth > 0 && contentWidth < SPEC_LIST_MIN_CONTAINER && (
-            <DensitySwitcher value={density} onChange={setDensity} />
-          )}
+            {contentWidth > 0 && contentWidth < SPEC_LIST_MIN_CONTAINER && (
+              <DensitySwitcher value={density} onChange={setDensity} />
+            )}
           </>
         )}
       </div>
@@ -273,10 +273,7 @@ export default function SpecBuilder({
       {/* ── активные фильтры и вид списка (мобильная версия) ── */}
       {!isDesktop && (
         <div className="mt-2 flex items-center gap-2">
-          <ActiveFilterChips
-            filters={ctx.filters}
-            className="flex-1 pb-1"
-          />
+          <ActiveFilterChips filters={ctx.filters} className="flex-1 pb-1" />
           {/* <DensitySwitcher value={density} onChange={setDensity} /> */}
         </div>
       )}

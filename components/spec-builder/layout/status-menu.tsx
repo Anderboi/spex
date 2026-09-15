@@ -14,7 +14,7 @@ import {
   statusWarning,
 } from "@/lib/spec/status";
 import { cn } from "@/lib/utils";
-import { ConfirmDialog } from "../ui/confirm-dialog";
+import { ConfirmDialog } from "../../ui/confirm-dialog";
 import { SpecItem } from "@/lib/types";
 import { SpecStatus } from "@/lib/constants";
 

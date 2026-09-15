@@ -18,7 +18,7 @@ import {
 import { cn } from "@/lib/utils";
 import { SpecItem } from "@/lib/types";
 import { ParentSubMenu } from "./parent-submenu";
-import type { SpecRowHandlers } from "./spec-row";
+import type { SpecRowHandlers } from "../spec-row";
 
 /** Меню действий позиции. Общее для всех плотностей списка (строка,
  *  компактная карточка, карточка), чтобы состав действий не расходился. */

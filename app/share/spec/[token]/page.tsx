@@ -9,7 +9,7 @@ import {
   sumServiceOperationAmounts,
 } from "@/lib/spec/project-budget";
 import { fmt, cn } from "@/lib/utils";
-import { PrintButton } from "@/components/spec-builder/print-button";
+import { PrintButton } from "@/components/spec-builder/layout/print-button";
 
 export const dynamic = "force-dynamic";
 

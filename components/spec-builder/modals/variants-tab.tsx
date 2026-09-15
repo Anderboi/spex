@@ -3,7 +3,7 @@
 import { Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import type { SpecItem } from "@/lib/types";
-import VariantCard from "./variant-card";
+import VariantCard from "../variant-card";
 
 export function VariantsTab({
   item,
