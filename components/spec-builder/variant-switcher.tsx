@@ -1,7 +1,7 @@
 // components/spec-builder/variant-switcher.tsx
 "use client";
 
-import { Layers, Check, Plus } from "lucide-react";
+import { Layers, Check, Plus, ExternalLink } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -10,7 +10,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { fmt, cn } from "@/lib/utils";
-import { SpecItem } from '@/lib/types';
+import { SpecItem } from "@/lib/types";
+import Image from "next/image";
 
 export function VariantSwitcher({
   item,
@@ -28,60 +29,90 @@ export function VariantSwitcher({
 
   const active = variants.find((v) => v.isActive);
   const cheapest = [...variants].sort((a, b) => a.price - b.price)[0];
+  const bestSaving =
+    active && cheapest.price < active.price ? active.price - cheapest.price : 0;
 
   return (
     <DropdownMenu>
+      {/* Compact pill trigger, not full-width — sized to its content so it
+          never reads as an empty input field. Surfaces the best available
+          saving so the designer doesn't have to open the menu to see it. */}
       <DropdownMenuTrigger
         aria-label="Варианты замены"
-        className="flex h-6 items-center gap-1 rounded-md border border-border-muted px-1.5 text-[11px] font-medium text-fg-muted hover:border-fg hover:text-fg"
+        className="inline-flex h-7 w-fit items-center gap-1.5 rounded-full border border-border-muted bg-bg-card px-2.5 text-[12px] font-medium text-fg hover:border-fg-muted"
       >
-        <Layers className="size-3" />
-        {variants.length}
+        <Layers className="size-3.5 text-fg-muted" />
+        {variants.length} варианта
+        {bestSaving > 0 && (
+          <span className="rounded-full bg-bg-green-light px-1.5 py-0.5 text-[11px] font-semibold text-fg-green">
+            −{fmt(bestSaving)} ₽
+          </span>
+        )}
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" className="w-72 bg-bg-card">
+      <DropdownMenuContent align="start" className="w-80 bg-bg-card p-1.5">
         {variants.map((v) => {
           const delta = active ? v.price - active.price : 0;
           return (
             <DropdownMenuItem
               key={v.id}
               onClick={() => !v.isActive && onSwitch(v.id)}
-              className="flex flex-col items-start gap-0.5 py-2"
+              className={cn(
+                "flex items-center gap-2.5 rounded-md py-2 px-2",
+                v.isActive && "bg-bg-brand/40",
+              )}
             >
-              <div className="flex w-full items-center gap-2">
-                <span
-                  className={cn(
-                    "size-3.5 flex-none",
-                    v.isActive ? "text-fg" : "text-transparent",
+              {/* Thumbnail helps recognize the material at a glance instead
+                  of reading names. Falls back to a neutral tile. */}
+              {v.imageUrl ? (
+                <Image
+                  src={v.imageUrl}
+                  alt=""
+                  height={36}
+                  width={36}
+                  className="size-9 flex-none rounded-md border object-cover"
+                />
+              ) : (
+                <div className="size-9 flex-none rounded-md border bg-bg-brand2/50" />
+              )}
+
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1.5">
+                  {v.isActive && (
+                    <Check className="size-3.5 flex-none text-fg" />
                   )}
+                  <span
+                    className={cn(
+                      "truncate text-[13px]",
+                      v.isActive ? "font-medium text-fg" : "text-fg",
+                    )}
+                  >
+                    {v.name || "Без названия"}
+                  </span>
+                </div>
+                <span
+                  className="block truncate text-[11.5px] text-fg-dim"
+                  title={[v.brand, v.label].filter(Boolean).join(" · ")}
                 >
-                  <Check className="size-3.5" />
-                </span>
-                <span className="min-w-0 flex-1 truncate text-[13px] font-medium">
-                  {v.name || "Без названия"}
-                </span>
-                <span className="flex-none font-mono text-[12px] tabular-nums">
-                  {fmt(v.price)} ₽
+                  {[v.brand, v.label].filter(Boolean).join(" · ") || "—"}
+                  {v.isActive && " · Основной"}
                 </span>
               </div>
-              <div className="flex w-full items-center gap-2 pl-5.5">
-                <span className="truncate text-[11px] text-fg-dim">
-                  {v.brand || "—"}
-                  {v.label ? ` · ${v.label}` : ""}
+
+              <div className="flex flex-none flex-col items-end gap-0.5">
+                <span className="font-mono text-[12.5px] font-medium tabular-nums">
+                  {fmt(v.price)} ₽
                 </span>
                 {!v.isActive && delta !== 0 && (
                   <span
                     className={cn(
-                      "ml-auto flex-none font-mono text-[10.5px]",
-                      delta < 0 ? "text-fg-approved" : "text-fg-red",
+                      "rounded px-1 font-mono text-[10.5px] font-medium",
+                      delta < 0
+                        ? "bg-bg-green-light text-fg-green"
+                        : "text-fg-red",
                     )}
                   >
                     {delta < 0 ? "−" : "+"}
                     {fmt(Math.abs(delta))} ₽
-                  </span>
-                )}
-                {v.id === cheapest.id && variants.length > 1 && (
-                  <span className="flex-none rounded bg-bg-approved/15 px-1 text-[9.5px] font-semibold uppercase text-fg-approved">
-                    дешевле
                   </span>
                 )}
               </div>
@@ -94,9 +125,9 @@ export function VariantSwitcher({
         </DropdownMenuItem>
         <DropdownMenuItem
           onClick={onOpenVariants}
-          className="text-[12.5px] text-fg-muted"
+          className="gap-2 text-[12.5px] text-fg-brand"
         >
-          Управление вариантами…
+          <ExternalLink className="size-3.5" /> Управление вариантами
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
