@@ -29,6 +29,17 @@ export const STATUS_CONFIG: Record<
 
 // const st = STATUS_CONFIG[currentStatus] ?? STATUS_CONFIG.active;
 
+/**
+ * Проекты, которые считаются «активными» целями для добавления материалов из
+ * библиотеки: черновик, в работе, на паузе. Завершённые и архивные — только
+ * чтение, добавлять в них позиции нельзя (см. actions/materials.ts).
+ */
+export const MATERIAL_TARGET_PROJECT_STATUSES = [
+  "draft",
+  "active",
+  "on_hold",
+] as const satisfies readonly ProjectStatus[];
+
 export const STORAGE_KEY = "spec_items_v1";
 
 export const BRAND_SITES: Record<string, string> = {

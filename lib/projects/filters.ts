@@ -2,6 +2,7 @@ import { z } from "zod";
 import { STATUS_CONFIG } from "@/lib/constants";
 import type { ProjectsFilters, ProjectsSort } from "@/lib/types";
 import { PROJECT_STATUSES, type ProjectStatus } from "@/lib/validations";
+import { singleParam } from "@/lib/query-string";
 
 export const PROJECTS_PAGE_SIZE = 12;
 
@@ -46,18 +47,14 @@ export type ProjectsSearchParams = Record<
   string | string[] | undefined
 >;
 
-function toSingle(value: string | string[] | undefined): string | undefined {
-  return Array.isArray(value) ? value[0] : value;
-}
-
 export function parseProjectsFilters(
   sp: ProjectsSearchParams,
 ): ProjectsFilters {
   const parsed = projectsFiltersSchema.safeParse({
-    query: toSingle(sp.query) ?? "",
-    status: toSingle(sp.status) ?? null,
-    sort: toSingle(sp.sort) ?? "date",
-    page: toSingle(sp.page) ?? "1",
+    query: singleParam(sp.query) ?? "",
+    status: singleParam(sp.status) ?? null,
+    sort: singleParam(sp.sort) ?? "date",
+    page: singleParam(sp.page) ?? "1",
   });
 
   if (!parsed.success) return DEFAULT_PROJECTS_FILTERS;

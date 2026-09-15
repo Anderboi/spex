@@ -1,5 +1,6 @@
 import { z } from "zod";
 import type { MaterialsFilters, MaterialsSort } from "@/lib/types";
+import { singleParam } from "@/lib/query-string";
 
 export const MATERIALS_PAGE_SIZE = 12;
 
@@ -49,20 +50,16 @@ export type MaterialsSearchParams = Record<
   string | string[] | undefined
 >;
 
-function toSingle(value: string | string[] | undefined): string | undefined {
-  return Array.isArray(value) ? value[0] : value;
-}
-
 export function parseMaterialsFilters(
   sp: MaterialsSearchParams,
 ): MaterialsFilters {
   const parsed = materialsFiltersSchema.safeParse({
-    query: toSingle(sp.query) ?? "",
-    category: toSingle(sp.category) ?? null,
-    manufacturer: toSingle(sp.manufacturer) ?? null,
-    status: toSingle(sp.status) ?? null,
-    sort: toSingle(sp.sort) ?? "created_desc",
-    page: toSingle(sp.page) ?? "1",
+    query: singleParam(sp.query) ?? "",
+    category: singleParam(sp.category) ?? null,
+    manufacturer: singleParam(sp.manufacturer) ?? null,
+    status: singleParam(sp.status) ?? null,
+    sort: singleParam(sp.sort) ?? "created_desc",
+    page: singleParam(sp.page) ?? "1",
   });
 
   if (!parsed.success) return DEFAULT_MATERIALS_FILTERS;

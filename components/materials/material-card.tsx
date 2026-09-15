@@ -6,6 +6,7 @@ import {
   ArrowRight,
   Building2,
   ExternalLink,
+  FolderPlus,
   ImageIcon,
   MoreHorizontal,
   Pencil,
@@ -37,6 +38,8 @@ interface MaterialCardProps {
   mat: MaterialListItem;
   onEdit: (id: string) => void;
   onDelete: (id: string) => void;
+  /** Открыть выбор проекта, в спецификацию которого добавить материал. */
+  onAttach: (id: string) => void;
 }
 
 /**
@@ -49,22 +52,34 @@ interface MaterialCardProps {
  *   `>= md` — прежняя вертикальная карточка в сетке 2/3/4 колонки.
  *
  * Вся строка на мобиле — одна кнопка редактирования (большой тап-таргет), а
- * действия правки и удаления лежат в меню «⋯»: на тач-устройствах hover нет,
- * поэтому иконочные кнопки в углу превью там были бы недоступны.
+ * действия правки, добавления в проект и удаления лежат в меню «⋯»: на
+ * тач-устройствах hover нет, поэтому иконочные кнопки в углу превью там были бы
+ * недоступны.
  *
  * Поставщик и артикул — рабочие поля закупки, поэтому выводятся сразу. Цена `0`
  * в базе означает «не указана» и показывается как «Цена не указана».
+ *
+ * Архивный материал (мягко удалённый) в проект не добавляется: так обещает
+ * диалог удаления. Кнопка остаётся на месте, но заблокирована с пояснением —
+ * иначе пропажу действия пришлось бы объяснять.
  */
 const MaterialCard = memo(
-  function MaterialCard({ mat, onEdit, onDelete }: MaterialCardProps) {
+  function MaterialCard({
+    mat,
+    onEdit,
+    onDelete,
+    onAttach,
+  }: MaterialCardProps) {
     const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
     /** Менеджер конкретнее компании: если он выбран, показываем его. */
     const supplierName = mat.contactName || mat.companyName;
     const hasPrice = typeof mat.price === "number" && mat.price > 0;
+    const isArchived = mat.deletedAt !== null;
 
     const handleEdit = () => onEdit(mat.id);
     const handleRequestDelete = () => setShowDeleteDialog(true);
+    const handleAttach = () => onAttach(mat.id);
 
     // Одна ячейка сетки на две раскладки: внешний контейнер растянут по высоте
     // строки, поэтому на `md+` карточка занимает её целиком (`flex-1`), а на
@@ -77,6 +92,7 @@ const MaterialCard = memo(
           hasPrice={hasPrice}
           onEdit={handleEdit}
           onRequestDelete={handleRequestDelete}
+          onAttach={handleAttach}
         />
 
         <div className="hidden flex-1 flex-col overflow-hidden rounded-xl border border-border bg-bg-card transition-colors hover:border-border-muted md:flex">
@@ -181,8 +197,20 @@ const MaterialCard = memo(
                 price={mat.price}
                 unit={mat.unit}
                 hasPrice={hasPrice}
+                size="lg"
               />
-              <Button size="sm" variant="outline" className="gap-2 text-xs">
+              <Button
+                size="sm"
+                variant="outline"
+                className="gap-2 text-xs"
+                onClick={handleAttach}
+                disabled={isArchived}
+                title={
+                  isArchived
+                    ? "Материал удалён из библиотеки — сначала восстановите его"
+                    : `Добавить «${mat.name}» в спецификацию проекта`
+                }
+              >
                 В проект <ArrowRight className="size-3" />
               </Button>
             </div>
@@ -218,7 +246,8 @@ const MaterialCard = memo(
   (prev, next) =>
     prev.mat === next.mat &&
     prev.onEdit === next.onEdit &&
-    prev.onDelete === next.onDelete,
+    prev.onDelete === next.onDelete &&
+    prev.onAttach === next.onAttach,
 );
 
 /** Артикул и поставщик одной строкой — общие данные обеих раскладок. */
@@ -269,7 +298,7 @@ function MaterialPrice({
   price: number | null;
   unit: string | null;
   hasPrice: boolean;
-  size?: "sm" | "md";
+  size?: "sm" | "md" | "lg";
 }) {
   if (!hasPrice) {
     return (
@@ -283,11 +312,12 @@ function MaterialPrice({
     <span
       className={cn(
         "min-w-0 font-mono font-semibold",
-        size === "md" ? "text-[13px]" : "text-xs",
+        size === "md" && "text-[13px]",
+        size === "sm" && "text-xs",
+        size === "lg" && "text-[16px]",
       )}
     >
-      {fmt(price)} ₽
-      {unit && <span className="text-fg-muted"> / {unit}</span>}
+      {fmt(price)} ₽{unit && <span className={cn("text-fg-muted", size==='lg'&&'text-sm')}> / {unit}</span>}
     </span>
   );
 }
@@ -302,13 +332,17 @@ function MobileMaterialRow({
   hasPrice,
   onEdit,
   onRequestDelete,
+  onAttach,
 }: {
   mat: MaterialListItem;
   supplierName: string;
   hasPrice: boolean;
   onEdit: () => void;
   onRequestDelete: () => void;
+  onAttach: () => void;
 }) {
+  const isArchived = mat.deletedAt !== null;
+
   return (
     <div className="flex items-start gap-1 rounded-xl border border-border bg-bg-card p-2.5 transition-colors md:hidden">
       <button
@@ -379,6 +413,18 @@ function MobileMaterialRow({
           <MoreHorizontal className="size-4" />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="min-w-44 bg-bg-card">
+          <DropdownMenuItem
+            className="h-9 gap-2"
+            onClick={onAttach}
+            disabled={isArchived}
+            title={
+              isArchived
+                ? "Материал удалён из библиотеки — сначала восстановите его"
+                : undefined
+            }
+          >
+            <FolderPlus className="size-4" /> В проект
+          </DropdownMenuItem>
           <DropdownMenuItem className="h-9 gap-2" onClick={onEdit}>
             <Pencil className="size-4" /> Редактировать
           </DropdownMenuItem>

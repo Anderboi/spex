@@ -4,12 +4,14 @@ import { useCallback, useMemo, useOptimistic, useTransition, type ReactNode } fr
 import { type MaterialInput } from "@/lib/validations";
 import { deleteMaterial, upsertMaterial } from "@/actions/materials";
 import { MaterialDialog } from "./material-dialog";
+import { AttachToProjectDialog } from "./attach-to-project-dialog";
 import { useSearchParams } from "next/navigation";
 import { useDialogUrl } from "@/hooks/use-dialog-url";
 import { useMaterialsUrl } from "@/hooks/use-materials-url";
 import MaterialCard from "./material-card";
 import type {
   MaterialListItem,
+  MaterialProjectTarget,
   SpecPickerCompany,
   SpecPickerContact,
 } from "@/lib/queries";
@@ -24,6 +26,12 @@ interface MaterialsClientProps {
   initialMaterials: MaterialListItem[];
   companies: SpecPickerCompany[];
   contacts: SpecPickerContact[];
+  /**
+   * Проекты-цели для диалога «В проект». `null` — данные ещё не приехали
+   * (запрос идёт вместе с открытием диалога), `[]` — запрос выполнен, проектов
+   * нет. Пустой выборки на закрытом диалоге страница не делает вовсе.
+   */
+  projectTargets: MaterialProjectTarget[] | null;
 }
 type OptimisticAction =
   | { type: "save"; payload: MaterialInput }
@@ -34,6 +42,7 @@ export function MaterialsClient({
   companies,
   contacts,
   orgSlug,
+  projectTargets,
 }: MaterialsClientProps) {
   const searchParams = useSearchParams();
   const { update, isPending } = useMaterialsUrl();
@@ -88,19 +97,34 @@ export function MaterialsClient({
     },
   );
 
-  // Диалог управляется URL: ?action=create / ?action=edit&id=<materialId>.
-  // Никакого useState — состояние берётся напрямую из search params.
-  const editId = searchParams.get("id");
+  // Диалог управляется URL: ?action=create / ?action=edit&id=<materialId> /
+  // ?action=to-project&id=<materialId>. Никакого useState — состояние берётся
+  // напрямую из search params.
+  const dialogId = searchParams.get("id");
   const editingItem =
-    action === "edit" && editId
-      ? optimisticMaterials.find((m) => m.id === editId)
+    action === "edit" && dialogId
+      ? optimisticMaterials.find((m) => m.id === dialogId)
       : undefined;
   const isDialogOpen = action === "create" || Boolean(editingItem);
   const materialToEdit = editingItem ? toFormValues(editingItem) : null;
 
+  // Цели для «В проект» приходят с сервера, который читает тот же параметр
+  // `action=to-project` (см. app/(protected)/[orgSlug]/materials/page.tsx).
+  const attachingMaterial =
+    action === "to-project" && dialogId
+      ? (optimisticMaterials.find((m) => m.id === dialogId) ?? null)
+      : null;
+
   const handleEdit = useCallback(
     (id: string) => {
       openDialog("edit", { id });
+    },
+    [openDialog],
+  );
+
+  const handleAttach = useCallback(
+    (id: string) => {
+      openDialog("to-project", { id });
     },
     [openDialog],
   );
@@ -175,6 +199,7 @@ export function MaterialsClient({
             mat={mat}
             onEdit={handleEdit}
             onDelete={handleDelete}
+            onAttach={handleAttach}
           />
         ))}
       </div>
@@ -215,6 +240,14 @@ export function MaterialsClient({
         contacts={contacts}
         materialToEdit={materialToEdit}
         onSave={handleSave}
+      />
+
+      <AttachToProjectDialog
+        open={action === "to-project"}
+        orgSlug={orgSlug}
+        material={attachingMaterial}
+        targets={projectTargets}
+        onOpenChange={handleDialogOpenChange}
       />
     </article>
   );

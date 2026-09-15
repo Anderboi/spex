@@ -45,5 +45,7 @@ export function toListItem(
     product_url: input.product_url ?? prev?.product_url ?? null,
     product_type: input.product_type ?? prev?.product_type ?? null,
     attrs: input.attrs ?? prev?.attrs ?? {},
+    // Архивность формой не управляется: правка материала его не восстанавливает.
+    deletedAt: prev?.deletedAt ?? null,
   };
 }

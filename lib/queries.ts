@@ -17,6 +17,8 @@ import {
   SpecItem,
 } from "./types";
 import { one } from "./utils";
+import { canMutateRecord } from "./permissions";
+import { MATERIAL_TARGET_PROJECT_STATUSES } from "./constants";
 import { MATERIALS_PAGE_SIZE } from "./materials/filters";
 import { CONTACTS_PAGE_SIZE } from "./contacts/filters";
 import { PROJECTS_PAGE_SIZE } from "./projects/filters";
@@ -78,6 +80,7 @@ const MATERIAL_LIST_SELECT = `
   unit,
   image_url,
   created_at,
+  deleted_at,
   companies:company_id (id, name),
   contacts:contact_id (id, name),
   product_url,
@@ -105,6 +108,11 @@ export type MaterialListItem = {
   product_type: string | null;
   /** Характеристики материала — шаблон для новых позиций спецификации. */
   attrs: Record<string, string>;
+  /**
+   * Мягкое удаление: материал лежит в архиве библиотеки. Такой материал нельзя
+   * прикрепить к проекту, но позиции, где он уже использован, живут.
+   */
+  deletedAt: string | null;
 };
 
 function toMaterialListItem(r: any): MaterialListItem {
@@ -127,6 +135,7 @@ function toMaterialListItem(r: any): MaterialListItem {
     product_url: r.product_url ?? null,
     product_type: r.product_type ?? null,
     attrs: (r.attrs as Record<string, string> | null) ?? {},
+    deletedAt: r.deleted_at ?? null,
   };
 }
 
@@ -431,6 +440,148 @@ export async function getProjectById(orgSlug: string, projectId: string) {
   }
 
   return data;
+}
+
+/**
+ * Цель добавления материала из библиотеки — проект, в который его можно
+ * прикрепить. Отдаём всё, что нужно для решения в UI: статус, наличие того же
+ * материала в спецификации и права текущего пользователя на проект.
+ */
+export type MaterialProjectTarget = {
+  id: string;
+  title: string;
+  clientName: string | null;
+  address: string | null;
+  status: ProjectStatus;
+  updatedAt: string;
+  /** В спецификации есть позиция, связанная именно с этим материалом — дубль. */
+  hasMaterial: boolean;
+  /**
+   * В проекте есть позиция с тем же артикулом, но без связи с материалом.
+   * Это эвристика (так же ищет дубли конструктор спецификации), поэтому она
+   * только предупреждает, а не блокирует.
+   */
+  hasArticle: boolean;
+  /** Текущий пользователь вправе менять проект (иначе выбор заблокирован). */
+  canEdit: boolean;
+};
+
+/** Сколько проектов вообще показываем в списке выбора. */
+export const MATERIAL_TARGET_LIMIT = 200;
+
+/** Идентификатор в query-параметре может быть чем угодно — режем до запроса. */
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * Проекты-кандидаты для кнопки «В проект» на карточке материала: активные
+ * (см. MATERIAL_TARGET_PROJECT_STATUSES) и отсортированные по свежести правок.
+ *
+ * Дубли ищем двумя запросами: связь `material_id` (точный признак) и совпадение
+ * артикула (эвристика). Оба — только по проектам из выборки, поэтому запросы
+ * остаются индексными независимо от размера организации.
+ */
+export async function getMaterialProjectTargets(
+  orgSlug: string,
+  materialId: string,
+): Promise<MaterialProjectTarget[]> {
+  if (!UUID_PATTERN.test(materialId)) return [];
+
+  const { userId, role, orgId } = await requireOrgBySlug(orgSlug);
+  const supabase = createAdminClient();
+
+  // Архивный материал в проект не добавляется — целей для него нет.
+  const { data: material, error: materialError } = await supabase
+    .from("materials")
+    .select("id, article, deleted_at")
+    .eq("id", materialId)
+    .eq("org_id", orgId)
+    .maybeSingle();
+
+  if (materialError) {
+    console.error("[getMaterialProjectTargets] material", materialError.message);
+  }
+  if (!material || material.deleted_at !== null) return [];
+
+  const { data: projects, error } = await supabase
+    .from("projects")
+    .select("id, title, client_name, address, status, updated_at, created_by")
+    .eq("org_id", orgId)
+    .is("deleted_at", null)
+    .in("status", [...MATERIAL_TARGET_PROJECT_STATUSES])
+    .order("updated_at", { ascending: false })
+    .limit(MATERIAL_TARGET_LIMIT);
+
+  if (error) {
+    console.error("[getMaterialProjectTargets] projects", error.message);
+    return [];
+  }
+
+  const rows = projects ?? [];
+  if (rows.length === 0) return [];
+
+  const projectIds = rows.map((p) => p.id);
+
+  const { data: linked, error: linkedError } = await supabase
+    .from("spec_items")
+    .select("project_id")
+    .eq("org_id", orgId)
+    .eq("material_id", materialId)
+    .is("deleted_at", null)
+    .in("project_id", projectIds);
+
+  if (linkedError) {
+    console.error("[getMaterialProjectTargets] linked", linkedError.message);
+  }
+
+  const linkedProjects = new Set((linked ?? []).map((r) => r.project_id));
+  const articleProjects = new Set<string>();
+
+  const article = material.article?.trim();
+  if (article) {
+    // Значение уходит в ilike-паттерн PostgREST: служебные символы убираем,
+    // окончательное сравнение — по нормализованной строке уже в JS.
+    const safe = article.replace(/[%_*,()"\\]/g, "");
+    if (safe) {
+      const { data: sameArticle, error: articleError } = await supabase
+        .from("spec_items")
+        .select("project_id, article")
+        .eq("org_id", orgId)
+        .ilike("article", safe)
+        .is("deleted_at", null)
+        .in("project_id", projectIds);
+
+      if (articleError) {
+        console.error(
+          "[getMaterialProjectTargets] article",
+          articleError.message,
+        );
+      }
+
+      const needle = article.toLowerCase();
+      for (const row of sameArticle ?? []) {
+        if (row.article?.trim().toLowerCase() !== needle) continue;
+        if (linkedProjects.has(row.project_id)) continue;
+        articleProjects.add(row.project_id);
+      }
+    }
+  }
+
+  return rows.map((p) => ({
+    id: p.id,
+    title: p.title,
+    clientName: p.client_name,
+    address: p.address,
+    status: p.status as ProjectStatus,
+    updatedAt: p.updated_at,
+    hasMaterial: linkedProjects.has(p.id),
+    hasArticle: articleProjects.has(p.id),
+    canEdit: canMutateRecord({
+      role,
+      userId,
+      createdBy: p.created_by,
+    }),
+  }));
 }
 
 export const getProjectsStats = cache(async (orgSlug: string) => {

@@ -1,4 +1,9 @@
-import { getCounterparties, getMaterialBrands, getMaterialsPage } from "@/lib/queries";
+import {
+  getCounterparties,
+  getMaterialBrands,
+  getMaterialProjectTargets,
+  getMaterialsPage,
+} from "@/lib/queries";
 import { MaterialsToolbar } from "@/components/materials/materials-toolbar";
 import { MaterialsClient } from "@/components/materials/materials-client";
 import { MaterialsPagination } from "@/components/materials/materials-pagination";
@@ -9,7 +14,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { MaterialsSkeleton } from "@/components/materials/materials-skeleton";
 import { parseMaterialsFilters } from "@/lib/materials/filters";
-import { withSearchParams } from "@/lib/query-string";
+import { singleParam, withSearchParams } from "@/lib/query-string";
 
 type Props = {
   params: Promise<{ orgSlug: string }>;
@@ -79,6 +84,17 @@ async function MaterialsData({
     materials = (await getMaterialsPage(orgSlug, filters)).items;
   }
 
+  // Список проектов нужен только открытому диалогу «В проект»: параметр
+  // `action=to-project` приходит тем же переходом, что и данные страницы
+  // (см. useDialogUrl), поэтому диалог открывается сразу с готовым списком,
+  // а обычный заход в библиотеку не платит за лишнюю выборку.
+  // `null` — «запрос не делали»: диалог отличит это от «проектов нет».
+  const attachId = singleParam(sp.id);
+  const projectTargets =
+    singleParam(sp.action) === "to-project" && attachId
+      ? await getMaterialProjectTargets(orgSlug, attachId)
+      : null;
+
   return (
     <>
       <MaterialsToolbar brands={brands} />
@@ -88,6 +104,7 @@ async function MaterialsData({
         initialMaterials={materials}
         companies={counterparties.companies}
         contacts={counterparties.contacts}
+        projectTargets={projectTargets}
       />
 
       <MaterialsPagination pageCount={pageCount} />

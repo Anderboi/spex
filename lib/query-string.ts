@@ -5,6 +5,16 @@ export type SearchParamsInput = Record<
 >;
 
 /**
+ * Одно значение search-параметра. Массив приходит, когда параметр повторён
+ * в URL (`?id=a&id=b`); для фильтров и диалогов осмысленен только первый.
+ */
+export function singleParam(
+  value: string | string[] | undefined,
+): string | undefined {
+  return Array.isArray(value) ? value[0] : value;
+}
+
+/**
  * Строит URL из базового пути, текущих search params и патча.
  * Существующие параметры сохраняются; `null` в патче удаляет параметр.
  *

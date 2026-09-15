@@ -43,6 +43,7 @@ import {
   updateVariant,
 } from "@/actions/spec-variants";
 import { SPEC_STATUS_CONFIG } from "@/lib/spec/status";
+import { nextCodesFrom } from "@/lib/spec/codes";
 import { applyActiveVariant } from "@/lib/spec/variants";
 import { round2, sumItems } from "@/lib/spec/pricing";
 import {
@@ -706,20 +707,18 @@ export function useSpecBuilder({
   /**
    * Следующие свободные номера для типа.
    * Дыры не заполняются: нумерация монотонна, марка из чертежа не переиспользуется.
+   * Правило живёт в lib/spec/codes.ts — тот же генератор использует сервер,
+   * когда материал из библиотеки добавляют в проект (actions/materials.ts).
    */
-  const nextCodes = useCallback((type: string, count: number): string[] => {
-    const p = prefixFor(type).toUpperCase();
-    const max = itemsRef.current
-      .filter((i) => i.code.startsWith(`${p}-`))
-      .reduce(
-        (m, i) => Math.max(m, parseInt(i.code.slice(p.length + 1), 10) || 0),
-        0,
-      );
-    return Array.from(
-      { length: count },
-      (_, k) => `${p}-${String(max + 1 + k).padStart(2, "0")}`,
-    );
-  }, []);
+  const nextCodes = useCallback(
+    (type: string, count: number): string[] =>
+      nextCodesFrom(
+        prefixFor(type),
+        itemsRef.current.map((i) => i.code),
+        count,
+      ),
+    [],
+  );
 
   const blank = useCallback(
     (type: SpecType, code: string, over: Partial<SpecItem> = {}): SpecItem => ({
