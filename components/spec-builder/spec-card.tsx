@@ -16,6 +16,7 @@ import type { ServiceOperation } from "@/actions/service-operations";
 import { PriceField } from "./price-field";
 import { Button } from "../ui/button";
 import { Checkbox } from "../ui/checkbox";
+import { VariantSwitcherMobile } from './variant-switcher-mobile';
 
 export const SpecCard = memo(function SpecCard({
   item,
@@ -145,6 +146,17 @@ export const SpecCard = memo(function SpecCard({
               </span>
             </div>
           </div>
+
+          {(item.variants?.length ?? 0) > 1 && (
+            <>
+              <div className="border-t border-border-muted" />
+              <VariantSwitcherMobile
+                item={item}
+                onSwitch={(vid) => h.onSwitchVariant(item.id, vid)}
+                onAdd={() => h.onAddVariant(item.id)}
+              />
+            </>
+          )}
         </div>
       )}
 
