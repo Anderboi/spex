@@ -11,7 +11,12 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
-import { SPEC_STATUSES, TYPE_ORDER, type SpecStatus } from "@/lib/constants";
+import {
+  ALL_CATEGORIES,
+  SPEC_STATUSES,
+  TYPE_ORDER,
+  type SpecStatus,
+} from "@/lib/constants";
 import { SPEC_STATUS_CONFIG } from "@/lib/spec/status";
 import type { SpecItem } from "@/lib/types";
 import type { SpecFilters, SpecSort } from "@/hooks/use-spec-filters";
@@ -45,7 +50,7 @@ export function SpecFilterSheet({
 }) {
   const [open, setOpen] = useState(false);
 
-  const hasType = filters.activeType !== "Все типы";
+  const hasType = filters.activeType !== ALL_CATEGORIES;
   const hasStatus = filters.statusFilter !== null;
   const hasSort = filters.sort !== "code";
   const activeCount = Number(hasType) + Number(hasStatus) + Number(hasSort);
@@ -56,7 +61,7 @@ export function SpecFilterSheet({
     items.reduce((n, i) => n + (i.status === s ? 1 : 0), 0);
 
   // Пустые типы не показываем (как и чипсы), кроме выбранного: иначе на
-  // устаревшем значении из URL селект показывал бы «Все типы».
+  // устаревшем значении из URL селект показывал бы «Все категории».
   const typeOptions = TYPE_ORDER.filter(
     (t) => typeCount(t) > 0 || t === filters.activeType,
   );
@@ -93,13 +98,15 @@ export function SpecFilterSheet({
           </SheetHeader>
 
           <div className="flex flex-col gap-4 p-4">
-            <FilterField label="Тип">
+            <FilterField label="Категория">
               <SheetSelect
-                ariaLabel="Тип"
+                ariaLabel="Категория"
                 value={filters.activeType}
-                onChange={(v) => filters.setActiveType(v || "Все типы")}
+                onChange={(v) => filters.setActiveType(v || ALL_CATEGORIES)}
               >
-                <option value="Все типы">Все типы ({items.length})</option>
+                <option value={ALL_CATEGORIES}>
+                  {ALL_CATEGORIES} ({items.length})
+                </option>
                 {typeOptions.map((t) => (
                   <option key={t} value={t}>
                     {t} ({typeCount(t)})
@@ -149,7 +156,7 @@ export function SpecFilterSheet({
               onClick={() => {
                 // Сброс только фильтров из шторки: строка поиска не трогается
                 // (как «Сбросить» в шторке материалов).
-                filters.setActiveType("Все типы");
+                filters.setActiveType(ALL_CATEGORIES);
                 filters.setStatusFilter(null);
                 filters.setSort("code");
               }}

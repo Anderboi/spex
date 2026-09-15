@@ -41,6 +41,12 @@ export type CustomFunctions = {
       p_supplier_discount_pct: number;
       p_save_to_library: boolean;
       p_parent_id: string | null;
+      /** Тип материала внутри категории: керамогранит, ламинат, обои, … */
+      p_product_type: string | null;
+      p_product_url: string | null;
+      p_lead_time: string | null;
+      /** Характеристики: ключ → значение. */
+      p_attrs: Record<string, string>;
     };
     Returns: { id: string }[];
   };

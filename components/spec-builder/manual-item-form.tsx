@@ -9,7 +9,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
-import { TYPE_ORDER, UNIT_OPTIONS, STOCK_HINT_TYPES, type SpecType } from "@/lib/constants";
+import { TYPE_ORDER, UNIT_OPTIONS, STOCK_HINT_TYPES, LEAD_TIME_OPTIONS, type SpecType } from "@/lib/constants";
 import { priceOf } from "@/lib/spec/pricing";
 import type { SpecPickerCompany } from "@/lib/queries";
 import { fmt, fmtQty, cn } from "@/lib/utils";
@@ -17,6 +17,8 @@ import { z } from "zod";
 import { SpecItem } from "@/lib/types";
 import { ManualSpecItemInput, manualSpecItemSchema } from "@/lib/validations";
 import { uploadMaterialImage } from "@/actions/materials";
+import { MaterialTypePicker } from "@/components/layout/material-type-picker";
+import { AttrsEditor } from "@/components/layout/attrs-editor";
 
 export function ManualItemForm({
   companies,
@@ -53,6 +55,7 @@ export function ManualItemForm({
       type: (variantMode && variantFor
         ? variantFor.type
         : editing?.type ?? defaultType ?? "Отделка") as (typeof TYPE_ORDER)[number],
+      productType: editing?.product_type ?? "",
       spec: editing?.spec ?? "",
       article: editing?.article ?? "",
       qty: ( editing?.qty ?? 1),
@@ -64,6 +67,9 @@ export function ManualItemForm({
       supplierDiscountPct: editing?.supplierDiscountPct ?? 0,
       companyId: editing?.companyId ?? null,
       imageUrl: editing?.imageUrl ?? null,
+      productUrl: editing?.product_url ?? "",
+      attrs: editing?.attrs ?? {},
+      leadTime: editing?.leadTime ?? "",
       saveToLibrary: !editing,
     },
   });
@@ -83,6 +89,7 @@ export function ManualItemForm({
   }, [isDirty, onDirtyChange]);
 
   const type = watch("type");
+  const productType = watch("productType");
   const unit = watch("unit") ?? "шт";
   const imageUrl = watch("imageUrl");
   const preview = priceOf({
@@ -169,15 +176,11 @@ export function ManualItemForm({
           />
         </Field>
 
+        {/* Категория — раздел спецификации; тип — что это за материал внутри
+            раздела. Раньше здесь было одно поле «Тип» со словарём категорий,
+            из-за чего тип материала (керамогранит, ламинат) ввести было негде. */}
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Бренд">
-            <Input
-              {...register("brand")}
-              placeholder="ABK"
-              className="h-10 bg-bg-card"
-            />
-          </Field>
-          <Field label="Тип">
+          <Field label="Категория">
             <select
               {...register("type")}
               disabled={variantMode}
@@ -193,13 +196,27 @@ export function ManualItemForm({
               ))}
             </select>
           </Field>
+          <Field label="Тип">
+            <Controller
+              control={form.control}
+              name="productType"
+              render={({ field }) => (
+                <MaterialTypePicker
+                  category={type}
+                  value={field.value}
+                  onChange={field.onChange}
+                  placeholder="Керамогранит…"
+                />
+              )}
+            />
+          </Field>
         </div>
 
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Коллекция">
+          <Field label="Бренд">
             <Input
-              {...register("spec")}
-              placeholder="Rome Vein"
+              {...register("brand")}
+              placeholder="ABK"
               className="h-10 bg-bg-card"
             />
           </Field>
@@ -211,6 +228,53 @@ export function ManualItemForm({
             />
           </Field>
         </div>
+
+        <Field label="Описание">
+          <Input
+            {...register("spec")}
+            placeholder="Rome Vein"
+            className="h-10 bg-bg-card"
+          />
+        </Field>
+
+        <div className="grid grid-cols-2 gap-3">
+          <Field label="Ссылка на сайт">
+            <Input
+              {...register("productUrl")}
+              placeholder="https://example.com"
+              className="h-10 bg-bg-card"
+            />
+          </Field>
+          <Field label="Срок поставки">
+            <select
+              {...register("leadTime")}
+              className="h-10 w-full rounded-md border border-border bg-bg-card px-3 font-mono text-[13px]"
+            >
+              {LEAD_TIME_OPTIONS.map((t) => (
+                <option key={t} value={t}>
+                  {t}
+                </option>
+              ))}
+            </select>
+          </Field>
+        </div>
+
+        {/* Характеристики. Пресеты ключей зависят от категории и типа:
+            у керамогранита — формат и морозостойкость, у обоев — раппорт. */}
+        <section className="rounded-lg border border-border-muted p-3">
+          <Controller
+            control={form.control}
+            name="attrs"
+            render={({ field }) => (
+              <AttrsEditor
+                category={type}
+                materialType={productType}
+                attrs={(field.value ?? {}) as Record<string, string>}
+                onChange={field.onChange}
+              />
+            )}
+          />
+        </section>
 
         {/* ── количество и цена ───────────────────────── */}
         <div className="flex gap-3">

@@ -11,7 +11,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ManualItemForm } from "./manual-item-form";
-import { TYPE_ORDER, type SpecType } from "@/lib/constants";
+import { ALL_CATEGORIES, TYPE_ORDER, type SpecType } from "@/lib/constants";
 import type { MaterialListItem, SpecPickerCompany } from "@/lib/queries";
 import { fmt, plural, cn } from "@/lib/utils";
 import { SpecItem } from "@/lib/types";
@@ -73,12 +73,16 @@ export default function AddModalForm({
   const parentItem = parentId
     ? (items.find((i) => i.id === parentId) ?? null)
     : null;
-  const [type, setType] = useState<SpecType | "Все типы">(
+  /**
+   * Фильтр каталога по категории. `ALL_CATEGORIES` — «без фильтра»: значение
+   * живёт только в состоянии, в URL оно не попадает.
+   */
+  const [type, setType] = useState<SpecType | typeof ALL_CATEGORIES>(
     variantMode && variantFor
       ? (variantFor.type as SpecType)
       : editing
         ? editing.type
-        : (parentItem?.type ?? "Все типы"),
+        : (parentItem?.type ?? ALL_CATEGORIES),
   );
   const [sort, setSort] = useState<SortKey>("default");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
@@ -118,11 +122,11 @@ export default function AddModalForm({
 
     return library
       .filter((m) => {
-        if (type !== "Все типы" && m.category !== type) return false;
+        if (type !== ALL_CATEGORIES && m.category !== type) return false;
         if (hideUsed && isUsed(m)) return false;
         if (
           q &&
-          !`${m.name} ${m.brand ?? ""} ${m.article ?? ""}`
+          !`${m.name} ${m.brand ?? ""} ${m.article ?? ""} ${m.product_type ?? ""}`
             .toLowerCase()
             .includes(q)
         )
@@ -279,9 +283,9 @@ export default function AddModalForm({
                 {typesPresent.length > 1 && (
                   <div className="-mx-4 mt-2.5 flex gap-2 overflow-x-auto px-4 pb-0.5">
                     <Chip
-                      label="Все типы"
-                      on={type === "Все типы"}
-                      onClick={() => setType("Все типы")}
+                      label={ALL_CATEGORIES}
+                      on={type === ALL_CATEGORIES}
+                      onClick={() => setType(ALL_CATEGORIES)}
                     />
                     {typesPresent.map((t) => (
                       <Chip
@@ -395,7 +399,7 @@ export default function AddModalForm({
                               </span>
                             </span>
                             <span className="mt-0.5 block truncate font-mono text-[10px] uppercase tracking-[.04em] text-fg-muted">
-                              {[m.brand, m.article]
+                              {[m.brand, m.product_type, m.article]
                                 .filter(Boolean)
                                 .join(" · ") || "—"}
                               {isUsed(m) && (

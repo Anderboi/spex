@@ -198,6 +198,7 @@ export type Database = {
         Row: {
           article: string | null
           attachments: string | null
+          attrs: Json
           brand: string | null
           category: string
           company_id: string | null
@@ -222,6 +223,7 @@ export type Database = {
         Insert: {
           article?: string | null
           attachments?: string | null
+          attrs?: Json
           brand?: string | null
           category?: string
           company_id?: string | null
@@ -246,6 +248,7 @@ export type Database = {
         Update: {
           article?: string | null
           attachments?: string | null
+          attrs?: Json
           brand?: string | null
           category?: string
           company_id?: string | null

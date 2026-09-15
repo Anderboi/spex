@@ -51,6 +51,8 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { TYPE_ORDER, UNIT_OPTIONS } from "@/lib/constants";
+import { MaterialTypePicker } from "@/components/layout/material-type-picker";
+import { AttrsEditor } from "@/components/layout/attrs-editor";
 import { SpecPickerCompany, SpecPickerContact } from "@/lib/queries";
 import { ScrollArea } from "../ui/scroll-area";
 import Image from "next/image";
@@ -101,6 +103,7 @@ export function MaterialDialog({
       image_url: null,
       product_url: null,
       product_type: null,
+      attrs: {},
     },
   });
 
@@ -116,6 +119,7 @@ export function MaterialDialog({
           image_url: materialToEdit.image_url ?? null,
           product_url: materialToEdit.product_url ?? null,
           product_type: materialToEdit.product_type ?? null,
+          attrs: materialToEdit.attrs ?? {},
         });
       } else {
         form.reset({
@@ -130,6 +134,7 @@ export function MaterialDialog({
           image_url: null,
           product_url: null,
           product_type: null,
+          attrs: {},
         });
       }
     }
@@ -138,6 +143,8 @@ export function MaterialDialog({
   const currentCompanyId = form.watch("company_id");
   const currentContactId = form.watch("contact_id");
   const imageUrl = form.watch("image_url");
+  const category = form.watch("category");
+  const productType = form.watch("product_type");
 
   const isDirty = form.formState.isDirty;
   const { handleOpenChange, showConfirm, confirmDiscard, cancelDiscard } =
@@ -291,13 +298,14 @@ export function MaterialDialog({
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>Тип</FormLabel>
-                          <FormControl>
-                            <Input
-                              placeholder="Описание продукта"
-                              value={field.value ?? ""}
-                              onChange={field.onChange}
-                            />
-                          </FormControl>
+                          {/* Пресеты типов зависят от категории, но значение
+                              можно ввести своё — справочник не закрытый. */}
+                          <MaterialTypePicker
+                            category={category}
+                            value={field.value ?? null}
+                            onChange={field.onChange}
+                            placeholder="Керамогранит…"
+                          />
                           <FormMessage />
                         </FormItem>
                       )}
@@ -338,6 +346,24 @@ export function MaterialDialog({
                       )}
                     />
                   </div>
+
+                  {/* Характеристики материала — шаблон: при добавлении материала
+                      в спецификацию значения переносятся в новую позицию. */}
+                  <FormField
+                    control={form.control}
+                    name="attrs"
+                    render={({ field }) => (
+                      <FormItem className="border-t border-border-muted pt-4">
+                        <AttrsEditor
+                          category={category}
+                          materialType={productType}
+                          attrs={(field.value ?? {}) as Record<string, string>}
+                          onChange={field.onChange}
+                        />
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
                   <div className="grid grid-cols-2 gap-3">
                     <FormField

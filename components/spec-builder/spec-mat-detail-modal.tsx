@@ -20,7 +20,6 @@ import { fmt, fmtQty } from "@/lib/utils";
 import { SpecStatus } from "@/lib/constants";
 import { SpecItem, SpecItemPatch, SpecVariant } from "@/lib/types";
 import { SupplierPicker } from "./supplier-picker";
-import { AttrsEditor } from "./attrs-editor";
 import { RoomsEditor } from "./rooms-editor";
 import { ScrollArea } from "../ui/scroll-area";
 import { CompanyDialog } from "@/components/contacts/company-dialog";
@@ -185,7 +184,6 @@ export function DetailModal({
                 </span>
               )}
             </TabsTrigger>
-            {/* <TabsTrigger value="attrs">Характеристики</TabsTrigger> */}
             <TabsTrigger value="rooms">
               Помещения {item.rooms.length > 0 && `· ${item.rooms.length}`}
             </TabsTrigger>
@@ -273,17 +271,8 @@ export function DetailModal({
                 onDelete={onDeleteVariant}
               />
             </TabsContent>
-            {/* attrs */}
-            {/* <TabsContent
-              value="attrs"
-              className="flex flex-col gap-4 py-4 pl-4 pr-6"
-            >
-              <AttrsEditor
-                type={item.type}
-                attrs={item.attrs}
-                onChange={(attrs) => onPatch({ attrs })}
-              />
-            </TabsContent> */}
+            {/* Характеристики редактируются внутри «Обзора» (ModalReviewTab):
+                отдельная вкладка дублировала бы те же поля. */}
             {/* rooms */}
             <TabsContent
               value="rooms"

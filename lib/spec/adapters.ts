@@ -19,6 +19,7 @@ export function toFormValues(
     contact_id: m.contactId,
     product_url: m.product_url ?? null,
     product_type: m.product_type ?? null,
+    attrs: m.attrs ?? {},
   };
 }
 
@@ -43,5 +44,6 @@ export function toListItem(
     createdAt: prev?.createdAt ?? new Date().toISOString(),
     product_url: input.product_url ?? prev?.product_url ?? null,
     product_type: input.product_type ?? prev?.product_type ?? null,
+    attrs: input.attrs ?? prev?.attrs ?? {},
   };
 }

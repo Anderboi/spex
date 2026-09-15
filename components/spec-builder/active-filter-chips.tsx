@@ -3,6 +3,7 @@
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { SPEC_STATUS_CONFIG } from "@/lib/spec/status";
+import { ALL_CATEGORIES } from "@/lib/constants";
 import type { SpecFilters } from "@/hooks/use-spec-filters";
 
 /**
@@ -19,11 +20,11 @@ export function ActiveFilterChips({
 }) {
   const chips: { key: string; label: string; clear: () => void }[] = [];
 
-  if (filters.activeType !== "Все типы") {
+  if (filters.activeType !== ALL_CATEGORIES) {
     chips.push({
       key: "type",
       label: filters.activeType,
-      clear: () => filters.setActiveType("Все типы"),
+      clear: () => filters.setActiveType(ALL_CATEGORIES),
     });
   }
   if (filters.statusFilter) {

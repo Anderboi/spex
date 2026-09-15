@@ -92,23 +92,32 @@ export type CompanyRow = CompanyInput & { id: string };
 export type ContactRow = ContactInput & { id: string };
 
 // --- MATERIALS ---
+/**
+ * Материал библиотеки — шаблон для позиций спецификации: категория (раздел),
+ * тип внутри категории (керамогранит, ламинат…) и характеристики, которые
+ * переносятся в позицию при добавлении материала в проект.
+ */
 export const materialSchema = z.object({
   id: z.string().uuid().optional(),
   company_id: z.string().uuid().optional().nullable(),
   contact_id: z.string().uuid().optional().nullable(),
   name: z.string().min(1, "Укажите наименование материала"),
   brand: z.string().optional().nullable(),
+  /** Категория — раздел спецификации (Отделка, Мебель, …). */
   category: z.string().min(1, "Выберите категорию"),
   article: z.string().optional().nullable(),
   unit: z.string().default("шт"),
   product_url: z.string().optional().nullable(),
-  product_type: z.string().min(1, "Выберите тип продукта").optional().nullable(),
+  /** Тип материала внутри категории: керамогранит, ламинат, обои, … */
+  product_type: z.string().optional().nullable(),
   price: z
     .number()
     .min(0, "Цена не может быть отрицательной")
     .optional()
     .default(0),
   image_url: z.string().optional().nullable(),
+  /** Характеристики материала: ключ → значение. */
+  attrs: z.record(z.string(), z.string().max(500)).default({}),
   // tags: z.array(z.string()).optional().default([]),
 });
 
@@ -268,7 +277,10 @@ export const manualSpecItemSchema = z
   .object({
     name: z.string().trim().min(1, "Укажите наименование").max(300),
     brand: z.string().trim().max(200).default(""),
+    /** Категория — раздел спецификации (Отделка, Мебель, …). */
     type: z.enum(SPEC_TYPES),
+    /** Тип материала внутри категории: керамогранит, ламинат, обои, … */
+    productType: z.string().trim().max(120).default(""),
     spec: z.string().trim().max(2000).default(""),
     article: z.string().trim().max(120).default(""),
 
@@ -305,7 +317,9 @@ export const manualSpecItemSchema = z
 
     companyId: z.string().uuid().nullable().default(null),
     imageUrl: z.string().trim().max(500).nullable().default(null),
-    productUrl: z.string().trim().max(500).nullable().default(null),
+    productUrl: z.string().trim().max(500).default(""),
+    /** Характеристики позиции: ключ → значение. */
+    attrs: z.record(z.string(), z.string().max(500)).default({}),
     saveToLibrary: z.boolean().default(true),
     leadTime: z.string().trim().max(120).default(""),
   })

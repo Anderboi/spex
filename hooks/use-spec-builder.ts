@@ -13,6 +13,7 @@ import { useSpecFilters } from "./use-spec-filters";
 import { fmt, plural, prefixFor } from "@/lib/utils";
 import { SpecItem, SpecItemPatch, type SpecVariant } from "@/lib/types";
 import {
+  ALL_CATEGORIES,
   PICKING_FLOW,
   PROCUREMENT_FLOW,
   SERVICE_OPERATION_CONFIG,
@@ -548,7 +549,8 @@ export function useSpecBuilder({
           article: input.article ?? "",
           spec: input.spec ?? "",
           price: input.price,
-          product_url: "",
+          product_url: input.productUrl ?? "",
+          lead_time: input.leadTime ?? "",
           image_url: input.imageUrl ?? null,
           company_id: input.companyId ?? null,
           company_name_snapshot: companyName,
@@ -824,6 +826,14 @@ export function useSpecBuilder({
               parentId,
               status: "picked",
               isPlaceholder: false,
+              // Материал библиотеки — шаблон: тип, характеристики, ссылка и
+              // изображение переносятся в позицию снимком на момент добавления.
+              // Дальше позиция живёт своей жизнью и правки в библиотеке её не
+              // трогают.
+              product_type: m.product_type ?? "",
+              product_url: m.product_url ?? "",
+              attrs: m.attrs ?? {},
+              imageUrl: m.imageUrl ?? null,
             }),
           );
         });
@@ -852,6 +862,11 @@ export function useSpecBuilder({
         contactId: m.contactId ?? null,
         status: "picked",
         isPlaceholder: false,
+        // см. addFromLibrary: переносим шаблон материала целиком
+        product_type: m.product_type ?? "",
+        product_url: m.product_url ?? "",
+        attrs: m.attrs ?? {},
+        imageUrl: m.imageUrl ?? null,
       });
       void persist.flush();
       setModal({ kind: "none" });
@@ -885,6 +900,10 @@ export function useSpecBuilder({
         parentId,
         status: input.price > 0 ? "picked" : "draft",
         isPlaceholder: false,
+        product_type: input.productType,
+        product_url: input.productUrl,
+        leadTime: input.leadTime,
+        attrs: input.attrs,
       });
 
       setItems((prev) => [...prev, created]);
@@ -926,6 +945,10 @@ export function useSpecBuilder({
         imageUrl: input.imageUrl,
         status: input.price > 0 ? "picked" : "draft",
         isPlaceholder: false,
+        product_type: input.productType,
+        product_url: input.productUrl,
+        leadTime: input.leadTime,
+        attrs: input.attrs,
       });
       void persist.flush();
       setModal({ kind: "none" });
@@ -1118,7 +1141,7 @@ export function useSpecBuilder({
     const q = filters.query.trim().toLowerCase();
 
     const filtered = items.filter((it) => {
-      if (filters.activeType !== "Все типы" && it.type !== filters.activeType)
+      if (filters.activeType !== ALL_CATEGORIES && it.type !== filters.activeType)
         return false;
       if (filters.statusFilter && it.status !== filters.statusFilter)
         return false;

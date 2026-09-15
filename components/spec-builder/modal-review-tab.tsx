@@ -14,7 +14,8 @@ import { uploadMaterialImage } from "@/actions/materials";
 import { QtyStepper } from "../layout/qty-stepper";
 import { fmt } from "@/lib/utils";
 import { Button } from "../ui/button";
-import { AttrsEditor } from "./attrs-editor";
+import { AttrsEditor } from "@/components/layout/attrs-editor";
+import { MaterialTypePicker } from "@/components/layout/material-type-picker";
 import { Separator } from "../ui/separator";
 
 const ModalReviewTab = ({
@@ -117,9 +118,10 @@ const ModalReviewTab = ({
             />
           </Field>
           <Field label="Тип">
-            <Input
-              defaultValue={item.product_type}
-              onBlur={(e) => onPatch({ product_type: e.target.value.trim() })}
+            <MaterialTypePicker
+              category={item.type}
+              value={item.product_type}
+              onChange={(v) => onPatch({ product_type: v ?? "" })}
             />
           </Field>
           <Field label="Артикул">
@@ -273,7 +275,8 @@ const ModalReviewTab = ({
       <Separator />
       <section className="flex flex-col gap-4 pl-4 pr-6 py-4">
         <AttrsEditor
-          type={item.type}
+          category={item.type}
+          materialType={item.product_type}
           attrs={item.attrs}
           onChange={(attrs) => onPatch({ attrs })}
         />

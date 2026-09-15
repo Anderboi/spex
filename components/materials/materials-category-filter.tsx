@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { TYPE_ORDER } from "@/lib/constants";
+import { TYPE_ORDER, ALL_CATEGORIES } from "@/lib/constants";
 import { useSearchParams } from "next/navigation";
 import { useMaterialsUrl } from "../../hooks/use-materials-url";
 import {
@@ -12,7 +12,7 @@ import {
 } from "./materials-filter-select";
 import { cn } from "@/lib/utils";
 
-const ALL_LABEL = "Все типы";
+const ALL_LABEL = ALL_CATEGORIES;
 
 export function MaterialsCategoryFilter({ className }: { className?: string }) {
   const searchParams = useSearchParams();

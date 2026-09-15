@@ -3,7 +3,7 @@
 import { useCallback, useRef, useState, useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { TYPE_ORDER } from "@/lib/constants";
+import { ALL_CATEGORIES, TYPE_ORDER } from "@/lib/constants";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 interface TypeChipsSectionProps {
@@ -20,14 +20,14 @@ export default function TypeChipsSection({
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [isPending, startTransition] = useTransition();
-  const allTypes = ["Все типы", ...items];
-  const activeCategory = searchParams.get("category") || "Все типы";
+  const allTypes = [ALL_CATEGORIES, ...items];
+  const activeCategory = searchParams.get("category") || ALL_CATEGORIES;
 
   const handleSelectCategory = useCallback(
     (category: string) => {
       const params = new URLSearchParams(searchParams.toString());
 
-      if (category === "Все типы" || !category) {
+      if (category === ALL_CATEGORIES || !category) {
         params.delete("category");
       } else {
         params.set("category", category);

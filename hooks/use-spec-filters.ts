@@ -2,7 +2,7 @@
 
 import { useCallback, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
-import { SPEC_STATUSES, type SpecStatus } from '@/lib/constants';
+import { ALL_CATEGORIES, SPEC_STATUSES, type SpecStatus } from '@/lib/constants';
 
 export type SpecSort = "code" | "az" | "sum";
 
@@ -29,7 +29,7 @@ export function useSpecFilters() {
   }, []);
 
   const query = sp.get("q") ?? "";
-  const activeType = sp.get("type") ?? "Все типы";
+  const activeType = sp.get("type") ?? ALL_CATEGORIES;
   // Неизвестное значение в URL — то же, что «без фильтра»: иначе шторка
   // показывала бы «Все статусы», а список оставался пустым.
   const statusRaw = sp.get("status") ?? "";
@@ -48,14 +48,16 @@ export function useSpecFilters() {
       sort,
       setQuery: (v: string) => setParam("q", v.trim() || null),
       setActiveType: (v: string) =>
-        setParam("type", v === "Все типы" ? null : v),
+        setParam("type", v === ALL_CATEGORIES ? null : v),
       setStatusFilter: (v: SpecStatus | null) => setParam("status", v),
       setSort: (v: SpecSort) => setParam("sort", v === "code" ? null : v),
       reset: () => {
         window.history.replaceState(null, "", window.location.pathname);
         force((n) => n + 1);
       },
-      isFiltered: Boolean(query || statusFilter || activeType !== "Все типы"),
+      isFiltered: Boolean(
+        query || statusFilter || activeType !== ALL_CATEGORIES,
+      ),
     }),
     [query, activeType, statusFilter, sort, setParam],
   );

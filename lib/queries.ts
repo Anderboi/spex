@@ -81,12 +81,14 @@ const MATERIAL_LIST_SELECT = `
   companies:company_id (id, name),
   contacts:contact_id (id, name),
   product_url,
-  product_type
+  product_type,
+  attrs
 `;
 
 export type MaterialListItem = {
   id: string;
   name: string;
+  /** Категория — раздел спецификации (Отделка, Мебель, …). */
   category: string | null;
   brand: string | null;
   article: string | null;
@@ -99,7 +101,10 @@ export type MaterialListItem = {
   createdAt: string;
   contactId: string | null;
   product_url: string | null;
+  /** Тип материала внутри категории: керамогранит, ламинат, обои, … */
   product_type: string | null;
+  /** Характеристики материала — шаблон для новых позиций спецификации. */
+  attrs: Record<string, string>;
 };
 
 function toMaterialListItem(r: any): MaterialListItem {
@@ -121,6 +126,7 @@ function toMaterialListItem(r: any): MaterialListItem {
     contactId: contact?.id ?? null,
     product_url: r.product_url ?? null,
     product_type: r.product_type ?? null,
+    attrs: (r.attrs as Record<string, string> | null) ?? {},
   };
 }
 

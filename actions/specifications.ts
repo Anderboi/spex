@@ -219,6 +219,10 @@ export async function createManualSpecItem(
     p_save_to_library: saveToLibrary,
     p_image_url: d.imageUrl,
     p_parent_id: payload.parentId ?? null,
+    p_product_type: d.productType || null,
+    p_product_url: d.productUrl || null,
+    p_lead_time: d.leadTime || null,
+    p_attrs: d.attrs ?? {},
   });
 
   if (error) {

@@ -26,7 +26,7 @@ import type {
   SpecPickerCompany,
   SpecPickerContact,
 } from "@/lib/queries";
-import { TYPE_ORDER } from "@/lib/constants";
+import { ALL_CATEGORIES, TYPE_ORDER } from "@/lib/constants";
 import { fmt, plural, cn } from "@/lib/utils";
 import { SpecItem } from "@/lib/types";
 import BottomBar from "./bottom-bar";
@@ -249,10 +249,10 @@ export default function SpecBuilder({
       {isDesktop && (
         <div className="mt-3 flex gap-1.5 overflow-x-auto pb-1">
           <TypeChip
-            label="Все типы"
-            active={ctx.filters.activeType === "Все типы"}
+            label={ALL_CATEGORIES}
+            active={ctx.filters.activeType === ALL_CATEGORIES}
             count={ctx.items.length}
-            onClick={() => ctx.filters.setActiveType("Все типы")}
+            onClick={() => ctx.filters.setActiveType(ALL_CATEGORIES)}
           />
           {TYPE_ORDER.map((t) => {
             const n = ctx.items.filter((i) => i.type === t).length;
