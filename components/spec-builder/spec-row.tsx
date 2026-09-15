@@ -32,7 +32,6 @@ import { VariantSwitcher } from "./variant-switcher";
 import { ParentSubMenu } from "./parent-submenu";
 import { DraftNameField } from "../layout/draft-name-field";
 import { ServiceOperationBadges } from "./service-operation-badges";
-import { SPEC_COL_IMAGE, SPEC_COL_SERVICES } from "./spec-table";
 import type { ServiceOperation } from "@/actions/service-operations";
 
 export type SpecRowHandlers = {
@@ -60,12 +59,15 @@ export const SpecRow = memo(function SpecRow({
   item,
   allItems,
   selected,
+  showServices,
   ops,
   h,
 }: {
   item: SpecItem;
   allItems: SpecItem[];
   selected: boolean;
+  /** Показывать колонку «услуги»: то же значение, что у `th` в group-section. */
+  showServices: boolean;
   /** Операции доп. расходов, связанные с этой позицией. */
   ops?: ServiceOperation[];
   h: SpecRowHandlers;
@@ -89,9 +91,9 @@ export const SpecRow = memo(function SpecRow({
           aria-label={`Выбрать ${item.code}`}
         />
       </td>
-      {/* Классы колонок обязаны совпадать с `th` в group-section.tsx: иначе
-          скрытая колонка сдвинет тело относительно шапки. */}
-      <td className={cn("p-2 align-middle", SPEC_COL_IMAGE)}>
+      {/* Превью материала показывается всегда: по нему позицию и опознают.
+          Пустой слот — тоже часть раскладки, поэтому колонка не «прыгает». */}
+      <td className="p-2 align-middle">
         {item.imageUrl ? (
           <Image
             src={item.imageUrl}
@@ -157,15 +159,17 @@ export const SpecRow = memo(function SpecRow({
           )}
         </div>
       </td>
-      <td className={cn("px-2 text-left align-middle", SPEC_COL_SERVICES)}>
-        <div className="flex min-h-9 flex-col justify-center gap-1">
-          {ops && ops.length > 0 ? (
-            <ServiceOperationBadges ops={ops} onOpen={h.onEditOperation} />
-          ) : (
-            <span className="text-[13px] text-fg-muted">—</span>
-          )}
-        </div>
-      </td>
+      {showServices && (
+        <td className="px-2 text-left align-middle">
+          <div className="flex min-h-9 flex-col justify-center gap-1">
+            {ops && ops.length > 0 ? (
+              <ServiceOperationBadges ops={ops} onOpen={h.onEditOperation} />
+            ) : (
+              <span className="text-[13px] text-fg-muted">—</span>
+            )}
+          </div>
+        </td>
+      )}
       <td className="px-2 text-right align-middle">
         <div className="flex min-h-9 flex-col items-end justify-center leading-tight">
           <QtyStepper

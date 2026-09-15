@@ -11,6 +11,7 @@ import { GroupSection } from "./group-section";
 import {
   SPEC_LIST_MIN_CONTAINER,
   resolveSpecListLayout,
+  showsServices,
 } from "./spec-table";
 import { DensitySwitcher } from "./density-switcher";
 import { SpecFilterSheet } from "./spec-filter-sheet";
@@ -70,12 +71,19 @@ export default function SpecBuilder({
 
   /**
    * Раскладку списка выбираем по ширине контейнера, а не окна: сайдбар
-   * сворачивается независимо от viewport, а таблице нужны свои 896px
-   * (см. spec-table.ts). Замер приходит до отрисовки, поэтому таблица не
+   * сворачивается независимо от viewport, а таблице нужны свои 928px
+   * (см. spec-table.tsx). Замер приходит до отрисовки, поэтому таблица не
    * мигает карточками.
    */
   const [contentRef, contentWidth] = useContainerWidth<HTMLDivElement>();
   const layout = resolveSpecListLayout(contentWidth, density);
+  /**
+   * Необязательная колонка «услуги»: видимость считаем по тому же замеру
+   * контейнера, а не container queries — они зависят от поддержки браузера и от
+   * того, попал ли новый файл в сборку Tailwind, и при промахе колонка остаётся
+   * скрытой навсегда.
+   */
+  const showServices = showsServices(contentWidth);
 
   /** Созданную CompanyDialog запись используем сразу, без повторного fetch. */
   const upsertLocalCompany = useCallback((company: SpecPickerCompany) => {
@@ -334,6 +342,7 @@ export default function SpecBuilder({
                 allItems={ctx.items}
                 selected={ctx.selected}
                 layout={layout}
+                showServices={showServices}
                 opsByItem={ctx.opsByItem}
                 h={handlers}
               />

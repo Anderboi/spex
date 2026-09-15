@@ -9,9 +9,8 @@ import { SpecCard } from './spec-card';
 import { SpecListRow } from './spec-list-row';
 import { SpecCompactCard } from './spec-compact-card';
 import {
-  SPEC_COL_IMAGE,
-  SPEC_COL_SERVICES,
   SPEC_TABLE_CLASS,
+  SPEC_TABLE_MIN_CONTAINER,
   SPEC_TABLE_SCROLL,
   type SpecListLayout,
 } from "./spec-table";
@@ -27,6 +26,7 @@ export const GroupSection = memo(function GroupSection({
   onToggle,
   selected,
   layout,
+  showServices,
   opsByItem,
   h,
 }: {
@@ -39,6 +39,8 @@ export const GroupSection = memo(function GroupSection({
   selected: ReadonlySet<string>;
   /** Раскладка списка: таблица — только когда контейнер её вмещает. */
   layout: SpecListLayout;
+  /** Показывать колонку «услуги»: решается по ширине контейнера в spec-builder. */
+  showServices: boolean;
   /** Операции доп. расходов, сгруппированные по позициям. */
   opsByItem?: Record<string, ServiceOperation[]>;
   h: SpecRowHandlers;
@@ -104,7 +106,13 @@ export const GroupSection = memo(function GroupSection({
               tabIndex={0}
               className={SPEC_TABLE_SCROLL}
             >
-              <table className={SPEC_TABLE_CLASS}>
+              <table
+                className={SPEC_TABLE_CLASS}
+                // min-width вместо класса: значение обязано совпадать с
+                // SPEC_TABLE_MIN_CONTAINER, иначе таблица либо появится
+                // раньше, чем влезает, либо получит постоянный скролл.
+                style={{ minWidth: SPEC_TABLE_MIN_CONTAINER }}
+              >
                 <caption className="sr-only">
                   {type} — позиции спецификации
                 </caption>
@@ -119,17 +127,18 @@ export const GroupSection = memo(function GroupSection({
                         aria-label={`Выбрать все позиции типа ${type}`}
                       />
                     </th>
-                    <th className={cn("w-20 p-2 text-left", SPEC_COL_IMAGE)}>
-                      изобр
-                    </th>
+                    <th className="w-20 p-2 text-left">изобр</th>
                     <th className="w-14 p-2 text-left">марка</th>
                     {/* Наименование — единственная колонка без своей ширины:
                         весь остаток контейнера достаётся ей, а «пол» задаёт
-                        min-width самой таблицы (см. spec-table.ts). */}
+                        min-width самой таблицы (см. spec-table.tsx). */}
                     <th className="w-auto p-2 text-left">наименование</th>
-                    <th className={cn("w-24 p-2 text-left", SPEC_COL_SERVICES)}>
-                      услуги
-                    </th>
+                    {/* Необязательная колонка: флаг приходит из spec-builder,
+                        разметка `th` и `td` включается одним и тем же
+                        значением, поэтому шапка не разъедется с телом. */}
+                    {showServices && (
+                      <th className="w-24 p-2 text-left">услуги</th>
+                    )}
                     <th className="w-34 p-2 text-left">кол-во</th>
                     <th className="w-28 p-2 text-left">цена</th>
                     <th className="w-28 p-2 text-right">итого</th>
@@ -144,6 +153,7 @@ export const GroupSection = memo(function GroupSection({
                       item={it}
                       allItems={allItems}
                       selected={selected.has(it.id)}
+                      showServices={showServices}
                       ops={opsByItem?.[it.id]}
                       h={h}
                     />
