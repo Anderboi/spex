@@ -1,6 +1,5 @@
 "use client";
 
-import { Dialog, DialogContent, DialogHeader } from "@/components/ui/dialog";
 import { SPEC_STATUS_CONFIG } from "@/lib/spec/status";
 import { PROCUREMENT_FLOW } from "@/lib/constants";
 import { priceOf } from "@/lib/spec/pricing";
@@ -51,7 +50,7 @@ export function ProcureModal({
 
   const bars = PROCUREMENT_FLOW.map((s) => {
     const pct = scopeSum ? (procurement[s].sum / scopeSum) * 100 : 0;
-    return { status: s, width: `${pct}%`, color: SPEC_STATUS_CONFIG[s].dot };
+    return { status: s, width: `${pct}%`, color: SPEC_STATUS_CONFIG[s].bar };
   }).filter((b) => parseFloat(b.width) > 0);
 
   return (
