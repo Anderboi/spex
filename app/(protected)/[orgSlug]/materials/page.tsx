@@ -1,20 +1,16 @@
 import {
   getCounterparties,
   getMaterialBrands,
-  getMaterialProjectTargets,
   getMaterialsPage,
 } from "@/lib/queries";
 import { MaterialsToolbar } from "@/components/materials/materials-toolbar";
 import { MaterialsClient } from "@/components/materials/materials-client";
+import { MaterialsCreateButton } from "@/components/materials/materials-create-button";
 import { MaterialsPagination } from "@/components/materials/materials-pagination";
 import { PageHeader } from "@/components/layout/page-header";
-import { Button } from "@/components/ui/button";
-import { Plus } from "lucide-react";
-import Link from "next/link";
 import { Suspense } from "react";
 import { MaterialsSkeleton } from "@/components/materials/materials-skeleton";
 import { parseMaterialsFilters } from "@/lib/materials/filters";
-import { singleParam, withSearchParams } from "@/lib/query-string";
 
 type Props = {
   params: Promise<{ orgSlug: string }>;
@@ -27,29 +23,15 @@ export default async function MaterialsLibraryPage({
   params,
   searchParams,
 }: Props) {
-  const [{ orgSlug }, sp] = await Promise.all([params, searchParams]);
-  // Открытие диалога — через URL (?action=create), существующие фильтры
-  // и пагинация при этом сохраняются.
-  const createHref = withSearchParams(`/${orgSlug}/materials`, sp, {
-    action: "create",
-  });
+  const { orgSlug } = await params;
+
   return (
     <>
-      <PageHeader
-        title="Библиотека материалов"
-        // description="Сохраненные позиции и образцы для быстрого добавления в проекты"
-      >
-        <Button
-          nativeButton={false}
-          render={
-            <Link
-              className="flex flex-row items-center gap-2 h-10 bg-bg-accent border-none rounded-lg px-6 text-[15px] font-semibold cursor-pointer"
-              href={createHref}
-            />
-          }
-        >
-          <Plus className="size-4" /> Добавить
-        </Button>
+      <PageHeader title="Библиотека материалов">
+        {/* Диалоги открываются по URL (?action=create) — кнопка клиентская:
+            серверному `<Link>` пришлось бы перерисовывать страницу целиком
+            (см. MaterialsCreateButton). */}
+        <MaterialsCreateButton />
       </PageHeader>
       <Suspense fallback={<MaterialsSkeleton />}>
         <MaterialsData orgSlug={orgSlug} searchParams={searchParams} />
@@ -84,17 +66,10 @@ async function MaterialsData({
     materials = (await getMaterialsPage(orgSlug, filters)).items;
   }
 
-  // Список проектов нужен только открытому диалогу «В проект»: параметр
-  // `action=to-project` приходит тем же переходом, что и данные страницы
-  // (см. useDialogUrl), поэтому диалог открывается сразу с готовым списком,
-  // а обычный заход в библиотеку не платит за лишнюю выборку.
-  // `null` — «запрос не делали»: диалог отличит это от «проектов нет».
-  const attachId = singleParam(sp.id);
-  const projectTargets =
-    singleParam(sp.action) === "to-project" && attachId
-      ? await getMaterialProjectTargets(orgSlug, attachId)
-      : null;
-
+  // Список проектов для диалога «В проект» страница не грузит: открытие диалога
+  // больше не перерисовывает её на сервере, и данные спрашивает сам диалог
+  // (`listMaterialProjectTargets`). Обычный заход в библиотеку не платит за
+  // выборку, которой может и не понадобиться.
   return (
     <>
       <MaterialsToolbar brands={brands} />
@@ -104,7 +79,6 @@ async function MaterialsData({
         initialMaterials={materials}
         companies={counterparties.companies}
         contacts={counterparties.contacts}
-        projectTargets={projectTargets}
       />
 
       <MaterialsPagination pageCount={pageCount} />

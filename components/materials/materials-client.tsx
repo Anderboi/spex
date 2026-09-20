@@ -1,8 +1,20 @@
 "use client";
 
-import { useCallback, useMemo, useOptimistic, useState, useTransition, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useOptimistic,
+  useState,
+  useTransition,
+  type ReactNode,
+} from "react";
 import { type MaterialInput } from "@/lib/validations";
-import { deleteMaterial, upsertMaterial } from "@/actions/materials";
+import {
+  deleteMaterial,
+  listMaterialProjectTargets,
+  upsertMaterial,
+} from "@/actions/materials";
 import { MaterialDialog } from "./material-dialog";
 import { AttachToProjectDialog } from "./attach-to-project-dialog";
 import { useSearchParams } from "next/navigation";
@@ -19,7 +31,6 @@ import type {
 import { toListItem, toFormValues } from "@/lib/spec/adapters";
 import { Button } from "@/components/ui/button";
 import { PackageOpen, Plus, RotateCcw, Search } from "lucide-react";
-import Link from "next/link";
 import { toast } from "sonner";
 
 interface MaterialsClientProps {
@@ -27,12 +38,6 @@ interface MaterialsClientProps {
   initialMaterials: MaterialListItem[];
   companies: SpecPickerCompany[];
   contacts: SpecPickerContact[];
-  /**
-   * Проекты-цели для диалога «В проект». `null` — данные ещё не приехали
-   * (запрос идёт вместе с открытием диалога), `[]` — запрос выполнен, проектов
-   * нет. Пустой выборки на закрытом диалоге страница не делает вовсе.
-   */
-  projectTargets: MaterialProjectTarget[] | null;
 }
 type OptimisticAction =
   | { type: "save"; payload: MaterialInput }
@@ -43,16 +48,21 @@ export function MaterialsClient({
   companies,
   contacts,
   orgSlug,
-  projectTargets,
 }: MaterialsClientProps) {
   const searchParams = useSearchParams();
   const { update, isPending } = useMaterialsUrl();
+  /**
+   * Диалоги открываются «shallow»: URL меняется через History API, но страница
+   * не перерисовывается на сервере. Иначе каждое открытие окна материала ждало
+   * бы полный серверный рендер библиотеки — выборку материалов, компаний и
+   * контактов — хотя всё это уже есть на клиенте.
+   */
   const {
     value: action,
-    hrefFor,
+    linkProps,
     open: openDialog,
     close: closeDialog,
-  } = useDialogUrl("action");
+  } = useDialogUrl("action", [], { shallow: true });
   const [, startTransition] = useTransition();
 
   /**
@@ -113,8 +123,9 @@ export function MaterialsClient({
   );
 
   // Диалог управляется URL: ?action=create / ?action=edit&id=<materialId> /
-  // ?action=to-project&id=<materialId>. Никакого useState — состояние берётся
-  // напрямую из search params.
+  // ?action=to-project&id=<materialId>. Никакого useState для «открыт/закрыт» —
+  // состояние берётся из search params, которые обновляются мгновенно (shallow,
+  // см. `useDialogUrl`), поэтому окно появляется без ожидания сервера.
   const dialogId = searchParams.get("id");
   const editingItem =
     action === "edit" && dialogId
@@ -123,12 +134,38 @@ export function MaterialsClient({
   const isDialogOpen = action === "create" || Boolean(editingItem);
   const materialToEdit = editingItem ? toFormValues(editingItem) : null;
 
-  // Цели для «В проект» приходят с сервера, который читает тот же параметр
-  // `action=to-project` (см. app/(protected)/[orgSlug]/materials/page.tsx).
+  // Цели для «В проект» — единственные данные диалога, которых нет на клиенте,
+  // поэтому их запрашивает сам диалог (см. эффект ниже), а не серверный рендер
+  // страницы. `null` в состоянии = «ещё не приехали» → в диалоге скелет.
   const attachingMaterial =
     action === "to-project" && dialogId
       ? (optimisticMaterials.find((m) => m.id === dialogId) ?? null)
       : null;
+
+  const [targets, setTargets] = useState<{
+    materialId: string;
+    rows: MaterialProjectTarget[];
+  } | null>(null);
+
+  useEffect(() => {
+    if (action !== "to-project" || !dialogId) return;
+
+    let cancelled = false;
+    listMaterialProjectTargets(orgSlug, dialogId)
+      .then((rows) => {
+        if (!cancelled) setTargets({ materialId: dialogId, rows });
+      })
+      .catch((error) => {
+        // Список проектов — не то место, где стоит держать вечный скелет:
+        // показываем пустое состояние (его же увидит и «проектов нет»).
+        console.error("[materials] не удалось загрузить проекты", error);
+        if (!cancelled) setTargets({ materialId: dialogId, rows: [] });
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [action, dialogId, orgSlug]);
 
   const handleEdit = useCallback(
     (id: string) => {
@@ -239,7 +276,7 @@ export function MaterialsClient({
             action={
               <Button
                 nativeButton={false}
-                render={<Link href={hrefFor("create")} />}
+                render={<a {...linkProps("create")} />}
               >
                 <Plus className="mr-2 size-4" /> Добавить материал
               </Button>
@@ -266,7 +303,9 @@ export function MaterialsClient({
         open={action === "to-project"}
         orgSlug={orgSlug}
         material={attachingMaterial}
-        targets={projectTargets}
+        // Строки показываем только для того материала, который открыт: при
+        // повторном открытии старый список виден сразу, а свежий подменит его.
+        targets={targets && targets.materialId === dialogId ? targets.rows : null}
         onOpenChange={handleDialogOpenChange}
       />
     </article>

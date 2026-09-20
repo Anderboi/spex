@@ -15,6 +15,7 @@ import {
 } from "@/lib/constants";
 import { prefixFor } from "@/lib/utils";
 import { nextCodesFrom } from "@/lib/spec/codes";
+import { getMaterialProjectTargets, type MaterialProjectTarget } from "@/lib/queries";
 import type { TablesInsert } from "@/lib/supabase/database.types";
 
 type ActionResponse<T = unknown> = {
@@ -114,6 +115,23 @@ const attachMaterialSchema = z.object({
   projectId: z.string().uuid("Некорректный проект"),
   materialId: z.string().uuid("Некорректный материал"),
 });
+
+/**
+ * Проекты-цели для диалога «В проект» — по требованию.
+ *
+ * Раньше список приезжал вместе с открытием диалога: параметр
+ * `action=to-project` читал серверный компонент страницы, и переход по URL
+ * заново рендерил всю библиотеку. Теперь диалог открывается «shallow», без
+ * серверного рендера, поэтому данные запрашиваются отдельно — уже после того,
+ * как окно показалось (в диалоге на этот случай есть скелет, см.
+ * `targets === null` в AttachToProjectDialog).
+ */
+export async function listMaterialProjectTargets(
+  orgSlug: string,
+  materialId: string,
+): Promise<MaterialProjectTarget[]> {
+  return getMaterialProjectTargets(orgSlug, materialId);
+}
 
 /** Сколько раз пересчитывать марку, если номер заняли параллельно. */
 const ATTACH_CODE_ATTEMPTS = 3;
