@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { ManualItemForm } from "./manual-item-form";
 import { ALL_CATEGORIES, TYPE_ORDER, type SpecType } from "@/lib/constants";
 import type { MaterialListItem, SpecPickerCompany } from "@/lib/queries";
+import type { CompanyOption } from "@/components/layout/company-picker";
 import { fmt, plural, cn } from "@/lib/utils";
 import { SpecItem } from "@/lib/types";
 import { ManualSpecItemInput } from "@/lib/validations";
@@ -42,6 +43,7 @@ export default function AddModalForm({
   onFillFromLibrary,
   onAddManual,
   onFillManual,
+  onCompanyCreated,
   variantMode = false,
   variantFor = null,
   forceManual = false,
@@ -61,6 +63,8 @@ export default function AddModalForm({
   onFillFromLibrary: (material: MaterialListItem) => void;
   onAddManual: (input: ManualSpecItemInput, parentId: string | null) => void;
   onFillManual: (input: ManualSpecItemInput) => void;
+  /** Компания, созданная из формы ручной позиции: обновляет список поставщиков. */
+  onCompanyCreated?: (company: CompanyOption) => void;
   variantMode?: boolean;
   variantFor?: SpecItem | null;
   forceManual?: boolean;
@@ -236,6 +240,7 @@ export default function AddModalForm({
               orgSlug={orgSlug}
               editing={editing}
               onCancel={onClose}
+              onCompanyCreated={onCompanyCreated}
               variantMode={variantMode}
               variantFor={variantFor}
               onDirtyChange={setManualDirty}

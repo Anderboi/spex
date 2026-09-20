@@ -425,8 +425,27 @@ const { handleOpenChange, showConfirm, confirmDiscard, cancelDiscard  } =
                 >
                   Отмена
                 </Button>
-                <Button type="submit" disabled={isPending}>
-                  {isPending && (
+                <Button
+                  type="submit"
+                  disabled={isPending}
+                  onClick={(event) => {
+                    /**
+                     * Карточка компании часто рендерится внутри другой формы
+                     * (диалог материала, позиции спецификации) — она лежит в её
+                     * DOM. Кнопка `type="submit"` там отправляет **внешнюю**
+                     * форму: браузер ищет ближайший `<form>` от кнопки, и им
+                     * оказывается форма родителя. Из-за этого при сохранении
+                     * компании «молча» сохранялся материал (с ещё пустым
+                     * поставщиком) и закрывались оба диалога.
+                     *
+                     * Гасим это: убираем действие по умолчанию и отправляем
+                     * ровно свою форму. `type="submit"` оставляем — он нужен
+                     * для Enter в полях карточки.
+                     */
+                    event.preventDefault();
+                    void form.handleSubmit(onSubmit)();
+                  }}
+                >                  {isPending && (
                     <Loader2 className="mr-2 size-4 animate-spin" />
                   )}
                   Сохранить

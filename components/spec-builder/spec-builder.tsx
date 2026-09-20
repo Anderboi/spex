@@ -440,6 +440,7 @@ export default function SpecBuilder({
               variantMode
               variantFor={item}
               onClose={ctx.closeModal}
+              onCompanyCreated={upsertLocalCompany}
               onAddFromLibrary={() => {}}
               onFillFromLibrary={() => {}}
               onAddManual={(input) => {
@@ -485,6 +486,7 @@ export default function SpecBuilder({
           editing={ctx.editing}
           parentId={ctx.modal.parentId}
           onClose={ctx.closeModal}
+          onCompanyCreated={upsertLocalCompany}
           onAddFromLibrary={(materials, parentId) => {
             ctx.addFromLibrary(materials, parentId);
             ctx.closeModal();
@@ -516,6 +518,7 @@ export default function SpecBuilder({
               variantMode
               variantFor={targetItem}
               onClose={ctx.closeModal}
+              onCompanyCreated={upsertLocalCompany}
               onAddFromLibrary={(materials) => {
                 // берём первый выбранный материал как вариант
                 if (materials[0])

@@ -140,10 +140,18 @@ const MATERIAL_FIELD_MAP: Record<string, keyof SpecVariant> = {
   companyName: "companyName",
 };
 
-/** Выделяет из патча позиции поля материала (null — таких полей нет). */
+/**
+ * Выделяет из патча позиции поля материала (null — таких полей нет).
+ *
+ * Копируются и «пустые» значения (null, ""): снятие поставщика — это
+ * `companyId: null` вместе с пустым снапшотом имени, и если пропустить их,
+ * активный вариант сохранит прежнюю компанию и вернёт её при следующей
+ * загрузке проекта (applyActiveVariant перекрывает плоские поля позиции).
+ */
 function materialPatchOf(patch: SpecItemPatch): Partial<SpecVariant> | null {
   const out: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(patch)) {
+    if (value === undefined) continue;
     const field = MATERIAL_FIELD_MAP[key];
     if (field) out[field] = value;
   }
@@ -895,6 +903,10 @@ export function useSpecBuilder({
         clientDiscountPct: input.clientDiscountPct,
         supplierDiscountPct: input.supplierDiscountPct,
         companyId: input.companyId,
+        // Снапшот имени: форма отдаёт его вместе с id, иначе только что
+        // созданная компания показывалась бы как «поставщик не указан» до
+        // перезагрузки страницы проекта.
+        companyName: input.companyName,
         imageUrl: input.imageUrl,
         parentId,
         status: input.price > 0 ? "picked" : "draft",
@@ -941,6 +953,7 @@ export function useSpecBuilder({
         clientDiscountPct: input.clientDiscountPct,
         supplierDiscountPct: input.supplierDiscountPct,
         companyId: input.companyId,
+        companyName: input.companyName,
         imageUrl: input.imageUrl,
         status: input.price > 0 ? "picked" : "draft",
         isPlaceholder: false,

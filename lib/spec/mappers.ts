@@ -65,6 +65,9 @@ export function patchToRow(p: SpecItemPatch): SpecItemRowPatch {
 
   if (p.materialId !== undefined) r.material_id = p.materialId;
   if (p.companyId !== undefined) r.company_id = p.companyId;
+  // Снапшот имени поставщика: без него очистка компании оставляла бы в БД
+  // прежнее имя, и после перезагрузки «снятый» поставщик возвращался.
+  if (p.companyName !== undefined) r.company_name_snapshot = p.companyName;
   if (p.contactId !== undefined) r.contact_id = p.contactId;
   if (p.code !== undefined) r.code = p.code;
   if (p.type !== undefined) r.type = p.type;

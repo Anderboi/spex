@@ -1,32 +1,16 @@
 "use client";
 
-import { useState } from "react";
-import {
-  AlertCircle,
-  Building2,
-  Check,
-  ChevronsUpDown,
-  Plus,
-} from "lucide-react";
-import { Button } from "@/components/ui/button";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import {
-  Command,
-  CommandInput,
-  CommandList,
-  CommandItem,
-  CommandSeparator,
-} from "@/components/ui/command";
-import { cn } from "@/lib/utils";
+import { AlertCircle } from "lucide-react";
 import CopyButton from "../../layout/copy-button";
 import Field from "../../layout/modal-field";
 import { Avatar } from "../../ui/avatar";
+import {
+  CompanyPicker,
+  type CompanyOption,
+} from "@/components/layout/company-picker";
 
 export function SupplierPicker({
+  orgSlug,
   companies,
   contacts,
   companyId,
@@ -34,7 +18,9 @@ export function SupplierPicker({
   snapshot,
   onChange,
   onCreateCompany,
+  onCompanyCreated,
 }: {
+  orgSlug: string;
   companies: {
     id: string;
     name: string;
@@ -54,12 +40,29 @@ export function SupplierPicker({
   companyId: string | null;
   contactId: string | null;
   snapshot: string;
-  onChange: (companyId: string | null, contactId: string | null) => void;
-  onCreateCompany?: (name: string) => void;
+  /**
+   * Выбор поставщика. `companyName` — имя выбранной компании: вкладки
+   * «Обзор»/«Состав» показывают снапшот, и без него подпись не обновилась бы
+   * до следующего изменения позиции.
+   */
+  onChange: (
+    companyId: string | null,
+    contactId: string | null,
+    companyName?: string,
+  ) => void;
+  /**
+   * Запрос на создание компании: карточку открывает родитель модалки.
+   * `onCreated` он обязан позвать с сохранённой компанией — так `CompanyPicker`
+   * узнаёт результат и выбирает её сам (свой `CompanyDialog` в этом сценарии не
+   * рендерится).
+   */
+  onCreateCompany?: (
+    name: string,
+    onCreated: (company: CompanyOption) => void,
+  ) => void;
+  /** Компания создана — родитель добавляет её в свой список без перезагрузки. */
+  onCompanyCreated?: (company: CompanyOption) => void;
 }) {
-  const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState("");
-
   const company = companies.find((c) => c.id === companyId) ?? null;
   const available = contacts.filter(
     (c) => !companyId || c.company_id === companyId || c.company_id === null,
@@ -67,102 +70,30 @@ export function SupplierPicker({
   const contact = contacts.find((c) => c.id === contactId) ?? null;
   const renamed = snapshot && company && snapshot !== company.name;
 
-  const q = query.trim().toLowerCase();
-  const filteredCompanies = q
-    ? companies.filter((c) => c.name.toLowerCase().includes(q))
-    : companies;
-
   return (
     <div className="flex flex-col gap-4 p-4">
       <div className="flex flex-col gap-1.5">
         <Field label="Компания">
-          <Popover open={open} onOpenChange={setOpen}>
-            <PopoverTrigger
-              render={
-                <Button
-                  variant="outline"
-                  role="combobox"
-                  aria-expanded={open}
-                  className={cn(
-                    "h-10 w-full justify-between bg-bg-card font-normal",
-                    !company && "text-fg-muted",
-                  )}
-                >
-                  {company ? (
-                    <span className="truncate">{company.name}</span>
-                  ) : (
-                    <span>Не указана</span>
-                  )}
-                  <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
-                </Button>
-              }
-            />
-            <PopoverContent className="w-full p-0 bg-bg-card" align="start">
-              <Command shouldFilter={false}>
-                <CommandInput
-                  value={query}
-                  onValueChange={setQuery}
-                  placeholder="Поиск компании..."
-                />
-                <CommandList>
-                  <CommandItem
-                    value="none"
-                    onSelect={() => {
-                      onChange(null, null);
-                      setOpen(false);
-                    }}
-                  >
-                    <Check
-                      className={cn(
-                        "mr-2 h-4 w-4",
-                        !companyId ? "opacity-100" : "opacity-0",
-                      )}
-                    />
-                    <span className="text-muted-foreground">Не указана</span>
-                  </CommandItem>
-                  {filteredCompanies.map((c) => {
-                    const isSelected = companyId === c.id;
-                    return (
-                      <CommandItem
-                        key={c.id}
-                        value={c.id}
-                        onSelect={() => {
-                          onChange(c.id, null);
-                          setOpen(false);
-                        }}
-                      >
-                        <Check
-                          className={cn(
-                            "mr-2 h-4 w-4",
-                            isSelected ? "opacity-100" : "opacity-0",
-                          )}
-                        />
-                        <Building2 className="mr-2 h-4 w-4 text-muted-foreground" />
-                        <span className="truncate">{c.name}</span>
-                      </CommandItem>
-                    );
-                  })}
-                  {onCreateCompany && (
-                    <>
-                      <CommandSeparator />
-                      <CommandItem
-                        value="__create__"
-                        onSelect={() => {
-                          onCreateCompany(query.trim());
-                          setOpen(false);
-                        }}
-                      >
-                        <Plus className="mr-2 h-4 w-4 text-fg-brand" />
-                        {q && filteredCompanies.length === 0
-                          ? `Создать компанию «${query.trim()}»`
-                          : "Добавить компанию"}
-                      </CommandItem>
-                    </>
-                  )}
-                </CommandList>
-              </Command>
-            </PopoverContent>
-          </Popover>
+          {/* Единый выбор поставщика: поиск по справочнику и создание компании,
+              если её ещё нет (см. CompanyPicker). */}
+          <CompanyPicker
+            orgSlug={orgSlug}
+            companies={companies}
+            value={companyId}
+            onChange={({ companyId: next, companyName }) => {
+              // Имя едет вместе с id: без него вкладки «Обзор»/«Состав» показали
+              // бы старый снапшот до следующего изменения позиции. Пустое имя не
+              // затирает снапшот — только явное снятие поставщика.
+              if (next && !companyName) onChange(next, null);
+              else onChange(next, null, companyName);
+            }}
+            onOpenCreate={onCreateCompany}
+            onCompanyCreated={onCompanyCreated}
+            placeholder="Не указана"
+            searchPlaceholder="Поиск компании..."
+            emptyText="Компания не найдена — создайте её."
+            clearLabel="Не указана"
+          />
         </Field>
       </div>
 

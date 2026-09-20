@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useOptimistic, useTransition, type ReactNode } from "react";
+import { useCallback, useMemo, useOptimistic, useState, useTransition, type ReactNode } from "react";
 import { type MaterialInput } from "@/lib/validations";
 import { deleteMaterial, upsertMaterial } from "@/actions/materials";
 import { MaterialDialog } from "./material-dialog";
@@ -9,6 +9,7 @@ import { useSearchParams } from "next/navigation";
 import { useDialogUrl } from "@/hooks/use-dialog-url";
 import { useMaterialsUrl } from "@/hooks/use-materials-url";
 import MaterialCard from "./material-card";
+import type { CompanyOption } from "@/components/layout/company-picker";
 import type {
   MaterialListItem,
   MaterialProjectTarget,
@@ -55,13 +56,27 @@ export function MaterialsClient({
   const [, startTransition] = useTransition();
 
   /**
+   * Компании, созданные из диалога материала через CompanyPicker. Живут здесь,
+   * а не внутри диалога: имя нужно ещё и оптимистичной карточке, иначе сразу
+   * после сохранения она показала бы пустого поставщика до прихода
+   * `revalidatePath`. Свежие пропсы побеждают — сервер авторитетнее.
+   */
+  const [createdCompanies, setCreatedCompanies] = useState<CompanyOption[]>([]);
+  const companyOptions = useMemo(() => {
+    if (createdCompanies.length === 0) return companies;
+    const byId = new Map(createdCompanies.map((c) => [c.id, c]));
+    for (const c of companies) byId.set(c.id, c);
+    return [...byId.values()];
+  }, [companies, createdCompanies]);
+
+  /**
    * Имена поставщика и менеджера для оптимистичной записи: форма отдаёт только
    * id, а `revalidatePath` приедет позже. Справочник уже загружен в пропсы,
    * поэтому имя резолвится на клиенте и карточка не мигает пустым поставщиком.
    */
   const companyNames = useMemo(
-    () => new Map(companies.map((c) => [c.id, c.name])),
-    [companies],
+    () => new Map(companyOptions.map((c) => [c.id, c.name])),
+    [companyOptions],
   );
   const contactNames = useMemo(
     () => new Map(contacts.map((c) => [c.id, c.name])),
@@ -236,9 +251,14 @@ export function MaterialsClient({
         open={isDialogOpen}
         orgSlug={orgSlug}
         onOpenChange={handleDialogOpenChange}
-        companies={companies}
+        companies={companyOptions}
         contacts={contacts}
         materialToEdit={materialToEdit}
+        onCompanyCreated={(company) =>
+          setCreatedCompanies((prev) =>
+            prev.some((c) => c.id === company.id) ? prev : [...prev, company],
+          )
+        }
         onSave={handleSave}
       />
 

@@ -19,6 +19,10 @@ import { ManualSpecItemInput, manualSpecItemSchema } from "@/lib/validations";
 import { uploadMaterialImage } from "@/actions/materials";
 import { MaterialTypePicker } from "@/components/layout/material-type-picker";
 import { AttrsEditor } from "@/components/layout/attrs-editor";
+import {
+  CompanyPicker,
+  type CompanyOption,
+} from "@/components/layout/company-picker";
 
 export function ManualItemForm({
   companies,
@@ -26,6 +30,7 @@ export function ManualItemForm({
   editing,
   onCancel,
   onSubmit,
+  onCompanyCreated,
   variantMode = false,
   variantFor = null,
   defaultType,
@@ -36,6 +41,8 @@ export function ManualItemForm({
   editing: SpecItem | null;
   onCancel: () => void;
   onSubmit: (input: ManualSpecItemInput) => void;
+  /** Компания, созданная из формы, — чтобы список обновился без перезагрузки. */
+  onCompanyCreated?: (company: CompanyOption) => void;
   variantMode: boolean;
   variantFor?: SpecItem | null;
   /** Тип по умолчанию для новой позиции (например, тип родителя). */
@@ -66,6 +73,9 @@ export function ManualItemForm({
       clientDiscountPct: editing?.clientDiscountPct ?? 0,
       supplierDiscountPct: editing?.supplierDiscountPct ?? 0,
       companyId: editing?.companyId ?? null,
+      // Имя компании заполняет CompanyPicker при выборе: позиция получает
+      // поставщика сразу, не дожидаясь перечитывания справочника.
+      companyName: "",
       imageUrl: editing?.imageUrl ?? null,
       productUrl: editing?.product_url ?? "",
       attrs: editing?.attrs ?? {},
@@ -361,18 +371,31 @@ export function ManualItemForm({
           </Field>
         </div>
 
-        <Field label="Поставщик">
-          <select
-            {...register("companyId", { setValueAs: (v) => v || null })}
-            className="h-10 w-full rounded-md border border-border bg-bg-card px-3 text-[15px]"
-          >
-            <option value="">Не указан</option>
-            {companies.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.name}
-              </option>
-            ))}
-          </select>
+        {/* Поставщик: поиск по справочнику компаний с возможностью завести
+            новую компанию, если её ещё нет (см. CompanyPicker). */}
+        <Field label="Поставщик" error={errors.companyId?.message}>
+          <Controller
+            control={form.control}
+            name="companyId"
+            render={({ field }) => (
+              <CompanyPicker
+                orgSlug={orgSlug}
+                companies={companies}
+                value={field.value ?? null}
+                onChange={({ companyId, companyName }) => {
+                  field.onChange(companyId);
+                  form.setValue("companyName", companyName, {
+                    shouldDirty: true,
+                  });
+                }}
+                onCompanyCreated={onCompanyCreated}
+                placeholder="Выберите поставщика..."
+                searchPlaceholder="Поиск компании..."
+                emptyText="Компания не найдена — создайте её."
+                clearLabel="Не указан"
+              />
+            )}
+          />
         </Field>
 
         {/* внутреннее: в смету не попадает */}

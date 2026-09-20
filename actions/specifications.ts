@@ -75,10 +75,19 @@ export async function saveSpecItemPatch(
   const row = patchToRow(parsed.data);
   if (Object.keys(row).length === 0) return ok(null);
 
-  if (row.company_id) {
-    const snap = await companySnapshot(c.supabase, c.orgId, row.company_id);
+  const { companyId, companyName } = parsed.data;
+
+  if (companyId) {
+    // Компания указана: имя берём из справочника — клиент мог прислать
+    // устаревшее название или вовсе ничего. Если компании нет в организации,
+    // подставлять её имя нельзя.
+    const snap = await companySnapshot(c.supabase, c.orgId, companyId);
     if (!snap.ok) return fail("Компания не найдена");
     row.company_name_snapshot = snap.name;
+  } else if (companyId === null && companyName !== undefined) {
+    // Поставщика сняли — снапшот должен уйти вместе с ним, иначе список и
+    // карточка продолжат показывать прежнюю компанию.
+    row.company_name_snapshot = companyName || null;
   }
 
   const { error } = await c.supabase

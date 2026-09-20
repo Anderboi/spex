@@ -20,6 +20,7 @@ import { fmt, fmtQty } from "@/lib/utils";
 import { SpecStatus } from "@/lib/constants";
 import { SpecItem, SpecItemPatch, SpecVariant } from "@/lib/types";
 import { SupplierPicker } from "../layout/supplier-picker";
+import { type CompanyOption } from "@/components/layout/company-picker";
 import { RoomsEditor } from "../rooms-editor";
 import { ScrollArea } from "../../ui/scroll-area";
 import { CompanyDialog } from "@/components/contacts/company-dialog";
@@ -125,6 +126,15 @@ export function DetailModal({
   const [tab, setTab] = useState<string>(initialTab ?? "overview");
   const [showAddCompany, setShowAddCompany] = useState(false);
   const [newCompanyName, setNewCompanyName] = useState("");
+  /**
+   * Куда вернуть результат создания: `onOpenCreate` из `CompanyPicker`.
+   * Диалог живёт здесь (поверх модалки позиции), а назначение поставщика
+   * остаётся делом `CompanyPicker` — поэтому сохранённую компанию отдаём ему
+   * обратно, а не патчим позицию отсюда.
+   */
+  const [companyCreated, setCompanyCreated] = useState<{
+    notify: (company: CompanyOption) => void;
+  } | null>(null);
 
   return (
     <Dialog open onOpenChange={(v) => !v && onClose()}>
@@ -259,6 +269,7 @@ export function DetailModal({
                 contacts={contacts}
                 specItems={allItems}
                 onOpenRefItem={onOpenRefItem ?? onOpenItem}
+                onCompanyCreated={onCompanyCreated}
               />
             </TabsContent>
             {/* variants */}
@@ -290,18 +301,27 @@ export function DetailModal({
               // className="flex flex-col gap-4 py-4 pl-4 pr-6"
             >
               <SupplierPicker
+                orgSlug={orgSlug}
                 companies={companies}
                 contacts={contacts}
                 companyId={item.companyId}
                 contactId={item.contactId}
                 snapshot={item.companyName}
-                onChange={(companyId, contactId) =>
-                  onPatch({ companyId, contactId })
+                onChange={(companyId, contactId, companyName) =>
+                  // companyName undefined — компания не найдена в локальном
+                  // списке: снапшот не трогаем, id всё равно назначен.
+                  onPatch(
+                    companyName === undefined
+                      ? { companyId, contactId }
+                      : { companyId, contactId, companyName },
+                  )
                 }
-                onCreateCompany={(name) => {
+                onCreateCompany={(name, onCreated) => {
                   setNewCompanyName(name);
+                  setCompanyCreated({ notify: onCreated });
                   setShowAddCompany(true);
                 }}
+                onCompanyCreated={onCompanyCreated}
               />
             </TabsContent>
             {/* files */}
@@ -347,14 +367,12 @@ export function DetailModal({
           initialName={newCompanyName}
           onClose={() => setShowAddCompany(false)}
           onSuccess={(company) => {
+            // Список компаний обновляет родитель панели, а назначение поставщика
+            // делает `CompanyPicker`: он получает созданную запись через
+            // `onCreated` и сам вызывает `pick` (`contactId` — null).
             onCompanyCreated(company);
-            onPatch({
-              companyId: company.id,
-              companyName: company.name,
-              contactId: null,
-              contactName: "",
-            });
             setShowAddCompany(false);
+            companyCreated?.notify(company);
           }}
         />
       )}

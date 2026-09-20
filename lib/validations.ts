@@ -214,6 +214,13 @@ export const specItemPatchSchema = z
     materialId: z.string().uuid().nullable(),
     companyId: z.string().uuid().nullable(),
     contactId: z.string().uuid().nullable(),
+    /**
+     * Имя поставщика на момент правки. Пишется в company_name_snapshot, чтобы
+     * список и карточка показывали нового поставщика сразу; при наличии
+     * companyId сервер всё равно перечитывает имя из справочника.
+     * Лимит 200 — как у companySchema.name и снапшота в spec_variants.
+     */
+    companyName: z.string().trim().max(200),
     parentId: z.string().uuid().nullable().optional(),
     code: z.string().regex(CODE_PATTERN, "Формат марки: «О-03»"),
     type: z.enum(TYPE_ORDER),
@@ -316,6 +323,13 @@ export const manualSpecItemSchema = z
       .default(0),
 
     companyId: z.string().uuid().nullable().default(null),
+    /**
+     * Имя выбранной компании на момент заполнения формы. Нужно для
+     * оптимистичной вставки позиции: UI показывает снапшот имени, а крипт id
+     * ему ничего не говорит. Авторитетным остаётся сервер (см.
+     * createManualSpecItem: имя перечитывается из справочника).
+     */
+    companyName: z.string().trim().max(200).default(""),
     imageUrl: z.string().trim().max(500).nullable().default(null),
     productUrl: z.string().trim().max(500).default(""),
     /** Характеристики позиции: ключ → значение. */

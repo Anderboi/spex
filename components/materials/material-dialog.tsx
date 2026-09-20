@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useMemo, type ChangeEvent } from "react";
+import { useState, useEffect, type ChangeEvent } from "react";
 import {
   Dialog,
   DialogContent,
@@ -29,17 +29,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../ui/select";
-import { Popover, PopoverContent, PopoverTrigger } from "../ui/popover";
-import { cn } from "@/lib/utils";
-import { Building2, Check, ChevronsUpDown, CloudUpload, Loader2, User } from "lucide-react";
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "../ui/command";
+import { CloudUpload, Loader2 } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -53,6 +43,10 @@ import {
 import { TYPE_ORDER, UNIT_OPTIONS } from "@/lib/constants";
 import { MaterialTypePicker } from "@/components/layout/material-type-picker";
 import { AttrsEditor } from "@/components/layout/attrs-editor";
+import {
+  CompanyPicker,
+  type CompanyOption,
+} from "@/components/layout/company-picker";
 import { SpecPickerCompany, SpecPickerContact } from "@/lib/queries";
 import { ScrollArea } from "../ui/scroll-area";
 import Image from "next/image";
@@ -68,6 +62,11 @@ interface MaterialDialogProps {
   onOpenChange: (open: boolean) => void;
   materialToEdit?: MaterialInput | null;
   onSave: (data: MaterialInput) => void;
+  /**
+   * Компания, созданная из формы. Сообщаем наверх: имя нужно оптимистичной
+   * карточке материала, пока не пришёл `revalidatePath`.
+   */
+  onCompanyCreated?: (company: CompanyOption) => void;
 }
 
 type FormValues = z.infer<typeof materialSchema>;
@@ -80,8 +79,8 @@ export function MaterialDialog({
   onOpenChange,
   materialToEdit,
   onSave,
+  onCompanyCreated,
 }: MaterialDialogProps) {
-  const [searchOpen, setSearchOpen] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
 
   const form = useForm<
@@ -107,41 +106,75 @@ export function MaterialDialog({
     },
   });
 
+  /**
+   * Переинициализация формы — только при открытии карточки или смене материала.
+   *
+   * Зависимость от самого `materialToEdit` здесь опасна: родитель создаёт его
+   * как `toFormValues(editingItem)`, то есть **новый объект на каждый рендер**.
+   * С ней эффект срабатывал на любое обновление родителя — например, когда
+   * `CompanyPicker` после создания компании сообщал имя наверх и родитель
+   * обновлял список (`setCreatedCompanies`). Форма сбрасывалась на «как в БД»,
+   * и уже выбранный поставщик пропадал: поле оставалось пустым.
+   *
+   * Поэтому смотрим на `open` и `id` — оба примитивы и не меняются от
+   * ре-рендеров.
+   */
+  const resetKey = materialToEdit?.id ?? null;
+  /**
+   * Выбранный поставщик — отдельным состоянием, а не только в форме.
+   *
+   * Форму диалога переинициализирует эффект ниже (и `form.reset` из формы
+   * материала течёт сюда же), из-за чего выбранный в `CompanyPicker` поставщик
+   * мог «слетать»: в поле он виден, а в состоянии формы и в payload остаётся
+   * `null`. Держим выбор рядом с формой и собираем payload из него — тогда
+   * никакая переинициализация не может потерять поставщика.
+   */
+  const [supplier, setSupplier] = useState<{
+    companyId: string | null;
+    contactId: string | null;
+  }>({ companyId: null, contactId: null });
   useEffect(() => {
-    if (open) {
-      if (materialToEdit) {
-        form.reset({
-          ...materialToEdit,
-          brand: materialToEdit.brand ?? "",
-          article: materialToEdit.article ?? "",
-          company_id: materialToEdit.company_id ?? null,
-          contact_id: materialToEdit.contact_id ?? null,
-          image_url: materialToEdit.image_url ?? null,
-          product_url: materialToEdit.product_url ?? null,
-          product_type: materialToEdit.product_type ?? null,
-          attrs: materialToEdit.attrs ?? {},
-        });
-      } else {
-        form.reset({
-          name: "",
-          category: TYPE_ORDER[0] || "Отделка",
-          brand: "",
-          article: "",
-          price: 0,
-          unit: "шт",
-          company_id: null,
-          contact_id: null,
-          image_url: null,
-          product_url: null,
-          product_type: null,
-          attrs: {},
-        });
-      }
-    }
-  }, [open, materialToEdit, form]);
+    setSupplier({
+      companyId: materialToEdit?.company_id ?? null,
+      contactId: materialToEdit?.contact_id ?? null,
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, resetKey]);
 
-  const currentCompanyId = form.watch("company_id");
-  const currentContactId = form.watch("contact_id");
+  useEffect(() => {
+    if (!open) return;
+
+    if (materialToEdit) {
+      form.reset({
+        ...materialToEdit,
+        brand: materialToEdit.brand ?? "",
+        article: materialToEdit.article ?? "",
+        company_id: materialToEdit.company_id ?? null,
+        contact_id: materialToEdit.contact_id ?? null,
+        image_url: materialToEdit.image_url ?? null,
+        product_url: materialToEdit.product_url ?? null,
+        product_type: materialToEdit.product_type ?? null,
+        attrs: materialToEdit.attrs ?? {},
+      });
+    } else {
+      form.reset({
+        name: "",
+        category: TYPE_ORDER[0] || "Отделка",
+        brand: "",
+        article: "",
+        price: 0,
+        unit: "шт",
+        company_id: null,
+        contact_id: null,
+        image_url: null,
+        product_url: null,
+        product_type: null,
+        attrs: {},
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, resetKey]);
+
   const imageUrl = form.watch("image_url");
   const category = form.watch("category");
   const productType = form.watch("product_type");
@@ -153,22 +186,13 @@ export function MaterialDialog({
       hasChanges: isDirty,
     });
 
-  const selectedCompany = companies.find((c) => c.id === currentCompanyId);
-  const selectedContact = contacts.find((c) => c.id === currentContactId);
-
-  /** Компания выбранного менеджера: показываем её рядом с именем, иначе по
-      контакту непонятно, чей он. */
-  const companyNameById = useMemo(
-    () => new Map(companies.map((c) => [c.id, c.name])),
-    [companies],
-  );
-  const selectedContactCompany = selectedContact?.company_id
-    ? companyNameById.get(selectedContact.company_id)
-    : undefined;
-
   const onSubmit: SubmitHandler<FormValues> = (values) => {
     const payload: MaterialInput = {
       ...values,
+      // Поставщика берём из состояния (см. `supplier`), а не из значений формы:
+      // повторная переинициализация формы успевала обнулить `company_id`.
+      company_id: supplier.companyId,
+      contact_id: supplier.contactId,
       id: materialToEdit?.id,
     };
 
@@ -436,163 +460,47 @@ export function MaterialDialog({
                     )}
                   />
 
-                  <FormItem className="flex flex-col">
-                    <FormLabel>Поставщик / Менеджер</FormLabel>
-                    <Popover open={searchOpen} onOpenChange={setSearchOpen}>
-                      <PopoverTrigger
-                        render={
-                          <FormControl>
-                            <Button
-                              variant="outline"
-                              role="combobox"
-                              aria-expanded={searchOpen}
-                              className={cn(
-                                "w-full h-10 justify-between font-normal bg-bg-card",
-                                !currentCompanyId &&
-                                  !currentContactId &&
-                                  "text-fg-muted",
-                              )}
-                            >
-                              {currentContactId && selectedContact ? (
-                                <div className="flex items-center gap-2 truncate">
-                                  <User className="size-4 shrink-0 text-muted-foreground" />
-                                  <span className="truncate">
-                                    {selectedContact.name}
-                                    {selectedContactCompany
-                                      ? ` (${selectedContactCompany})`
-                                      : ""}
-                                  </span>
-                                </div>
-                              ) : currentCompanyId && selectedCompany ? (
-                                <div className="flex items-center gap-2 truncate">
-                                  <Building2 className="size-4 shrink-0 text-muted-foreground" />
-                                  <span className="truncate">
-                                    {selectedCompany.name}
-                                  </span>
-                                </div>
-                              ) : (
-                                "Выберите компанию или контакт..."
-                              )}
-                              <ChevronsUpDown className="ml-2 size-4 shrink-0 opacity-50" />
-                            </Button>
-                          </FormControl>
-                        }
-                      ></PopoverTrigger>
-                      <PopoverContent
-                        className="w-95 p-0 bg-bg-card"
-                        align="start"
-                      >
-                        <Command>
-                          <CommandInput placeholder="Поиск компании или менеджера..." />
-                          <CommandList>
-                            <CommandEmpty>Поставщик не найден.</CommandEmpty>
-                            <CommandGroup>
-                              <CommandItem
-                                value="none"
-                                onSelect={() => {
-                                  form.setValue("company_id", null);
-                                  form.setValue("contact_id", null);
-                                  setSearchOpen(false);
-                                }}
-                              >
-                                <Check
-                                  className={cn(
-                                    "mr-2 h-4 w-4",
-                                    !currentCompanyId && !currentContactId
-                                      ? "opacity-100"
-                                      : "opacity-0",
-                                  )}
-                                />
-                                <span className="text-muted-foreground">
-                                  Без поставщика
-                                </span>
-                              </CommandItem>
-                            </CommandGroup>
-                            {companies.length > 0 && (
-                              <CommandGroup heading="Компании">
-                                {companies.map((company) => {
-                                  const isSelected =
-                                    currentCompanyId === company.id &&
-                                    !currentContactId;
-                                  return (
-                                    <CommandItem
-                                      key={`company-${company.id}`}
-                                      value={`company ${company.name}`}
-                                      onSelect={() => {
-                                        form.setValue("company_id", company.id);
-                                        form.setValue("contact_id", null);
-                                        setSearchOpen(false);
-                                      }}
-                                    >
-                                      <Check
-                                        className={cn(
-                                          "mr-2 h-4 w-4",
-                                          isSelected
-                                            ? "opacity-100"
-                                            : "opacity-0",
-                                        )}
-                                      />
-                                      <Building2 className="mr-2 h-4 w-4 text-muted-foreground" />
-                                      <span className="font-medium">
-                                        {company.name}
-                                      </span>
-                                    </CommandItem>
-                                  );
-                                })}
-                              </CommandGroup>
-                            )}
-
-                            {contacts.length > 0 && (
-                              <CommandGroup heading="Контакты">
-                                {contacts.map((contact) => {
-                                  const isSelected =
-                                    currentContactId === contact.id;
-                                  const companyName = contact.company_id
-                                    ? companyNameById.get(contact.company_id)
-                                    : undefined;
-                                  return (
-                                    <CommandItem
-                                      key={`contact-${contact.id}`}
-                                      value={`contact ${contact.name} ${companyName ?? ""}`}
-                                      onSelect={() => {
-                                        form.setValue("contact_id", contact.id);
-                                        form.setValue(
-                                          "company_id",
-                                          contact.company_id || null,
-                                        );
-                                        setSearchOpen(false);
-                                      }}
-                                    >
-                                      <Check
-                                        className={cn(
-                                          "mr-2 h-4 w-4",
-                                          isSelected
-                                            ? "opacity-100"
-                                            : "opacity-0",
-                                        )}
-                                      />
-                                      <User className="mr-2 h-4 w-4 text-muted-foreground" />
-                                      <div className="flex flex-col">
-                                        <span className="font-medium">
-                                          {contact.name}
-                                        </span>
-                                        {companyName && (
-                                          <span className="text-xs text-muted-foreground">
-                                            {companyName}
-                                          </span>
-                                        )}
-                                      </div>
-                                    </CommandItem>
-                                  );
-                                })}
-                              </CommandGroup>
-                            )}
-                          </CommandList>
-                        </Command>
-                      </PopoverContent>
-                    </Popover>
-                    <FormMessage />
-                  </FormItem>
+                  {/* Поставщик: компанию можно не только найти, но и завести
+                      прямо здесь — CompanyPicker откроет карточку компании с
+                      уже введённым названием. */}
+                  <FormField
+                    control={form.control}
+                    name="company_id"
+                    render={() => (
+                      <FormItem className="flex flex-col">
+                        <FormLabel>Поставщик / Менеджер</FormLabel>
+                        <FormControl>
+                          <CompanyPicker
+                            orgSlug={orgSlug}
+                            companies={companies}
+                            contacts={contacts}
+                            // Значение берём из состояния, а не из формы: форму
+                            // переинициализирует эффект, и выбранный поставщик
+                            // мог «слетать» (см. `supplier`).
+                            value={supplier.companyId}
+                            contactValue={supplier.contactId}
+                            placeholder="Выберите компанию или контакт..."
+                            searchPlaceholder="Поиск компании или менеджера..."
+                            emptyText="Ничего не найдено — можно создать компанию."
+                            onChange={({ companyId, contactId }) => {
+                              // Держим выбор и в состоянии (источник payload'а),
+                              // и в форме — чтобы работали валидация и dirty-state.
+                              setSupplier({ companyId, contactId });
+                              form.setValue("company_id", companyId, {
+                                shouldDirty: true,
+                                shouldValidate: true,
+                              });
+                              form.setValue("contact_id", contactId, {
+                                shouldDirty: true,
+                              });
+                            }}
+                            onCompanyCreated={onCompanyCreated}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
                 </section>
               </ScrollArea>
               <DialogFooter className="flex justify-end gap-2">

@@ -49,6 +49,7 @@ import {
   SpecItemRefPicker,
   type SpecItemRefOption,
 } from "../layout/spec-item-ref-picker";
+import { CompanyPicker } from "@/components/layout/company-picker";
 
 type CompanyOption = { id: string; name: string };
 type ContactOption = { id: string; name: string; company_id: string | null };
@@ -70,6 +71,7 @@ export function SpecComponentsSection({
   contacts,
   specItems,
   onOpenRefItem,
+  onCompanyCreated,
 }: {
   orgSlug: string;
   projectId: string;
@@ -80,6 +82,8 @@ export function SpecComponentsSection({
   specItems: SpecItem[];
   /** Открыть карточку позиции, на которую ссылается строка kind = 'spec_ref'. */
   onOpenRefItem: (id: string) => void;
+  /** Компания, созданная из формы компонента: обновляет список поставщиков. */
+  onCompanyCreated?: (company: CompanyOption) => void;
 }) {
   const [rows, setRows] = useState<SpecItemComponentRow[] | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -216,12 +220,6 @@ export function SpecComponentsSection({
   const availableContacts = contacts.filter(
     (c) => !companyId || c.company_id === companyId || c.company_id === null,
   );
-
-  const handleCompanyChange = (v: string) => {
-    setCompanyId(v);
-    const ct = contacts.find((c) => c.id === contactId);
-    if (v && ct && ct.company_id && ct.company_id !== v) setContactId("");
-  };
 
   const resetForm = () => {
     setName("");
@@ -871,19 +869,26 @@ export function SpecComponentsSection({
               />
             </Field>
             <Field label="Компания">
-              <select
-                className={SELECT_CLASS}
-                value={companyId}
-                onChange={(e) => handleCompanyChange(e.target.value)}
+              {/* Поиск по справочнику с созданием новой компании на месте. */}
+              <CompanyPicker
+                orgSlug={orgSlug}
+                companies={companies}
+                contacts={contacts}
+                value={companyId || null}
+                contactValue={contactId || null}
+                onChange={({ companyId: nextCompany, contactId: nextContact }) => {
+                  // Поставщик строки состава: новая компания попадает и в
+                  // локальный справочник (onCompanyCreated), поэтому имя в
+                  // списке резолвится сразу.
+                  setCompanyId(nextCompany ?? "");
+                  setContactId(nextContact ?? "");
+                }}
+                onCompanyCreated={onCompanyCreated}
                 disabled={pending}
-              >
-                <option value="">Не указана</option>
-                {companies.map((c) => (
-                  <option key={c.id} value={c.id}>
-                    {c.name}
-                  </option>
-                ))}
-              </select>
+                placeholder="Не указана"
+                emptyText="Компания не найдена — создайте её."
+                clearLabel="Не указана"
+              />
             </Field>
             <Field label="Контакт">
               <select
