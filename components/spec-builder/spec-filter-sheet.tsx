@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { RotateCcw, SlidersHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -11,7 +11,10 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import { FilterField } from "@/components/layout/filter-field";
-import { SheetSelect } from "@/components/layout/sheet-select";
+import {
+  FilterSelect,
+  type FilterSelectOption,
+} from "@/components/layout/filter-select";
 import { cn } from "@/lib/utils";
 import {
   ALL_CATEGORIES,
@@ -23,20 +26,25 @@ import { SPEC_STATUS_CONFIG } from "@/lib/spec/status";
 import type { SpecItem } from "@/lib/types";
 import type { SpecFilters, SpecSort } from "@/hooks/use-spec-filters";
 
-const SORT_OPTIONS: { value: SpecSort; label: string }[] = [
+const SORT_OPTIONS: FilterSelectOption<SpecSort>[] = [
   { value: "code", label: "По марке" },
   { value: "az", label: "А→Я" },
   { value: "sum", label: "По сумме" },
 ];
 
 /**
- * Фильтры спецификации (тип, статус) и сортировка в нижней шторке — так же,
- * как на страницах материалов и контактов.
+ * Фильтры спецификации (категория, статус) и сортировка в нижней шторке — так
+ * же, как в тулбарах материалов, контактов и проектов.
  *
  * На узких экранах в тулбаре остаётся только поиск с кнопкой: чипсы типов,
  * статус и сортировка не помещаются в одну строку и переезжают сюда. На
  * широких экранах шторка не рендерится вовсе — там чипсы типов остаются
  * на виду.
+ *
+ * Контролы — те же `FilterSelect`, что и в остальных фильтрах приложения;
+ * попап открывается вверх (`side="top"`), потому что под триггером в шторке
+ * места нет. Счётчики в подписях пунктов считаются по позициям спецификации —
+ * их не видно на чипсах, когда те скрыты на телефоне.
  *
  * Изменения применяются сразу (состояние в URL), «Готово» просто закрывает.
  */
@@ -57,16 +65,32 @@ export function SpecFilterSheet({
   const hasSort = filters.sort !== "code";
   const activeCount = Number(hasType) + Number(hasStatus) + Number(hasSort);
 
-  const typeCount = (t: string) =>
-    items.reduce((n, i) => n + (i.type === t ? 1 : 0), 0);
-  const statusCount = (s: SpecStatus) =>
-    items.reduce((n, i) => n + (i.status === s ? 1 : 0), 0);
-
   // Пустые типы не показываем (как и чипсы), кроме выбранного: иначе на
   // устаревшем значении из URL селект показывал бы «Все категории».
-  const typeOptions = TYPE_ORDER.filter(
-    (t) => typeCount(t) > 0 || t === filters.activeType,
-  );
+  const typeOptions = useMemo<FilterSelectOption<string>[]>(() => {
+    const count = (type: string) =>
+      items.reduce((n, item) => n + (item.type === type ? 1 : 0), 0);
+
+    return [
+      { value: null, label: `${ALL_CATEGORIES} (${items.length})` },
+      ...TYPE_ORDER.filter(
+        (type) => count(type) > 0 || type === filters.activeType,
+      ).map((type) => ({ value: type, label: `${type} (${count(type)})` })),
+    ];
+  }, [items, filters.activeType]);
+
+  const statusOptions = useMemo<FilterSelectOption<SpecStatus>[]>(() => {
+    const count = (status: SpecStatus) =>
+      items.reduce((n, item) => n + (item.status === status ? 1 : 0), 0);
+
+    return [
+      { value: null, label: `Все статусы (${items.length})` },
+      ...SPEC_STATUSES.map((status) => ({
+        value: status,
+        label: `${SPEC_STATUS_CONFIG[status].label} (${count(status)})`,
+      })),
+    ];
+  }, [items]);
 
   return (
     <>
@@ -101,51 +125,41 @@ export function SpecFilterSheet({
 
           <div className="flex flex-col gap-4 p-4">
             <FilterField label="Категория">
-              <SheetSelect
+              <FilterSelect
                 ariaLabel="Категория"
-                value={filters.activeType}
-                onChange={(v) => filters.setActiveType(v || ALL_CATEGORIES)}
-              >
-                <option value={ALL_CATEGORIES}>
-                  {ALL_CATEGORIES} ({items.length})
-                </option>
-                {typeOptions.map((t) => (
-                  <option key={t} value={t}>
-                    {t} ({typeCount(t)})
-                  </option>
-                ))}
-              </SheetSelect>
+                placeholder={ALL_CATEGORIES}
+                side="top"
+                className="w-full"
+                value={hasType ? filters.activeType : null}
+                onChange={(value) =>
+                  filters.setActiveType(value ?? ALL_CATEGORIES)
+                }
+                options={typeOptions}
+              />
             </FilterField>
 
             <FilterField label="Статус">
-              <SheetSelect
+              <FilterSelect
                 ariaLabel="Статус"
-                value={filters.statusFilter ?? ""}
-                onChange={(v) =>
-                  filters.setStatusFilter((v || null) as SpecStatus | null)
-                }
-              >
-                <option value="">Все статусы ({items.length})</option>
-                {SPEC_STATUSES.map((s) => (
-                  <option key={s} value={s}>
-                    {SPEC_STATUS_CONFIG[s].label} ({statusCount(s)})
-                  </option>
-                ))}
-              </SheetSelect>
+                placeholder="Все статусы"
+                side="top"
+                className="w-full"
+                value={filters.statusFilter}
+                onChange={filters.setStatusFilter}
+                options={statusOptions}
+              />
             </FilterField>
 
             <FilterField label="Сортировка">
-              <SheetSelect
+              <FilterSelect
                 ariaLabel="Сортировка"
+                placeholder="Сортировка"
+                side="top"
+                className="w-full"
                 value={filters.sort}
-                onChange={(v) => filters.setSort(v as SpecSort)}
-              >
-                {SORT_OPTIONS.map((o) => (
-                  <option key={o.value} value={o.value}>
-                    {o.label}
-                  </option>
-                ))}
-              </SheetSelect>
+                onChange={(value) => filters.setSort(value ?? "code")}
+                options={SORT_OPTIONS}
+              />
             </FilterField>
           </div>
 
