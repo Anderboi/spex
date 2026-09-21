@@ -28,10 +28,10 @@ export function PageHeader({
           следующую строку (`flex-wrap` + `gap-y`), а не выдавливают контент
           за вьюпорт, где его обрезает `overflow-x-hidden` контейнера. */}
       <div
-        className={`flex flex-row flex-wrap items-end justify-between gap-x-4 gap-y-3 //pt-[clamp(28px,5vw,48px)] `}
+        className={`flex flex-row //flex-wrap items-end justify-between gap-x-4 gap-y-3 //pt-[clamp(28px,5vw,48px)] `}
       >
         <div className="flex min-w-0 items-end">
-          <PageTitle>{title}</PageTitle>
+          <PageTitle >{title}</PageTitle>
           {editButton && <div className="ml-2 shrink-0">{editButton}</div>}
         </div>
         {children && (
