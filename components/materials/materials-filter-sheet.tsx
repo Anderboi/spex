@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type ReactNode } from "react";
+import { useState } from "react";
 import { RotateCcw, SlidersHorizontal } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { Button } from "@/components/ui/button";
@@ -11,8 +11,10 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { FilterField } from "@/components/layout/filter-field";
 import { useMaterialsUrl } from "@/hooks/use-materials-url";
 import type { MaterialBrands } from "@/lib/queries";
+import { cn } from "@/lib/utils";
 import { MaterialsManufacturerFilter } from "./materials-manufacturer-filter";
 import { MaterialsStatusFilter } from "./materials-status-filter";
 import { MaterialsSort } from "./materials-sort";
@@ -25,9 +27,18 @@ import { MaterialsSort } from "./materials-sort";
  * контролы переезжают в шторку. Категория остаётся снаружи: это основной разрез
  * библиотеки, и прятать её за лишний тап незачем.
  *
+ * Кнопка живёт в мобильном ряду `SearchBlock` и на `sm+` скрыта (`sm:hidden`):
+ * там вторичные фильтры стоят в тулбаре, и шторка не нужна.
+ *
  * Изменения применяются сразу (URL-состояние), «Готово» просто закрывает шторку.
  */
-export function MaterialsFilterSheet({ brands }: { brands: MaterialBrands }) {
+export function MaterialsFilterSheet({
+  brands,
+  className,
+}: {
+  brands: MaterialBrands;
+  className?: string;
+}) {
   const [open, setOpen] = useState(false);
   const searchParams = useSearchParams();
   const { update } = useMaterialsUrl();
@@ -43,7 +54,7 @@ export function MaterialsFilterSheet({ brands }: { brands: MaterialBrands }) {
     <>
       <Button
         variant="outline"
-        className="h-10 shrink-0 gap-2 sm:hidden"
+        className={cn("h-10 shrink-0 gap-2", className)}
         aria-label={
           activeCount > 0
             ? `Фильтры, активно ${activeCount}`
@@ -53,7 +64,7 @@ export function MaterialsFilterSheet({ brands }: { brands: MaterialBrands }) {
         onClick={() => setOpen(true)}
       >
         <SlidersHorizontal className="size-4" />
-        Фильтры
+        {/* Фильтры */}
         {activeCount > 0 && (
           <span className="flex size-5 items-center justify-center rounded-full bg-bg-accent text-[11px] font-medium text-bg">
             {activeCount}
@@ -112,23 +123,5 @@ export function MaterialsFilterSheet({ brands }: { brands: MaterialBrands }) {
         </SheetContent>
       </Sheet>
     </>
-  );
-}
-
-function FilterField({
-  label,
-  hint,
-  children,
-}: {
-  label: string;
-  hint?: string;
-  children: ReactNode;
-}) {
-  return (
-    <label className="flex flex-col gap-2">
-      <span className="text-xs font-medium text-fg-muted">{label}</span>
-      {children}
-      {hint && <span className="text-[11px] text-fg-muted">{hint}</span>}
-    </label>
   );
 }
