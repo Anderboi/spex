@@ -8,6 +8,9 @@ export const PROJECTS_PAGE_SIZE = 12;
 
 export const PROJECTS_SORTS = ["date", "name", "budget"] as const satisfies readonly ProjectsSort[];
 
+/** Дефолт парсера: и триггер сортировки, и «Сбросить» в шторке возвращают его же. */
+export const DEFAULT_PROJECTS_SORT: ProjectsSort = "date";
+
 export const PROJECTS_SORT_OPTIONS: ReadonlyArray<{
   label: string;
   value: ProjectsSort;
@@ -31,14 +34,14 @@ const statusSchema = z.enum(PROJECT_STATUSES).nullable();
 export const projectsFiltersSchema = z.object({
   query: z.string().trim().max(100).catch(""),
   status: statusSchema.catch(null),
-  sort: sortSchema.catch("date"),
+  sort: sortSchema.catch(DEFAULT_PROJECTS_SORT),
   page: z.coerce.number().int().min(1).max(100_000).catch(1),
 });
 
 export const DEFAULT_PROJECTS_FILTERS: ProjectsFilters = {
   query: "",
   status: null,
-  sort: "date",
+  sort: DEFAULT_PROJECTS_SORT,
   page: 1,
 };
 
@@ -53,7 +56,7 @@ export function parseProjectsFilters(
   const parsed = projectsFiltersSchema.safeParse({
     query: singleParam(sp.query) ?? "",
     status: singleParam(sp.status) ?? null,
-    sort: singleParam(sp.sort) ?? "date",
+    sort: singleParam(sp.sort) ?? DEFAULT_PROJECTS_SORT,
     page: singleParam(sp.page) ?? "1",
   });
 

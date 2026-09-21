@@ -1,31 +1,50 @@
 "use client";
 
-import { ArrowUpDown } from "lucide-react";
 import { useSearchParams } from "next/navigation";
 import { useProjectsUrl } from "@/hooks/use-projects-url";
-import { PROJECTS_SORT_OPTIONS } from "@/lib/projects/filters";
-import type { ProjectsSort } from "@/lib/types";
+import {
+  DEFAULT_PROJECTS_SORT,
+  PROJECTS_SORTS,
+  PROJECTS_SORT_OPTIONS,
+} from "@/lib/projects/filters";
+import type { ProjectsSort as ProjectsSortValue } from "@/lib/types";
+import { FilterSelect } from "@/components/layout/filter-select";
 
-export function ProjectsSort() {
+/**
+ * Сортировка списка проектов — тот же селект, что в библиотеке материалов.
+ *
+ * «Без сортировки» не существует: сервер всегда сортирует, а неизвестное
+ * значение в URL заменяет на дефолт (`parseProjectsFilters` →
+ * `.catch(DEFAULT_PROJECTS_SORT)`) — триггер должен показывать то же самое.
+ *
+ * Контрол рендерится дважды: в тулбаре на `sm+` и в нижней шторке на телефоне.
+ * Видимость задаёт вызывающая сторона через `className`, сторону попапа —
+ * `side` (в шторке `top`: под триггером места нет).
+ */
+export function ProjectsSort({
+  side,
+  className,
+}: {
+  side?: "top" | "bottom";
+  className?: string;
+}) {
   const searchParams = useSearchParams();
   const { update } = useProjectsUrl();
-  const sort = (searchParams.get("sort") ?? "date") as ProjectsSort;
+  const raw = searchParams.get("sort") ?? "";
+
+  const sort = (PROJECTS_SORTS as readonly string[]).includes(raw)
+    ? (raw as ProjectsSortValue)
+    : DEFAULT_PROJECTS_SORT;
 
   return (
-    <div className="relative inline-flex items-center">
-      <select
-        value={sort}
-        onChange={(e) => update({ sort: e.target.value as ProjectsSort })}
-        aria-label="Сортировка"
-        className="h-10 cursor-pointer appearance-none rounded-lg border border-border bg-bg-card pl-3 pr-7 font-mono text-xs text-fg outline-none transition-colors hover:bg-bg-brand/50"
-      >
-        {PROJECTS_SORT_OPTIONS.map((o) => (
-          <option key={o.value} value={o.value}>
-            {o.label}
-          </option>
-        ))}
-      </select>
-      <ArrowUpDown className="pointer-events-none absolute right-2.5 size-3.5 text-fg-muted" />
-    </div>
+    <FilterSelect
+      ariaLabel="Сортировка"
+      placeholder="Сортировка"
+      side={side}
+      className={className}
+      value={sort}
+      onChange={(value) => update({ sort: value ?? DEFAULT_PROJECTS_SORT })}
+      options={PROJECTS_SORT_OPTIONS}
+    />
   );
 }
