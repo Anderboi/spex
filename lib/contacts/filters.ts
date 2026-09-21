@@ -10,6 +10,9 @@ export const CONTACTS_SORTS = [
   "name_desc",
 ] as const satisfies readonly ContactsSort[];
 
+/** Дефолт парсера: и триггер сортировки, и «Сбросить» в шторке возвращают его же. */
+export const DEFAULT_CONTACTS_SORT: ContactsSort = "created_desc";
+
 /** Порядок пунктов совпадает с сортировкой материалов (`MATERIALS_SORT_OPTIONS`). */
 export const CONTACTS_SORT_OPTIONS: ReadonlyArray<{
   label: string;
@@ -30,7 +33,7 @@ export const contactsFiltersSchema = z.object({
   query: z.string().trim().max(100).catch(""),
   category: z.string().trim().max(120).nullable().catch(null),
   tab: tabSchema.catch("companies"),
-  sort: sortSchema.catch("created_desc"),
+  sort: sortSchema.catch(DEFAULT_CONTACTS_SORT),
   page: z.coerce.number().int().min(1).max(100_000).catch(1),
 });
 
@@ -38,7 +41,7 @@ export const DEFAULT_CONTACTS_FILTERS: ContactsFilters = {
   query: "",
   category: null,
   tab: "companies",
-  sort: "created_desc",
+  sort: DEFAULT_CONTACTS_SORT,
   page: 1,
 };
 
@@ -58,7 +61,7 @@ export function parseContactsFilters(
     query: toSingle(sp.query) ?? "",
     category: toSingle(sp.category) ?? null,
     tab: toSingle(sp.tab) ?? "companies",
-    sort: toSingle(sp.sort) ?? "created_desc",
+    sort: toSingle(sp.sort) ?? DEFAULT_CONTACTS_SORT,
     page: toSingle(sp.page) ?? "1",
   });
 
