@@ -8,7 +8,13 @@ export type ActionErrorCode =
   | "ALREADY_IN_PROJECT"
   | "FORBIDDEN"
   | "NOT_FOUND"
-  | "INVALID_INPUT";
+  | "INVALID_INPUT"
+  /**
+   * Импорт по URL не удался: страница недоступна, отдала не HTML или не
+   * поместилась в лимиты. Отдельный код нужен, потому что это не ошибка ввода
+   * и не отказ прав — UI показывает её иначе, с предложением проверить ссылку.
+   */
+  | "IMPORT_FAILED";
 
 export type ActionResult<T = null> =
   | { success: true; data: T }

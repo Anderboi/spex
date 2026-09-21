@@ -1,5 +1,8 @@
+// Импорты внутри `lib/` — относительные (как в `lib/spec/pdf-fonts.ts`):
+// алиас `@/` настроен только для сборщика Next и сборщика типов, поэтому
+// относительный путь позволяет использовать этот модуль и в unit-тестах.
 import { Enums } from "./supabase/database.types";
-import { ProjectType, SpecItemStatus } from "./types";
+import { ProjectType } from "./types";
 import { ProjectStatus } from "./validations";
 
 export const COVER_PALETTE: string[] = [

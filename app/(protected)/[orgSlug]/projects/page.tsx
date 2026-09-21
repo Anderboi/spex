@@ -1,4 +1,4 @@
-import { fmtRub, plural } from "@/lib/utils";
+// import { fmtRub, plural } from "@/lib/utils";
 import { getProjects, getProjectsStats } from "@/lib/queries";
 import { CreateProjectDialog } from "@/components/project/create-project-dialog";
 import { PageHeader } from "@/components/layout/page-header";
@@ -18,7 +18,7 @@ type Props = {
 
 export default async function ProjectsPage({ params, searchParams }: Props) {
   const { orgSlug } = await params;
-  const stats = await getProjectsStats(orgSlug);
+  // const stats = await getProjectsStats(orgSlug);
 
   return (
     <>

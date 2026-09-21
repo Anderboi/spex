@@ -7,8 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "vitest run",
-    "test:watch": "vitest",
+    "test": "vitest run --pool=threads --environment node --exclude 'scripts/**'",
+    "test:watch": "vitest --pool=threads --environment node --exclude 'scripts/**'",
+    "import:smoke": "node --experimental-strip-types scripts/smoke-import.mts",
     "db:types": "supabase gen types typescript --project-id dybltbdrxwjdfegkonzx --schema public > lib/supabase/database.types.ts"
   },
   "dependencies": {
