@@ -22,6 +22,11 @@ import Link from "next/link";
 import { createInvite } from "@/actions/teams";
 import { useDialogUrl } from "@/hooks/use-dialog-url";
 
+const roleLabels: Record<string, string> = {
+  member: "Участник",
+  admin: "Администратор",
+};
+
 export function InviteDialog({ orgSlug }: { orgSlug: string }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -70,6 +75,8 @@ export function InviteDialog({ orgSlug }: { orgSlug: string }) {
     }
   };
 
+  const [role, setRole] = useState("member");
+
   return (
     <>
       <Button
@@ -87,7 +94,7 @@ export function InviteDialog({ orgSlug }: { orgSlug: string }) {
           if (!val) closeDialog();
         }}
       >
-        <DialogContent className="sm:max-w-120 bg-bg-card">
+        <DialogContent className="sm:max-w-120 bg-bg">
           <DialogHeader>
             <DialogTitle>Приглашение в команду</DialogTitle>
           </DialogHeader>
@@ -108,19 +115,7 @@ export function InviteDialog({ orgSlug }: { orgSlug: string }) {
 
               <div className="space-y-2">
                 <Label htmlFor="role">Роль</Label>
-                <Select name="role" defaultValue="member">
-                  <SelectTrigger className="w-full h-10!">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent className="w-fit bg-bg-card">
-                    <SelectItem value="member" className="h-10">
-                      Участник (Просмотр и редактирование)
-                    </SelectItem>
-                    <SelectItem value="admin" className="h-10">
-                      Администратор (Управление проектами и командой)
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
+                <RoleSelect />
               </div>
 
               {error && (
@@ -140,7 +135,11 @@ export function InviteDialog({ orgSlug }: { orgSlug: string }) {
                 Приглашение создано. Передайте эту ссылку сотруднику:
               </p>
               <div className="flex items-center gap-2">
-                <Input value={inviteUrl} readOnly className="text-xs font-mono" />
+                <Input
+                  value={inviteUrl}
+                  readOnly
+                  className="text-xs font-mono"
+                />
                 <Button size="icon" variant="outline" onClick={copyToClipboard}>
                   {copied ? (
                     <Check className="size-4 text-emerald-500" />
@@ -161,5 +160,32 @@ export function InviteDialog({ orgSlug }: { orgSlug: string }) {
         </DialogContent>
       </Dialog>
     </>
+  );
+}
+
+export default function RoleSelect() {
+  // 2. Добавляем стейт для отслеживания выбранного значения (начиная с дефолтного)
+  const [role, setRole] = useState("member");
+
+  return (
+    <Select
+      name="role"
+      value={role}
+      onValueChange={(val) => setRole(val ?? "")}
+    >
+      <SelectTrigger className="w-full h-10! bg-bg-card">
+        {/* 3. Передаем короткое название внутрь SelectValue */}
+        <SelectValue>{roleLabels[role] ?? "Выберите роль"}</SelectValue>
+      </SelectTrigger>
+
+      <SelectContent className="w-fit bg-bg-card">
+        <SelectItem value="member" className="h-10">
+          Участник (Просмотр и редактирование)
+        </SelectItem>
+        <SelectItem value="admin" className="h-10">
+          Администратор (Управление проектами и командой)
+        </SelectItem>
+      </SelectContent>
+    </Select>
   );
 }

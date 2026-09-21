@@ -139,13 +139,13 @@ export function MemberRow({
               <DropdownMenuContent align="end" className="w-48">
                 {allowRoleChange && (
                   <>
-                    <DropdownMenuLabel className="text-xs">
-                      Изменить роль
-                    </DropdownMenuLabel>
                     <DropdownMenuRadioGroup
                       value={member.role}
                       onValueChange={handleRoleChange}
                     >
+                      <DropdownMenuLabel className="text-xs">
+                        Изменить роль
+                      </DropdownMenuLabel>
                       <DropdownMenuRadioItem
                         value="member"
                         disabled={!canSetMember}
