@@ -7,7 +7,7 @@ import {
   MATERIALS_SORT_OPTIONS,
 } from "@/lib/materials/filters";
 import type { MaterialsSort as MaterialsSortValue } from "@/lib/types";
-import { MaterialsFilterSelect } from "./materials-filter-select";
+import { FilterSelect } from "@/components/layout/filter-select";
 
 const DEFAULT_SORT: MaterialsSortValue = "created_desc";
 
@@ -30,7 +30,7 @@ export function MaterialsSort({
     : DEFAULT_SORT;
 
   return (
-    <MaterialsFilterSelect
+    <FilterSelect
       ariaLabel="Сортировка"
       placeholder="Сортировка"
       side={side}

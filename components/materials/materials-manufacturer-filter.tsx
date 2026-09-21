@@ -3,7 +3,7 @@
 import { useSearchParams } from "next/navigation";
 import { useMaterialsUrl } from "../../hooks/use-materials-url";
 import type { MaterialBrands } from "@/lib/queries";
-import { MaterialsFilterSelect } from "./materials-filter-select";
+import { FilterSelect } from "@/components/layout/filter-select";
 
 const ALL_BRANDS_LABEL = "Все производители";
 
@@ -39,7 +39,7 @@ export function MaterialsManufacturerFilter({
       : "Производители не указаны";
 
   return (
-    <MaterialsFilterSelect
+    <FilterSelect
       ariaLabel="Производитель"
       placeholder={placeholder}
       side={side}

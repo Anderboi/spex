@@ -7,9 +7,9 @@ import { TYPE_ORDER, ALL_CATEGORIES } from "@/lib/constants";
 import { useSearchParams } from "next/navigation";
 import { useMaterialsUrl } from "../../hooks/use-materials-url";
 import {
-  MaterialsFilterSelect,
+  FilterSelect,
   type FilterSelectOption,
-} from "./materials-filter-select";
+} from "@/components/layout/filter-select";
 import { cn } from "@/lib/utils";
 
 const ALL_LABEL = ALL_CATEGORIES;
@@ -76,12 +76,12 @@ export function MaterialsCategoryFilter({ className }: { className?: string }) {
       )}
     >
       {/* Мобильная версия: тот же shadcn-селект, что и остальные фильтры.
-          Важен `align="start"` внутри `MaterialsFilterSelect`: триггер здесь
+          Важен `align="start"` внутри `FilterSelect`: триггер здесь
           во всю ширину, и при выравнивании попапа по центру он вылезал бы за
           вьюпорт — на мобильном это расширяет layout viewport и «увозит» всю
           страницу. */}
       <div className="block w-full sm:hidden">
-        <MaterialsFilterSelect
+        <FilterSelect
           ariaLabel="Категория"
           placeholder={ALL_LABEL}
           className="w-full"

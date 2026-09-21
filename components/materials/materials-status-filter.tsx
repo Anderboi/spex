@@ -6,7 +6,7 @@ import {
   MATERIALS_STATUSES,
   type MaterialStatus,
 } from "@/lib/materials/filters";
-import { MaterialsFilterSelect } from "./materials-filter-select";
+import { FilterSelect } from "@/components/layout/filter-select";
 
 const STATUS_OPTIONS: { label: string; value: MaterialStatus | null }[] = [
   { label: "Все статусы", value: null },
@@ -35,7 +35,7 @@ export function MaterialsStatusFilter({
   const status = isMaterialStatus(raw) ? raw : null;
 
   return (
-    <MaterialsFilterSelect
+    <FilterSelect
       ariaLabel="Статус"
       placeholder="Все статусы"
       side={side}

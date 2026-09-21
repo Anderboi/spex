@@ -4,20 +4,21 @@ import type { ContactsFilters, ContactsSort, ContactsTab } from "@/lib/types";
 export const CONTACTS_PAGE_SIZE = 12;
 
 export const CONTACTS_SORTS = [
-  "name_asc",
-  "name_desc",
   "created_desc",
   "created_asc",
+  "name_asc",
+  "name_desc",
 ] as const satisfies readonly ContactsSort[];
 
+/** Порядок пунктов совпадает с сортировкой материалов (`MATERIALS_SORT_OPTIONS`). */
 export const CONTACTS_SORT_OPTIONS: ReadonlyArray<{
   label: string;
   value: ContactsSort;
 }> = [
-  { label: "По названию (А-Я)", value: "name_asc" },
-  { label: "По названию (Я-А)", value: "name_desc" },
   { label: "Сначала новые", value: "created_desc" },
   { label: "Сначала старые", value: "created_asc" },
+  { label: "По названию (А-Я)", value: "name_asc" },
+  { label: "По названию (Я-А)", value: "name_desc" },
 ];
 
 export const CONTACTS_TABS = ["companies", "independent"] as const satisfies readonly ContactsTab[];
