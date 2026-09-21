@@ -1,4 +1,5 @@
 import { createAdminClient } from "./supabase/admin";
+import type { PostgrestError } from "@supabase/supabase-js";
 import {
   CompanyInput,
   CompanyRow,
@@ -11,6 +12,7 @@ import { OrgRole, requireOrgBySlug } from "./auth/session";
 import { rowToItem } from "./spec/mappers";
 import {
   ContactsFilters,
+  ContactsTab,
   MaterialsFilters,
   ProjectType,
   ProjectsFilters,
@@ -797,7 +799,26 @@ export type ContactsDirectory = {
   independentCount: number;
   pageCount: number;
   independentPageCount: number;
+  /** Номер страницы активной вкладки, зажатый в её границы: его и показывает список. */
+  page: number;
 };
+
+/**
+ * Единая реакция на неудачную выборку вкладки справочника: в лог — причина от
+ * PostgREST, в UI — понятный текст. Возвращает `never`, чтобы вызов читался как
+ * `throw` и сужал типы дальше.
+ */
+function failContactsFetch(tab: ContactsTab, error: PostgrestError): never {
+  console.error(
+    `[getContactsDirectory] ${tab === "companies" ? "companies" : "contacts"}`,
+    error.message,
+  );
+  throw new Error(
+    tab === "companies"
+      ? "Не удалось загрузить компании"
+      : "Не удалось загрузить контакты",
+  );
+}
 
 export async function getContactsDirectory(
   orgSlug: string,
@@ -807,8 +828,7 @@ export async function getContactsDirectory(
   const supabase = createAdminClient();
 
   const search = sanitizeSearch(filters.query);
-  const from = (filters.page - 1) * CONTACTS_PAGE_SIZE;
-  const to = from + CONTACTS_PAGE_SIZE - 1;
+  const lastIndex = CONTACTS_PAGE_SIZE - 1;
 
   let companiesQuery = supabase
     .from("companies")
@@ -865,35 +885,63 @@ export async function getContactsDirectory(
 
   // Обе вкладки отдаём сразу: это два параллельных запроса к разным таблицам,
   // которые и так выполняются, а выбрасывание данных неактивной вкладки заставляло
-  // при её открытии идти на сервер заново. Пагинация при этом применяется к обеим
-  // вкладкам — `page` относится к активной, вторая отдаётся той же страницей.
-  companiesQuery = companiesQuery.range(from, to);
-  independentQuery = independentQuery.range(from, to);
-
-  const [companiesRes, independentRes] = await Promise.all([
-    companiesQuery,
-    independentQuery,
+  // при её открытии идти на сервер заново.
+  //
+  // Диапазон считаем от объёма каждой вкладки отдельно. `page` в URL один на обе
+  // вкладки, а пагинируются они независимо, поэтому раньше вторая вкладка получала
+  // диапазон от чужого номера страницы: если страниц у неё меньше, PostgREST отвечал
+  // 416/PGRST103 «Requested range not satisfiable» и `getContactsDirectory` ронял
+  // весь справочник. Всплывало это при переходе на вторую страницу — в том числе
+  // «само по себе», на префетче ссылок пагинации. Поэтому первыми берём первые
+  // страницы обеих вкладок: диапазон `0..lastIndex` валиден всегда (даже для пустой
+  // выборки), а `count` из того же ответа даёт точные объёмы для бейджей, пагинации
+  // и зажима номера страницы.
+  const [companiesFirst, independentFirst] = await Promise.all([
+    companiesQuery.range(0, lastIndex),
+    independentQuery.range(0, lastIndex),
   ]);
 
-  if (companiesRes.error) {
-    console.error("[getContactsDirectory] companies", companiesRes.error.message);
-    throw new Error("Не удалось загрузить компании");
-  }
-  if (independentRes.error) {
-    console.error("[getContactsDirectory] contacts", independentRes.error.message);
-    throw new Error("Не удалось загрузить контакты");
-  }
+  if (companiesFirst.error) failContactsFetch("companies", companiesFirst.error);
+  if (independentFirst.error)
+    failContactsFetch("independent", independentFirst.error);
 
-  const companies = (companiesRes.data ?? []) as CompanyRow[];
-  const independentContacts = (independentRes.data ?? []) as ContactRow[];
-  const companiesCount = companiesRes.count ?? 0;
-  const independentCount = independentRes.count ?? 0;
+  const companiesCount = companiesFirst.count ?? 0;
+  const independentCount = independentFirst.count ?? 0;
 
   const pageCount = Math.max(1, Math.ceil(companiesCount / CONTACTS_PAGE_SIZE));
   const independentPageCount = Math.max(
     1,
     Math.ceil(independentCount / CONTACTS_PAGE_SIZE),
   );
+
+  // Номер страницы мог остаться от вкладки с большим объёмом (например `?page=4`
+  // после перехода на специалистов с одной страницей) или от устаревшей ссылки.
+  // Зажимаем его в границы активной вкладки: вместо пустого списка и запроса за
+  // границей выборки показываем её последнюю страницу.
+  const isCompaniesTab = filters.tab === "companies";
+  const activePageCount = isCompaniesTab ? pageCount : independentPageCount;
+  const page = Math.min(filters.page, activePageCount);
+
+  let companies = (companiesFirst.data ?? []) as CompanyRow[];
+  let independentContacts = (independentFirst.data ?? []) as ContactRow[];
+
+  // Строки первой страницы активной вкладки уже загружены; остальные дочитываем.
+  // Диапазон здесь гарантированно внутри объёма вкладки, потому что `page` зажат
+  // по `activePageCount` из `count`.
+  if (page > 1) {
+    const from = (page - 1) * CONTACTS_PAGE_SIZE;
+    const to = from + lastIndex;
+
+    if (isCompaniesTab) {
+      const { data, error } = await companiesQuery.range(from, to);
+      if (error) failContactsFetch("companies", error);
+      companies = (data ?? []) as CompanyRow[];
+    } else {
+      const { data, error } = await independentQuery.range(from, to);
+      if (error) failContactsFetch("independent", error);
+      independentContacts = (data ?? []) as ContactRow[];
+    }
+  }
 
   let managers: ContactRow[] = [];
   if (companies.length > 0) {
@@ -920,6 +968,7 @@ export async function getContactsDirectory(
     independentCount,
     pageCount,
     independentPageCount,
+    page,
   };
 }
 export type UserOrganization = {

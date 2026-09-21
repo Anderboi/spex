@@ -36,7 +36,8 @@ interface ContactsListProps {
   companiesCount: number;
   independentCount: number;
   tab: ContactsTab;
-  /** Номер страницы из URL: нужен только как сигнал «список сменился». */
+  /** Показанная страница (уже зажата по границам вкладки): нужна как сигнал
+      «список сменился», чтобы вернуть пользователя к началу списка. */
   page: number;
 }
 
