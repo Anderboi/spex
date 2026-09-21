@@ -94,13 +94,13 @@ export default function BottomBar({ ctx }: { ctx: SpecBuilderContext }) {
       >
         {selCount === 0 ? (
           <>
-            <button
+            {/* <button
               type="button"
               onClick={ctx.openProcure}
               className="flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-border-muted px-3 text-[13px]"
             >
               <ListChecks className="size-4" /> Закупка
-            </button>
+            </button> */}
             {/* На телефоне в панели остаётся только итог: описание и
                 расшифровка суммы скрыты, чтобы строки не наезжали друг на друга. */}
             <p className="hidden min-w-0 truncate text-[13px] text-fg-muted sm:block">

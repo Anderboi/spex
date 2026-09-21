@@ -1,7 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { FileText, MoreHorizontal, Plus, ShoppingCart } from "lucide-react";
+import {
+  FileText,
+  ListChecks,
+  MoreHorizontal,
+  Plus,
+  ShoppingCart,
+  Summary,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -45,6 +52,7 @@ export function ProjectActions({
           render={<Link href={procureHref} />}
           className="flex h-10 items-center gap-1.5 rounded-lg border border-border-muted bg-bg-card px-3 text-[13.5px] font-semibold text-fg hover:border-fg"
         >
+          <ListChecks className="size-4" />
           Закупка
         </Button>
         <Button
@@ -53,6 +61,7 @@ export function ProjectActions({
           render={<Link href={summaryHref} />}
           className="flex h-10 items-center gap-1.5 rounded-lg border border-border-muted bg-bg-card px-3 text-[13.5px] font-semibold text-fg hover:border-fg"
         >
+          <Summary className="size-4" />
           Сводка
         </Button>
       </div>
