@@ -17,7 +17,7 @@ export function ContactsToolbar() {
         <ContactsSort isMobile={false} />
       </div>
       <div className="flex mb-4 gap-2">
-        <TypeChipsSection className="//mb-4" />
+        <TypeChipsSection />
         <ContactsSort />
       </div>
     </div>

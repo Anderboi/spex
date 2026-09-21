@@ -17,7 +17,7 @@ import { cn } from "@/lib/utils";
  * бы под длину выбранной подписи, и строка фильтров прыгала бы при выборе.
  */
 const TRIGGER_CLASS =
-  "h-10! min-w-40 border-border bg-bg-card font-mono text-xs hover:bg-bg-brand/50";
+  "h-10! min-w-40 border-border bg-bg-card font-mono text-xs text-fg-body hover:bg-bg-brand/50";
 
 export type FilterSelectOption<T extends string> = {
   label: string;
@@ -67,13 +67,6 @@ export function FilterSelect<T extends string>({
       value={value}
       onValueChange={(next) => onChange((next as T | null) ?? null)}
       disabled={disabled}
-      // Якорный поп-ап ничего не должен лочить: base-ui включает свой
-      // anchored-scroll-lock при `alignItemWithTrigger || modal`
-      // (SelectPositioner → useAnchoredPopupScrollLock). Внутри уже
-      // залоченного модального drawer'а это меняет overflow и компенсирует
-      // скроллбар у документа и у скролл-контейнера drawer'а, из-за чего при
-      // открытии весь экран «уезжает». Отключаем оба флага: модальность и
-      // скролл-лок уже обеспечивает сам drawer.
       modal={false}
     >
       <SelectTrigger

@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { ALL_CATEGORIES, TYPE_ORDER } from "@/lib/constants";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { TypeSelectMobile } from "./type-select-mobile";
 
 interface TypeChipsSectionProps {
   items?: readonly string[];
@@ -93,26 +94,15 @@ export default function TypeChipsSection({
 
   return (
     <div
-      className={`//mt-4 w-full transition-opacity ${isPending ? "opacity-60" : "opacity-100"} ${className}`}
+      className={`w-full transition-opacity ${isPending ? "opacity-60" : "opacity-100"} ${className}`}
     >
       {/* 1. МОБИЛЬНАЯ ВЕРСИЯ (< sm): Селект */}
       <div className="block sm:hidden w-full">
-        <div className="relative">
-          <select
-            value={activeCategory}
-            onChange={(e) => handleSelectCategory(e.target.value)}
-            className="w-full h-10 rounded-lg bg-bg-card border border-border px-3.5 pr-8 text-sm text-fg-body font-sans appearance-none focus:outline-none focus:ring-1 focus:ring-border cursor-pointer //shadow-sm"
-          >
-            {allTypes.map((label) => (
-              <option key={label} value={label} className="bg-bg-card text-fg">
-                {label}
-              </option>
-            ))}
-          </select>
-          <div className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-fg-muted">
-            <span className="text-[10px]">▾</span>
-          </div>
-        </div>
+        <TypeSelectMobile
+          value={activeCategory}
+          items={items}
+          onChange={handleSelectCategory}
+        />
       </div>
 
       {/* 2. ДЕСКТОП ВЕРСИЯ (>= sm): Чипсы с Drag-to-Scroll */}
