@@ -16,6 +16,7 @@ import {
   upsertMaterial,
 } from "@/actions/materials";
 import { MaterialDialog } from "./material-dialog";
+import { MaterialImportDialog } from "./material-import-dialog";
 import { AttachToProjectDialog } from "./attach-to-project-dialog";
 import { useSearchParams } from "next/navigation";
 import { useDialogUrl } from "@/hooks/use-dialog-url";
@@ -29,6 +30,9 @@ import type {
   SpecPickerContact,
 } from "@/lib/queries";
 import { toListItem, toFormValues } from "@/lib/spec/adapters";
+import { createImportReviewState } from "@/lib/material-import/notices";
+import type { ImportReviewState } from "@/lib/material-import/notices";
+import type { MaterialImportResult } from "@/actions/material-import";
 import { Button } from "@/components/ui/button";
 import { PackageOpen, Plus, RotateCcw, Search } from "lucide-react";
 import { toast } from "sonner";
@@ -93,8 +97,7 @@ export function MaterialsClient({
     [contacts],
   );
 
-  const [optimisticMaterials, setOptimisticMaterials] = useOptimistic(
-    initialMaterials,
+  const [optimisticMaterials, setOptimisticMaterials] = useOptimistic(    initialMaterials,
     (
       state: MaterialListItem[],
       action: OptimisticAction,
@@ -133,6 +136,38 @@ export function MaterialsClient({
       : undefined;
   const isDialogOpen = action === "create" || Boolean(editingItem);
   const materialToEdit = editingItem ? toFormValues(editingItem) : null;
+
+  /**
+   * Состояние окна проверки импорта.
+   *
+   * Живёт здесь, а не внутри диалога импорта: черновик должен пережить закрытие
+   * окна ввода URL (оно закрывается сразу после успеха) и попасть в существующий
+   * `MaterialDialog`. `draftKey` хранится вместе с черновиком — это ключ именно
+   * этого результата.
+   */
+  const [review, setReview] = useState<ImportReviewState | null>(null);
+
+  /** Окно ввода URL открыто, пока черновика ещё нет. */
+  const isImportUrlOpen = action === "import" && review === null;
+  /** Окно проверки: существующий MaterialDialog с импортированным черновиком. */
+  const isReviewingImport = review !== null;
+
+  const handleImported = useCallback((result: MaterialImportResult) => {
+    setReview(createImportReviewState(result));
+  }, []);
+
+  /** Закрытие окна проверки: черновик больше не нужен. */
+  const handleReviewClose = useCallback(() => {
+    setReview(null);
+    closeDialog();
+  }, [closeDialog]);
+
+  const handleImportOpenChange = useCallback(
+    (next: boolean) => {
+      if (!next) closeDialog();
+    },
+    [closeDialog],
+  );
 
   // Цели для «В проект» — единственные данные диалога, которых нет на клиенте,
   // поэтому их запрашивает сам диалог (см. эффект ниже), а не серверный рендер
@@ -207,6 +242,10 @@ export function MaterialsClient({
 
   const handleSave = useCallback(
     (data: MaterialInput) => {
+      // Сохранение закрывает окно проверки импорта: черновик свою работу
+      // выполнил, дальше живёт обычный материал из базы.
+      setReview(null);
+
       startTransition(async () => {
         setOptimisticMaterials({ type: "save", payload: data });
         const res = await upsertMaterial(orgSlug, data);
@@ -284,13 +323,32 @@ export function MaterialsClient({
           />
         ))}
 
-      <MaterialDialog
-        open={isDialogOpen}
+      {/* Окно ввода ссылки: открыто только пока черновика нет. */}
+      <MaterialImportDialog
+        open={isImportUrlOpen}
         orgSlug={orgSlug}
-        onOpenChange={handleDialogOpenChange}
+        onOpenChange={handleImportOpenChange}
+        onImported={handleImported}
+      />
+
+      {/*
+        Окно проверки — тот же `MaterialDialog`, что и при обычном создании,
+        только с импортированным черновиком. Второй формы материала нет.
+      */}
+      <MaterialDialog
+        open={isDialogOpen || isReviewingImport}
+        orgSlug={orgSlug}
+        onOpenChange={
+          isReviewingImport ? (open) => !open && handleReviewClose() : handleDialogOpenChange
+        }
         companies={companyOptions}
         contacts={contacts}
         materialToEdit={materialToEdit}
+        // Черновик и его ключ: ключ идентифицирует результат импорта, поэтому
+        // повторный рендер родителя не сбрасывает правки пользователя.
+        draft={review?.draft ?? null}
+        draftKey={review?.draftKey ?? null}
+        importNotices={review?.notices}
         onCompanyCreated={(company) =>
           setCreatedCompanies((prev) =>
             prev.some((c) => c.id === company.id) ? prev : [...prev, company],

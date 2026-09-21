@@ -6,6 +6,7 @@ import {
 import { MaterialsToolbar } from "@/components/materials/materials-toolbar";
 import { MaterialsClient } from "@/components/materials/materials-client";
 import { MaterialsCreateButton } from "@/components/materials/materials-create-button";
+import { MaterialsImportButton } from "@/components/materials/materials-import-button";
 import { MaterialsPagination } from "@/components/materials/materials-pagination";
 import { PageHeader } from "@/components/layout/page-header";
 import { Suspense } from "react";
@@ -28,9 +29,10 @@ export default async function MaterialsLibraryPage({
   return (
     <>
       <PageHeader title="Библиотека материалов">
-        {/* Диалоги открываются по URL (?action=create) — кнопка клиентская:
-            серверному `<Link>` пришлось бы перерисовывать страницу целиком
-            (см. MaterialsCreateButton). */}
+        {/* Диалоги открываются по URL (?action=create / ?action=import) — кнопки
+            клиентские: серверному `<Link>` пришлось бы перерисовывать страницу
+            целиком (см. MaterialsCreateButton). */}
+        <MaterialsImportButton />
         <MaterialsCreateButton />
       </PageHeader>
       <Suspense fallback={<MaterialsSkeleton />}>

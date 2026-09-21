@@ -282,3 +282,116 @@ describe("resolveDialogPrefill: чистота", () => {
     expect(first.values.attrs).not.toBe(second.values.attrs);
   });
 });
+
+/* ================================================================== */
+/*  Требует проверки — но не блокирует сохранение                       */
+/* ================================================================== */
+
+describe("resolveDialogPrefill: requiresReview не блокирует сохранение", () => {
+  /**
+   * `requiresReview` — сигнал пользователю, а не запрет. Проверяем, что он не
+   * влияет на то, что попадает в форму: значения остаются валидными и
+   * отправляемыми, никакого «нужно подтверждение» в prefill нет.
+   */
+  it("даёт те же значения, что и черновик без пометки", () => {
+    const reviewed = resolveDialogPrefill({
+      draft: draft({ requiresReview: true }),
+    });
+    const normal = resolveDialogPrefill({ draft: draft({ requiresReview: false }) });
+
+    expect(reviewed).toEqual(normal);
+  });
+
+  it("заполняет обязательное поле наименования, когда оно есть", () => {
+    const prefill = resolveDialogPrefill({
+      draft: draft({ requiresReview: true, ambiguous: [{ field: "article", values: [], reason: "retailer-id" }] }),
+    });
+
+    // `materialSchema` требует непустое имя — оно на месте, значит сохранение
+    // пройдёт валидацию без дополнительных подтверждений.
+    expect(prefill.values.name.length).toBeGreaterThan(0);
+  });
+
+  it("с неопределённым вариантом оставляет форму заполняемой", () => {
+    const prefill = resolveDialogPrefill({
+      draft: draft({
+        requiresReview: true,
+        article: null,
+        price: null,
+        ambiguous: [
+          { field: "attrs.Толщина", values: ["13 мм", "13.5 мм"], reason: "no-url-signal" },
+        ],
+      }),
+    });
+
+    // Пустые артикул и цена — не препятствие: форма допускает их отсутствие.
+    expect(prefill.values.article).toBe("");
+    expect(prefill.values.price).toBe(0);
+    expect(prefill.values.name).toBe("Керамогранит Calacatta");
+  });
+});
+
+/* ================================================================== */
+/*  Сценарии из требований                                             */
+/* ================================================================== */
+
+describe("resolveDialogPrefill: сквозные сценарии flow", () => {
+  it("import → изменение полей → новый рендер с тем же ключом не сбрасывает", () => {
+    const key = "import-1";
+
+    // 1. Импорт: ключ и предзаполнение.
+    const firstKey = resolveResetKey({ draftKey: key });
+    const firstPrefill = resolveDialogPrefill({ draft: draft() });
+
+    // 2. Пользователь правит поля (состояние формы, не наш вход).
+    const userEdits = { ...firstPrefill.values, name: "Исправленное имя", price: 7000 };
+
+    // 3. Родитель перерисовался: новый объект черновика, тот же ключ.
+    const secondKey = resolveResetKey({ draftKey: key });
+    const secondPrefill = resolveDialogPrefill({ draft: draft() });
+
+    // Ключ не изменился → эффект сброса не перезапустится → правки останутся.
+    expect(secondKey).toBe(firstKey);
+    expect(secondPrefill.values).toEqual(firstPrefill.values);
+    // Предзаполнение не знает о правках — именно поэтому сброс был бы потерей.
+    expect(secondPrefill.values.name).not.toBe(userEdits.name);
+  });
+
+  it("import → выбранный поставщик переживает новый рендер", () => {
+    // Поставщик — состояние диалога, но его значение обязано восстанавливаться
+    // при сбросе, иначе выбор «слетит» после обновления родителя.
+    const prefill = resolveDialogPrefill({
+      materialToEdit: {
+        id: "11111111-1111-4111-8111-111111111111",
+        name: "Материал",
+        category: "Отделка",
+        company_id: "22222222-2222-4222-8222-222222222222",
+        contact_id: "33333333-3333-4333-8333-333333333333",
+      },
+    });
+
+    expect(prefill.supplier.companyId).toBe("22222222-2222-4222-8222-222222222222");
+    expect(prefill.supplier.contactId).toBe("33333333-3333-4333-8333-333333333333");
+  });
+
+  it("import → выбор поставщика вручную не подменяется черновиком", () => {
+    // Черновик поставщика не содержит вовсе: подставлять нечего.
+    const prefill = resolveDialogPrefill({
+      draft: draft(),
+      // Ключ импорта не должен влиять на поставщика.
+    });
+    expect(prefill.supplier).toEqual({ companyId: null, contactId: null });
+  });
+
+  it("image failure → черновик остаётся пригодным для формы", () => {
+    // Конвейер обнуляет imageUrl, если перехостинг не удался.
+    const prefill = resolveDialogPrefill({
+      draft: draft({ imageUrl: null }),
+    });
+
+    expect(prefill.values.image_url).toBeNull();
+    // Остальные поля на месте — окно можно открывать.
+    expect(prefill.values.name).toBe("Керамогранит Calacatta");
+    expect(prefill.values.category).toBe("Отделка");
+  });
+});

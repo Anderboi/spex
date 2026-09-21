@@ -23,6 +23,7 @@ import { ok, fail, type ActionResult } from "@/lib/action-result";
 import { requireOrgBySlug } from "@/lib/auth/session";
 import { can } from "@/lib/permissions";
 import { describeImportFailure } from "@/lib/material-import/failure-messages";
+import { rehostImage } from "@/lib/material-import/image";
 import { runImportPipeline } from "@/lib/material-import/pipeline";
 import { MAX_URL_LENGTH } from "@/lib/material-import/guards";
 import type { MaterialImportDraft } from "@/lib/material-import/draft";
@@ -48,14 +49,31 @@ export type MaterialImportRequest = z.infer<typeof materialImportRequestSchema>;
 /**
  * Результат импорта для клиента.
  *
+ * Наружу уходит только то, что можно показывать: сам черновик и служебные
+ * признаки. Внутренности конвейера (адреса, коды отказа, слой LLM, ключи)
+ * остаются на сервере — в лог пишется техническая причина, в ответ идёт
+ * человеческая формулировка.
+ *
  * `draft` — НЕдоверенные данные с внешнего сайта. Они предназначены только для
  * заполнения формы и обязательно проходят через `materialSchema` при сохранении.
  */
 export type MaterialImportResult = {
   draft: MaterialImportDraft;
-  /** Что стоит проверить руками (спорный вариант, отсутствующие поля). */
+  /**
+   * Ключ этого результата импорта. Уникален для каждой попытки: повторный
+   * импорт той же ссылки после правок обязан сбросить форму заново, поэтому
+   * ключ не может быть самим URL.
+   */
+  draftKey: string;
+  /**
+   * Понятные предупреждения конвейера: что не удалось определить, что осталось
+   * пустым, что не перенеслось. Тексты уже человеческие — внутренние коды в них
+   * не попадают.
+   */
   warnings: string[];
-  /** Какие слои конвейера отработали — для отладки и будущего UI. */
+  /** Признак успешного перехостинга изображения (для предупреждений в форме). */
+  imageRehosted: boolean;
+  /** Какие слои конвейера отработали — для отладки и служебных сообщений. */
   layers: { deterministic: boolean; jina: boolean; ai: boolean };
 };
 
@@ -65,6 +83,9 @@ export type MaterialImportResult = {
  * Права проверяются до выхода в сеть: импорт создаёт исходящий запрос от имени
  * сервера, поэтому пользователь без права создавать материалы не должен иметь
  * возможности использовать его как прокси.
+ *
+ * Экшен НИЧЕГО не пишет в базу: сохранение делает прежний `upsertMaterial`
+ * после явного нажатия Save в форме.
  */
 export async function importMaterialFromUrl(
   orgSlug: string,
@@ -83,13 +104,19 @@ export async function importMaterialFromUrl(
     return fail("Недостаточно прав для импорта материала", "FORBIDDEN");
   }
 
-  const result = await runImportPipeline(parsed.data.url);
+  // Перехостинг подключаем здесь, а не внутри конвейера: конвейер не должен
+  // знать про Supabase и остаётся проверяемым в unit-тестах.
+  const result = await runImportPipeline(parsed.data.url, {
+    orgId: ctx.orgId,
+    rehostImage,
+  });
 
   if (!result.ok) {
     const described = describeImportFailure(
       result.failure.code,
       result.failure.status,
     );
+    // Техническая причина — только в серверный лог.
     if (result.failure.detail) {
       console.error("[importMaterialFromUrl]", result.failure.code, result.failure.detail);
     }
@@ -98,7 +125,10 @@ export async function importMaterialFromUrl(
 
   return ok({
     draft: result.draft,
+    // `crypto.randomUUID()` доступен и в серверном рантайме Node.
+    draftKey: `import-${crypto.randomUUID()}`,
     warnings: result.warnings,
+    imageRehosted: result.imageRehosted,
     layers: result.layers,
   });
 }

@@ -29,7 +29,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../ui/select";
-import { CloudUpload, Loader2 } from "lucide-react";
+import { CloudUpload, Loader2, TriangleAlert } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -55,6 +55,7 @@ import { uploadMaterialImage } from "@/actions/materials";
 import { useDialogDismissGuard } from "@/components/ui/use-dialog-dismiss-guard";
 import { resolveDialogPrefill, resolveResetKey } from "@/lib/material-import/dialog-prefill";
 import type { MaterialImportDraft } from "@/lib/material-import/draft";
+import type { ImportNotice } from "@/lib/material-import/notices";
 
 interface MaterialDialogProps {
   open: boolean;
@@ -79,6 +80,12 @@ interface MaterialDialogProps {
   draftKey?: string | null;
   /** Черновик импорта, показываемый при создании. */
   draft?: MaterialImportDraft | null;
+  /**
+   * Замечания к импортированному черновику: спорные значения, предупреждения
+   * конвейера, не перенесённое изображение. Показываются над формой и НЕ
+   * блокируют сохранение: это сигнал проверить данные, а не запрет.
+   */
+  importNotices?: ImportNotice[];
 }
 
 type FormValues = z.infer<typeof materialSchema>;
@@ -94,6 +101,7 @@ export function MaterialDialog({
   onCompanyCreated,
   draftKey = null,
   draft = null,
+  importNotices,
 }: MaterialDialogProps) {
   const [isUploading, setIsUploading] = useState(false);
 
@@ -250,6 +258,13 @@ export function MaterialDialog({
             <form onSubmit={form.handleSubmit(onSubmit)}>
               <ScrollArea className="h-[66svh] pr-4 p-4">
                 <section className="flex flex-col gap-4">
+                  {/* Замечания импорта — над формой, чтобы пользователь увидел
+                      их до того, как начнёт править поля. Сохранение не
+                      блокируют. */}
+                  {importNotices && importNotices.length > 0 && (
+                    <ImportNotices notices={importNotices} />
+                  )}
+
                   {/* Image section */}
                   <section className="flex items-start gap-4">
                     {imageUrl ? (
@@ -562,5 +577,36 @@ export function MaterialDialog({
         </AlertDialogContent>
       </AlertDialog>
     </>
+  );
+}
+
+/**
+ * Блок замечаний к импортированному черновику.
+ *
+ * Показывает то, что человек должен проверить: спорные характеристики,
+ * предупреждения разбора и не перенесённое изображение. Намеренно без
+ * внутренних кодов и без кнопок — это подсказка, а не шаг процесса.
+ */
+function ImportNotices({ notices }: { notices: ImportNotice[] }) {
+  return (
+    <section
+      className="rounded-lg border border-border-gold bg-bg-gold p-3"
+      aria-label="Замечания к импорту"
+    >
+      <div className="flex items-center gap-2">
+        <TriangleAlert className="size-4 shrink-0 text-fg-gold" />
+        <span className="text-[13px] font-semibold text-fg-gold-text">
+          Проверьте данные перед сохранением
+        </span>
+      </div>
+      <ul className="mt-2 flex flex-col gap-1.5">
+        {notices.map((notice, index) => (
+          <li key={`${notice.message}-${index}`} className="text-[12.5px] leading-snug">
+            <span className="text-fg-body">{notice.message}</span>
+            {notice.hint && <span className="text-fg-muted"> {notice.hint}</span>}
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
