@@ -16,6 +16,7 @@ import {
 import { prefixFor } from "@/lib/utils";
 import { nextCodesFrom } from "@/lib/spec/codes";
 import { getMaterialProjectTargets, type MaterialProjectTarget } from "@/lib/queries";
+import { storeMaterialImage } from "@/lib/material-import/storage";
 import type { TablesInsert } from "@/lib/supabase/database.types";
 
 type ActionResponse<T = unknown> = {
@@ -365,8 +366,15 @@ async function snapshotName(
 }
 
 const MAX_IMAGE_SIZE = 5 * 1024 * 1024;
-const MATERIAL_IMAGES_BUCKET = "material-images";
 
+/**
+ * Загрузка изображения материала из формы.
+ *
+ * Проверки (это изображение? не больше лимита?) остаются здесь, а работа с
+ * bucket'ом — в общем `storeMaterialImage`: те же правила использует серверная
+ * загрузка картинки по внешней ссылке (см. `lib/material-import/image.ts`),
+ * поэтому контракт хранения теперь один.
+ */
 export async function uploadMaterialImage(
   orgSlug: string,
   formData: FormData,
@@ -384,21 +392,12 @@ export async function uploadMaterialImage(
     return { success: false, error: "Файл больше 5 МБ" };
   }
 
-  const supabase = createAdminClient();
-  const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
-  const path = `${orgId}/${crypto.randomUUID()}.${ext}`;
+  const stored = await storeMaterialImage(
+    orgId,
+    await file.arrayBuffer(),
+    file.type,
+  );
+  if (!stored.ok) return { success: false, error: stored.error };
 
-  const { error } = await supabase.storage
-    .from(MATERIAL_IMAGES_BUCKET)
-    .upload(path, file, { contentType: file.type, upsert: false });
-
-  if (error) {
-    console.error("[uploadMaterialImage]", error.message);
-    return { success: false, error: "Не удалось загрузить изображение" };
-  }
-
-  const { data } = supabase.storage
-    .from(MATERIAL_IMAGES_BUCKET)
-    .getPublicUrl(path);
-  return { success: true, url: data.publicUrl };
+  return { success: true, url: stored.url };
 }

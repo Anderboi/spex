@@ -71,6 +71,25 @@ const publicResolver = async () => ({ ok: true as const, addresses: ["93.184.216
 /** Резолвер по умолчанию для большинства сценариев. */
 const DEPS = { resolveHost: publicResolver };
 
+/** Перехостинг-заглушка: подтверждает вызов и отдаёт «supabase-подобный» URL. */
+function fakeRehoster(
+  result: { url: string } | { code: string } = {
+    url: "https://x.supabase.co/storage/v1/object/public/material-images/org/a.jpg",
+  },
+) {
+  return vi.fn(async (imageUrl: string) => {
+    // Аргумент нужен для типизации мока: тесты проверяют, ЧТО именно
+    // передано в перехостинг (`mock.calls[0][0]`).
+    void imageUrl;
+    return "url" in result
+      ? { ok: true as const, url: result.url }
+      : { ok: false as const, code: result.code as never };
+  });
+}
+
+/** Дефолтные зависимости: страница + перехостинг изображения в Storage. */
+const FULL_DEPS = { ...DEPS, orgId: "org-1", rehostImage: fakeRehoster() };
+
 let originalFetch: typeof globalThis.fetch;
 
 beforeEach(() => {
@@ -286,7 +305,7 @@ describe("runImportPipeline", () => {
     ) as unknown as typeof globalThis.fetch;
 
     const { extractor, extractProductData } = fakeExtractor();
-    const result = await runImportPipeline(PAGE_URL, { ...DEPS, extractor, disableAi: true });
+    const result = await runImportPipeline(PAGE_URL, { ...FULL_DEPS, extractor, disableAi: true });
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
@@ -295,7 +314,11 @@ describe("runImportPipeline", () => {
     expect(result.draft.brand).toBe("ABK");
     expect(result.draft.price).toBe(6500);
     expect(result.draft.category).toBe("Отделка");
-    expect(result.draft.imageUrl).toBe("https://cdn.example.com/a.jpg");
+    // Изображение перенесено в Storage: в черновике — Supabase URL,
+    // внешняя ссылка вендора дальше не идёт.
+    expect(result.draft.imageUrl).toBe(
+      "https://x.supabase.co/storage/v1/object/public/material-images/org/a.jpg",
+    );
     expect(result.draft.productUrl).toBe(PAGE_URL);
     expect(result.draft.attrs["material"]).toBe("Керамогранит");
     expect(result.layers).toEqual({ deterministic: true, jina: false, ai: false });
@@ -460,7 +483,106 @@ describe("runImportPipeline", () => {
     expect(result.failure.code).toBe("HTTP_ERROR");
     expect(result.failure.status).toBe(404);
   });
+});
 
+/* ------------------------------------------------------------------ */
+/*  Изображение: неудача не ломает импорт                              */
+/* ------------------------------------------------------------------ */
+
+describe("runImportPipeline: перехостинг изображения", () => {
+  const PAGE_WITH_IMAGE = ldPage({
+    name: "Керамогранит Calacatta",
+    sku: "KM-1024",
+    image: "https://cdn.example.com/a.jpg",
+  });
+
+  it("переносит изображение и подменяет URL на Supabase", async () => {
+    globalThis.fetch = vi.fn(async () => htmlResponse(PAGE_WITH_IMAGE)) as unknown as typeof globalThis.fetch;
+
+    const rehost = fakeRehoster({ url: "https://p.supabase.co/storage/v1/object/public/material-images/o/a.jpg" });
+    const result = await runImportPipeline(PAGE_URL, {
+      ...DEPS,
+      orgId: "o",
+      rehostImage: rehost,
+      disableAi: true,
+      disableJina: true,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(rehost).toHaveBeenCalledTimes(1);
+    // Переносится именно то изображение, что нашёл детерминированный слой.
+    expect(rehost.mock.calls[0][0]).toBe("https://cdn.example.com/a.jpg");
+    expect(result.draft.imageUrl).toContain("supabase.co");
+    expect(result.imageRehosted).toBe(true);
+  });
+
+  it("не ломает импорт, когда изображение не перенеслось", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    globalThis.fetch = vi.fn(async () => htmlResponse(PAGE_WITH_IMAGE)) as unknown as typeof globalThis.fetch;
+
+    const result = await runImportPipeline(PAGE_URL, {
+      ...DEPS,
+      orgId: "o",
+      rehostImage: fakeRehoster({ code: "PRIVATE_ADDRESS" }),
+      disableAi: true,
+      disableJina: true,
+    });
+
+    // Главное: импорт товара состоялся, черновик пригоден.
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.draft.name).toBe("Керамогранит Calacatta");
+    expect(result.draft.article).toBe("KM-1024");
+    expect(result.draft.requiresReview).toBe(false);
+
+    // Картинки нет, и внешняя ссылка в форму не попала.
+    expect(result.draft.imageUrl).toBeNull();
+    expect(result.imageRehosted).toBe(false);
+    expect(result.warnings.join(" ")).toContain("изображение");
+  });
+
+  it("оставляет image_url пустым, когда перехостинг не подключён", async () => {
+    globalThis.fetch = vi.fn(async () => htmlResponse(PAGE_WITH_IMAGE)) as unknown as typeof globalThis.fetch;
+
+    const result = await runImportPipeline(PAGE_URL, {
+      ...DEPS,
+      disableAi: true,
+      disableJina: true,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    // Без `rehostImage`/`orgId` внешний URL в черновик не попадает.
+    expect(result.draft.imageUrl).toBeNull();
+    expect(result.imageRehosted).toBe(false);
+  });
+
+  it("не ругается на изображение, когда его на странице нет", async () => {
+    globalThis.fetch = vi.fn(async () =>
+      htmlResponse(ldPage({ name: "Товар", sku: "T-1" })),
+    ) as unknown as typeof globalThis.fetch;
+
+    const rehost = fakeRehoster();
+    const result = await runImportPipeline(PAGE_URL, {
+      ...DEPS,
+      orgId: "o",
+      rehostImage: rehost,
+      disableAi: true,
+      disableJina: true,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(rehost).not.toHaveBeenCalled();
+    expect(result.draft.imageUrl).toBeNull();
+    expect(result.imageRehosted).toBe(false);
+    // Предупреждения об изображении быть не должно: переносить было нечего.
+    expect(result.warnings.join(" ")).not.toContain("изображение");
+  });
+});
+
+describe("runImportPipeline", () => {
   it("идёт по редиректу и сохраняет итоговый URL в product_url", async () => {
     globalThis.fetch = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);

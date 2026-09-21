@@ -53,6 +53,8 @@ import Image from "next/image";
 import { toast } from "sonner";
 import { uploadMaterialImage } from "@/actions/materials";
 import { useDialogDismissGuard } from "@/components/ui/use-dialog-dismiss-guard";
+import { resolveDialogPrefill, resolveResetKey } from "@/lib/material-import/dialog-prefill";
+import type { MaterialImportDraft } from "@/lib/material-import/draft";
 
 interface MaterialDialogProps {
   open: boolean;
@@ -67,6 +69,16 @@ interface MaterialDialogProps {
    * карточке материала, пока не пришёл `revalidatePath`.
    */
   onCompanyCreated?: (company: CompanyOption) => void;
+  /**
+   * Устойчивый ключ импортированного черновика (например, канонический URL
+   * страницы). Меняется только при НОВОМ импорте — именно это, а не ссылка на
+   * объект, заставляет форму переинициализироваться ровно один раз.
+   *
+   * Пока `materialToEdit` не задан, смена ключа применяет `draft`.
+   */
+  draftKey?: string | null;
+  /** Черновик импорта, показываемый при создании. */
+  draft?: MaterialImportDraft | null;
 }
 
 type FormValues = z.infer<typeof materialSchema>;
@@ -80,6 +92,8 @@ export function MaterialDialog({
   materialToEdit,
   onSave,
   onCompanyCreated,
+  draftKey = null,
+  draft = null,
 }: MaterialDialogProps) {
   const [isUploading, setIsUploading] = useState(false);
 
@@ -107,6 +121,21 @@ export function MaterialDialog({
   });
 
   /**
+   * Ключ переинициализации формы.
+   *
+   * Приоритет у редактирования: если открыт существующий материал, его `id`
+   * однозначно определяет содержимое формы.
+   *
+   * Для создания ключом служит `draftKey` — устойчивый идентификатор импорта
+   * (например, канонический URL страницы), а НЕ ссылка на объект черновика.
+   * Родитель пересоздаёт объект на каждом рендере, поэтому идентичность объекта
+   * здесь непригодна: эффект срабатывал бы на любое обновление родителя и стирал
+   * введённое пользователем (см. историю ниже). Строковый ключ меняется только
+   * тогда, когда приходит НОВЫЙ импорт.
+   */
+  const resetKey = resolveResetKey({ materialToEdit, draftKey });
+
+  /**
    * Переинициализация формы — только при открытии карточки или смене материала.
    *
    * Зависимость от самого `materialToEdit` здесь опасна: родитель создаёт его
@@ -116,10 +145,9 @@ export function MaterialDialog({
    * обновлял список (`setCreatedCompanies`). Форма сбрасывалась на «как в БД»,
    * и уже выбранный поставщик пропадал: поле оставалось пустым.
    *
-   * Поэтому смотрим на `open` и `id` — оба примитивы и не меняются от
+   * Поэтому смотрим на `open` и `resetKey` — оба примитивы и не меняются от
    * ре-рендеров.
    */
-  const resetKey = materialToEdit?.id ?? null;
   /**
    * Выбранный поставщик — отдельным состоянием, а не только в форме.
    *
@@ -133,45 +161,31 @@ export function MaterialDialog({
     companyId: string | null;
     contactId: string | null;
   }>({ companyId: null, contactId: null });
-  useEffect(() => {
-    setSupplier({
-      companyId: materialToEdit?.company_id ?? null,
-      contactId: materialToEdit?.contact_id ?? null,
-    });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, resetKey]);
 
+  /**
+   * Переинициализация формы — только при открытии диалога или смене ключа.
+   *
+   * Зависимость от самого `materialToEdit` здесь опасна: родитель создаёт его
+   * как `toFormValues(editingItem)`, то есть **новый объект на каждый рендер**.
+   * С ней эффект срабатывал на любое обновление родителя — например, когда
+   * `CompanyPicker` после создания компании сообщал имя наверх и родитель
+   * обновлял список (`setCreatedCompanies`). Форма сбрасывалась на «как в БД»,
+   * и уже выбранный поставщик пропадал: поле оставалось пустым.
+   *
+   * Поэтому зависимость — `open` и `resetKey`, оба примитивы. Для импорта
+   * ключом служит `draftKey` (устойчивый идентификатор импорта), а не объект
+   * черновика: тот же приём защищает уже начатые пользователем правки.
+   *
+   * Само решение «что подставить» вынесено в чистую
+   * `resolveDialogPrefill` — её поведение покрыто unit-тестами, тогда как сам
+   * эффект требует React и DOM.
+   */
   useEffect(() => {
     if (!open) return;
 
-    if (materialToEdit) {
-      form.reset({
-        ...materialToEdit,
-        brand: materialToEdit.brand ?? "",
-        article: materialToEdit.article ?? "",
-        company_id: materialToEdit.company_id ?? null,
-        contact_id: materialToEdit.contact_id ?? null,
-        image_url: materialToEdit.image_url ?? null,
-        product_url: materialToEdit.product_url ?? null,
-        product_type: materialToEdit.product_type ?? null,
-        attrs: materialToEdit.attrs ?? {},
-      });
-    } else {
-      form.reset({
-        name: "",
-        category: TYPE_ORDER[0] || "Отделка",
-        brand: "",
-        article: "",
-        price: 0,
-        unit: "шт",
-        company_id: null,
-        contact_id: null,
-        image_url: null,
-        product_url: null,
-        product_type: null,
-        attrs: {},
-      });
-    }
+    const prefill = resolveDialogPrefill({ materialToEdit: materialToEdit ?? null, draft });
+    form.reset(prefill.values);
+    setSupplier(prefill.supplier);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, resetKey]);
 

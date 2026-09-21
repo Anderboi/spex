@@ -23,6 +23,7 @@ import type { ExtractedProduct, FieldSource, MaterialImportDraft, RawExtractedPr
 import { createDefaultExtractor, type AiExtractInput, type ProductDataExtractor } from "./ai";
 import { extractFromHtml, looksLikeShell, type ExtractHtmlOptions } from "./extract-html";
 import { fetchImportPage, type FetchFailureCode, type HostResolver } from "./fetch";
+import { pickPrimaryImage, type ImageRehoster } from "./image";
 import { fetchViaJina, needsJinaFallback, type JinaDeps } from "./jina";
 import { buildPageTextBlock } from "./llm-input";
 import { buildImportDraft, rejectRetailerArticle, type NormalizeResult } from "./normalize";
@@ -203,6 +204,7 @@ export function applyAiResult(
 
 export type ImportFailure = { code: FetchFailureCode; detail?: string; status?: number };
 
+/** Итоговый результат конвейера. */
 export type ImportPipelineResult =
   | {
       ok: true;
@@ -210,6 +212,8 @@ export type ImportPipelineResult =
       warnings: string[];
       /** Диагностика для логов: какие слои отработали. */
       layers: { deterministic: boolean; jina: boolean; ai: boolean };
+      /** Изображение перенесено в Storage: `false` — картинки не будет. */
+      imageRehosted: boolean;
     }
   | { ok: false; failure: ImportFailure };
 
@@ -220,6 +224,14 @@ export type ImportPipelineDeps = {
   jina?: JinaDeps;
   /** Переопределить проверку хоста при загрузке страницы (тесты). */
   resolveHost?: HostResolver;
+  /**
+   * Перехостинг изображения. Подставляет server action (`rehostImage`):
+   * конвейер сам не импортирует Supabase, чтобы оставаться проверяемым.
+   * Без него изображение остаётся внешней ссылкой и в черновик не попадает.
+   */
+  rehostImage?: ImageRehoster;
+  /** Организация-владелец: определяет папку в bucket'е. */
+  orgId?: string;
   /** Принудительно выключить необязательные слои (тесты, отладка). */
   disableJina?: boolean;
   disableAi?: boolean;
@@ -365,11 +377,89 @@ export async function runImportPipeline(
     pageTitle,
   });
 
+  /* ── 8. Перехостинг изображения ── */
+  // Делается последним и может отказать: импорт материала от этого не страдает.
+  const imageUrlBeforeRehost = normalized.draft.imageUrl;
+  const imageDraft = await maybeRehostImage({
+    draft: normalized.draft,
+    deps,
+    warnings,
+    deterministicImageUrl: extracted.imageUrl?.value ?? null,
+    aiImageUrl: normalized.draft.imageUrl,
+  });
+
   return {
     ok: true,
-    draft: normalized.draft,
+    draft: imageDraft,
     warnings: [...warnings, ...normalized.warnings],
     layers,
+    // Отличаем «картинки не было» от «картинку не удалось перенести»:
+    // в первом случае предупреждение не нужно.
+    imageRehosted:
+      imageDraft.imageUrl !== null &&
+      (imageUrlBeforeRehost === null || imageDraft.imageUrl !== imageUrlBeforeRehost),
+  };
+}
+
+/**
+ * Переносит основное изображение в Supabase Storage.
+ *
+ * Тонкость: детерминированный `imageUrl` (JSON-LD/OG) идёт в черновик только
+ * если у него разрешённая схема, поэтому в качестве кандидата «от модели»
+ * используем то, что уже попало в draft. Приоритет: JSON-LD/OG → модель.
+ *
+ * Любой отказ приводит к `image_url = null` и предупреждению: внешнюю ссылку в
+ * форму отдавать нельзя, текущий `next/image` её не отрисует.
+ */
+async function maybeRehostImage(input: {
+  draft: MaterialImportDraft;
+  deps: ImportPipelineDeps;
+  warnings: string[];
+  deterministicImageUrl: string | null;
+  aiImageUrl: string | null;
+}): Promise<MaterialImportDraft> {
+  const { draft, deps, warnings } = input;
+
+  const candidate = pickPrimaryImage({
+    deterministicImageUrl: input.deterministicImageUrl,
+    aiImageUrl: input.aiImageUrl,
+  });
+
+  if (candidate === null) {
+    // Нечего переносить: либо картинки нет, либо она не http(s).
+    return draft.imageUrl === null ? draft : { ...draft, imageUrl: null };
+  }
+
+  if (!deps.rehostImage || !deps.orgId) {
+    // Перехостинг не подключён — внешнюю ссылку в черновик не кладём.
+    return { ...draft, imageUrl: null };
+  }
+
+  const rehosted = await deps.rehostImage(candidate, {
+    orgId: deps.orgId,
+    resolveHost: deps.resolveHost,
+  });
+
+  if (!rehosted.ok) {
+    console.error("[material-import] изображение не перенесено:", rehosted.code);
+    warnings.push(
+      "Не удалось сохранить изображение товара — добавьте его вручную при необходимости.",
+    );
+    return { ...draft, imageUrl: null };
+  }
+
+  return {
+    ...draft,
+    imageUrl: rehosted.url,
+    evidence: [
+      ...draft.evidence,
+      {
+        field: "imageUrl",
+        value: rehosted.url,
+        source: "html",
+        evidence: `перенесено из ${candidate}`,
+      },
+    ],
   };
 }
 

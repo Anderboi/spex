@@ -7,9 +7,9 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "vitest run --pool=threads --environment node --exclude 'scripts/**'",
-    "test:watch": "vitest --pool=threads --environment node --exclude 'scripts/**'",
-    "import:smoke": "node --experimental-strip-types scripts/smoke-import.mts",
+    "test": "vitest run --pool=threads --environment happy-dom --exclude 'scripts/**'",
+    "test:watch": "vitest --pool=threads --environment happy-dom --exclude 'scripts/**'",
+    "import:smoke": "jiti scripts/smoke-import.mts",
     "db:types": "supabase gen types typescript --project-id dybltbdrxwjdfegkonzx --schema public > lib/supabase/database.types.ts"
   },
   "dependencies": {
@@ -55,6 +55,7 @@
     "eslint": "^9",
     "eslint-config-next": "16.2.10",
     "happy-dom": "^20.14.5",
+    "jiti": "^2.7.0",
     "react-scan": "^0.5.7",
     "supabase": "^2.114.0",
     "tailwindcss": "^4",

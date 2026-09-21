@@ -31,7 +31,6 @@ const NAMED_ENTITIES: Record<string, string> = {
   sup3: "³",
   euro: "€",
   pound: "£",
-  rouble:"",
   yen: "¥",
   bull: "•",
   middot: "·",
