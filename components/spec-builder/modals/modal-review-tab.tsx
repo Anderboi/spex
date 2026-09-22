@@ -183,62 +183,67 @@ const ModalReviewTab = ({
             />
           </Field>
         </div>
+        
         {/* //? Quantity & Price */}
+        <Separator />
         <div
           key={`qp-${item.activeVariantId ?? "base"}`}
-          className="flex flex-wrap items-center gap-2 rounded-lg border-border-muted"
+          className="flex flex-col sm:flex-row items-center rounded-lg overflow-clip border border-border-muted"
         >
-          <div className="bg-bg-card h-20 border rounded-lg p-3 flex-1">
-            <Field label="Кол-во">
-              <div className="flex items-center gap-2">
-                <QtyStepper
-                  className="w-32"
-                  dense
-                  editable
-                  qty={item.qty}
-                  unit={item.unit}
-                  onChange={onQty}
-                  showUnit={false}
+          <div className="grid grid-cols-2 sm:grid-cols-3">
+            <div className="bg-bg-card h-20 p-3 w-full border-r">
+              <Field label="Кол-во">
+                <div className="flex items-center gap-2">
+                  <QtyStepper
+                    className="flex-1"
+                    dense
+                    editable
+                    qty={item.qty}
+                    unit={item.unit}
+                    onChange={onQty}
+                    showUnit={false}
+                  />
+                  <select
+                    defaultValue={item.unit}
+                    onChange={(e) => onPatch({ unit: e.target.value })}
+                    className="h-6 flex-1 w-full //rounded-sm font-mono bg-bg-card //px-3 text-sm"
+                  >
+                    {UNIT_OPTIONS.map((u) => (
+                      <option key={u} value={u}>
+                        {u}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </Field>
+            </div>
+            {/* <Separator orientation="vertical" className="border-border-muted" /> */}
+            <div className="bg-bg-card h-20 p-3 w-full">
+              <Field label="Цена за ед.">
+                <PriceField
+                  readOnly={p.hasPriceMod}
+                  value={p.priceBase}
+                  onCommit={onPrice}
+                  className="text-[18px]! p-0! text-left! font-semibold tabular-nums"
                 />
-                <select
-                  defaultValue={item.unit}
-                  onChange={(e) => onPatch({ unit: e.target.value })}
-                  className="h-6 flex-1 w-full rounded-sm font-mono //border border-border-muted bg-bg-card px-3 text-sm"
-                >
-                  {UNIT_OPTIONS.map((u) => (
-                    <option key={u} value={u}>
-                      {u}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </Field>
-          </div>
-          <div className="bg-bg-card h-20 border  rounded-lg p-3 flex-1">
-            <Field label="Цена за ед.">
-              <PriceField
-                readOnly={p.hasPriceMod}
-                value={p.priceBase}
-                onCommit={onPrice}
-                className="text-[18px]! p-0! text-left! font-semibold tabular-nums"
-              />
-            </Field>
-          </div>
-          <div className="ml-auto h-20 text-left font-mono bg-fg rounded-lg p-3 text-bg flex-1">
-            <Field label="Сумма">
-              <div className="flex flex-col">
-                <span className="text-[18px] font-semibold tabular-nums">
-                  {fmt(p.total)} ₽
-                </span>
-                {(p.hasQtyMod || p.hasPriceMod) && (
-                  <span className="font-mono text-[10.5px] text-bg/70 tabular-nums">
-                    {p.hasQtyMod && `×${p.qtyFinal} ед.`}
-                    {p.hasQtyMod && p.hasPriceMod && " · "}
-                    {p.hasPriceMod && `−${item.clientDiscountPct}%`}
+              </Field>
+            </div>
+            <div className="sm:ml-auto h-20 text-right font-mono bg-bg-accent p-3 text-bg w-full col-span-2 sm:col-span-1">
+              <Field label="Сумма">
+                <div className="flex flex-col">
+                  <span className="text-[18px] font-semibold tabular-nums">
+                    {fmt(p.total)} ₽
                   </span>
-                )}
-              </div>
-            </Field>
+                  {(p.hasQtyMod || p.hasPriceMod) && (
+                    <span className="font-mono text-[10.5px] text-bg/70 tabular-nums">
+                      {p.hasQtyMod && `×${p.qtyFinal} ед.`}
+                      {p.hasQtyMod && p.hasPriceMod && " · "}
+                      {p.hasPriceMod && `−${item.clientDiscountPct}%`}
+                    </span>
+                  )}
+                </div>
+              </Field>
+            </div>
           </div>
         </div>
 
