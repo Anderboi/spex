@@ -219,6 +219,23 @@ export const renameOrganizationSchema = z.object({
 
 export type RenameOrganizationInput = z.infer<typeof renameOrganizationSchema>;
 
+/**
+ * Отображаемое имя пользователя (колонка `public.users.name`).
+ *
+ * Имя показывается в сайдбаре и в списке команды, поэтому пустая строка и
+ * строка из одних пробелов недопустимы: `trim()` выполняется до `min(1)`.
+ * Верхняя граница 80 — как у названия организации.
+ */
+export const updateProfileSchema = z.object({
+  name: z
+    .string()
+    .trim()
+    .min(1, "Имя не может быть пустым")
+    .max(80, "Имя слишком длинное"),
+});
+
+export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;
+
 const money = z
   .number()
   .min(0)

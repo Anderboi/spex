@@ -8,7 +8,7 @@ import {
   type ProjectStatus,
 } from "./validations";
 import { cache } from "react";
-import { OrgRole, requireOrgBySlug } from "./auth/session";
+import { requireOrgBySlug } from "./auth/session";
 import { rowToItem } from "./spec/mappers";
 import {
   ContactsFilters,
@@ -19,7 +19,7 @@ import {
   SpecItem,
 } from "./types";
 import { one } from "./utils";
-import { canMutateRecord, type InviteRole } from "./permissions";
+import { canMutateRecord, type InviteRole, type OrgRole } from "./permissions";
 import { MATERIAL_TARGET_PROJECT_STATUSES } from "./constants";
 import { MATERIALS_PAGE_SIZE } from "./materials/filters";
 import { CONTACTS_PAGE_SIZE } from "./contacts/filters";
@@ -974,7 +974,7 @@ export async function getContactsDirectory(
 export type UserOrganization = {
   id: string;
   name: string;
-  role: "owner" | "admin" | "member";
+  role: OrgRole;
   slug: string;
   is_active: boolean;
 };
@@ -1008,7 +1008,7 @@ export type ActiveInvite = {
 /**
  * Данные страницы «Команда».
  *
- * `currentUserRole` — роль из сессии (owner | admin | member), `currentUserId` —
+ * `currentUserRole` — роль из сессии (owner | admin | member | viewer), `currentUserId` —
  * id текущего пользователя: по ним UI решает, какие действия показывать.
  * Название организации отдаём вместе с командой, чтобы диалог передачи владения
  * не делал отдельный запрос.

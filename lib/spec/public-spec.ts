@@ -34,6 +34,16 @@ export type PublicSpec = {
   createdAt: string;
 };
 
+/**
+ * Публичная модель спецификации: собирается по токену из `public_links` и
+ * отдаётся БЕЗ проверки сессии — токен здесь работает как capability (link
+ * sharing), а не как идентификация пользователя.
+ *
+ * Это осознанная модель публикации, а не рабочая авторизация: доступа внутрь
+ * организации она не даёт и отдаёт только безопасные для получателя поля
+ * (`supplierDiscountPct` всегда 0, `notes` пустые, состав — без служебных id).
+ * Кто из участников может создать такую ссылку — см. `generatePublicLink`.
+ */
 export async function loadPublicSpec(
   token: string,
 ): Promise<PublicSpec | null> {

@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useRef, useEffect, useTransition } from "react";
+import { useState, useTransition } from "react";
 import { STORAGE_KEY } from "@/lib/constants";
 import { logout } from "@/actions/auth";
 import { LogoutDialog } from "../auth/logout-dialog";
 import { initials } from "@/lib/utils";
 import { ChevronDown } from "lucide-react";
-import { redirect } from "next/navigation";
+import { useRouter } from "next/navigation";
+import { ROLE_LABELS, type OrgRole } from "@/lib/permissions";
 import { SidebarMenu, SidebarMenuButton, SidebarMenuItem } from "../ui/sidebar";
 import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
 import {
@@ -22,9 +23,12 @@ interface UserProfileProps {
     image?: string | null;
   };
   orgSlug: string;
+  /** Роль в текущей организации — подпись под именем в сайдбаре. */
+  role: OrgRole;
 }
 
-export function UserProfile({ user, orgSlug }: UserProfileProps) {
+export function UserProfile({ user, orgSlug, role }: UserProfileProps) {
+  const router = useRouter();
   const [isPopoverOpen, setIsPopoverOpen] = useState(false);
   const [isLogoutDialogOpen, setIsLogoutDialogOpen] = useState(false);
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
@@ -32,24 +36,11 @@ export function UserProfile({ user, orgSlug }: UserProfileProps) {
   // 2. Добавляем useTransition для обработки состояния загрузки Server Action
   const [isPending, startTransition] = useTransition();
 
-  const menuRef = useRef<HTMLDivElement>(null);
-
   const userName = user?.name ?? user?.email;
-  const userEmail = user?.email ?? "a.lebedeva@studio.ru";
+  const userEmail = user?.email ?? "";
   const initial = initials(userName || "user") || "@";
-  const role = "Дизайнер"; //TODO: Добавить роли
 
   if (!user) return null;
-
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
-        setIsPopoverOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
 
   const handleLogoutClick = () => {
     setIsPopoverOpen(false);
@@ -83,13 +74,20 @@ export function UserProfile({ user, orgSlug }: UserProfileProps) {
     });
   };
 
+  /**
+   * «Настройки» ведут на личный профиль. Меню закрываем сами: переход на другую
+   * страницу не размонтирует сайдбар, поэтому открытый dropdown остался бы
+   * висеть поверх нового экрана.
+   */
+  const handleSettingsClick = () => {
+    setIsPopoverOpen(false);
+    router.push(`/${orgSlug}/settings/profile`);
+  };
+
   return (
     <SidebarMenu>
-      <SidebarMenuItem
-        className="relative"
-        // ref={menuRef}
-      >
-        <DropdownMenu>
+      <SidebarMenuItem className="relative">
+        <DropdownMenu open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
           <DropdownMenuTrigger
             className="w-full hover:bg-bg-card rounded-lg cursor-pointer"
             render={<SidebarMenuButton size="lg" aria-label="Open user menu" />}
@@ -107,7 +105,9 @@ export function UserProfile({ user, orgSlug }: UserProfileProps) {
 
             <div className="flex-1 flex flex-col text-left min-w-0">
               <span className="text-sm font-semibold truncate">{userName}</span>
-              <span className="text-xs text-fg-muted truncate">{role}</span>
+              <span className="text-xs text-fg-muted truncate">
+                {ROLE_LABELS[role]}
+              </span>
             </div>
             <ChevronDown size={16} className="text-fg-muted" />
           </DropdownMenuTrigger>
@@ -128,13 +128,10 @@ export function UserProfile({ user, orgSlug }: UserProfileProps) {
               </div>
 
               <button
-                onClick={() => {
-                  setIsPopoverOpen(false);
-                  redirect(`${orgSlug}/settings/team`);
-                }}
+                onClick={handleSettingsClick}
                 className="w-full flex items-center gap-2.5 px-2.5 py-2 text-[13px] font-medium text-fg-secondary rounded-[8px] hover:bg-bg-select hover:text-fg transition-colors cursor-pointer text-left"
               >
-                Профиль и студия
+                Настройки
               </button>
 
               <div className="my-1 border-t border-border-subtle" />

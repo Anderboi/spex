@@ -76,7 +76,13 @@ export function MemberRow({
     newRole: "admin",
     isSelf,
   });
-  const allowRoleChange = canSetMember || canSetAdmin;
+  const canSetViewer = canUpdateMemberRole({
+    currentRole: currentUserRole,
+    targetRole: member.role,
+    newRole: "viewer",
+    isSelf,
+  });
+  const allowRoleChange = canSetMember || canSetAdmin || canSetViewer;
   const allowRemove = canRemoveMember({
     currentRole: currentUserRole,
     targetRole: member.role,
@@ -187,10 +193,16 @@ export function MemberRow({
                     Изменить роль
                   </DropdownMenuLabel>
                   <DropdownMenuRadioItem value="member" disabled={!canSetMember}>
-                    Пользователь
+                    {ROLE_LABELS.member}
                   </DropdownMenuRadioItem>
                   <DropdownMenuRadioItem value="admin" disabled={!canSetAdmin}>
-                    Администратор
+                    {ROLE_LABELS.admin}
+                  </DropdownMenuRadioItem>
+                  <DropdownMenuRadioItem
+                    value="viewer"
+                    disabled={!canSetViewer}
+                  >
+                    {ROLE_LABELS.viewer}
                   </DropdownMenuRadioItem>
                 </DropdownMenuRadioGroup>
               )}

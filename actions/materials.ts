@@ -379,7 +379,10 @@ export async function uploadMaterialImage(
   orgSlug: string,
   formData: FormData,
 ): Promise<{ success: true; url: string } | { success: false; error: string }> {
-  const { orgId } = await requireOrgBySlug(orgSlug);
+  const { orgId, role } = await requireOrgBySlug(orgSlug);
+
+  // Загрузка изображения — операция записи, а не чтения: наблюдателю она недоступна.
+  if (!can(role, "record:create")) return forbidden();
 
   const file = formData.get("file");
   if (!file || typeof file === "string") {

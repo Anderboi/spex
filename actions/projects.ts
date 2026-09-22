@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { projectSchema, ProjectInput } from "@/lib/validations";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { requireOrg, requireOrgBySlug } from "@/lib/auth/session";
-import { canMutateRecord } from "@/lib/permissions";
+import { can, canMutateRecord } from "@/lib/permissions";
 import { assertCanMutate } from "@/lib/db/guard";
 import { ActionResult, ok } from "@/lib/action-result";
 
@@ -56,6 +56,11 @@ export async function upsertProject(
     revalidatePath(`/${orgSlug}/projects`);
     revalidatePath(`/${orgSlug}/projects/${id}`);
     return { success: true, data };
+  }
+
+  // ── создание: нужен доступ на запись в организацию (у viewer его нет)
+  if (!can(role, "record:create")) {
+    return { success: false, error: "Недостаточно прав" };
   }
 
   const { data, error } = await supabase
@@ -123,7 +128,12 @@ export async function uploadProjectImage(
   orgSlug: string,
   formData: FormData,
 ): Promise<{ success: true; url: string } | { success: false; error: string }> {
-  const { orgId } = await requireOrgBySlug(orgSlug);
+  const { orgId, role } = await requireOrgBySlug(orgSlug);
+
+  // Загрузка обложки — операция записи, а не чтения: наблюдателю она недоступна.
+  if (!can(role, "record:create")) {
+    return { success: false, error: "Недостаточно прав" };
+  }
 
   const file = formData.get("file");
   if (!file || typeof file === "string") {

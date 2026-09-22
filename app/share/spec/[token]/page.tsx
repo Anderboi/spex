@@ -74,7 +74,7 @@ export default async function PublicSpecPage({ params }: Props) {
           Итого по спецификации
         </span>
         <span className="text-[clamp(30px,6vw,44px)] font-bold tracking-[-.02em]">
-          {fmt(totalSum)} ₽
+          {fmt(projectTotal)} ₽
         </span>
       </div>
 

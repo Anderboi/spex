@@ -3,10 +3,6 @@ import { can, isInviteRole, ROLE_LABELS } from "@/lib/permissions";
 import { InviteDialog } from "@/components/team/invite-dialog";
 import { MemberRow } from "@/components/team/member-row";
 import {
-  DangerZoneCard,
-  OrganizationSettingsCard,
-} from "@/components/team/organization-settings";
-import {
   Card,
   CardContent,
   CardDescription,
@@ -15,35 +11,35 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Users, Mail, Clock } from "lucide-react";
-import PageContainer from "@/components/layout/page-container";
-import { PageHeader } from "@/components/layout/page-header";
+import { SettingsSection } from "@/components/settings/settings-section";
 
 export const metadata = { title: "Команда" };
 
 type Props = { params: Promise<{ orgSlug: string }> };
 
+/**
+ * Состав команды: участники и ожидающие приглашения.
+ *
+ * Название организации и удаление студии живут на странице «Студия»
+ * (`settings/studio`) — здесь их нет, чтобы не дублировать одну операцию в двух
+ * местах. Приглашение и смена ролей доступны admin и owner (проверка `can()`
+ * здесь — только UI-гейт; те же проверки повторяются в server actions и в БД).
+ */
 export default async function TeamSettingsPage({ params }: Props) {
   const { orgSlug } = await params;
-  const {
-    members,
-    invites,
-    currentUserRole,
-    currentUserId,
-    organization,
-  } = await getTeamData(orgSlug);
+  const { members, invites, currentUserRole, currentUserId, organization } =
+    await getTeamData(orgSlug);
 
   const canManage = can(currentUserRole, "member:invite");
-  const canUpdateOrg = can(currentUserRole, "organization:update");
-  const canDeleteOrg = can(currentUserRole, "organization:delete");
   const organizationName = organization?.name ?? orgSlug;
 
   return (
-    <PageContainer>
+    <SettingsSection
+      title="Команда"
+      description="Участники вашей студии и приглашения для новых сотрудников."
+      action={canManage ? <InviteDialog orgSlug={orgSlug} /> : undefined}
+    >
       <div className="space-y-6">
-        <PageHeader title="Управление командой">
-          {canManage && <InviteDialog orgSlug={orgSlug} />}
-        </PageHeader>
-
         {/* Список участников */}
         <Card className="bg-bg-card border-border">
           <CardHeader className="pb-3">
@@ -112,22 +108,7 @@ export default async function TeamSettingsPage({ params }: Props) {
             </CardContent>
           </Card>
         )}
-
-        {/* Название организации: видно всем, менять может только владелец */}
-        <OrganizationSettingsCard
-          orgSlug={orgSlug}
-          organizationName={organizationName}
-          canUpdate={canUpdateOrg}
-        />
-
-        {/* Удаление организации — только владелец */}
-        {canDeleteOrg && (
-          <DangerZoneCard
-            orgSlug={orgSlug}
-            organizationName={organizationName}
-          />
-        )}
       </div>
-    </PageContainer>
+    </SettingsSection>
   );
 }

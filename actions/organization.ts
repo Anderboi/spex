@@ -149,9 +149,9 @@ export async function updateOrganization(
     return fail(rpcMessage(error.message, "Не удалось сохранить название"));
   }
 
-  // Название показывают сайдбар (в layout) и заголовки страниц.
+  // Название показывают сайдбар (в layout) и страница «Студия».
   revalidatePath("/", "layout");
-  revalidatePath(`/${orgSlug}/settings/team`);
+  revalidatePath(`/${orgSlug}/settings/studio`);
 
   return ok({ name: typeof data === "string" ? data : parsed.data.name });
 }

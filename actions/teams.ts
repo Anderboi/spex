@@ -34,7 +34,7 @@ const inviteSchema = z.object({
   role: z.enum(["admin", "member"]),
 });
 
-const roleSchema = z.enum(["admin", "member"]);
+const roleSchema = z.enum(["admin", "member", "viewer"]);
 
 /**
  * 1. Создание приглашения (Generate Invite)
@@ -149,11 +149,17 @@ export async function acceptInvite(
 /**
  * 3. Изменение роли участника.
  *
- * Разрешены только переходы member → admin и admin → member. Владельца нельзя
- * ни понизить, ни назначить этой операцией: `role = "owner"` отбрасывается
- * схемой, а цель-владелец — проверкой `canUpdateMemberRole`. Передача владения
- * живёт в `transferOwnership` (actions/organization.ts) и выполняется атомарно
- * в БД.
+ * Разрешены переходы member → admin, admin → member, а также назначение и
+ * снятие viewer — все ограничения собраны в `canUpdateMemberRole`. Владельца
+ * нельзя ни понизить, ни назначить этой операцией: `role = "owner"`
+ * отбрасывается схемой, а цель-владелец — проверкой `canUpdateMemberRole`.
+ * Передача владения живёт в `transferOwnership` (actions/organization.ts) и
+ * выполняется атомарно в БД.
+ *
+ * `viewer` здесь обязателен: без него роль из `public.org_role` превращалась бы
+ * в одностороннюю ловушку — назначить её было бы нечем, а вернуть участника в
+ * работу после понижения не получилось бы (действие отвечало бы «некорректная
+ * роль участника»).
  */
 export async function updateMemberRole(
   orgSlug: string,
@@ -186,8 +192,7 @@ export async function updateMemberRole(
   if (!target) return fail("Участник не найден", "NOT_FOUND");
 
   // Роль цели — из БД, не из аргументов: клиент мог прислать заниженную.
-  // `viewer` в модели ролей не участвует, поэтому такую строку считаем
-  // повреждёнными данными и ничего с ней не делаем.
+  // Строку с ролью вне модели (`isOrgRole`) считаем испорченными данными.
   if (!isOrgRole(target.role)) {
     console.error("[updateMemberRole] неизвестная роль участника", target.role);
     return fail("Некорректная роль участника", "INVALID_INPUT");

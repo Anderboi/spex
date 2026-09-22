@@ -5,10 +5,18 @@ import { cache } from "react";
 import { notFound, redirect } from "next/navigation";
 import type { Session } from "next-auth";
 import { auth } from "@/lib/auth";
+/**
+ * Роль описана ровно в одном месте — в матрице прав (`lib/permissions.ts`).
+ *
+ * Реэкспортировать её отсюда нельзя: файл помечен `"use server"`, и компилятор
+ * server actions превращает любой его экспорт в действие, включая реэкспорт
+ * чужого типа (`Export OrgRole doesn't exist in target module` на сборке).
+ * Поэтому тип импортируется только для аннотаций внутри файла, а потребители
+ * берут его напрямую из `lib/permissions`.
+ */
+import type { OrgRole } from "@/lib/permissions";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { UserOrganization } from "../queries";
-
-export type OrgRole = "owner" | "admin" | "member";
 
 export type SessionUser = NonNullable<Session["user"]> & { id: string };
 
@@ -58,6 +66,9 @@ export const getSessionContext = cache(
       .select(
         `
       active_org_id,
+      name,
+      email,
+      image,
       organization_members ( role, org_id, organizations ( id, name, slug ) )
     `,
       )
@@ -97,10 +108,25 @@ export const getSessionContext = cache(
       .filter((o): o is UserOrganization => o !== null)
       .sort((a, b) => a.name.localeCompare(b.name, "ru"));
 
+    /**
+     * Имя, почта и аватар берутся из БД, а не из токена сессии.
+     *
+     * Токен выдаётся при входе и живёт до следующего логина, поэтому после
+     * правки профиля в сайдбаре осталось бы старое имя. Значения из токена
+     * используются только как запасной вариант, если колонка пустая.
+     */
+    const user: SessionUser = {
+      ...session.user,
+      id: userId,
+      name: data.name ?? session.user.name ?? null,
+      email: data.email ?? session.user.email ?? null,
+      image: data.image ?? session.user.image ?? null,
+    };
+
     return {
       session,
       userId,
-      user: session.user as SessionUser,
+      user,
       orgId: active?.org_id ?? null,
       orgSlug: activeOrg?.slug ?? null,
       role: active?.role ?? null,

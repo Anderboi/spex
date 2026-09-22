@@ -85,27 +85,17 @@ export function AppSidebar({
 
         <SidebarGroup>
           <SidebarMenu>
-            <SidebarMenuItem>
-              {can(currentRole, "member:invite") && (
-                <SidebarMenuButton
-                  className="cursor-pointer hover:bg-bg-card/60 h-10 px-4 text-fg-secondary/80 hover:text-fg-body"
-                  size={"default"}
-                  render={
-                    <Link
-                      href={`/${currentSlug}/settings/team`}
-                      className="flex gap-4 w-full font-medium items-center"
-                    />
-                  }
-                >
-                  <Settings className="size-4 shrink-0" />
-                  Команда
-                </SidebarMenuButton>
-              )}
-            </SidebarMenuItem>
+           
 
             <SidebarMenuItem>
               <SidebarMenuButton
-                render={<UserProfile orgSlug={currentSlug} user={user} />}
+                render={
+                  <UserProfile
+                    orgSlug={currentSlug}
+                    user={user}
+                    role={currentRole}
+                  />
+                }
               ></SidebarMenuButton>
             </SidebarMenuItem>
           </SidebarMenu>
