@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { cn, fmt } from "@/lib/utils";
+import { Input } from '@/components/ui/input';
 
 export function PriceField({
   value,
@@ -25,7 +26,7 @@ export function PriceField({
   }
 
   return (
-    <input
+    <Input
       inputMode="decimal"
       aria-label="Цена за единицу"
       readOnly={readOnly}
@@ -50,9 +51,7 @@ export function PriceField({
       }}
       className={cn(
         className,
-        // `min-w-0` + `w-full`: без него input не сжимается ниже своей
-        // интринсик-ширины и обрезает сумму в узкой карточке на телефоне.
-        "w-full min-w-0 rounded border border-transparent bg-transparent //px-2 py-1 text-left font-mono text-[13px] tabular-nums focus:outline-none",
+        "w-full min-w-0 rounded border border-transparent bg-transparent focus:px-1 py-1 text-left font-mono text-[13px] tabular-nums focus:outline-none h-6",
         readOnly
           ? "cursor-default text-fg-secondary"
           : "hover:border-border-muted focus:border-fg-brand",

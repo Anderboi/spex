@@ -18,6 +18,7 @@ export function QtyStepper({
   showUnit = true,
   isMobile,
   dense,
+  revealOnHover,
   className,
 }: {
   qty: number;
@@ -29,6 +30,11 @@ export function QtyStepper({
   /** Средний размер (32px) — для компактных раскладок, где `isMobile`
    *  (40px) не помещается, но тач-таргет ещё нужен. */
   dense?: boolean;
+  /** В спокойном состоянии видны только число и единица измерения, а кнопки
+   *  +/− и рамка поля проявляются при наведении на строку-`group`. Фокус
+   *  внутри строки раскрывает их так же: иначе до «−» и «+» нельзя было бы
+   *  добраться с клавиатуры, а невидимая кнопка остаётся кликабельной. */
+  revealOnHover?: boolean;
   className?: string;
 }) {
   /** Черновик текста пока пользователь печатает; null = показываем `qty`. */
@@ -61,10 +67,26 @@ export function QtyStepper({
       ? "text-[14px]!"
       : "text-[13px]!";
 
+  /** Скрытое состояние кнопок: место в раскладке сохраняется (иначе строка
+   *  «прыгала» бы при наведении), но кнопка не видна и не ловит клики.
+   *
+   *  `invisible` тут не дублирует `opacity-0`, а обязателен: в базовых стилях
+   *  `Button` есть `disabled:opacity-50`, и в собранном CSS оно идёт позже
+   *  `opacity-0` — неактивный «−» при `qty = 1` остался бы виден наполовину. */
+  const hiddenBtn = revealOnHover
+    ? "invisible opacity-0 transition-[opacity,visibility] duration-150 group-hover:visible group-hover:opacity-100 group-focus-within:visible group-focus-within:opacity-100"
+    : undefined;
+
+  /** Поле в спокойном состоянии — просто число с единицей: без рамки и без
+   *  фона, которые появляются вместе с кнопками. */
+  const boxLook = revealOnHover
+    ? "border-transparent bg-transparent transition-colors group-hover:border-input group-hover:bg-bg-card group-focus-within:border-input group-focus-within:bg-bg-card"
+    : "bg-bg-card";
+
   return (
-    <ButtonGroup className={cn("shrink-0", className)}>
+    <div className="flex items-center gap-1">
       <Button
-        className={cn("bg-bg-card", btnSize)}
+        className={cn("bg-bg-card", btnSize, hiddenBtn)}
         size="sm"
         variant="outline"
         onClick={() => {
@@ -78,15 +100,13 @@ export function QtyStepper({
       </Button>
       <InputGroup
         className={cn(
-          "min-w-14 items-baseline sm:items-center bg-bg-card",
+          "min-w-14 items-baseline sm:items-center rounded bg-transparent! border border-transparent focus:outline-none! hover:border-border-muted focus:border-fg-brand",
           fieldSize,
+          boxLook,
         )}
       >
         <InputGroupInput
-          className={cn(
-            "text-right font-mono px-0! tabular-nums",
-            fieldText,
-          )}
+          className={cn("text-right font-mono px-0! tabular-nums", fieldText)}
           value={draft ?? qty}
           readOnly={!editable}
           inputMode="decimal"
@@ -121,7 +141,7 @@ export function QtyStepper({
       </InputGroup>
       <Button
         size="sm"
-        className={cn("bg-bg-card", btnSize)}
+        className={cn("bg-bg-card", btnSize, hiddenBtn)}
         variant="outline"
         onClick={() => {
           commitDraft();
@@ -131,6 +151,6 @@ export function QtyStepper({
       >
         <Plus className="size-3" />
       </Button>
-    </ButtonGroup>
+    </div>
   );
 }

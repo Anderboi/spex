@@ -78,7 +78,7 @@ export const SpecRow = memo(function SpecRow({
   return (
     <tr
       className={cn(
-        "group h-16 border-b border-border-muted last:border-0 transition-colors hover:bg-bg-brand2/20",
+        "group h-16 border-b border-border-muted last:border-0 transition-colors border-l-4 border-l-transparent hover:bg-bg-brand2/20",
         selected && "bg-bg-brand2/40 border-l-fg-secondary",
         item.isPlaceholder &&
           "//bg-[repeating-linear-gradient(45deg,transparent,transparent_7px,var(--color-bg-card)_7px,var(--color-bg-card)_14px)]",
@@ -87,7 +87,7 @@ export const SpecRow = memo(function SpecRow({
       <td className="align-middle px-1">
         <Checkbox
           className={cn(
-            "border-border border-2 opacity-0 group-hover:opacity-100",
+            "border-border border-2 opacity-0 group-hover:opacity-100 data-checked:bg-fg-secondary data-checked:border-fg-secondary",
             selected && "opacity-100",
           )}
           checked={selected}
@@ -177,11 +177,12 @@ export const SpecRow = memo(function SpecRow({
         </td>
       )}
       <td className="px-2 text-right align-middle">
-        <div className="flex min-h-9 flex-col items-end justify-center leading-tight">
+        <div className="flex min-h-9 flex-col items-center justify-center leading-tight">
           <QtyStepper
             qty={item.qty}
             unit={item.unit}
             editable
+            revealOnHover
             onChange={(d) => h.onQty(item.id, d)}
           />
           {p.hasQtyMod && (
