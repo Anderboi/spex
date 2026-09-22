@@ -262,11 +262,21 @@ export async function runImportPipeline(
   const { page } = fetched;
 
   /* ── 2. Детерминированный слой ── */
+  // Если страница была обрезана по лимиту, работаем с первыми MAX_RESPONSE_BYTES
+  // байтами: `<head>` с JSON-LD и OpenGraph почти всегда умещается в них.
+  // Признак усечения нужен ниже, чтобы не считать «данных нет» окончательным.
   const isShell = looksLikeShell(page.html);
   const htmlOptions: ExtractHtmlOptions = { pageUrl: page.finalUrl, shell: isShell };
   let deterministic = extractFromHtml(page.html, htmlOptions);
   const pageTitle = isShell ? null : extractHtmlTitle(page.html);
   const layers = { deterministic: deterministic !== null, reader: false, ai: false };
+
+  if (page.truncated) {
+    // Пользователю — понятная фраза без внутренних кодов и размеров.
+    warnings.push(
+      "Страница оказалась очень большой — разобрана только её начальная часть. Проверьте заполненные поля.",
+    );
+  }
 
   /* ── 3. Внешний читатель страницы (fallback) ── */
   let modelText: string | null = null;
@@ -285,6 +295,8 @@ export async function runImportPipeline(
       });
 
     if (wantsReader) {
+      // Читателю всегда уходит ИСХОДНЫЙ URL: он получает страницу целиком со
+      // своей стороны, поэтому усечение нашего ответа ему не мешает.
       const read = await deps.reader.read(page.finalUrl);
       if (read.ok) {
         layers.reader = true;

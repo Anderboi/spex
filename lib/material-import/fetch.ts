@@ -20,7 +20,7 @@ import {
 } from "./guards";
 import { safeFetch, type HostResolver, type SafeFetchFailureCode } from "./http";
 
-export type FetchFailureCode = SafeFetchFailureCode | "UNSUPPORTED_CONTENT_TYPE" | "RESPONSE_TOO_LARGE" | "EMPTY_RESPONSE";
+export type FetchFailureCode = SafeFetchFailureCode | "UNSUPPORTED_CONTENT_TYPE" | "EMPTY_RESPONSE";
 
 /**
  * Резолвер имени хоста. Внедряется, чтобы конвейер проверялся без настоящего
@@ -42,11 +42,22 @@ export type FetchedPage = {
   html: string;
   status: number;
   bytes: number;
+  /**
+   * Тело было обрезано по лимиту: `html` — это первые `MAX_RESPONSE_BYTES` байт,
+   * а не вся страница. Признак нужен и для предупреждения пользователю, и для
+   * решения о fallback: обрезанный HTML мог не содержать нужных данных.
+   */
+  truncated: boolean;
 };
 
 export type FetchPageResult =
   | { ok: true; page: FetchedPage }
   | { ok: false; code: FetchFailureCode; status?: number; detail?: string };
+
+/** Результат чтения тела: либо полный текст, либо усечённый по лимиту. */
+export type CappedBody =
+  | { ok: true; text: string; bytes: number; truncated: boolean }
+  | { ok: false; code: "EMPTY_RESPONSE" };
 
 /**
  * Читает тело ответа, обрывая чтение при превышении лимита.
@@ -54,38 +65,69 @@ export type FetchPageResult =
  * `response.text()` здесь не годится: он вычитывает сколько угодно данных в
  * память, и лимит пришлось бы проверять уже после. Читаем поток вручную и
  * останавливаемся на первом блоке, который перевёл сумму за предел.
+ *
+ * Важно: при превышении лимита уже прочитанные байты НЕ выбрасываются. Раньше
+ * здесь возвращался отказ, из-за чего большая карточка товара терялась целиком —
+ * хотя `<head>` с JSON-LD и OpenGraph почти всегда умещается в первые
+ * мегабайты. Теперь возвращается усечённый текст и признак `truncated`, а
+ * решение «достаточно ли данных» принимает конвейер. Лимит при этом не
+ * увеличивается, и дальше предела мы не читаем.
  */
-async function readBodyCapped(
+export async function readBodyCapped(
   body: ReadableStream<Uint8Array> | null,
   limit: number,
-): Promise<{ ok: true; text: string; bytes: number } | { ok: false; code: "RESPONSE_TOO_LARGE" | "EMPTY_RESPONSE" }> {
+): Promise<CappedBody> {
   if (!body) return { ok: false, code: "EMPTY_RESPONSE" };
 
   const reader = body.getReader();
-  const decoder = new TextDecoder("utf-8", { fatal: false });
-  let bytes = 0;
-  let text = "";
 
   try {
+    const chunks: Uint8Array[] = [];
+    let total = 0;
+
     for (;;) {
       const { done, value } = await reader.read();
       if (done) break;
       if (!value) continue;
 
-      bytes += value.byteLength;
-      if (bytes > limit) {
+      // Блок сохраняем ВСЕГДА, включая тот, что перевёл сумму за предел: часто
+      // весь ответ приходит одним блоком, и выбросить его значило бы потерять
+      // страницу целиком. Память всё равно ограничена: усечение делается при
+      // декодировании, а чтение прекращается сразу после.
+      chunks.push(value);
+      total += value.byteLength;
+      if (total > limit) {
         await reader.cancel().catch(() => undefined);
-        return { ok: false, code: "RESPONSE_TOO_LARGE" };
+        break;
       }
-      text += decoder.decode(value, { stream: true });
     }
-    text += decoder.decode();
+
+    // Декодируем ровно то, что прочитали, для усечённого ответа — первые
+    // `limit` байт. `fatal: false` обязателен: на границе многобайтовый символ
+    // может разорваться, и декодер должен заменить хвост, а не бросить исключение.
+    const decoded = concat(chunks, Math.min(total, limit));
+    const text = new TextDecoder("utf-8", { fatal: false }).decode(decoded);
+
+    if (!text.trim()) return { ok: false, code: "EMPTY_RESPONSE" };
+    // `bytes` — сколько байт реально осталось в буфере (для усечённого ответа
+    // это первые `limit` байт, а не весь размер страницы).
+    return { ok: true, text, bytes: decoded.byteLength, truncated: total > limit };
   } finally {
     reader.releaseLock();
   }
+}
 
-  if (!text.trim()) return { ok: false, code: "EMPTY_RESPONSE" };
-  return { ok: true, text, bytes };
+/** Склеивает прочитанные блоки в один буфер указанного размера. */
+function concat(chunks: readonly Uint8Array[], length: number): Uint8Array {
+  const out = new Uint8Array(length);
+  let offset = 0;
+  for (const chunk of chunks) {
+    if (offset >= length) break;
+    const slice = chunk.subarray(0, Math.min(chunk.byteLength, length - offset));
+    out.set(slice, offset);
+    offset += slice.byteLength;
+  }
+  return out;
 }
 
 /**
@@ -116,12 +158,7 @@ export async function fetchImportPage(
 
   const body = await readBodyCapped(result.response.body, MAX_RESPONSE_BYTES);
   if (!body.ok) {
-    return {
-      ok: false,
-      code: body.code,
-      detail:
-        body.code === "RESPONSE_TOO_LARGE" ? `> ${MAX_RESPONSE_BYTES} байт` : undefined,
-    };
+    return { ok: false, code: body.code };
   }
 
   return {
@@ -132,6 +169,9 @@ export async function fetchImportPage(
       html: body.text,
       status: result.status,
       bytes: body.bytes,
+      // Усечение — не отказ: страница уходит дальше усечённой, а конвейер
+      // решает, хватает ли данных и нужен ли внешний читатель.
+      truncated: body.truncated,
     },
   };
 }

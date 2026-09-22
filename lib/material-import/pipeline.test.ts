@@ -530,6 +530,174 @@ describe("runImportPipeline", () => {
 });
 
 /* ------------------------------------------------------------------ */
+/*  Слишком большой HTML: разбираем первые байты, а не отказываем      */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Реалистичный «балласт»: много разметки и мало видимого текста, как в настоящей
+ * карточке товара. Важно, что это именно разметка — если набить страницу
+ * видимым текстом, детектор SPA-оболочки справедливо решит, что содержимое
+ * отрендерено, и внешний читатель не понадобится.
+ */
+function markupFiller(bytes: number): string {
+  return `<div class="row"><span class="p"> </span></div>`.repeat(
+    Math.ceil(bytes / 43),
+  );
+}
+
+/** Большая страница с валидным JSON-LD в начале: `<head>` умещается в лимит. */
+function oversizedPageWithJsonLd(fillerBytes: number): string {
+  const head = `<script type="application/ld+json">${JSON.stringify({
+    "@context": "https://schema.org",
+    "@type": "Product",
+    name: "Ламинат SPC Norland Sigrid",
+    sku: "817741",
+    brand: { name: "Mirto" },
+    offers: { price: "1990", priceCurrency: "RUB" },
+    material: "SPC",
+    color: "Дуб",
+  })}</script>`;
+  return `<!doctype html><html><head>${head}</head><body>${markupFiller(fillerBytes)}</body></html>`;
+}
+
+/** Оболочка SPA, растянутая за лимит: полезных данных в начале нет. */
+const OVERSIZED_SHELL = `<!doctype html><html><head><title>Магазин</title></head><body><div id="app"></div>${markupFiller(3_000_000)}</body></html>`;
+
+describe("runImportPipeline: страница больше лимита", () => {
+  it("извлекает JSON-LD из первых байт и НЕ зовёт внешнего читателя", async () => {
+    globalThis.fetch = vi.fn(async () =>
+      htmlResponse(oversizedPageWithJsonLd(3_000_000)),
+    ) as unknown as typeof globalThis.fetch;
+
+    const { reader, read } = fakePageReader({ content: "не должно использоваться" });
+
+    const result = await runImportPipeline(PAGE_URL, { ...DEPS, reader, disableAi: true });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    // Главное: страница не потеряна целиком.
+    expect(result.draft.name).toBe("Ламинат SPC Norland Sigrid");
+    expect(result.draft.article).toBe("817741");
+    expect(result.draft.brand).toBe("Mirto");
+    expect(result.draft.price).toBe(1990);
+
+    // Данных хватило — внешний запрос не нужен.
+    expect(read).not.toHaveBeenCalled();
+    expect(result.layers.reader).toBe(false);
+  });
+
+  it("предупреждает об усечении понятной фразой без внутренних кодов", async () => {
+    globalThis.fetch = vi.fn(async () =>
+      htmlResponse(oversizedPageWithJsonLd(3_000_000)),
+    ) as unknown as typeof globalThis.fetch;
+
+    const result = await runImportPipeline(PAGE_URL, {
+      ...DEPS,
+      disableAi: true,
+      disableReader: true,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    const warnings = result.warnings.join(" ");
+    expect(warnings).toContain("очень большой");
+    // Ни кодов, ни байтовых лимитов, ни имён провайдеров.
+    expect(warnings).not.toContain("RESPONSE_TOO_LARGE");
+    expect(warnings).not.toContain("2000000");
+    expect(warnings).not.toContain("firecrawl");
+  });
+
+  it("переходит к внешнему читателю, когда первых байт не хватило", async () => {
+    globalThis.fetch = vi.fn(async () =>
+      htmlResponse(OVERSIZED_SHELL),
+    ) as unknown as typeof globalThis.fetch;
+
+    const { reader, read } = fakePageReader({
+      content: `<meta property="og:title" content="Ламинат SPC Norland" />
+        <meta property="product:price:amount" content="1 990" />
+        <meta property="product:price:currency" content="RUB" />`,
+    });
+
+    const result = await runImportPipeline(PAGE_URL, { ...DEPS, reader, disableAi: true });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+
+    expect(read).toHaveBeenCalledTimes(1);
+    expect(result.layers.reader).toBe(true);
+    expect(result.draft.name).toBe("Ламинат SPC Norland");
+    expect(result.draft.price).toBe(1990);
+    // Черновик пригоден: предупреждение не мешает сохранению.
+    expect(result.draft.requiresReview).toBe(false);
+  });
+
+  it("передаёт читателю исходный URL, а не обрезанный HTML", async () => {
+    globalThis.fetch = vi.fn(async () =>
+      htmlResponse(OVERSIZED_SHELL),
+    ) as unknown as typeof globalThis.fetch;
+
+    const { reader, read } = fakePageReader({ content: "# Товар" });
+    await runImportPipeline(PAGE_URL, { ...DEPS, reader, disableAi: true });
+
+    const [passedUrl] = read.mock.calls[0] as [string];
+    expect(passedUrl).toBe(PAGE_URL);
+    // Никакого усечённого HTML читателю не уходит.
+    expect(passedUrl).not.toContain("xxxx");
+    expect(passedUrl.length).toBeLessThan(200);
+  });
+
+  it("даёт user-safe результат, когда и читатель не помог", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
+
+    globalThis.fetch = vi.fn(async () =>
+      htmlResponse(OVERSIZED_SHELL),
+    ) as unknown as typeof globalThis.fetch;
+
+    const { reader } = fakePageReader({ error: "firecrawl-http-402" });
+
+    const result = await runImportPipeline(PAGE_URL, { ...DEPS, reader, disableAi: true });
+
+    // Импорт не падает: результат есть, просто данных мало.
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.layers.reader).toBe(false);
+
+    const text = result.warnings.join(" ");
+    // Понятное предупреждение о том, что страницу разобрать не удалось.
+    expect(text).toContain("очищенный текст");
+    // Ни кодов, ни имени провайдера, ни HTTP-статусов.
+    expect(text).not.toContain("firecrawl");
+    expect(text).not.toContain("402");
+    expect(text).not.toContain("RESPONSE_TOO_LARGE");
+  });
+
+  it("не зовёт читателя для обычной небольшой страницы", async () => {
+    globalThis.fetch = vi.fn(async () =>
+      htmlResponse(
+        ldPage({
+          name: "Керамогранит",
+          sku: "KM-1",
+          offers: { price: "100", priceCurrency: "RUB" },
+          material: "Керамогранит",
+          color: "Белый",
+        }),
+      ),
+    ) as unknown as typeof globalThis.fetch;
+
+    const { reader, read } = fakePageReader({ content: "не нужно" });
+    const result = await runImportPipeline(PAGE_URL, { ...DEPS, reader, disableAi: true });
+
+    expect(read).not.toHaveBeenCalled();
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    // Предупреждения об усечении тоже нет: страница уместилась.
+    expect(result.warnings.join(" ")).not.toContain("очень большой");
+  });
+});
+
+/* ------------------------------------------------------------------ */
 /*  Изображение: неудача не ломает импорт                              */
 /* ------------------------------------------------------------------ */
 

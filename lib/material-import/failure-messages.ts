@@ -69,10 +69,6 @@ const MESSAGES: Record<FetchFailureCode, ImportFailureMessage> = {
     message: "По ссылке не страница товара, а файл",
     hint: "Нужна обычная HTML-страница с описанием товара",
   },
-  RESPONSE_TOO_LARGE: {
-    message: "Страница слишком большая для импорта",
-    hint: "Добавьте материал вручную — импорт рассчитан на обычные карточки товаров",
-  },
   EMPTY_RESPONSE: {
     message: "Страница вернулась пустой",
     hint: "Сайт мог не отдать содержимое без JavaScript. Попробуйте другую ссылку",

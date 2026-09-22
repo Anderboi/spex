@@ -17,7 +17,6 @@ const ALL_CODES: FetchFailureCode[] = [
   "REDIRECT_WITHOUT_LOCATION",
   "HTTP_ERROR",
   "UNSUPPORTED_CONTENT_TYPE",
-  "RESPONSE_TOO_LARGE",
   "EMPTY_RESPONSE",
 ];
 
@@ -59,8 +58,21 @@ describe("describeImportFailure", () => {
   });
 
   it("предлагает ручной ввод, когда автоматика бессильна", () => {
-    expect(describeImportFailure("RESPONSE_TOO_LARGE").hint).toContain("вручную");
     expect(describeImportFailure("FETCH_TIMEOUT").hint).toContain("вручную");
+    expect(describeImportFailure("EMPTY_RESPONSE").hint).toContain("ссылку");
+  });
+
+  /**
+   * `RESPONSE_TOO_LARGE` больше не код отказа: слишком большая страница
+   * разбирается по первым байтам, а не отбрасывается. Проверяем, что
+   * пользовательского текста про «слишком большая» в отказах не осталось.
+   */
+  it("не обещает пользователю отказа из-за размера страницы", () => {
+    for (const code of ALL_CODES) {
+      const text = `${describeImportFailure(code).message} ${describeImportFailure(code).hint}`;
+      expect(text, code).not.toContain("слишком большая");
+      expect(text, code).not.toContain("RESPONSE_TOO_LARGE");
+    }
   });
 });
 
