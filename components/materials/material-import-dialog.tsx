@@ -86,10 +86,32 @@ export function MaterialImportDialog({
         return;
       }
 
-      // URL не сбрасываем: если пользователь закроет форму, он сможет
-      // запустить импорт снова без повторного ввода.
+      // Поле очистит обработчик закрытия окна: следующий импорт должен
+      // начинаться с пустой строки, а не с прошлой ссылки.
       onImported(result.data);
     });
+  };
+
+  /**
+   * Очистка поля после закрытия окна.
+   *
+   * Компонент остаётся смонтированным, пока в URL стоит `?action=import`,
+   * поэтому `useState("")` инициализирует поле только один раз: без очистки
+   * ссылка от предыдущего импорта оставалась в поле и при следующем открытии
+   * выглядела как уже введённая.
+   *
+   * `onOpenChangeComplete` вызывается и при закрытии вручную, и когда окно
+   * скрывает родитель после успешного импорта, поэтому одной точки достаточно.
+   * Сбрасываем здесь, а не эффектом: эффект со `setState` дал бы лишний рендер
+   * и запрещён правилом `react-hooks/set-state-in-effect`.
+   *
+   * При НЕУДАЧНОМ импорте окно не закрывается, поэтому адрес сохраняется —
+   * пользователь может исправить его или повторить попытку.
+   */
+  const handleOpenChangeComplete = (next: boolean) => {
+    if (next) return;
+    setUrl("");
+    setError(null);
   };
 
   /** Закрытие во время импорта запрещено: запрос уже ушёл. */
@@ -100,9 +122,13 @@ export function MaterialImportDialog({
   };
 
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="sm:max-w-130 bg-bg">
-        <DialogHeader>
+    <Dialog
+      open={open}
+      onOpenChange={handleOpenChange}
+      onOpenChangeComplete={handleOpenChangeComplete}
+    >
+      <DialogContent className="sm:max-w-130 bg-bg px-0">
+        <DialogHeader className="px-4">
           <DialogTitle className="flex items-center gap-2">
             <Link2 className="size-5" />
             Импорт материала по ссылке
@@ -114,7 +140,7 @@ export function MaterialImportDialog({
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4 pt-1">
-          <div className="space-y-2">
+          <div className="space-y-2 px-4">
             <label
               htmlFor="material-import-url"
               className="font-mono text-[10px] uppercase tracking-[.08em] text-fg-muted"
@@ -152,7 +178,8 @@ export function MaterialImportDialog({
               <div className="text-[13px]">
                 <p className="font-medium">Анализируем страницу товара…</p>
                 <p className="text-fg-muted">
-                  Это может занять некоторое время — страница загружается целиком.
+                  Это может занять некоторое время — страница загружается
+                  целиком.
                 </p>
               </div>
             </div>
@@ -170,7 +197,7 @@ export function MaterialImportDialog({
             </div>
           )}
 
-          <DialogFooter className="gap-2 pt-1">
+          <DialogFooter className="gap-2 pt-4">
             <Button
               type="button"
               variant="ghost"
