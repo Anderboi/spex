@@ -17,6 +17,7 @@ import { Button } from "../../ui/button";
 import { AttrsEditor } from "@/components/layout/attrs-editor";
 import { MaterialTypePicker } from "@/components/layout/material-type-picker";
 import { Separator } from "../../ui/separator";
+import { MaterialImageField } from '@/components/layout/material-image-field';
 
 const ModalReviewTab = ({
   item,
@@ -60,41 +61,11 @@ const ModalReviewTab = ({
   return (
     <>
       {/* //? Images */}
-      <section className="flex items-center justify-start gap-4 bg-bg-card border-t border-b border-border-muted py-4 pl-4 pr-6">
-        {item.imageUrl && (
-          <Image
-            alt="product image"
-            src={item.imageUrl}
-            width={120}
-            height={120}
-            className="bg-bg-brand aspect-square object-cover rounded-lg border"
-          />
-        )}
-        <label className="flex items-center cursor-pointer justify-center gap-2 border-2 border-border-muted bg-bg-card rounded-lg border-dashed p-4 h-30 flex-1">
-          <input
-            type="file"
-            accept="image/*"
-            className="hidden"
-            onChange={handleFile}
-            disabled={isUploading}
-          />
-          <div className="flex flex-col items-center gap-2">
-            {isUploading ? (
-              <Loader2 className="size-6 animate-spin text-fg-muted" />
-            ) : (
-              <CloudUpload size={24} className="text-fg-muted" />
-            )}
-            <div className="flex flex-col items-center">
-              <span>
-                {item.imageUrl
-                  ? "Заменить изображение"
-                  : "Добавить изображение"}
-              </span>
-              <span className="text-xs text-fg-muted">JPG/PNG до 5 МБ</span>
-            </div>
-          </div>
-        </label>
-      </section>
+      <MaterialImageField
+        imageUrl={item.imageUrl}
+        orgSlug={orgSlug}
+        onChange={(url) => onPatch({ imageUrl: url ?? undefined })}
+      />
       {/* //? Details */}
       <section className="flex flex-col gap-4 pl-4 pr-6 py-4">
         <span className="font-semibold text-[15px] font-mono">
@@ -183,7 +154,7 @@ const ModalReviewTab = ({
             />
           </Field>
         </div>
-        
+
         {/* //? Quantity & Price */}
         <Separator />
         <div
@@ -228,7 +199,7 @@ const ModalReviewTab = ({
                 />
               </Field>
             </div>
-            <div className="sm:ml-auto h-20 text-right font-mono bg-bg-accent p-3 text-bg w-full col-span-2 sm:col-span-1">
+            <div className="sm:ml-auto h-20 text-right sm:text-left font-mono bg-bg-accent p-3 text-bg w-full col-span-2 sm:col-span-1">
               <Field label="Сумма">
                 <div className="flex flex-col">
                   <span className="text-[18px] font-semibold tabular-nums">
@@ -287,6 +258,7 @@ const ModalReviewTab = ({
         />
       </section>
       <Separator />
+      {/* //? Notes */}
       <section className="flex flex-col gap-4 pl-4 pr-6 py-4">
         <Field label="Описание">
           <textarea
