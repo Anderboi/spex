@@ -9,7 +9,13 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
-import { TYPE_ORDER, UNIT_OPTIONS, STOCK_HINT_TYPES, LEAD_TIME_OPTIONS, type SpecType } from "@/lib/constants";
+import {
+  TYPE_ORDER,
+  UNIT_OPTIONS,
+  STOCK_HINT_TYPES,
+  LEAD_TIME_OPTIONS,
+  type SpecType,
+} from "@/lib/constants";
 import { priceOf } from "@/lib/spec/pricing";
 import type { SpecPickerCompany } from "@/lib/queries";
 import { fmt, fmtQty, cn } from "@/lib/utils";
@@ -23,6 +29,14 @@ import {
   CompanyPicker,
   type CompanyOption,
 } from "@/components/layout/company-picker";
+import {
+  FieldContent,
+  FieldDescription,
+  FieldLabel,
+  FieldTitle,
+  Field as ShadField,
+} from "@/components/ui/field";
+import { Checkbox } from "@/components/ui/checkbox";
 
 export function ManualItemForm({
   companies,
@@ -61,11 +75,13 @@ export function ManualItemForm({
       brand: editing?.brand ?? "",
       type: (variantMode && variantFor
         ? variantFor.type
-        : editing?.type ?? defaultType ?? "Отделка") as (typeof TYPE_ORDER)[number],
+        : (editing?.type ??
+          defaultType ??
+          "Отделка")) as (typeof TYPE_ORDER)[number],
       productType: editing?.product_type ?? "",
       spec: editing?.spec ?? "",
       article: editing?.article ?? "",
-      qty: ( editing?.qty ?? 1),
+      qty: editing?.qty ?? 1,
       unit:
         (editing?.unit as (typeof UNIT_OPTIONS)[number] | undefined) ?? "шт",
       price: editing?.price ?? 0,
@@ -269,6 +285,56 @@ export function ManualItemForm({
           </Field>
         </div>
 
+        {!editing && (
+          <FieldLabel>
+            <ShadField orientation="horizontal">
+              <Controller
+                control={form.control}
+                name="saveToLibrary"
+                render={({ field }) => (
+                  <Checkbox
+                    checked={!!field.value}
+                    onCheckedChange={(checked) => field.onChange(checked)}
+                  />
+                )}
+              />
+              <FieldContent>
+                <FieldTitle>Сохранить в библиотеку материалов</FieldTitle>
+                <FieldDescription>
+                  Материал станет доступен в других проектах. Снимите галочку
+                  для разовых позиций.
+                </FieldDescription>
+              </FieldContent>
+            </ShadField>
+          </FieldLabel>
+        )}
+
+        {/* {!editing && (
+          <label className="flex items-start gap-2.5 rounded-lg border border-border-muted p-3">
+            <Controller
+              control={form.control}
+              name="saveToLibrary"
+              render={({ field }) => (
+                <input
+                  type="checkbox"
+                  checked={!!field.value}
+                  onChange={(e) => field.onChange(e.target.checked)}
+                  className="mt-0.5 size-4"
+                />
+              )}
+            />
+            <span>
+              <span className="block text-[13.5px] font-medium">
+                Сохранить в библиотеку материалов
+              </span>
+              <span className="block text-[12px] text-fg-muted">
+                Материал станет доступен в других проектах. Снимите галочку для
+                разовых позиций.
+              </span>
+            </span>
+          </label>
+        )} */}
+
         {/* Характеристики. Пресеты ключей зависят от категории и типа:
             у керамогранита — формат и морозостойкость, у обоев — раппорт. */}
         <section className="rounded-lg border border-border-muted p-3">
@@ -432,44 +498,13 @@ export function ManualItemForm({
             </div>
           </div>
         )}
-
-        {!editing && (
-          <label className="flex items-start gap-2.5 rounded-lg border border-border-muted p-3">
-            <Controller
-              control={form.control}
-              name="saveToLibrary"
-              render={({ field }) => (
-                <input
-                  type="checkbox"
-                  checked={!!field.value}
-                  onChange={(e) => field.onChange(e.target.checked)}
-                  className="mt-0.5 size-4"
-                />
-              )}
-            />
-            <span>
-              <span className="block text-[13.5px] font-medium">
-                Сохранить в библиотеку материалов
-              </span>
-              <span className="block text-[12px] text-fg-muted">
-                Материал станет доступен в других проектах. Снимите галочку для
-                разовых позиций.
-              </span>
-            </span>
-          </label>
-        )}
       </div>
 
       <div className="flex justify-end flex-none gap-3 border-t border-border-subtle p-4">
         <Button type="button" size="lg" variant="ghost" onClick={onCancel}>
           Отмена
         </Button>
-        <Button
-          type="submit"
-          size="lg"
-          disabled={isSubmitting}
-          
-        >
+        <Button type="submit" size="lg" disabled={isSubmitting}>
           {editing ? "Заполнить позицию" : "Добавить позицию"}
         </Button>
       </div>
