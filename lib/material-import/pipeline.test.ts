@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { RawExtractedProduct } from "./draft";
 import type { ProductDataExtractor, AiExtractInput } from "./ai";
+import type { PageReader } from "./page-reader";
 import { applyAiResult, mergeExtracted, runImportPipeline, toExtractedProduct } from "./pipeline";
 import type { DeterministicExtractedProduct } from "./draft";
 
@@ -71,6 +72,24 @@ const publicResolver = async () => ({ ok: true as const, addresses: ["93.184.216
 /** Резолвер по умолчанию для большинства сценариев. */
 const DEPS = { resolveHost: publicResolver };
 
+/**
+ * Заглушка внешнего читателя страницы.
+ *
+ * Конвейер работает с интерфейсом `PageReader`, поэтому в тестах важен не
+ * провайдер, а поведение: отдал markdown или отказал. Реальные запросы к
+ * Firecrawl в unit-тестах не делаются.
+ */
+function fakePageReader(
+  outcome: { content: string } | { error: string },
+): { reader: PageReader; read: ReturnType<typeof vi.fn> } {
+  const read = vi.fn(async () =>
+    "content" in outcome
+      ? { ok: true as const, content: outcome.content, source: "firecrawl" as const }
+      : { ok: false as const, reason: outcome.error },
+  );
+  return { reader: { name: "firecrawl", read }, read };
+}
+
 /** Перехостинг-заглушка: подтверждает вызов и отдаёт «supabase-подобный» URL. */
 function fakeRehoster(
   result: { url: string } | { code: string } = {
@@ -122,8 +141,8 @@ describe("mergeExtracted", () => {
   it("сохраняет значения базового слоя", () => {
     const merged = mergeExtracted(base, {
       ...base,
-      name: { value: "Из Jina", source: "jina" },
-      price: { value: 9999, source: "jina" },
+      name: { value: "От читателя", source: "reader" },
+      price: { value: 9999, source: "reader" },
     });
     expect(merged!.name?.value).toBe("Из JSON-LD");
     expect(merged!.price?.value).toBe(6500);
@@ -134,11 +153,11 @@ describe("mergeExtracted", () => {
       ...base,
       name: null,
       brand: null,
-      article: { value: "J-1", source: "jina" },
-      unit: { value: "м2", source: "jina" },
-      attributes: { values: { Поверхность: "Матовая" }, source: "jina" },
+      article: { value: "R-1", source: "reader" },
+      unit: { value: "м2", source: "reader" },
+      attributes: { values: { Поверхность: "Матовая" }, source: "reader" },
     });
-    expect(merged!.article?.value).toBe("J-1");
+    expect(merged!.article?.value).toBe("R-1");
     expect(merged!.unit?.value).toBe("м2");
     expect(merged!.attributes!.values).toEqual({
       Формат: "120×278",
@@ -321,7 +340,7 @@ describe("runImportPipeline", () => {
     );
     expect(result.draft.productUrl).toBe(PAGE_URL);
     expect(result.draft.attrs["material"]).toBe("Керамогранит");
-    expect(result.layers).toEqual({ deterministic: true, jina: false, ai: false });
+    expect(result.layers).toEqual({ deterministic: true, reader: false, ai: false });
     expect(extractProductData).not.toHaveBeenCalled();
   });
 
@@ -342,7 +361,7 @@ describe("runImportPipeline", () => {
       attributes: { Покрытие: "Хром", "Тип управления": "Однорычажный" },
     });
 
-    const result = await runImportPipeline(PAGE_URL, { ...DEPS, extractor, disableJina: true });
+    const result = await runImportPipeline(PAGE_URL, { ...DEPS, extractor, disableReader: true });
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
@@ -363,7 +382,7 @@ describe("runImportPipeline", () => {
     ) as unknown as typeof globalThis.fetch;
 
     const { extractor, extractProductData } = fakeExtractor();
-    await runImportPipeline(PAGE_URL, { ...DEPS, extractor, disableJina: true });
+    await runImportPipeline(PAGE_URL, { ...DEPS, extractor, disableReader: true });
 
     const call = extractProductData.mock.calls[0][0];
     expect(call.pageUrl).toBe(PAGE_URL);
@@ -371,32 +390,35 @@ describe("runImportPipeline", () => {
     expect(call.hints.article).toBe("SKU-1");
   });
 
-  it("зовёт Jina на пустой SPA-странице и использует её данные", async () => {
+  it("зовёт внешнего читателя на пустой SPA-странице и использует его данные", async () => {
     globalThis.fetch = vi.fn(async () => htmlResponse(SPARSE_PAGE)) as unknown as typeof globalThis.fetch;
 
-    const jinaText = `<meta property="og:title" content="Розетка с заземлением" />
+    // Читатель отдаёт markdown; какой провайдер за ним стоит — конвейеру
+    // неизвестно, поэтому в тесте это просто заглушка интерфейса.
+    const readerText = `<meta property="og:title" content="Розетка с заземлением" />
       <meta property="product:price:amount" content="1 290" />
       <meta property="product:price:currency" content="RUB" />`;
-    const jinaFetch = vi.fn(async () => new Response(jinaText, { status: 200 }));
+    const { reader, read } = fakePageReader({ content: readerText });
 
     const result = await runImportPipeline(PAGE_URL, {
       ...DEPS,
-      jina: { fetchImpl: jinaFetch as unknown as typeof globalThis.fetch },
+      reader,
       disableAi: true,
     });
 
-    expect(jinaFetch).toHaveBeenCalledTimes(1);
+    expect(read).toHaveBeenCalledTimes(1);
     expect(result.ok).toBe(true);
     if (!result.ok) return;
     expect(result.draft.name).toBe("Розетка с заземлением");
     expect(result.draft.price).toBe(1290);
     expect(result.draft.category).toBe("Электрика");
-    expect(result.layers.jina).toBe(true);
-    // Источник полей, пришедших из пересказа страницы, помечен как jina.
-    expect(result.draft.evidence.some((item) => item.source === "jina")).toBe(true);
+    expect(result.layers.reader).toBe(true);
+    // Источник полей, пришедших от читателя, помечен как `reader`, а не
+    // именем конкретного провайдера.
+    expect(result.draft.evidence.some((item) => item.source === "reader")).toBe(true);
   });
 
-  it("не зовёт Jina, когда детерминированных данных достаточно", async () => {
+  it("НЕ зовёт внешнего читателя, когда детерминированных данных достаточно", async () => {
     globalThis.fetch = vi.fn(async () =>
       htmlResponse(
         ldPage({
@@ -409,32 +431,54 @@ describe("runImportPipeline", () => {
       ),
     ) as unknown as typeof globalThis.fetch;
 
-    const jinaFetch = vi.fn();
-    await runImportPipeline(PAGE_URL, {
+    const { reader, read } = fakePageReader({ content: "не должно использоваться" });
+    const result = await runImportPipeline(PAGE_URL, {
       ...DEPS,
-      jina: { fetchImpl: jinaFetch as unknown as typeof globalThis.fetch },
+      reader,
       disableAi: true,
     });
 
-    expect(jinaFetch).not.toHaveBeenCalled();
+    // Это ключевое требование: fallback не должен становиться обязательным
+    // запросом на каждый импорт.
+    expect(read).not.toHaveBeenCalled();
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.layers.reader).toBe(false);
   });
 
-  it("продолжает импорт, когда Jina недоступна", async () => {
+  it("продолжает импорт, когда внешний читатель недоступен", async () => {
     globalThis.fetch = vi.fn(async () => htmlResponse(SPARSE_PAGE)) as unknown as typeof globalThis.fetch;
+    vi.spyOn(console, "error").mockImplementation(() => undefined);
 
-    const jinaFetch = vi.fn(async () => new Response("nope", { status: 503 }));
+    const { reader } = fakePageReader({ error: "firecrawl-http-503" });
 
     const result = await runImportPipeline(PAGE_URL, {
       ...DEPS,
-      jina: { fetchImpl: jinaFetch as unknown as typeof globalThis.fetch },
+      reader,
       disableAi: true,
     });
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.warnings.join(" ")).toContain("Jina");
-    expect(result.layers.jina).toBe(false);
+    // Пользователю — понятная фраза без внутренних кодов и имени провайдера.
+    const warnings = result.warnings.join(" ");
+    expect(warnings).toContain("очищенный текст страницы");
+    expect(warnings).not.toContain("firecrawl");
+    expect(warnings).not.toContain("503");
+    expect(result.layers.reader).toBe(false);
     expect(result.draft.requiresReview).toBe(true);
+  });
+
+  it("не зовёт читателя, когда он не подключён", async () => {
+    globalThis.fetch = vi.fn(async () => htmlResponse(SPARSE_PAGE)) as unknown as typeof globalThis.fetch;
+
+    const result = await runImportPipeline(PAGE_URL, { ...DEPS, disableAi: true });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.layers.reader).toBe(false);
+    // Предупреждения о недоступном читателе быть не должно: его просто нет.
+    expect(result.warnings.join(" ")).not.toContain("очищенный текст");
   });
 
   it("продолжает импорт, когда модель падает", async () => {
@@ -453,7 +497,7 @@ describe("runImportPipeline", () => {
     const result = await runImportPipeline(PAGE_URL, {
       ...DEPS,
       extractor: failing,
-      disableJina: true,
+      disableReader: true,
     });
 
     expect(result.ok).toBe(true);
@@ -468,7 +512,7 @@ describe("runImportPipeline", () => {
       htmlResponse("PDF", { contentType: "application/pdf" }),
     ) as unknown as typeof globalThis.fetch;
 
-    const result = await runImportPipeline(PAGE_URL, { ...DEPS, disableAi: true, disableJina: true });
+    const result = await runImportPipeline(PAGE_URL, { ...DEPS, disableAi: true, disableReader: true });
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.failure.code).toBe("UNSUPPORTED_CONTENT_TYPE");
@@ -477,7 +521,7 @@ describe("runImportPipeline", () => {
   it("отказывает на HTTP-ошибке и сохраняет статус", async () => {
     globalThis.fetch = vi.fn(async () => htmlResponse("Not found", { status: 404 })) as unknown as typeof globalThis.fetch;
 
-    const result = await runImportPipeline(PAGE_URL, { ...DEPS, disableAi: true, disableJina: true });
+    const result = await runImportPipeline(PAGE_URL, { ...DEPS, disableAi: true, disableReader: true });
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.failure.code).toBe("HTTP_ERROR");
@@ -505,7 +549,7 @@ describe("runImportPipeline: перехостинг изображения", () 
       orgId: "o",
       rehostImage: rehost,
       disableAi: true,
-      disableJina: true,
+      disableReader: true,
     });
 
     expect(result.ok).toBe(true);
@@ -526,7 +570,7 @@ describe("runImportPipeline: перехостинг изображения", () 
       orgId: "o",
       rehostImage: fakeRehoster({ code: "PRIVATE_ADDRESS" }),
       disableAi: true,
-      disableJina: true,
+      disableReader: true,
     });
 
     // Главное: импорт товара состоялся, черновик пригоден.
@@ -548,7 +592,7 @@ describe("runImportPipeline: перехостинг изображения", () 
     const result = await runImportPipeline(PAGE_URL, {
       ...DEPS,
       disableAi: true,
-      disableJina: true,
+      disableReader: true,
     });
 
     expect(result.ok).toBe(true);
@@ -569,7 +613,7 @@ describe("runImportPipeline: перехостинг изображения", () 
       orgId: "o",
       rehostImage: rehost,
       disableAi: true,
-      disableJina: true,
+      disableReader: true,
     });
 
     expect(result.ok).toBe(true);
@@ -595,7 +639,7 @@ describe("runImportPipeline", () => {
       return htmlResponse(ldPage({ name: "Товар после редиректа" }));
     }) as unknown as typeof globalThis.fetch;
 
-    const result = await runImportPipeline(PAGE_URL, { ...DEPS, disableAi: true, disableJina: true });
+    const result = await runImportPipeline(PAGE_URL, { ...DEPS, disableAi: true, disableReader: true });
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
@@ -611,7 +655,7 @@ describe("runImportPipeline", () => {
       }),
     ) as unknown as typeof globalThis.fetch;
 
-    const result = await runImportPipeline(PAGE_URL, { ...DEPS, disableAi: true, disableJina: true });
+    const result = await runImportPipeline(PAGE_URL, { ...DEPS, disableAi: true, disableReader: true });
 
     expect(result.ok).toBe(false);
     if (result.ok) return;

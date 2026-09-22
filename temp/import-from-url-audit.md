@@ -562,7 +562,7 @@ Config introduced by the DeepSeek integration (server-only, never `NEXT_PUBLIC_`
 | `DEEPSEEK_API_KEY` | no | Bearer key. Absent → the LLM layer is skipped and the pipeline still returns a draft from the deterministic layer. |
 | `DEEPSEEK_MODEL` | no | Overrides the default `deepseek-flash`. |
 | `DEEPSEEK_THINKING` | no | `1` enables the model's thinking mode. Off by default (unnecessary for extraction; `temperature` has no effect in that mode). |
-| `JINA_API_KEY` | no | Optional; Jina Reader works without it. |
+| `FIRECRAWL_API_KEY` | no | Bearer key for the external page reader (Firecrawl Scrape), used only as the fallback layer. Absent → the reader layer is skipped and the pipeline still returns a draft from the deterministic layer. |
 
 `.env.local` still has none of these set, and there is still no `.env.example`.
 

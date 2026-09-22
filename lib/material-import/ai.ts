@@ -56,7 +56,7 @@ export const AI_SYSTEM_PROMPT = buildSystemPrompt();
 export type AiExtractInput = {
   /** Фактический URL страницы — контекст для определения варианта. */
   pageUrl: string;
-  /** Текст страницы (очищенный HTML или пересказ Jina). Только как данные. */
+  /** Текст страницы (очищенный HTML или markdown читателя). Только как данные. */
   content: string;
   /** Структурированные данные детерминированного слоя. Высокоприоритетный источник. */
   structured?: StructuredHints;

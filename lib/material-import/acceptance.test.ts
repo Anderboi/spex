@@ -4,7 +4,7 @@
  * Здесь нет ни одного настоящего сетевого запроса: транспорт страницы и
  * транспорт модели подменены, а ответ модели воспроизводит то, что DeepSeek
  * возвращает на этих страницах. Так проверяется вся цепочка
- * (fetch → JSON-LD/OG → Jina → модель → Zod → нормализация → draft) без
+ * (fetch → JSON-LD/OG → читатель → модель → Zod → нормализация → draft) без
  * стоимости и без зависимости от доступности сайтов.
  *
  * Живая проверка против настоящих сайтов и настоящего API — отдельный скрипт
@@ -17,7 +17,7 @@ import type { AiExtractInput, ProductDataExtractor } from "./ai";
 import type { RawExtractedProduct } from "./draft";
 
 const publicResolver = async () => ({ ok: true as const, addresses: ["93.184.216.34"] });
-const DEPS = { resolveHost: publicResolver, disableJina: true };
+const DEPS = { resolveHost: publicResolver, disableReader: true };
 
 let originalFetch: typeof globalThis.fetch;
 

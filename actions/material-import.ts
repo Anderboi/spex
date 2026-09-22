@@ -23,6 +23,7 @@ import { ok, fail, type ActionResult } from "@/lib/action-result";
 import { requireOrgBySlug } from "@/lib/auth/session";
 import { can } from "@/lib/permissions";
 import { describeImportFailure } from "@/lib/material-import/failure-messages";
+import { createDefaultPageReader } from "@/lib/material-import/firecrawl";
 import { rehostImage } from "@/lib/material-import/image";
 import { runImportPipeline } from "@/lib/material-import/pipeline";
 import { MAX_URL_LENGTH } from "@/lib/material-import/guards";
@@ -74,7 +75,7 @@ export type MaterialImportResult = {
   /** Признак успешного перехостинга изображения (для предупреждений в форме). */
   imageRehosted: boolean;
   /** Какие слои конвейера отработали — для отладки и служебных сообщений. */
-  layers: { deterministic: boolean; jina: boolean; ai: boolean };
+  layers: { deterministic: boolean; reader: boolean; ai: boolean };
 };
 
 /**
@@ -104,11 +105,13 @@ export async function importMaterialFromUrl(
     return fail("Недостаточно прав для импорта материала", "FORBIDDEN");
   }
 
-  // Перехостинг подключаем здесь, а не внутри конвейера: конвейер не должен
-  // знать про Supabase и остаётся проверяемым в unit-тестах.
+  // Перехостинг и читатель страницы подключаем здесь, а не внутри конвейера:
+  // конвейер не должен знать ни про Supabase, ни про конкретного провайдера
+  // чтения, и остаётся проверяемым в unit-тестах.
   const result = await runImportPipeline(parsed.data.url, {
     orgId: ctx.orgId,
     rehostImage,
+    reader: createDefaultPageReader(),
   });
 
   if (!result.ok) {

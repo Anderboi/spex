@@ -35,7 +35,7 @@ function result(overrides: Partial<MaterialImportResult> = {}): MaterialImportRe
     draftKey: "import-11111111-1111-4111-8111-111111111111",
     warnings: [],
     imageRehosted: true,
-    layers: { deterministic: true, jina: false, ai: true },
+    layers: { deterministic: true, reader: false, ai: true },
     ...overrides,
   };
 }

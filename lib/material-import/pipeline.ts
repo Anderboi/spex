@@ -5,15 +5,20 @@
  *
  *   1. загрузка страницы с защитой от SSRF (`fetch.ts`);
  *   2. детерминированное извлечение: JSON-LD → OpenGraph/meta → `<title>`;
- *   3. Jina Reader, если детерминированный слой пуст или страница — SPA-оболочка;
+ *   3. внешний читатель страницы (`PageReader`) — Firecrawl — если
+ *      детерминированный слой пуст или страница оказалась SPA-оболочкой;
  *   4. LLM (DeepSeek) для структурирования и классификации;
  *   5. Zod-валидация ответа модели;
  *   6. нормализация: словари проекта, единицы, цена, варианты;
- *   7. `MaterialImportDraft`.
+ *   7. `MaterialImportDraft`;
+ *   8. перехостинг изображения.
  *
- * Слои 1 и 6 обязательны. Слои 3 и 4 — необязательные усилители: их отказ
- * никогда не отменяет импорт, а лишь попадает в `warnings`. Так импорт
- * остаётся работоспособным без ключа LLM и без доступа к Jina.
+ * Слои 1 и 6 обязательны. Слои 3, 4 и 8 — необязательные усилители: их отказ
+ * никогда не отменяет импорт, а лишь попадает в `warnings`. Так импорт остаётся
+ * работоспособным без ключа провайдера чтения и без ключа LLM.
+ *
+ * Конвейер не знает, какой именно провайдер читает страницу: он работает с
+ * интерфейсом `PageReader`, а реализацию подставляет server action.
  *
  * Модуль НИЧЕГО не пишет в базу. Сохранение делает `upsertMaterial` после
  * подтверждения пользователя.
@@ -24,9 +29,9 @@ import { createDefaultExtractor, type AiExtractInput, type ProductDataExtractor 
 import { extractFromHtml, looksLikeShell, type ExtractHtmlOptions } from "./extract-html";
 import { fetchImportPage, type FetchFailureCode, type HostResolver } from "./fetch";
 import { pickPrimaryImage, type ImageRehoster } from "./image";
-import { fetchViaJina, needsJinaFallback, type JinaDeps } from "./jina";
 import { buildPageTextBlock } from "./llm-input";
 import { buildImportDraft, rejectRetailerArticle, type NormalizeResult } from "./normalize";
+import { needsPageReaderFallback, type PageReader } from "./page-reader";
 import { extractHtmlTitle } from "./text";
 import type { DeterministicExtractedProduct } from "./draft";
 
@@ -47,9 +52,9 @@ function pick<T>(...candidates: Array<Field<T> | undefined>): Field<T> {
 }
 
 /**
- * Дополняет детерминированный результат данными Jina: у Jina заполняются
- * только те поля, которых не было. Значения первого слоя не перетираются —
- * JSON-LD точнее любого пересказа текста.
+ * Дополняет детерминированный результат данными внешнего читателя: у него
+ * заполняются только те поля, которых не было. Значения первого слоя не
+ * перетираются — JSON-LD точнее любого пересказа текста.
  */
 export function mergeExtracted(
   base: DeterministicExtractedProduct | null,
@@ -211,7 +216,7 @@ export type ImportPipelineResult =
       draft: MaterialImportDraft;
       warnings: string[];
       /** Диагностика для логов: какие слои отработали. */
-      layers: { deterministic: boolean; jina: boolean; ai: boolean };
+      layers: { deterministic: boolean; reader: boolean; ai: boolean };
       /** Изображение перенесено в Storage: `false` — картинки не будет. */
       imageRehosted: boolean;
     }
@@ -220,8 +225,11 @@ export type ImportPipelineResult =
 export type ImportPipelineDeps = {
   /** Адаптер LLM. По умолчанию — DeepSeek, если задан `DEEPSEEK_API_KEY`. */
   extractor?: ProductDataExtractor;
-  /** Внедрение сети для Jina (тесты). */
-  jina?: JinaDeps;
+  /**
+   * Внешний читатель страницы (fallback). Провайдер выбирает вызывающий:
+   * конвейер лишь пользуется интерфейсом. Без него шаг пропускается.
+   */
+  reader?: PageReader;
   /** Переопределить проверку хоста при загрузке страницы (тесты). */
   resolveHost?: HostResolver;
   /**
@@ -233,7 +241,7 @@ export type ImportPipelineDeps = {
   /** Организация-владелец: определяет папку в bucket'е. */
   orgId?: string;
   /** Принудительно выключить необязательные слои (тесты, отладка). */
-  disableJina?: boolean;
+  disableReader?: boolean;
   disableAi?: boolean;
 };
 
@@ -258,16 +266,16 @@ export async function runImportPipeline(
   const htmlOptions: ExtractHtmlOptions = { pageUrl: page.finalUrl, shell: isShell };
   let deterministic = extractFromHtml(page.html, htmlOptions);
   const pageTitle = isShell ? null : extractHtmlTitle(page.html);
-  const layers = { deterministic: deterministic !== null, jina: false, ai: false };
+  const layers = { deterministic: deterministic !== null, reader: false, ai: false };
 
-  /* ── 3. Jina fallback ── */
+  /* ── 3. Внешний читатель страницы (fallback) ── */
   let modelText: string | null = null;
   const attributeSources: Record<string, FieldSource> = {};
 
-  if (!deps.disableJina) {
-    const wantsJina =
+  if (!deps.disableReader && deps.reader) {
+    const wantsReader =
       isShell ||
-      needsJinaFallback({
+      needsPageReaderFallback({
         name: deterministic?.name?.value ?? null,
         price: deterministic?.price?.value ?? null,
         article: deterministic?.article?.value ?? null,
@@ -276,19 +284,23 @@ export async function runImportPipeline(
         htmlBytes: page.bytes,
       });
 
-    if (wantsJina) {
-      const jina = await fetchViaJina(page.finalUrl, deps.jina);
-      if (jina.ok) {
-        layers.jina = true;
-        // Jina отдаёт markdown: разбираем его тем же извлекателем, а если он
-        // ничего не нашёл — оставляем текст для модели.
-        const fromJina = extractFromHtml(jina.text, htmlOptions);
-        if (fromJina) {
-          deterministic = mergeExtracted(deterministic, retagAsJina(fromJina));
+    if (wantsReader) {
+      const read = await deps.reader.read(page.finalUrl);
+      if (read.ok) {
+        layers.reader = true;
+        // Читатель отдаёт markdown: разбираем его тем же извлекателем, а если
+        // он ничего не нашёл — оставляем текст для модели.
+        const fromReader = extractFromHtml(read.content, htmlOptions);
+        if (fromReader) {
+          deterministic = mergeExtracted(deterministic, retagAsReader(fromReader));
         }
-        modelText = jina.text;
+        modelText = read.content;
       } else {
-        warnings.push("Не удалось получить очищенный текст страницы (Jina).");
+        // Техническую причину — в серверный лог, пользователю общую фразу.
+        console.error("[material-import] внешний читатель не отработал:", read.reason);
+        warnings.push(
+          "Не удалось получить очищенный текст страницы — часть полей могла остаться незаполненной.",
+        );
       }
     }
   }
@@ -303,7 +315,7 @@ export async function runImportPipeline(
     modelText,
     usedLayers: [
       ...(layers.deterministic ? (["json-ld", "og", "html"] as FieldSource[]) : []),
-      ...(layers.jina ? (["jina"] as FieldSource[]) : []),
+      ...(layers.reader ? (["reader"] as FieldSource[]) : []),
     ],
     attributeSources,
   });
@@ -464,12 +476,12 @@ async function maybeRehostImage(input: {
 }
 
 /**
- * Помечает источники полей как `jina`: значения пришли из пересказа страницы,
- * и в evidence это должно быть видно.
+ * Помечает источники полей как `reader`: значения пришли от внешнего читателя
+ * страницы (а не из разметки исходного HTML), и в evidence это должно быть видно.
  */
-function retagAsJina(extracted: DeterministicExtractedProduct): DeterministicExtractedProduct {
+function retagAsReader(extracted: DeterministicExtractedProduct): DeterministicExtractedProduct {
   const retag = <T,>(field: Field<T>): Field<T> =>
-    field ? { value: field.value, source: "jina" } : null;
+    field ? { value: field.value, source: "reader" } : null;
 
   return {
     name: retag(extracted.name),
@@ -481,7 +493,7 @@ function retagAsJina(extracted: DeterministicExtractedProduct): DeterministicExt
     unit: retag(extracted.unit),
     description: retag(extracted.description),
     attributes: extracted.attributes
-      ? { values: extracted.attributes.values, source: "jina" }
+      ? { values: extracted.attributes.values, source: "reader" }
       : null,
     variants: extracted.variants,
   };

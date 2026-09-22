@@ -18,6 +18,7 @@
 
 import { readFileSync } from "node:fs";
 import { TYPE_ORDER } from "../lib/constants.ts";
+import { createDefaultPageReader, isPageReaderConfigured } from "../lib/material-import/firecrawl.ts";
 import { runImportPipeline } from "../lib/material-import/pipeline.ts";
 import type { MaterialImportDraft } from "../lib/material-import/draft.ts";
 
@@ -53,7 +54,7 @@ type Check = {
 };
 
 /** Артикул не должен оказаться торговым кодом площадки. */
-function articleIsNot(retailerId: string, label: string): Check {
+function articleIsNot(retailerId: string): Check {
   return {
     name: `article не равен торговому коду ${retailerId}`,
     run: (draft) => {
@@ -160,7 +161,7 @@ const CASES: Case[] = [
     checks: [
       hasValue("brand", "STWORKI"),
       articleMatches(/S31010CR/i),
-      articleIsNot("686224", "retailerId"),
+      articleIsNot("686224"),
       categoryIn(TYPE_ORDER),
       attrsIncludeAny(["материал", "покрытие", "излив", "управление"], 2),
     ],
@@ -183,7 +184,7 @@ const CASES: Case[] = [
     checks: [
       hasValue("brand", "Systeme Electric"),
       articleMatches(/GSL000143/i),
-      articleIsNot("86710177", "retailerId"),
+      articleIsNot("86710177"),
       attrsIncludeAny(["ток", "напряжение", "цвет", "RAL", "заземление", "монтаж"], 3),
     ],
   },
@@ -259,11 +260,17 @@ async function main(): Promise<void> {
       : CASES;
 
   const hasKey = Boolean(process.env.DEEPSEEK_API_KEY?.trim());
+  const hasReader = isPageReaderConfigured();
   console.log(`Модель: ${process.env.DEEPSEEK_MODEL?.trim() || "deepseek-flash"}`);
   console.log(
     hasKey
       ? "DEEPSEEK_API_KEY найден — слой LLM будет использован."
       : `${YELLOW}DEEPSEEK_API_KEY не найден — работаем только на детерминированном слое.${RESET}`,
+  );
+  console.log(
+    hasReader
+      ? "FIRECRAWL_API_KEY найден — fallback-читатель страниц доступен."
+      : `${YELLOW}FIRECRAWL_API_KEY не найден — fallback-читатель будет пропущен (SPA-страницы останутся почти пустыми).${RESET}`,
   );
   console.log(`${DIM}Запросы к внешним сайтам идут от вашей машины.${RESET}`);
 
@@ -275,7 +282,8 @@ async function main(): Promise<void> {
 
     const started = Date.now();
     const result = await runImportPipeline(testCase.url, {
-      jina: { fetchImpl: globalThis.fetch },
+      // Читатель — тот же, что и в проде: Firecrawl как fallback.
+      reader: createDefaultPageReader(),
     });
     const elapsed = Date.now() - started;
 
@@ -288,7 +296,7 @@ async function main(): Promise<void> {
     }
 
     console.log(
-      `${DIM}слои:${RESET} deterministic=${result.layers.deterministic} jina=${result.layers.jina} ai=${result.layers.ai} ${DIM}(${elapsed} мс)${RESET}`,
+      `${DIM}слои:${RESET} deterministic=${result.layers.deterministic} reader=${result.layers.reader} ai=${result.layers.ai} ${DIM}(${elapsed} мс)${RESET}`,
     );
     printDraft(result.draft);
 
