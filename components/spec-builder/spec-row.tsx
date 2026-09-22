@@ -8,6 +8,7 @@ import {
   Plus,
   Share2,
   Trash2,
+  Image as ImageIcon,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -77,15 +78,18 @@ export const SpecRow = memo(function SpecRow({
   return (
     <tr
       className={cn(
-        "group h-16 border-b border-border-muted last:border-0 transition-colors hover:bg-bg-card/60",
-        selected && "bg-bg-brand/40",
+        "group h-16 border-b border-border-muted last:border-0 transition-colors hover:bg-bg-brand2/20",
+        selected && "bg-bg-brand2/40 border-l-fg-secondary",
         item.isPlaceholder &&
-          "bg-[repeating-linear-gradient(45deg,transparent,transparent_7px,var(--color-bg-card)_7px,var(--color-bg-card)_14px)]",
+          "//bg-[repeating-linear-gradient(45deg,transparent,transparent_7px,var(--color-bg-card)_7px,var(--color-bg-card)_14px)]",
       )}
     >
-      <td className="align-middle">
+      <td className="align-middle px-1">
         <Checkbox
-          className="border-border border-2"
+          className={cn(
+            "border-border border-2 opacity-0 group-hover:opacity-100",
+            selected && "opacity-100",
+          )}
           checked={selected}
           onCheckedChange={() => h.onToggleSel(item.id)}
           aria-label={`Выбрать ${item.code}`}
@@ -103,7 +107,9 @@ export const SpecRow = memo(function SpecRow({
             className="size-16 object-cover border rounded-lg"
           />
         ) : (
-          <div className="size-16 bg-bg-brand2/50 border rounded-lg"></div>
+          <div className="size-16 //bg-bg-brand2/50 border-[1.5px] border-dashed border-fg-muted/50 rounded-lg flex justify-center items-center">
+            <ImageIcon className="size-6 text-fg-muted/50" />
+          </div>
         )}
       </td>
       <td className="px-2 align-middle">
