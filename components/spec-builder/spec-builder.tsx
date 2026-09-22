@@ -98,16 +98,17 @@ export default function SpecBuilder({
 
   const { value: dialog, close: closeDialog } = useDialogUrl("dialog");
 
+  /**
+   * `?dialog=` управляет только верхними слоями. Панель позиции живёт в
+   * `?item=` и при смене `dialog` не закрывается — иначе закрытие формы
+   * добавления или прямой ссылки `?item=…` сбрасывало бы открытую позицию.
+   */
   useEffect(() => {
     const v = dialog;
-    if (v === "add" || v === "procure" || v === "summary") {
-      ctx.closeModal();
-      if (v === "add") ctx.openAdd(null);
-      else if (v === "procure") ctx.openProcure();
-      else if (v === "summary") ctx.openSummary();
-    } else {
-      ctx.closeModal();
-    }
+    ctx.closeOverlay();
+    if (v === "add") ctx.openAdd(null);
+    else if (v === "procure") ctx.openProcure();
+    else if (v === "summary") ctx.openSummary();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dialog]);
 
@@ -153,14 +154,27 @@ export default function SpecBuilder({
 
   /**
    * «Открыть исходную позицию» (kind = 'spec_ref' из «Состава»): переходим в
-   * DetailModal целевой позиции и запоминаем владельца состава, чтобы после
-   * закрытия вернуться к нему на вкладке «Состав».
+   * детализацию целевой позиции и запоминаем владельца состава, чтобы «Назад»
+   * вернул к нему на вкладку «Состав».
    */
   const openRefFromComposition = useCallback(
     (refId: string) => {
       const ownerId = current?.id;
       if (!ownerId || !ctx.items.some((i) => i.id === refId)) return;
       ctx.openDetail(refId, { id: ownerId, tab: "components" });
+    },
+    [current, ctx],
+  );
+
+  /**
+   * Переход в субэлемент — тот же шаг вглубь, что и ссылка из «Состава»:
+   * запоминаем текущую позицию и её вкладку, чтобы «Назад» вернул к родителю,
+   * а не выбросил в список.
+   */
+  const openChildFromDetail = useCallback(
+    (childId: string) => {
+      if (!current) return;
+      ctx.openDetail(childId, { id: current.id, tab: ctx.detailTab });
     },
     [current, ctx],
   );
@@ -370,9 +384,10 @@ export default function SpecBuilder({
           projectId={projectId}
           item={ctx.current}
           childrenItems={currentChildren}
-          onOpenItem={ctx.openDetail}
+          onOpenItem={openChildFromDetail}
           onOpenRefItem={openRefFromComposition}
-          initialTab={ctx.modal.kind === "detail" ? ctx.modal.tab : undefined}
+          initialTab={ctx.detailTab}
+          onTabChange={ctx.setDetailTab}
           allItems={ctx.items}
           companies={localCompanies}
           contacts={contacts}
@@ -401,12 +416,7 @@ export default function SpecBuilder({
           saveStatus={ctx.saveStatus}
           saveError={ctx.saveError}
           ops={ctx.opsByItem[ctx.current.id] ?? []}
-          onOpenOperation={(operationId) =>
-            ctx.openServiceOperationEdit(operationId, {
-              kind: "detail",
-              id: ctx.current!.id,
-            })
-          }
+          onOpenOperation={ctx.openServiceOperationEdit}
         />
       )}
 

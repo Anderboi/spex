@@ -1,7 +1,15 @@
 "use client";
 
 import { useState } from "react";
-import { Share2, Trash2, Eraser, Paperclip, X } from "lucide-react";
+import {
+  ArrowLeft,
+  Eraser,
+  MoreVertical,
+  Paperclip,
+  Share2,
+  Trash2,
+  X,
+} from "lucide-react";
 import {
   Dialog,
   DialogClose,
@@ -10,13 +18,19 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
 import { InlineCode } from "../layout/inline-code";
 import { StatusMenu } from "../layout/status-menu";
 import { isLocked } from "@/lib/spec/status";
 import { priceOf } from "@/lib/spec/pricing";
-import { fmt, fmtQty } from "@/lib/utils";
+import { fmt, fmtQty, cn } from "@/lib/utils";
 import { SpecStatus } from "@/lib/constants";
 import { SpecItem, SpecItemPatch, SpecVariant } from "@/lib/types";
 import { SupplierPicker } from "../layout/supplier-picker";
@@ -29,7 +43,7 @@ import ModalReviewTab from "./modal-review-tab";
 import { SpecComponentsSection } from "./spec-components-section";
 import { ServiceOperationDetailCards } from "../layout/service-operation-detail-cards";
 import SaveIndicator from "../../layout/save-indicator";
-import type { DetailTab } from "@/hooks/use-spec-builder";
+import type { DetailPanelTab } from "@/hooks/use-spec-builder";
 import type { ServiceOperation } from "@/actions/service-operations";
 
 type Company = {
@@ -60,6 +74,7 @@ export function DetailModal({
   orgSlug,
   projectId,
   initialTab,
+  onTabChange,
   onClose,
   onPatch,
   onCode,
@@ -98,7 +113,9 @@ export function DetailModal({
   orgSlug: string;
   projectId: string;
   /** Вкладка при открытии (например, «Состав» после возврата из ссылки). */
-  initialTab?: DetailTab;
+  initialTab?: DetailPanelTab;
+  /** Смена вкладки: попадает в `?tab=` (переживает перезагрузку и «Назад»). */
+  onTabChange?: (tab: DetailPanelTab) => void;
   onClose: () => void;
   onPatch: (patch: SpecItemPatch) => void;
   onCode: (code: string) => void;
@@ -136,23 +153,49 @@ export function DetailModal({
     notify: (company: CompanyOption) => void;
   } | null>(null);
 
+  /** Вкладка дублируется в `?tab=`: перезагрузка и «Назад» её сохраняют. */
+  const changeTab = (value: string) => {
+    setTab(value);
+    onTabChange?.(value as DetailPanelTab);
+  };
+
   return (
     <Dialog open onOpenChange={(v) => !v && onClose()}>
       <DialogContent
         showCloseButton={false}
-        className="max-h-[90vh] flex flex-col bg-bg sm:max-w-3xl p-0 gap-0"
+        className={cn(
+          "flex flex-col gap-0 bg-bg p-0",
+          // На телефоне панель — отдельный экран, а не окно поверх списка:
+          // `dvh` вместо `vh`, чтобы адресная строка и экранная клавиатура
+          // не отрезали футер, и никаких полей по краям.
+          "max-md:inset-0 max-md:top-0 max-md:left-0 max-md:h-dvh max-md:max-w-none",
+          "max-md:translate-x-0 max-md:translate-y-0 max-md:rounded-none max-md:ring-0",
+          "md:max-h-[90vh] sm:max-w-3xl",
+        )}
       >
-        <DialogHeader className="border-b p-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <div className="bg-fg px-2 py-0.5 rounded-sm text-bg">
+        <DialogHeader className="shrink-0 border-b p-4 max-md:py-2 max-md:pr-2">
+          <div className="flex items-center justify-between gap-2">
+            <div className="flex min-w-0 items-center gap-2">
+              {/* «Назад» на телефоне делает то же, что системная кнопка
+                  «Назад»: шагает по истории (родитель → владелец состава →
+                  список). Позиция, открытая прямой ссылкой, просто
+                  закрывается — см. `closeModal`. */}
+              <Button
+                variant="ghost"
+                onClick={onClose}
+                aria-label="Назад"
+                className="-ml-2 size-11 shrink-0 md:hidden"
+              >
+                <ArrowLeft className="size-5" />
+              </Button>
+              <div className="shrink-0 rounded-sm bg-fg px-2 py-0.5 text-bg">
                 <InlineCode
                   code={item.code}
                   locked={isLocked(item.status)}
                   onCommit={onCode}
                 />
               </div>
-              <DialogTitle className="truncate font-sans text-[18px] font-semibold leading-tight">
+              <DialogTitle className="min-w-0 truncate font-sans text-[16px] font-semibold leading-tight md:text-[18px]">
                 {item.name || (
                   <span className="text-fg-muted font-normal">
                     Позиция не заполнена
@@ -163,17 +206,57 @@ export function DetailModal({
                 variant="ghost"
                 size="lg"
                 onClick={onShare}
-                className="gap-2 text-fg-muted"
+                className="hidden gap-2 text-fg-muted md:inline-flex"
               >
                 <Share2 className="size-4" />
                 {/* Поделиться */}
               </Button>
             </div>
-            <div className="flex items-center gap-2">
-              <StatusMenu item={item} onChange={onStatus} />
+            <div className="flex shrink-0 items-center gap-1">
+              <StatusMenu
+                item={item}
+                onChange={onStatus}
+                className="max-md:hidden"
+              />
+              {/* Статус меняется точечным меню (подписи в 360px не хватает),
+                  остальные действия уезжают в «⋮». */}
+              <StatusMenu
+                item={item}
+                onChange={onStatus}
+                variant="dot"
+                className="size-11 md:hidden"
+              />
+              <DropdownMenu>
+                <DropdownMenuTrigger
+                  aria-label="Действия с позицией"
+                  className="flex size-11 items-center justify-center rounded-lg text-fg-muted md:hidden"
+                >
+                  <MoreVertical className="size-5" />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-56 bg-bg-card">
+                  <DropdownMenuItem
+                    className="gap-2 text-[13px]"
+                    onClick={onShare}
+                  >
+                    <Share2 className="size-4" /> Поделиться
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    className="gap-2 text-[13px]"
+                    onClick={onClear}
+                  >
+                    <Eraser className="size-4" /> Очистить
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    className="gap-2 text-[13px] text-fg-red"
+                    onClick={onDelete}
+                  >
+                    <Trash2 className="size-4" /> Удалить
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
               <DialogClose
                 render={
-                  <Button variant="ghost" size="lg">
+                  <Button variant="ghost" size="lg" className="max-md:hidden">
                     <X />
                   </Button>
                 }
@@ -182,8 +265,12 @@ export function DetailModal({
           </div>
         </DialogHeader>
 
-        <Tabs value={tab} onValueChange={setTab} className="mt-2 gap-0">
-          <TabsList className="w-full justify-start gap-2 overflow-x-auto bg-bg px-4 pb-2 //border-b">
+        <Tabs
+          value={tab}
+          onValueChange={changeTab}
+          className="mt-2 min-h-0 flex-1 gap-0 md:flex-none"
+        >
+          <TabsList className="w-full shrink-0 justify-start gap-2 overflow-x-auto bg-bg px-4 pb-2 //border-b">
             <TabsTrigger value="overview">Обзор</TabsTrigger>
             <TabsTrigger value="components">Состав</TabsTrigger>
             <TabsTrigger value="variants">
@@ -200,7 +287,14 @@ export function DetailModal({
             <TabsTrigger value="supplier">Поставщик</TabsTrigger>
             <TabsTrigger value="files">Файлы</TabsTrigger>
           </TabsList>
-          <ScrollArea className="h-[66vh]">
+          {/* Высоту задаёт flex: на телефоне панель занимает весь экран, и
+              жёсткие 66vh оставляли бы неиспользованную полосу снизу.
+              `overscroll-contain` — чтобы прокрутка панели не тянула
+              pull-to-refresh страницы под ней. */}
+          <ScrollArea
+            className="min-h-0 flex-1 md:h-[66vh] md:flex-none"
+            viewportClassName="overscroll-contain"
+          >
             {/* overview */}
             <TabsContent value="overview">
               <ModalReviewTab
@@ -209,7 +303,7 @@ export function DetailModal({
                 onPrice={onPrice}
                 onQty={onQty}
                 orgSlug={orgSlug}
-                setTab={setTab}
+                setTab={changeTab}
               />
 
               <ServiceOperationDetailCards
@@ -343,18 +437,26 @@ export function DetailModal({
           </ScrollArea>
         </Tabs>
 
-        <DialogFooter className="gap-2 border-t border-border-muted">
+        <DialogFooter className="shrink-0 gap-2 border-t border-border-muted max-md:mb-0 max-md:pb-[max(1rem,env(safe-area-inset-bottom))]">
           <div className="flex min-w-0 items-center">
             <SaveIndicator status={saveStatus} error={saveError} />
           </div>
 
-          <Button variant="ghost" onClick={onClear} className="gap-2">
+          {/* На телефоне «Очистить» и «Удалить» живут в меню «⋮» рядом с
+              заголовком: в нижней строке 360px они конкурируют с индикатором
+              сохранения, а деструктивное действие не должно стоять вплотную
+              к основному. */}
+          <Button
+            variant="ghost"
+            onClick={onClear}
+            className="hidden gap-2 md:inline-flex"
+          >
             <Eraser className="size-4" /> Очистить
           </Button>
           <Button
             variant="ghost"
             onClick={onDelete}
-            className="ml-auto gap-2 text-fg-red"
+            className="ml-auto hidden gap-2 text-fg-red md:inline-flex"
           >
             <Trash2 className="size-4" /> Удалить
           </Button>

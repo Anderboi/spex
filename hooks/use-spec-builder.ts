@@ -10,6 +10,8 @@ import {
 } from "react";
 import { useSpecPersistence } from "./use-spec-persistence";
 import { useSpecFilters } from "./use-spec-filters";
+import { useDialogUrl } from "./use-dialog-url";
+import { useSearchParams } from "next/navigation";
 import { fmt, plural, prefixFor } from "@/lib/utils";
 import { SpecItem, SpecItemPatch, type SpecVariant } from "@/lib/types";
 import {
@@ -65,33 +67,42 @@ export type Toast = {
   action?: () => void;
 };
 
-export type DetailTab = "overview" | "components";
+/**
+ * Вкладки панели позиции. Значения совпадают с `?tab=` в URL, поэтому список
+ * используется ещё и как рантайм-проверка параметра из адресной строки.
+ */
+export const DETAIL_PANEL_TABS = [
+  "overview",
+  "components",
+  "variants",
+  "rooms",
+  "supplier",
+  "files",
+] as const;
+export type DetailPanelTab = (typeof DETAIL_PANEL_TABS)[number];
+
+function isDetailPanelTab(value: string | null): value is DetailPanelTab {
+  return (
+    value !== null && (DETAIL_PANEL_TABS as readonly string[]).includes(value)
+  );
+}
 
 /** Возврат к открытой ранее детализации после закрытия позиции-ссылки. */
-export type DetailReturnTo = { id: string; tab: DetailTab };
+export type DetailReturnTo = { id: string; tab: DetailPanelTab };
 
+/**
+ * Панель позиции в `Modal` не участвует: она живёт в URL (`?item=`), а `Modal`
+ * описывает только верхние слои, которые её перекрывают.
+ */
 export type Modal =
   | { kind: "none" }
-  | {
-      kind: "detail";
-      id: string;
-      /** Вкладка, на которой открыть детализацию (например, после возврата из ссылки). */
-      tab?: DetailTab;
-      /** Открытая из «Состава» ссылка: после закрытия вернуться к владельцу. */
-      returnTo?: DetailReturnTo;
-    }
   | { kind: "add"; editId: string | null; parentId: string | null }
   | { kind: "add-variant"; itemId: string }
   | { kind: "delete"; ids: string[] }
   | { kind: "procure" }
   | { kind: "summary" }
   | { kind: "operation"; type: ServiceOperationType }
-  | {
-      kind: "edit-operation";
-      operationId: string;
-      /** Откуда открыли редактирование — вернуться туда после закрытия. */
-      from?: { kind: "detail"; id: string };
-    }
+  | { kind: "edit-operation"; operationId: string }
   | { kind: "edit-variant"; itemId: string; variantId: string };
 
 export type CodeConflict = {
@@ -177,6 +188,33 @@ export function useSpecBuilder({
   const [codeConflict, setCodeConflict] = useState<CodeConflict | null>(null);
   const [replaceHidden, setReplaceHidden] = useState(false);
   const [isPending, startTransition] = useTransition();
+
+  /* ------------------------------------------------------------------ */
+  /*  Открытая позиция живёт в URL: ?item=<id>&tab=<вкладка>             */
+  /* ------------------------------------------------------------------ */
+
+  const searchParams = useSearchParams();
+  const urlItemId = searchParams.get("item");
+  const urlTabValue = searchParams.get("tab");
+  const urlTab = isDetailPanelTab(urlTabValue) ? urlTabValue : null;
+  const {
+    open: openItemUrl,
+    set: setItemUrl,
+    close: closeItemUrl,
+  } = useDialogUrl("item", ["tab"], { shallow: true });
+
+  /**
+   * Откуда пришли в текущую позицию. Нужно ровно для одного решения: «Назад»
+   * шагает по истории (значит, запись в историю добавляли мы) или просто
+   * закрывает панель (позиция открыта прямой ссылкой — шагать некуда, иначе
+   * «Назад» выбросил бы из приложения).
+   *
+   * Значение намеренно не сбрасывается при возврате на предыдущую позицию:
+   * важен сам факт «эту панель открывали мы», а не конкретный адрес возврата.
+   */
+  const [detailReturnTo, setDetailReturnTo] = useState<DetailReturnTo | null>(
+    null,
+  );
 
   const filters = useSpecFilters();
   const persist = useSpecPersistence(orgSlug, projectId);
@@ -450,6 +488,10 @@ export function useSpecBuilder({
     [orgSlug, showToast],
   );
 
+  /**
+   * Форма варианта перекрывает панель позиции: `?item=` остаётся, поэтому
+   * после сохранения или отмены пользователь возвращается в ту же позицию.
+   */
   const openEditVariant = useCallback(
     (itemId: string, variantId: string) =>
       setModal({ kind: "edit-variant", itemId, variantId }),
@@ -1004,6 +1046,12 @@ export function useSpecBuilder({
       setItems((prev) => prev.filter((i) => !ids.includes(i.id)));
       setSelected(new Set());
       setModal({ kind: "none" });
+      // Панель удалённой позиции закрываем: иначе в URL осталась бы ссылка
+      // на несуществующую позицию (и перезагрузка открыла бы пустоту).
+      if (urlItemId && ids.includes(urlItemId)) {
+        setDetailReturnTo(null);
+        closeItemUrl();
+      }
 
       startTransition(async () => {
         await persist.flush();
@@ -1032,7 +1080,7 @@ export function useSpecBuilder({
         });
       });
     },
-    [orgSlug, projectId, persist, showToast],
+    [orgSlug, projectId, persist, showToast, urlItemId, closeItemUrl],
   );
 
   const deleteItem = useCallback(
@@ -1303,35 +1351,86 @@ export function useSpecBuilder({
     });
   }, []);
 
-  const closeModal = useCallback(
-    () =>
-      setModal((m) => {
-        // Ссылка на позицию открыта из «Состава» другой позиции: закрывая её,
-        // возвращаемся к владельцу состава на ту же вкладку.
-        if (m.kind === "detail" && m.returnTo)
-          return { kind: "detail", id: m.returnTo.id, tab: m.returnTo.tab };
-        // Редактирование операции открыто из детализации позиции: закрывая
-        // модалку операции, возвращаемся к той же детализации.
-        if (m.kind === "edit-operation" && m.from)
-          return { kind: "detail", id: m.from.id };
-        return { kind: "none" };
-      }),
+  /**
+   * Закрытие верхнего слоя.
+   *
+   * Если что-то перекрывает панель (операция, вариант, удаление, добавление) —
+   * закрываем именно его: панель вернётся сама, потому что её позиция всё ещё
+   * в URL. Если перекрывать нечего — закрываем панель: снимаем `?item=`
+   * заменой записи, а если открывали её мы сами — шагаем назад по истории,
+   * чтобы вернуться туда, откуда пришли (родитель позиции, владелец состава,
+   * список). Ту же логику получает системная кнопка «Назад»: она просто
+   * убирает параметр из URL.
+   */
+  const closeModal = useCallback(() => {
+    if (modal.kind !== "none") {
+      setModal({ kind: "none" });
+      return;
+    }
+    if (!urlItemId) return;
+    if (detailReturnTo) {
+      window.history.back();
+      return;
+    }
+    closeItemUrl();
+  }, [modal.kind, urlItemId, detailReturnTo, closeItemUrl]);
+
+  /**
+   * Закрыть только верхний слой, не трогая панель позиции. Нужно там, где
+   * «закрыть текущую модалку» — служебная операция слоя (`?dialog=`), а не
+   * намерение пользователя закрыть позицию.
+   */
+  const closeOverlay = useCallback(
+    () => setModal((m) => (m.kind === "none" ? m : { kind: "none" })),
     [],
   );
+
+  /**
+   * Открыть детализацию позиции. Каждая позиция — отдельный шаг истории:
+   * системная кнопка «Назад» и кнопка в шапке панели возвращают туда, откуда
+   * пришли.
+   */
   const openDetail = useCallback(
-    (id: string, returnTo?: DetailReturnTo) =>
-      setModal(
-        returnTo
-          ? { kind: "detail", id, returnTo }
-          : { kind: "detail", id },
-      ),
-    [],
+    (id: string, returnTo?: DetailReturnTo) => {
+      const tab = returnTo?.tab ?? "overview";
+      // Панель перекрывает любой верхний слой (например, список закупки,
+      // из которого тоже можно открыть позицию).
+      setModal((m) => (m.kind === "none" ? m : { kind: "none" }));
+      if (id === urlItemId) {
+        // Та же позиция (повторный клик, ссылка на себя): меняем только
+        // вкладку и не плодим шаги истории — и не обещаем возврат туда, куда
+        // записи в истории нет.
+        setDetailReturnTo(null);
+        setItemUrl(id, { tab });
+        return;
+      }
+      setDetailReturnTo(returnTo ?? null);
+      openItemUrl(id, { tab });
+    },
+    [urlItemId, openItemUrl, setItemUrl],
   );
+
+  /**
+   * Смена вкладки в панели: только URL, без нового шага истории. Вкладка
+   * переживает перезагрузку и возврат по «Назад» к этой же позиции.
+   */
+  const setDetailTab = useCallback(
+    (tab: DetailPanelTab) => {
+      if (!urlItemId) return;
+      setItemUrl(urlItemId, { tab });
+    },
+    [urlItemId, setItemUrl],
+  );
+
   const openAdd = useCallback(
     (editId: string | null = null, parentId: string | null = null) =>
       setModal({ kind: "add", editId, parentId }),
     [],
   );
+  /**
+   * Слои, перекрывающие панель позиции. `?item=` не трогаем: закрыв слой,
+   * пользователь возвращается в ту же позицию на той же вкладке.
+   */
   const openDelete = useCallback(
     (id: string) => setModal({ kind: "delete", ids: [id] }),
     [],
@@ -1432,12 +1531,12 @@ export function useSpecBuilder({
 
   /**
    * Открыть форму редактирования существующей операции (из бейджа в строке
-   * или из детализации позиции). При переходе из детализации передаётся
-   * from — после закрытия модалки операции туда возвращаемся.
+   * или из детализации позиции). Отдельного «откуда пришли» не нужно: если
+   * операцию открыли из панели, её `?item=` остался в URL, и после закрытия
+   * панель вернётся сама.
    */
   const openServiceOperationEdit = useCallback(
-    (operationId: string, from?: { kind: "detail"; id: string }) =>
-      setModal({ kind: "edit-operation", operationId, from }),
+    (operationId: string) => setModal({ kind: "edit-operation", operationId }),
     [],
   );
 
@@ -1504,7 +1603,9 @@ export function useSpecBuilder({
     [closeModal, showToast],
   );
 
-  // Escape закрывает верхний слой: сначала конфликт марки, потом модалку
+  // Escape закрывает верхний слой: сначала конфликт марки, потом модалку.
+  // Панель позиции сюда не входит — её Dialog закрывает себя сам через
+  // onOpenChange (`closeModal`), и повторный вызов задваивал бы «Назад».
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape") return;
@@ -1513,11 +1614,7 @@ export function useSpecBuilder({
         setCodeConflict(null);
         return;
       }
-      // Escape: сначала конфликт марки, потом верхнюю модалку. DetailModal
-      // (и вложенные диалоги) закрывает сам Dialog через onOpenChange —
-      // не обрабатываем его здесь повторно, чтобы не задваивать «возврат»
-      // к владельцу состава после закрытия позиции-ссылки.
-      if (modal.kind !== "none" && modal.kind !== "detail") {
+      if (modal.kind !== "none") {
         e.preventDefault();
         closeModal();
       }
@@ -1526,10 +1623,19 @@ export function useSpecBuilder({
     return () => window.removeEventListener("keydown", onKey);
   }, [codeConflict, modal.kind, closeModal]);
 
-  const current =
-    modal.kind === "detail"
-      ? (items.find((i) => i.id === modal.id) ?? null)
-      : null;
+  /**
+   * Позиция панели. Отдельного состояния нет: пока `?item=` в URL, позиция
+   * открыта — поэтому прямая ссылка, перезагрузка и браузерные «Назад»/
+   * «Вперёд» работают без синхронизации состояния и URL.
+   *
+   * Верхний слой панель перекрывает: рисуем что-то одно.
+   */
+  const detailItem = urlItemId
+    ? (items.find((i) => i.id === urlItemId) ?? null)
+    : null;
+  const current = modal.kind === "none" ? detailItem : null;
+  /** Вкладка из URL — панель открывается на ней же после слоёв и перезагрузки. */
+  const detailTab = urlTab ?? "overview";
   const editing =
     modal.kind === "add" && modal.editId
       ? (items.find((i) => i.id === modal.editId) ?? null)
@@ -1650,6 +1756,8 @@ export function useSpecBuilder({
     editing,
     deleting,
     openDetail,
+    setDetailTab,
+    detailTab,
     openAdd,
     openDelete,
     openBulkDelete,
@@ -1661,6 +1769,7 @@ export function useSpecBuilder({
     onOperationUpdated,
     onOperationDeleted,
     closeModal,
+    closeOverlay,
 
     // прочее
     toast,

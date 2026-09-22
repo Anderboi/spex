@@ -32,6 +32,8 @@ function isPlainLeftClick(event: MouseEvent<HTMLAnchorElement>): boolean {
  * - `close()` — `router.replace(...)` без диалоговых параметров: закрытие
  *   не оставляет «пустых» записей в истории (безопасно для прямых ссылок).
  *   Помимо `param` всегда удаляется `id`, а также переданные `cleanupKeys`.
+ * - `set(value, extra?)` — смена значения без записи в истории: для состояния
+ *   внутри открытого диалога (вкладки).
  * - `hrefFor(value, extra?)` — строка URL для открытия, удобно для `<Link>`.
  *
  * `shallow` переключает открытие и закрытие на History API браузера
@@ -89,6 +91,29 @@ export function useDialogUrl(
     [router, hrefFor, shallow],
   );
 
+  /**
+   * Меняет значение параметра, **не добавляя запись** в историю. Нужно для
+   * состояния внутри уже открытого диалога (например вкладки панели позиции):
+   * переключение вкладки не должно становиться отдельным шагом для «Назад»,
+   * но должно попадать в URL — иначе перезагрузка вернёт не ту вкладку.
+   *
+   * Состояние текущей записи истории сохраняется: Next хранит там своё
+   * состояние навигации, и обнулять его (`replaceState(null, ...)`) нельзя.
+   */
+  const set = useCallback(
+    (value: string, extra?: Record<string, string>) => {
+      const url = hrefFor(value, extra);
+      if (shallow) {
+        window.history.replaceState(window.history.state, "", url);
+        return;
+      }
+      startTransition(() => {
+        router.replace(url, { scroll: false });
+      });
+    },
+    [router, hrefFor, shallow],
+  );
+
   const close = useCallback(() => {
     const params = new URLSearchParams(searchParams.toString());
     params.delete(param);
@@ -122,5 +147,5 @@ export function useDialogUrl(
     [hrefFor, open],
   );
 
-  return { value, hrefFor, open, close, linkProps, isPending };
+  return { value, hrefFor, open, set, close, linkProps, isPending };
 }
