@@ -17,6 +17,24 @@ export type CustomFunctions = {
     Args: { p_token: string; p_user_id: string; p_email: string };
     Returns: { org_id: string; org_slug: string; org_name: string }[];
   };
+  /**
+   * Переименование организации. Возвращает сохранённое (обрезанное) название.
+   * Только owner — проверяется внутри функции (см. миграцию
+   * 20260916_001_organization_roles_owner_admin_member.sql).
+   */
+  update_organization_name: {
+    Args: { p_org_id: string; p_actor_id: string; p_name: string };
+    Returns: string;
+  };
+  /**
+   * Атомарная передача владения: старый owner → admin, новый → owner.
+   * Блокирует состав организации (`for update`), поэтому двух владельцев или
+   * организации без владельца в промежуточном состоянии не возникает.
+   */
+  transfer_organization_ownership: {
+    Args: { p_org_id: string; p_actor_id: string; p_target_name: string };
+    Returns: null;
+  };
   create_manual_spec_item: {
     Args: {
       p_org_id: string;

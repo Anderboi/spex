@@ -202,6 +202,23 @@ export const createOrganizationSchema = z.object({
     .max(80, "Слишком длинное название"),
 });
 
+/**
+ * Переименование организации. Slug не меняется — он используется в URL,
+ * и отдельной операции для него нет.
+ *
+ * Границы совпадают с CHECK-констрейнтом `organizations_name_length`
+ * (непустое имя) и с проверкой в RPC `update_organization_name`.
+ */
+export const renameOrganizationSchema = z.object({
+  name: z
+    .string()
+    .trim()
+    .min(2, "Название должно содержать минимум 2 символа")
+    .max(80, "Слишком длинное название"),
+});
+
+export type RenameOrganizationInput = z.infer<typeof renameOrganizationSchema>;
+
 const money = z
   .number()
   .min(0)

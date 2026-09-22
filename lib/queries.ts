@@ -19,7 +19,7 @@ import {
   SpecItem,
 } from "./types";
 import { one } from "./utils";
-import { canMutateRecord } from "./permissions";
+import { canMutateRecord, type InviteRole } from "./permissions";
 import { MATERIAL_TARGET_PROJECT_STATUSES } from "./constants";
 import { MATERIALS_PAGE_SIZE } from "./materials/filters";
 import { CONTACTS_PAGE_SIZE } from "./contacts/filters";
@@ -993,14 +993,26 @@ export type TeamMember = {
   } | null;
 };
 
+/**
+ * Приглашение: `organization_invites.role` — text с CHECK (admin|member).
+ * Владельца приглашением назначить нельзя, только передачей владения.
+ */
 export type ActiveInvite = {
   id: string;
   email: string;
-  role: "admin" | "member";
+  role: InviteRole;
   created_at: string;
   expires_at: string;
 };
 
+/**
+ * Данные страницы «Команда».
+ *
+ * `currentUserRole` — роль из сессии (owner | admin | member), `currentUserId` —
+ * id текущего пользователя: по ним UI решает, какие действия показывать.
+ * Название организации отдаём вместе с командой, чтобы диалог передачи владения
+ * не делал отдельный запрос.
+ */
 export async function getTeamData(orgSlug: string) {
   const { userId, orgId, role } = await requireOrgBySlug(orgSlug);
   const supabase = createAdminClient();
@@ -1009,6 +1021,7 @@ export async function getTeamData(orgSlug: string) {
   const [
     { data: membersData, error: mErr },
     { data: invitesData, error: iErr },
+    { data: orgData, error: oErr },
   ] = await Promise.all([
     supabase
       .from("organization_members")
@@ -1023,6 +1036,11 @@ export async function getTeamData(orgSlug: string) {
       .eq("org_id", orgId)
       .gt("expires_at", new Date().toISOString())
       .order("created_at", { ascending: false }),
+    supabase
+      .from("organizations")
+      .select("id, name, slug")
+      .eq("id", orgId)
+      .maybeSingle(),
   ]);
 
   if (mErr) {
@@ -1032,6 +1050,10 @@ export async function getTeamData(orgSlug: string) {
   if (iErr) {
     console.error("[getTeamData] invites", iErr.message);
     throw new Error("Не удалось загрузить приглашения");
+  }
+  if (oErr) {
+    console.error("[getTeamData] organization", oErr.message);
+    throw new Error("Не удалось загрузить организацию");
   }
 
   type MemberRow = {
@@ -1072,5 +1094,6 @@ export async function getTeamData(orgSlug: string) {
     invites: invitesData ?? [],
     currentUserRole: role,
     currentUserId: userId,
+    organization: orgData ?? null,
   };
 }

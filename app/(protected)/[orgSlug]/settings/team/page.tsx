@@ -1,7 +1,11 @@
 import { getTeamData } from "@/lib/queries";
-import { can } from "@/lib/permissions";
+import { can, isInviteRole, ROLE_LABELS } from "@/lib/permissions";
 import { InviteDialog } from "@/components/team/invite-dialog";
 import { MemberRow } from "@/components/team/member-row";
+import {
+  DangerZoneCard,
+  OrganizationSettingsCard,
+} from "@/components/team/organization-settings";
 import {
   Card,
   CardContent,
@@ -20,17 +24,24 @@ type Props = { params: Promise<{ orgSlug: string }> };
 
 export default async function TeamSettingsPage({ params }: Props) {
   const { orgSlug } = await params;
-  const { members, invites, currentUserRole, currentUserId } =
-    await getTeamData(orgSlug);
-  const hasAdminAccess = can(currentUserRole, "member:invite");
+  const {
+    members,
+    invites,
+    currentUserRole,
+    currentUserId,
+    organization,
+  } = await getTeamData(orgSlug);
+
+  const canManage = can(currentUserRole, "member:invite");
+  const canUpdateOrg = can(currentUserRole, "organization:update");
+  const canDeleteOrg = can(currentUserRole, "organization:delete");
+  const organizationName = organization?.name ?? orgSlug;
 
   return (
     <PageContainer>
       <div className="space-y-6">
-        <PageHeader
-          title="Управление командой"
-        >
-          {hasAdminAccess && <InviteDialog orgSlug={orgSlug} />}
+        <PageHeader title="Управление командой">
+          {canManage && <InviteDialog orgSlug={orgSlug} />}
         </PageHeader>
 
         {/* Список участников */}
@@ -51,6 +62,7 @@ export default async function TeamSettingsPage({ params }: Props) {
               <MemberRow
                 key={member.user_id}
                 orgSlug={orgSlug}
+                organizationName={organizationName}
                 member={member}
                 currentUserRole={currentUserRole}
                 currentUserId={currentUserId}
@@ -60,7 +72,7 @@ export default async function TeamSettingsPage({ params }: Props) {
         </Card>
 
         {/* Ожидающие приглашения */}
-        {hasAdminAccess && invites.length > 0 && (
+        {canManage && invites.length > 0 && (
           <Card>
             <CardHeader className="pb-3">
               <div className="flex items-center gap-2">
@@ -86,7 +98,9 @@ export default async function TeamSettingsPage({ params }: Props) {
 
                   <div className="flex items-center gap-2">
                     <Badge variant="outline" className="text-xs">
-                      {invite.role === "admin" ? "Администратор" : "Участник"}
+                      {isInviteRole(invite.role)
+                        ? ROLE_LABELS[invite.role]
+                        : invite.role}
                     </Badge>
                     <span className="text-xs text-muted-foreground">
                       до{" "}
@@ -97,6 +111,21 @@ export default async function TeamSettingsPage({ params }: Props) {
               ))}
             </CardContent>
           </Card>
+        )}
+
+        {/* Название организации: видно всем, менять может только владелец */}
+        <OrganizationSettingsCard
+          orgSlug={orgSlug}
+          organizationName={organizationName}
+          canUpdate={canUpdateOrg}
+        />
+
+        {/* Удаление организации — только владелец */}
+        {canDeleteOrg && (
+          <DangerZoneCard
+            orgSlug={orgSlug}
+            organizationName={organizationName}
+          />
         )}
       </div>
     </PageContainer>

@@ -1420,33 +1420,6 @@ export type Database = {
               p_company_id: string
               p_company_name: string
               p_created_by: string
-              p_item_id: string
-              p_material_id: string
-              p_name: string
-              p_org_id: string
-              p_price: number
-              p_project_id: string
-              p_qty: number
-              p_save_to_library: boolean
-              p_spec: string
-              p_stock_pct: number
-              p_supplier_discount_pct: number
-              p_type: string
-              p_unit: string
-            }
-            Returns: {
-              id: string
-            }[]
-          }
-        | {
-            Args: {
-              p_article: string
-              p_brand: string
-              p_client_discount_pct: number
-              p_code: string
-              p_company_id: string
-              p_company_name: string
-              p_created_by: string
               p_image_url: string
               p_item_id: string
               p_material_id: string
@@ -1469,6 +1442,7 @@ export type Database = {
         | {
             Args: {
               p_article: string
+              p_attrs?: Json
               p_brand: string
               p_client_discount_pct: number
               p_code: string
@@ -1477,11 +1451,14 @@ export type Database = {
               p_created_by: string
               p_image_url: string
               p_item_id: string
+              p_lead_time?: string
               p_material_id: string
               p_name: string
               p_org_id: string
               p_parent_id?: string
               p_price: number
+              p_product_type?: string
+              p_product_url?: string
               p_project_id: string
               p_qty: number
               p_save_to_library: boolean
@@ -1497,7 +1474,6 @@ export type Database = {
           }
       create_organization:
         | { Args: { p_name: string }; Returns: string }
-        | { Args: { p_name: string; p_user_id: string }; Returns: string }
         | {
             Args: { p_name: string; p_slug_base?: string; p_user_id: string }
             Returns: {
@@ -1522,7 +1498,15 @@ export type Database = {
         }[]
       }
       slugify: { Args: { p_text: string }; Returns: string }
+      transfer_organization_ownership: {
+        Args: { p_actor_id: string; p_org_id: string; p_target_name: string }
+        Returns: undefined
+      }
       unique_org_slug: { Args: { p_base: string }; Returns: string }
+      update_organization_name: {
+        Args: { p_actor_id: string; p_name: string; p_org_id: string }
+        Returns: string
+      }
     }
     Enums: {
       org_role: "owner" | "admin" | "member" | "viewer"

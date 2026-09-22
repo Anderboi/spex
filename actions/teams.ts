@@ -2,10 +2,11 @@
 
 import { createAdminClient } from "@/lib/supabase/admin";
 import {
-  canManageMembers,
-  canRemoveMember,
-  OrgRole,
   can,
+  canRemoveMember,
+  canUpdateMemberRole,
+  isOrgRole,
+  OrgRole,
 } from "@/lib/permissions";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
@@ -18,6 +19,11 @@ import { callRpc } from '@/lib/supabase/rpc';
 
 const INVITE_TTL_DAYS = 7;
 
+/**
+ * Роли приглашения. Owner здесь быть не может: владение передаётся отдельной
+ * операцией `transferOwnership`, и это же ограничение закреплено в БД
+ * (CHECK на organization_invites.role: admin | member).
+ */
 const inviteSchema = z.object({
   email: z
     .string()
@@ -27,6 +33,8 @@ const inviteSchema = z.object({
     .max(200),
   role: z.enum(["admin", "member"]),
 });
+
+const roleSchema = z.enum(["admin", "member"]);
 
 /**
  * 1. Создание приглашения (Generate Invite)
@@ -38,7 +46,7 @@ export async function createInvite(
   const { orgId, userId, role } = await requireOrgBySlug(orgSlug);
 
   if (!can(role, "member:invite")) {
-    return fail("Приглашать участников может только администратор");
+    return fail("Приглашать участников может только владелец или администратор", "FORBIDDEN");
   }
 
   const parsed = inviteSchema.safeParse({
@@ -139,7 +147,13 @@ export async function acceptInvite(
 }
 
 /**
- * 3. Изменение роли участника
+ * 3. Изменение роли участника.
+ *
+ * Разрешены только переходы member → admin и admin → member. Владельца нельзя
+ * ни понизить, ни назначить этой операцией: `role = "owner"` отбрасывается
+ * схемой, а цель-владелец — проверкой `canUpdateMemberRole`. Передача владения
+ * живёт в `transferOwnership` (actions/organization.ts) и выполняется атомарно
+ * в БД.
  */
 export async function updateMemberRole(
   orgSlug: string,
@@ -148,9 +162,18 @@ export async function updateMemberRole(
 ): Promise<ActionResult<null>> {
   const { userId, orgId, role } = await requireOrgBySlug(orgSlug);
 
-  if (!can(role, "member:role:change"))
-    return fail("Менять роли может только владелец");
-  if (targetUserId === userId) return fail("Нельзя изменить собственную роль");
+  if (!can(role, "member:update"))
+    return fail("Менять роли участников может только владелец или администратор", "FORBIDDEN");
+  if (!targetUserId) return fail("Участник не указан", "INVALID_INPUT");
+  if (targetUserId === userId) return fail("Нельзя изменить собственную роль", "FORBIDDEN");
+
+  const parsedRole = roleSchema.safeParse(newRole);
+  if (!parsedRole.success) {
+    return fail(
+      "Владение передаётся отдельной операцией «Передать владение»",
+      "INVALID_INPUT",
+    );
+  }
 
   const supabase = createAdminClient();
   const { data: target } = await supabase
@@ -160,23 +183,32 @@ export async function updateMemberRole(
     .eq("user_id", targetUserId)
     .maybeSingle();
 
-  if (!target) return fail("Участник не найден");
-  if (target.role === newRole) return ok(null);
+  if (!target) return fail("Участник не найден", "NOT_FOUND");
 
-  // студия без владельца — необратимое состояние
-  if (target.role === "owner" && newRole !== "owner") {
-    const { count } = await supabase
-      .from("organization_members")
-      .select("user_id", { count: "exact", head: true })
-      .eq("org_id", orgId)
-      .eq("role", "owner");
-    if ((count ?? 0) <= 1)
-      return fail("В студии должен остаться хотя бы один владелец");
+  // Роль цели — из БД, не из аргументов: клиент мог прислать заниженную.
+  // `viewer` в модели ролей не участвует, поэтому такую строку считаем
+  // повреждёнными данными и ничего с ней не делаем.
+  if (!isOrgRole(target.role)) {
+    console.error("[updateMemberRole] неизвестная роль участника", target.role);
+    return fail("Некорректная роль участника", "INVALID_INPUT");
   }
+
+  if (
+    !canUpdateMemberRole({
+      currentRole: role,
+      targetRole: target.role,
+      newRole: parsedRole.data,
+      isSelf: targetUserId === userId,
+    })
+  ) {
+    return fail("У вас нет прав изменить роль этого участника", "FORBIDDEN");
+  }
+
+  if (target.role === parsedRole.data) return ok(null);
 
   const { error } = await supabase
     .from("organization_members")
-    .update({ role: newRole })
+    .update({ role: parsedRole.data })
     .eq("org_id", orgId)
     .eq("user_id", targetUserId);
 
@@ -186,11 +218,16 @@ export async function updateMemberRole(
   }
 
   revalidatePath(`/${orgSlug}/settings/team`);
+  revalidatePath("/", "layout");
   return ok(null);
 }
 
 /**
- * 4. Удаление участника из организации
+ * 4. Удаление участника из организации.
+ *
+ * Владельца исключить нельзя никому (иначе организация осталась бы без owner —
+ * инвариант «ровно один owner» гарантирован БД), себя — тоже: для выхода из
+ * организации нужна отдельная операция, которой пока нет.
  */
 export async function removeMember(
   orgSlug: string,
@@ -198,7 +235,7 @@ export async function removeMember(
 ): Promise<ActionResult<null>> {
   const { userId, orgId, role } = await requireOrgBySlug(orgSlug);
   if (targetUserId === userId)
-    return fail("Нельзя исключить себя — покиньте студию отдельно");
+    return fail("Нельзя исключить себя — покиньте студию отдельно", "FORBIDDEN");
 
   const supabase = createAdminClient();
 
@@ -210,9 +247,19 @@ export async function removeMember(
     .eq("user_id", targetUserId)
     .maybeSingle();
 
-  if (!target) return fail("Участник не найден");
-  if (!canRemoveMember(role, target.role as OrgRole)) {
-    return fail("У вас нет прав исключить этого участника");
+  if (!target) return fail("Участник не найден", "NOT_FOUND");
+  if (!isOrgRole(target.role)) {
+    console.error("[removeMember] неизвестная роль участника", target.role);
+    return fail("Некорректная роль участника", "INVALID_INPUT");
+  }
+  if (
+    !canRemoveMember({
+      currentRole: role,
+      targetRole: target.role,
+      isSelf: false,
+    })
+  ) {
+    return fail("У вас нет прав исключить этого участника", "FORBIDDEN");
   }
 
   const { error } = await supabase

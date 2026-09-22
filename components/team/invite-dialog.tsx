@@ -21,10 +21,12 @@ import { UserPlus, Copy, Check, Loader2 } from "lucide-react";
 import Link from "next/link";
 import { createInvite } from "@/actions/teams";
 import { useDialogUrl } from "@/hooks/use-dialog-url";
+import { INVITE_ROLES, isInviteRole, ROLE_LABELS, type InviteRole } from "@/lib/permissions";
 
-const roleLabels: Record<string, string> = {
-  member: "Участник",
-  admin: "Администратор",
+/** Подписи ролей для приглашения: owner недоступен — владение передаётся отдельно. */
+const roleDescriptions: Record<InviteRole, string> = {
+  member: "Пользователь (просмотр и редактирование)",
+  admin: "Администратор (управление проектами и командой)",
 };
 
 export function InviteDialog({ orgSlug }: { orgSlug: string }) {
@@ -32,6 +34,7 @@ export function InviteDialog({ orgSlug }: { orgSlug: string }) {
   const [error, setError] = useState<string | null>(null);
   const [inviteUrl, setInviteUrl] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [role, setRole] = useState<InviteRole>("member");
   const { value: dialog, hrefFor, close: closeDialog } = useDialogUrl("dialog");
 
   // Диалог управляется URL: ?dialog=invite
@@ -75,8 +78,6 @@ export function InviteDialog({ orgSlug }: { orgSlug: string }) {
     }
   };
 
-  const [role, setRole] = useState("member");
-
   return (
     <>
       <Button
@@ -115,7 +116,29 @@ export function InviteDialog({ orgSlug }: { orgSlug: string }) {
 
               <div className="space-y-2">
                 <Label htmlFor="role">Роль</Label>
-                <RoleSelect />
+                <Select
+                  name="role"
+                  value={role}
+                  onValueChange={(val) => {
+                    if (val && isInviteRole(val)) setRole(val);
+                  }}
+                >
+                  <SelectTrigger id="role" className="w-full h-10! bg-bg-card">
+                    <SelectValue>{ROLE_LABELS[role]}</SelectValue>
+                  </SelectTrigger>
+
+                  <SelectContent className="w-fit bg-bg-card">
+                    {INVITE_ROLES.map((value) => (
+                      <SelectItem key={value} value={value} className="h-10">
+                        {roleDescriptions[value]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-fg-muted">
+                  Владельца приглашением назначить нельзя — владение передаётся
+                  отдельным действием.
+                </p>
               </div>
 
               {error && (
@@ -160,32 +183,5 @@ export function InviteDialog({ orgSlug }: { orgSlug: string }) {
         </DialogContent>
       </Dialog>
     </>
-  );
-}
-
-export default function RoleSelect() {
-  // 2. Добавляем стейт для отслеживания выбранного значения (начиная с дефолтного)
-  const [role, setRole] = useState("member");
-
-  return (
-    <Select
-      name="role"
-      value={role}
-      onValueChange={(val) => setRole(val ?? "")}
-    >
-      <SelectTrigger className="w-full h-10! bg-bg-card">
-        {/* 3. Передаем короткое название внутрь SelectValue */}
-        <SelectValue>{roleLabels[role] ?? "Выберите роль"}</SelectValue>
-      </SelectTrigger>
-
-      <SelectContent className="w-fit bg-bg-card">
-        <SelectItem value="member" className="h-10">
-          Участник (Просмотр и редактирование)
-        </SelectItem>
-        <SelectItem value="admin" className="h-10">
-          Администратор (Управление проектами и командой)
-        </SelectItem>
-      </SelectContent>
-    </Select>
   );
 }
