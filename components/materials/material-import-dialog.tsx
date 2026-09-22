@@ -11,6 +11,9 @@
  * как и у остальных диалогов библиотеки: состояние берётся из search params, а
  * не из локального `useState`, поэтому окно переживает перезагрузку, закрывается
  * кнопкой «Назад» и не требует серверного рендера страницы.
+ *
+ * Быстрая клиентская проверка ссылки — общая с формой спецификации
+ * (`isProbablyImportUrl`): политику адресов всё равно решает сервер.
  */
 
 import { useState, useTransition } from "react";
@@ -28,6 +31,7 @@ import {
 } from "@/components/ui/dialog";
 import { importMaterialFromUrl } from "@/actions/material-import";
 import type { MaterialImportResult } from "@/actions/material-import";
+import { isProbablyImportUrl } from "@/lib/material-import/url-input";
 
 interface MaterialImportDialogProps {
   open: boolean;
@@ -35,25 +39,6 @@ interface MaterialImportDialogProps {
   onOpenChange: (open: boolean) => void;
   /** Успешный импорт: черновик и ключ передаются родителю для показа формы. */
   onImported: (result: MaterialImportResult) => void;
-}
-
-/**
- * Базовая клиентская проверка ссылки.
- *
- * Она нужна только чтобы не отправлять заведомо пустой ввод и дать быструю
- * подсказку. Настоящая проверка адреса (схема, порт, приватные диапазоны, DNS,
- * каждый редирект) выполняется на сервере в `guards.ts`/`safeFetch` — здесь её
- * повторять нельзя, иначе появится вторая, расходящаяся реализация.
- */
-function isProbablyUrl(value: string): boolean {
-  const trimmed = value.trim();
-  if (!trimmed) return false;
-  try {
-    const url = new URL(trimmed);
-    return url.protocol === "http:" || url.protocol === "https:";
-  } catch {
-    return false;
-  }
 }
 
 export function MaterialImportDialog({
@@ -66,7 +51,7 @@ export function MaterialImportDialog({
   const [isPending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
-  const canSubmit = isProbablyUrl(url) && !isPending;
+  const canSubmit = isProbablyImportUrl(url) && !isPending;
 
   const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();

@@ -1,9 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { TYPE_ORDER } from "../constants";
+import { TYPE_ORDER, UNIT_OPTIONS } from "../constants";
 import type { MaterialImportDraft } from "./draft";
 import {
   MATERIAL_FORM_DEFAULTS,
   materialImportDraftToFormValues,
+  materialImportDraftToManualItemValues,
 } from "./mapper";
 
 /** Полный черновик: все поля заполнены. */
@@ -187,5 +188,86 @@ describe("materialImportDraftToFormValues: чистота", () => {
     expect(materialImportDraftToFormValues(draft)).toEqual(
       materialImportDraftToFormValues(draft),
     );
+  });
+});
+
+describe("materialImportDraftToManualItemValues: перенос в форму позиции", () => {
+  it("переименовывает поля в имена ManualItemForm", () => {
+    const values = materialImportDraftToManualItemValues(fullDraft());
+
+    expect(values).toEqual({
+      name: "Керамогранит Calacatta",
+      brand: "ABK",
+      article: "KM-1024",
+      type: "Отделка",
+      productType: "Керамогранит",
+      unit: "м²",
+      price: 6500,
+      imageUrl:
+        "https://project.supabase.co/storage/v1/object/public/material-images/o/a.jpg",
+      productUrl: "https://shop.example.com/product/1",
+      attrs: { "Формат": "120×278", "Поверхность": "Матовая" },
+    });
+  });
+
+  it("не отдаёт описание: в черновике его нет", () => {
+    // `spec` — «Описание» формы позиции. Конвейер описания не сохраняет, и
+    // выдумывать его нельзя: поле остаётся дефолтным (пустым).
+    expect(
+      Object.prototype.hasOwnProperty.call(
+        materialImportDraftToManualItemValues(fullDraft()),
+        "spec",
+      ),
+    ).toBe(false);
+  });
+
+  it("неполный импорт даёт значения формы, а не ошибку", () => {
+    const values = materialImportDraftToManualItemValues(emptyDraft());
+
+    expect(values.name).toBe("");
+    expect(values.brand).toBe("");
+    expect(values.article).toBe("");
+    expect(values.type).toBe(MATERIAL_FORM_DEFAULTS.category);
+    expect(values.productType).toBe("");
+    expect(values.unit).toBe(MATERIAL_FORM_DEFAULTS.unit);
+    expect(values.price).toBe(0);
+    expect(values.imageUrl).toBeNull();
+    expect(values.productUrl).toBe("https://shop.example.com/product/1");
+    expect(values.attrs).toEqual({});
+  });
+
+  it("категория вне TYPE_ORDER не попадает в форму", () => {
+    const values = materialImportDraftToManualItemValues(
+      emptyDraft({ category: "Ванная комната" }),
+    );
+    expect(TYPE_ORDER).toContain(values.type);
+    expect(values.type).toBe(MATERIAL_FORM_DEFAULTS.category);
+  });
+
+  it("единица вне UNIT_OPTIONS не попадает в форму", () => {
+    // В форме единица — закрытый `<select>` по UNIT_OPTIONS.
+    const values = materialImportDraftToManualItemValues(
+      emptyDraft({ unit: "банка" }),
+    );
+    expect(UNIT_OPTIONS).toContain(values.unit);
+    expect(values.unit).toBe(MATERIAL_FORM_DEFAULTS.unit);
+  });
+
+  it("сохраняет свободный тип внутри категории", () => {
+    const values = materialImportDraftToManualItemValues(
+      emptyDraft({ category: "Сантехника", productType: "Смеситель для раковины" }),
+    );
+    expect(values.productType).toBe("Смеситель для раковины");
+  });
+
+  it("возвращает новый объект attrs и не мутирует черновик", () => {
+    const draft = fullDraft();
+    const snapshot = JSON.parse(JSON.stringify(draft));
+
+    const values = materialImportDraftToManualItemValues(draft);
+    values.attrs["Новый ключ"] = "значение";
+
+    expect(values.attrs).not.toBe(draft.attrs);
+    expect(JSON.parse(JSON.stringify(draft))).toEqual(snapshot);
   });
 });

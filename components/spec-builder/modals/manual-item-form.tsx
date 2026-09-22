@@ -22,6 +22,7 @@ import { fmt, fmtQty, cn } from "@/lib/utils";
 import { z } from "zod";
 import { SpecItem } from "@/lib/types";
 import { ManualSpecItemInput, manualSpecItemSchema } from "@/lib/validations";
+import type { ManualItemFormValues } from "@/lib/material-import/mapper";
 import { uploadMaterialImage } from "@/actions/materials";
 import { MaterialTypePicker } from "@/components/layout/material-type-picker";
 import { AttrsEditor } from "@/components/layout/attrs-editor";
@@ -49,6 +50,7 @@ export function ManualItemForm({
   variantFor = null,
   defaultType,
   onDirtyChange,
+  initialValues = null,
 }: {
   companies: SpecPickerCompany[];
   orgSlug: string;
@@ -63,6 +65,13 @@ export function ManualItemForm({
   defaultType?: SpecType;
   /** Сообщает родителю о наличии изменений в форме (для guard закрытия диалога). */
   onDirtyChange?: (dirty: boolean) => void;
+  /**
+   * Начальные значения из импорта по ссылке. Это НЕ второй способ создания
+   * материала: та же форма, те же поля и та же валидация — просто часть полей
+   * уже заполнена. Применяются только к созданию: при `editing` данные берутся
+   * из позиции.
+   */
+  initialValues?: ManualItemFormValues | null;
 }) {
   const form = useForm<
     z.input<typeof manualSpecItemSchema>,
@@ -71,20 +80,28 @@ export function ManualItemForm({
   >({
     resolver: zodResolver(manualSpecItemSchema),
     defaultValues: {
-      name: variantMode && variantFor ? variantFor.name : (editing?.name ?? ""),
-      brand: editing?.brand ?? "",
+      // Приоритет: редактирование → импорт → дефолты формы. Так предзаполнение
+      // из ссылки ничего не перетирает при редактировании существующей позиции.
+      name:
+        variantMode && variantFor
+          ? variantFor.name
+          : (editing?.name ?? initialValues?.name ?? ""),
+      brand: editing?.brand ?? initialValues?.brand ?? "",
       type: (variantMode && variantFor
         ? variantFor.type
         : (editing?.type ??
+          initialValues?.type ??
           defaultType ??
           "Отделка")) as (typeof TYPE_ORDER)[number],
-      productType: editing?.product_type ?? "",
+      productType: editing?.product_type ?? initialValues?.productType ?? "",
       spec: editing?.spec ?? "",
-      article: editing?.article ?? "",
+      article: editing?.article ?? initialValues?.article ?? "",
       qty: editing?.qty ?? 1,
       unit:
-        (editing?.unit as (typeof UNIT_OPTIONS)[number] | undefined) ?? "шт",
-      price: editing?.price ?? 0,
+        (editing?.unit as (typeof UNIT_OPTIONS)[number] | undefined) ??
+        initialValues?.unit ??
+        "шт",
+      price: editing?.price ?? initialValues?.price ?? 0,
       stockPct: editing?.stockPct ?? 0,
       clientDiscountPct: editing?.clientDiscountPct ?? 0,
       supplierDiscountPct: editing?.supplierDiscountPct ?? 0,
@@ -92,9 +109,9 @@ export function ManualItemForm({
       // Имя компании заполняет CompanyPicker при выборе: позиция получает
       // поставщика сразу, не дожидаясь перечитывания справочника.
       companyName: "",
-      imageUrl: editing?.imageUrl ?? null,
-      productUrl: editing?.product_url ?? "",
-      attrs: editing?.attrs ?? {},
+      imageUrl: editing?.imageUrl ?? initialValues?.imageUrl ?? null,
+      productUrl: editing?.product_url ?? initialValues?.productUrl ?? "",
+      attrs: { ...(editing?.attrs ?? initialValues?.attrs ?? {}) },
       leadTime: editing?.leadTime ?? "",
       saveToLibrary: !editing,
     },
@@ -264,7 +281,7 @@ export function ManualItemForm({
         </Field>
 
         <div className="grid grid-cols-2 gap-3">
-          <Field label="Ссылка на сайт">
+          <Field label="Ссылка на сайт" error={errors.productUrl?.message}>
             <Input
               {...register("productUrl")}
               placeholder="https://example.com"
@@ -285,6 +302,10 @@ export function ManualItemForm({
           </Field>
         </div>
 
+        {/* Галочка «в библиотеку» стоит ПОСЛЕ данных и характеристик, но ДО
+            количества/цены/поставщика: это решение про сам материал, а не про
+            закупку конкретной позиции. Одна и та же галочка работает и для
+            ручного ввода, и для импорта по ссылке. */}
         {!editing && (
           <FieldLabel>
             <ShadField orientation="horizontal">
@@ -308,32 +329,6 @@ export function ManualItemForm({
             </ShadField>
           </FieldLabel>
         )}
-
-        {/* {!editing && (
-          <label className="flex items-start gap-2.5 rounded-lg border border-border-muted p-3">
-            <Controller
-              control={form.control}
-              name="saveToLibrary"
-              render={({ field }) => (
-                <input
-                  type="checkbox"
-                  checked={!!field.value}
-                  onChange={(e) => field.onChange(e.target.checked)}
-                  className="mt-0.5 size-4"
-                />
-              )}
-            />
-            <span>
-              <span className="block text-[13.5px] font-medium">
-                Сохранить в библиотеку материалов
-              </span>
-              <span className="block text-[12px] text-fg-muted">
-                Материал станет доступен в других проектах. Снимите галочку для
-                разовых позиций.
-              </span>
-            </span>
-          </label>
-        )} */}
 
         {/* Характеристики. Пресеты ключей зависят от категории и типа:
             у керамогранита — формат и морозостойкость, у обоев — раппорт. */}

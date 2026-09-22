@@ -331,7 +331,16 @@ export const manualSpecItemSchema = z
      */
     companyName: z.string().trim().max(200).default(""),
     imageUrl: z.string().trim().max(500).nullable().default(null),
-    productUrl: z.string().trim().max(500).default(""),
+    /**
+     * Ссылка на страницу товара. Лимит 500 символов виден пользователю:
+     * импорт по ссылке приносит адрес страницы после редиректов целиком,
+     * вместе с параметрами разметки, и такой адрес может не поместиться.
+     */
+    productUrl: z
+      .string()
+      .trim()
+      .max(500, "Ссылка слишком длинная — сократите её до 500 символов")
+      .default(""),
     /** Характеристики позиции: ключ → значение. */
     attrs: z.record(z.string(), z.string().max(500)).default({}),
     saveToLibrary: z.boolean().default(true),

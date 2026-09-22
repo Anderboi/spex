@@ -1,7 +1,7 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import { Check, Plus, X } from "lucide-react";
+import { useCallback, useMemo, useState } from "react";
+import { Check, Plus, Sparkles, X } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -11,12 +11,18 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { ManualItemForm } from "./manual-item-form";
+import { UrlImportPanel } from "./url-import-panel";
 import { ALL_CATEGORIES, TYPE_ORDER, type SpecType } from "@/lib/constants";
 import type { MaterialListItem, SpecPickerCompany } from "@/lib/queries";
 import type { CompanyOption } from "@/components/layout/company-picker";
 import { fmt, plural, cn } from "@/lib/utils";
 import { SpecItem } from "@/lib/types";
 import { ManualSpecItemInput } from "@/lib/validations";
+import {
+  materialImportDraftToManualItemValues,
+  type ManualItemFormValues,
+} from "@/lib/material-import/mapper";
+import type { MaterialImportResult } from "@/actions/material-import";
 import { useDialogDismissGuard } from "@/components/ui/use-dialog-dismiss-guard";
 import {
   AlertDialog,
@@ -30,6 +36,25 @@ import {
 } from "@/components/ui/alert-dialog";
 
 type SortKey = "default" | "name" | "price" | "brand";
+
+/** Способы создать позицию: каталог, импорт по ссылке и ввод вручную. */
+type AddMode = "catalog" | "url" | "manual";
+
+/**
+ * Подписи шагов. «По ссылке» — это НЕ отдельный тип материала: импорт только
+ * заполняет существующую форму позиции, куда пользователь потом попадает.
+ */
+const MODE_LABEL: Record<AddMode, string> = {
+  catalog: "Из библиотеки",
+  url: "По ссылке",
+  manual: "Вручную",
+};
+
+/** Итог импорта, показанный в форме: значения и понятные предупреждения. */
+type ImportPrefill = {
+  values: ManualItemFormValues;
+  warnings: string[];
+};
 
 export default function AddModalForm({
   library,
@@ -69,11 +94,28 @@ export default function AddModalForm({
   variantFor?: SpecItem | null;
   forceManual?: boolean;
 }) {
-  const [mode, setMode] = useState<"catalog" | "manual">(
+  const [mode, setMode] = useState<AddMode>(
     forceManual || editing ? "manual" : "catalog",
   );
   const [manualDirty, setManualDirty] = useState(false);
+  const [urlDirty, setUrlDirty] = useState(false);
+  /**
+   * Данные, полученные по ссылке. Живут здесь, а не в форме: шаг «По ссылке» и
+   * форма — разные ветки одного диалога, и черновик должен пережить переход
+   * между ними. Создаётся ровно один материал: импорт лишь заполняет поля.
+   */
+  const [importPrefill, setImportPrefill] = useState<ImportPrefill | null>(null);
   const [query, setQuery] = useState("");
+  /**
+   * Импорт по ссылке доступен только там, где действительно создаётся новая
+   * позиция: при заполнении существующей (`editing`) данные берутся из неё,
+   * `forceManual` прямо просит ручной ввод, а в режиме варианта категория и
+   * наименование заданы родительской позицией.
+   */
+  const canImportByUrl = !editing && !variantMode && !forceManual;
+  const modes: readonly AddMode[] = canImportByUrl
+    ? (["catalog", "url", "manual"] as const)
+    : (["catalog", "manual"] as const);
   const parentItem = parentId
     ? (items.find((i) => i.id === parentId) ?? null)
     : null;
@@ -186,13 +228,24 @@ export default function AddModalForm({
     setSortDir("asc");
   };
 
+  /** Импорт удался: показываем существующую форму позиции с этими данными. */
+  const handleImported = useCallback((result: MaterialImportResult) => {
+    setImportPrefill({
+      values: materialImportDraftToManualItemValues(result.draft),
+      warnings: result.warnings,
+    });
+    setMode("manual");
+  }, []);
+
   const { handleOpenChange, showConfirm, confirmDiscard, cancelDiscard } =
     useDialogDismissGuard({
       onClose,
       hasChanges: () =>
         mode === "manual"
           ? manualDirty
-          : query.trim().length > 0 || picked.size > 0,
+          : mode === "url"
+            ? urlDirty
+            : query.trim().length > 0 || picked.size > 0,
     });
 
   return (
@@ -213,7 +266,7 @@ export default function AddModalForm({
               className="flex gap-1 rounded-lg bg-bg-toggle p-1"
               role="tablist"
             >
-              {(["catalog", "manual"] as const).map((m) => (
+              {modes.map((m) => (
                 <button
                   key={m}
                   type="button"
@@ -227,27 +280,57 @@ export default function AddModalForm({
                       : "text-fg-secondary hover:text-fg",
                   )}
                 >
-                  {m === "catalog" ? "Из библиотеки" : "Вручную"}
+                  {MODE_LABEL[m]}
                 </button>
               ))}
             </div>
           </DialogHeader>
 
-          {/* ── вручную ─────────────────────────────────── */}
+          {/* ── вручную (в т.ч. после импорта по ссылке) ─── */}
           {mode === "manual" ? (
-            <ManualItemForm
-              companies={companies}
+            <>
+              {importPrefill && (
+                <div
+                  role="status"
+                  className="flex-none border-b border-border-subtle bg-bg-card2 px-4 py-3"
+                >
+                  <p className="flex items-center gap-2 text-[13px] font-semibold">
+                    <Sparkles className="size-4 text-fg-brand" />
+                    Данные получены со страницы — проверьте поля перед
+                    сохранением
+                  </p>
+                  {importPrefill.warnings.length > 0 && (
+                    <ul className="mt-1.5 list-disc space-y-0.5 pl-5 text-[12px] text-fg-muted">
+                      {importPrefill.warnings.map((warning, index) => (
+                        <li key={`${index}-${warning}`}>{warning}</li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+              )}
+              <ManualItemForm
+                companies={companies}
+                orgSlug={orgSlug}
+                editing={editing}
+                onCancel={onClose}
+                onCompanyCreated={onCompanyCreated}
+                variantMode={variantMode}
+                variantFor={variantFor}
+                onDirtyChange={setManualDirty}
+                defaultType={parentItem?.type}
+                initialValues={importPrefill?.values ?? null}
+                onSubmit={(d) =>
+                  editing ? onFillManual(d) : onAddManual(d, parentId)
+                }
+              />
+            </>
+          ) : mode === "url" ? (
+            /* ── по ссылке: только источник данных, не способ записи ── */
+            <UrlImportPanel
               orgSlug={orgSlug}
-              editing={editing}
-              onCancel={onClose}
-              onCompanyCreated={onCompanyCreated}
-              variantMode={variantMode}
-              variantFor={variantFor}
-              onDirtyChange={setManualDirty}
-              defaultType={parentItem?.type}
-              onSubmit={(d) =>
-                editing ? onFillManual(d) : onAddManual(d, parentId)
-              }
+              onImported={handleImported}
+              onManual={() => setMode("manual")}
+              onDirtyChange={setUrlDirty}
             />
           ) : (
             <>

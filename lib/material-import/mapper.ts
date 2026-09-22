@@ -17,7 +17,7 @@
  * меняет draft и ничего не сохраняет.
  */
 
-import { TYPE_ORDER } from "../constants";
+import { TYPE_ORDER, UNIT_OPTIONS, type SpecType } from "../constants";
 import type { materialSchema } from "../validations";
 import type { MaterialImportDraft } from "./draft";
 import type { z } from "zod";
@@ -104,5 +104,75 @@ export function materialImportDraftToFormValues(
     image_url: draft.imageUrl,
     product_url: draft.productUrl,
     attrs: { ...draft.attrs },
+  };
+}
+
+/* ------------------------------------------------------------------ */
+/*  Начальные значения формы позиции спецификации (`ManualItemForm`)   */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Поля `ManualItemForm`, которые может дать импорт.
+ *
+ * Это ПОДМНОЖЕСТВО полей формы: количество, скидки, срок поставки, поставщика и
+ * `saveToLibrary` импортёр не определяет — их задаёт пользователь, а форма
+ * подставляет свои дефолты. Описания (`spec`) в черновике тоже нет: конвейер
+ * его не сохраняет, поле останется пустым.
+ *
+ * Имена — как в форме (`type`/`productType`/`productUrl`), а не как в БД: тип
+ * описывает ровно то, что принимает `ManualItemForm`, и конвертация живёт здесь,
+ * а не в компоненте.
+ */
+export type ManualItemFormValues = {
+  name: string;
+  brand: string;
+  article: string;
+  /** Категория спецификации — уже приведена к `TYPE_ORDER`. */
+  type: SpecType;
+  /** Тип внутри категории: пресет или свободный текст. */
+  productType: string;
+  /** Единица из `UNIT_OPTIONS`; иначе дефолт формы. */
+  unit: (typeof UNIT_OPTIONS)[number];
+  price: number;
+  /** Только URL из Storage после перехостинга — внешних ссылок здесь нет. */
+  imageUrl: string | null;
+  productUrl: string;
+  attrs: Record<string, string>;
+};
+
+/**
+ * Собирает начальные значения `ManualItemForm` из черновика импорта.
+ *
+ * Отличие от `materialImportDraftToFormValues` только в именах полей: правила
+ * (категория — строго из `TYPE_ORDER`, `null`-цена — в `0`, отсутствующее
+ * значение — дефолт формы) уже применены маппером библиотеки, и повторять их
+ * здесь нельзя. Поэтому функция вызывает его, а не разбирает черновик заново.
+ *
+ * Неполный черновик — норма: чего импорт не нашёл, то форма покажет пустым и
+ * пользователь заполнит сам.
+ */
+export function materialImportDraftToManualItemValues(
+  draft: MaterialImportDraft,
+): ManualItemFormValues {
+  const mapped = materialImportDraftToFormValues(draft);
+
+  // Единица измерения обязана быть из `UNIT_OPTIONS`: в форме это закрытый
+  // `<select>`. Значение вне словаря — не повод падать, но и не повод показать
+  // пустое поле: подставляем дефолт формы (как для категории).
+  const unit = (UNIT_OPTIONS as readonly string[]).includes(mapped.unit)
+    ? (mapped.unit as (typeof UNIT_OPTIONS)[number])
+    : MATERIAL_FORM_DEFAULTS.unit;
+
+  return {
+    name: mapped.name,
+    brand: mapped.brand,
+    article: mapped.article,
+    type: mapped.category as SpecType,
+    productType: mapped.product_type ?? "",
+    unit,
+    price: mapped.price,
+    imageUrl: mapped.image_url,
+    productUrl: mapped.product_url ?? "",
+    attrs: mapped.attrs,
   };
 }
