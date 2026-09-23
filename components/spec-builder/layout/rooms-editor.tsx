@@ -2,21 +2,7 @@
 
 import { useState } from "react";
 import { X, Plus } from "lucide-react";
-
-/** Типовые помещения — чтобы не печатать «Санузел» в сотый раз. */
-const PRESETS = [
-  "Прихожая",
-  "Гостиная",
-  "Кухня",
-  "Спальня",
-  "Детская",
-  "Кабинет",
-  "Санузел",
-  "Ванная",
-  "Гардеробная",
-  "Балкон",
-  "Коридор",
-];
+import { PRESETS } from '@/lib/constants';
 
 export function RoomsEditor({
   rooms,
@@ -25,7 +11,6 @@ export function RoomsEditor({
 }: {
   rooms: string[];
   onChange: (rooms: string[]) => void;
-  /** Список для «быстрого выбора» — напр. помещения проекта. Пусто → пресеты. */
   suggestions?: string[];
 }) {
   const [draft, setDraft] = useState("");

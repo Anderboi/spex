@@ -7,14 +7,11 @@ import {
   Globe,
   Mail,
   MapPin,
-  Pencil,
   Phone,
   Plus,
   StickyNote,
-  Trash2,
   UserRound,
 } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { CompanyRow, ContactRow } from "@/lib/validations";
 import { initials, normalizeWebsite, telHref } from "@/lib/utils";
 import { ContactAvatarStack } from "./contact-avatar";
@@ -29,6 +26,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "../ui/alert-dialog";
+import IconButtonBlock from "../layout/icon-button-block";
 
 /** Сколько категорий показываем чипами, остальные сворачиваем в «+N». */
 const VISIBLE_CATEGORIES = 2;
@@ -55,20 +53,6 @@ interface CompanyCardProps {
   onRemoveCompany: (id: string) => void;
 }
 
-/**
- * Карточка компании в справочнике.
- *
- * Высота задана структурой, а не содержимым: у карточки три зоны фиксированной
- * высоты, и ни одна из них не зависит от количества контактов или длины данных.
- * Поэтому карточки одинаковые по построению, а не потому что их растянули друг
- * под друга:
- *   зона 1 — логотип, название (ровно 2 строки), категории
- *   зона 2 — строка-слот контактов: стек аватаров + имя, открывает панель
- *   зона 3 — реквизиты (сетка 2×2) и однострочный превью заметки
- *
- * Контакты живут в оверлее (`CompanyContactsSheet`), поэтому высота сетки
- * не меняется при просмотре.
- */
 export const CompanyCard = memo(
   function CompanyCard({
     company,
@@ -172,28 +156,10 @@ export const CompanyCard = memo(
               ) : null}
             </div>
 
-            {/* Действия остаются в шапке свёрнутой карточки: правка компании —
-                частое действие и не должна требовать лишнего клика. */}
-            <div className="flex shrink-0 items-center gap-0.5 transition-opacity group-focus-within:opacity-100 max-md:opacity-100 md:opacity-0 md:group-hover:opacity-100">
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                aria-label={`Редактировать компанию ${company.name}`}
-                onClick={() => onEditCompany(company.id)}
-                className="cursor-pointer text-fg-muted hover:text-fg"
-              >
-                <Pencil className="size-4 shrink-0" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon-sm"
-                aria-label={`Удалить компанию ${company.name}`}
-                onClick={() => setShowDeleteDialog(true)}
-                className="cursor-pointer text-fg-muted hover:text-destructive"
-              >
-                <Trash2 className="size-4 shrink-0" />
-              </Button>
-            </div>
+            <IconButtonBlock
+              onClick={() => onEditCompany(company.id)}
+              onDelete={() => setShowDeleteDialog(true)}
+            />
           </header>
 
           {/* Зона 2: строка-слот контактов — всегда одна строка независимо от

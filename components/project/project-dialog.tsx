@@ -1,6 +1,12 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition, type ChangeEvent } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  useTransition,
+  type ChangeEvent,
+} from "react";
 import { useForm, SubmitHandler } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Loader2, CloudUpload, X } from "lucide-react";
@@ -37,7 +43,7 @@ import {
 import { upsertProject, uploadProjectImage } from "@/actions/projects";
 import Image from "next/image";
 import { toast } from "sonner";
-import { RoomsEditor } from "@/components/spec-builder/rooms-editor";
+import { RoomsEditor } from "@/components/spec-builder/layout/rooms-editor";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useDialogDismissGuard } from "@/components/ui/use-dialog-dismiss-guard";
 
@@ -443,5 +449,3 @@ export function ProjectDialog({
     </>
   );
 }
-
-

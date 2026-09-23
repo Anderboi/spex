@@ -33,6 +33,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import IconButtonBlock from "../layout/icon-button-block";
 
 interface MaterialCardProps {
   mat: MaterialListItem;
@@ -42,27 +43,6 @@ interface MaterialCardProps {
   onAttach: (id: string) => void;
 }
 
-/**
- * Карточка материала в библиотеке.
- *
- * Две раскладки одной сущности:
- *   `< md`  — компактная строка: превью 88px, справа категория, бренд, название,
- *             артикул с поставщиком и цена. Вертикальная карточка с превью 160px
- *             давала ~340px на позицию, то есть ~4000px скролла на страницу.
- *   `>= md` — прежняя вертикальная карточка в сетке 2/3/4 колонки.
- *
- * Вся строка на мобиле — одна кнопка редактирования (большой тап-таргет), а
- * действия правки, добавления в проект и удаления лежат в меню «⋯»: на
- * тач-устройствах hover нет, поэтому иконочные кнопки в углу превью там были бы
- * недоступны.
- *
- * Поставщик и артикул — рабочие поля закупки, поэтому выводятся сразу. Цена `0`
- * в базе означает «не указана» и показывается как «Цена не указана».
- *
- * Архивный материал (мягко удалённый) в проект не добавляется: так обещает
- * диалог удаления. Кнопка остаётся на месте, но заблокирована с пояснением —
- * иначе пропажу действия пришлось бы объяснять.
- */
 const MaterialCard = memo(
   function MaterialCard({
     mat,
@@ -81,9 +61,6 @@ const MaterialCard = memo(
     const handleRequestDelete = () => setShowDeleteDialog(true);
     const handleAttach = () => onAttach(mat.id);
 
-    // Одна ячейка сетки на две раскладки: внешний контейнер растянут по высоте
-    // строки, поэтому на `md+` карточка занимает её целиком (`flex-1`), а на
-    // мобиле подстраивается под компактную строку.
     return (
       <div className="group flex flex-col">
         <MobileMaterialRow
@@ -118,27 +95,10 @@ const MaterialCard = memo(
             <span className="absolute top-2.5 left-2.5 z-10 max-w-[calc(100%-4.5rem)] truncate rounded border border-border bg-bg/80 px-2 py-0.5 font-mono text-[10px] uppercase backdrop-blur">
               {mat.category || "Без категории"}
             </span>
-
-            <div className="absolute top-2 right-2 z-10 flex gap-1 transition-opacity group-focus-within:opacity-100 md:opacity-0 md:group-hover:opacity-100">
-              <Button
-                size="icon"
-                variant="secondary"
-                className="size-8"
-                aria-label={`Редактировать материал ${mat.name}`}
-                onClick={handleEdit}
-              >
-                <Pencil className="size-3.5" />
-              </Button>
-              <Button
-                size="icon"
-                variant="destructive"
-                className="size-8"
-                aria-label={`Удалить материал ${mat.name}`}
-                onClick={handleRequestDelete}
-              >
-                <Trash2 className="size-3.5" />
-              </Button>
-            </div>
+            <IconButtonBlock
+              onClick={handleEdit}
+              onDelete={handleRequestDelete}
+            />
           </div>
 
           <div className="flex flex-1 flex-col justify-between gap-3 p-4">
@@ -317,7 +277,13 @@ function MaterialPrice({
         size === "lg" && "text-[16px]",
       )}
     >
-      {fmt(price)} ₽{unit && <span className={cn("text-fg-muted", size==='lg'&&'text-sm')}> / {unit}</span>}
+      {fmt(price)} ₽
+      {unit && (
+        <span className={cn("text-fg-muted", size === "lg" && "text-sm")}>
+          {" "}
+          / {unit}
+        </span>
+      )}
     </span>
   );
 }

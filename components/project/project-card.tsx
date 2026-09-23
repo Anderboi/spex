@@ -7,8 +7,7 @@ import { ProjectStatus } from "@/lib/validations";
 import Link from "next/link";
 import Image from "next/image";
 import { MouseEvent } from "react";
-import { Button } from "../ui/button";
-import { Edit, Trash } from "lucide-react";
+import IconButtonBlock from "../layout/icon-button-block";
 
 export function ProjectCard({
   orgSlug,
@@ -48,24 +47,7 @@ export function ProjectCard({
       <div
         className={`relative h-60 ${coverBg} flex items-end p-5 overflow-hidden group`}
       >
-        <div className="absolute z-20 top-3 right-3 /left-2 transition-all gap-2 hidden duration-200 group-hover:flex">
-          <Button
-            variant="outline"
-            className="size-10 opacity-50 hover:bg-bg-white rounded-full hover:border-none  hover:opacity-100"
-            size="icon-lg"
-            onClick={handleEdit}
-          >
-            <Edit size={20} />
-          </Button>
-          <Button
-            variant="outline"
-            className="size-10 opacity-50 hover:bg-bg-red-light hover:border-none rounded-full hover:text-fg-red hover:opacity-100"
-            size="icon-lg"
-            onClick={handleDelete}
-          >
-            <Trash size={20} />
-          </Button>
-        </div>
+        <IconButtonBlock onClick={handleEdit} onDelete={handleDelete} />
         {project.cover_url ? (
           <Image
             loading="lazy"
@@ -161,10 +143,10 @@ export function ProjectCard({
           <div>
             <div className="font-mono text-[17px] font-semibold text-fg leading-none truncate">
               {/* {fmtRub(project.budget)} */}
-              {fmtCompact(project.budget)
+              {fmtCompact(project.budget) +
                 // .toLocaleString("ru-RU")
                 // .replace(/,/g, "\u2009")
-                 + " ₽"}
+                " ₽"}
             </div>
             <div className="text-[11px] font-mono capitalize text-fg-muted mt-1 leading-tight">
               Бюджет

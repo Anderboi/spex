@@ -35,7 +35,7 @@ import { SpecStatus } from "@/lib/constants";
 import { SpecItem, SpecItemPatch, SpecVariant } from "@/lib/types";
 import { SupplierPicker } from "../layout/supplier-picker";
 import { type CompanyOption } from "@/components/layout/company-picker";
-import { RoomsEditor } from "../rooms-editor";
+import { RoomsEditor } from "../layout/rooms-editor";
 import { ScrollArea } from "../../ui/scroll-area";
 import { CompanyDialog } from "@/components/contacts/company-dialog";
 import { VariantsTab } from "./variants-tab";
@@ -165,9 +165,6 @@ export function DetailModal({
         showCloseButton={false}
         className={cn(
           "flex flex-col gap-0 bg-bg p-0",
-          // На телефоне панель — отдельный экран, а не окно поверх списка:
-          // `dvh` вместо `vh`, чтобы адресная строка и экранная клавиатура
-          // не отрезали футер, и никаких полей по краям.
           "max-md:inset-0 max-md:top-0 max-md:left-0 max-md:h-dvh max-md:max-w-none",
           "max-md:translate-x-0 max-md:translate-y-0 max-md:rounded-none max-md:ring-0",
           "md:max-h-[90vh] sm:max-w-3xl",
@@ -176,10 +173,6 @@ export function DetailModal({
         <DialogHeader className="shrink-0 border-b p-4 max-md:py-2 max-md:pr-2">
           <div className="flex items-center justify-between gap-2">
             <div className="flex min-w-0 items-center gap-2">
-              {/* «Назад» на телефоне делает то же, что системная кнопка
-                  «Назад»: шагает по истории (родитель → владелец состава →
-                  список). Позиция, открытая прямой ссылкой, просто
-                  закрывается — см. `closeModal`. */}
               <Button
                 variant="ghost"
                 onClick={onClose}
