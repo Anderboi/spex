@@ -8,11 +8,13 @@ import { cn } from "@/lib/utils"
 function ScrollArea({
   className,
   viewportClassName,
+  onViewportScroll,
   children,
   ...props
 }: ScrollAreaPrimitive.Root.Props & {
   /** Классы для прокручиваемого вьюпорта: например `overscroll-contain`. */
   viewportClassName?: string;
+  onViewportScroll?: React.UIEventHandler<HTMLDivElement>;
 }) {
   return (
     <ScrollAreaPrimitive.Root
@@ -22,9 +24,10 @@ function ScrollArea({
     >
       <ScrollAreaPrimitive.Viewport
         data-slot="scroll-area-viewport"
+        onScroll={onViewportScroll}
         className={cn(
           "size-full rounded-[inherit] transition-[color,box-shadow] outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-1",
-          viewportClassName
+          viewportClassName,
         )}
       >
         {children}
@@ -32,7 +35,7 @@ function ScrollArea({
       <ScrollBar />
       <ScrollAreaPrimitive.Corner />
     </ScrollAreaPrimitive.Root>
-  )
+  );
 }
 
 function ScrollBar({
