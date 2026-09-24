@@ -1,11 +1,15 @@
 "use client";
 
-import { Wrench, Truck, AlertTriangle } from "lucide-react";
-import { SERVICE_OPERATION_CONFIG } from "@/lib/constants";
+import { Wrench, Truck, ConciergeBell, AlertTriangle } from "lucide-react";
+import { operationLabel, type ServiceOperationType } from "@/lib/constants";
 import { fmt, fmtCompact, cn } from "@/lib/utils";
 import type { ServiceOperation } from "@/actions/service-operations";
 
-const OP_ICON = { installation: Wrench, delivery: Truck } as const;
+const OP_ICON: Record<ServiceOperationType, typeof Truck> = {
+  installation: Wrench,
+  delivery: Truck,
+  service: ConciergeBell,
+};
 
 const MAX_VISIBLE = 2;
 
@@ -19,9 +23,7 @@ function isOverdue(op: ServiceOperation): boolean {
 }
 
 function opTitle(op: ServiceOperation): string {
-  const parts = [
-    `${SERVICE_OPERATION_CONFIG[op.type].label} · ${fmt(op.amount)} ₽`,
-  ];
+  const parts = [`${operationLabel(op)} · ${fmt(op.amount)} ₽`];
   if (op.type === "delivery")
     parts.push(op.completed ? "исполнено" : "не исполнено");
   if (op.deadline) parts.push(`срок: ${dateLabel(op.deadline)}`);

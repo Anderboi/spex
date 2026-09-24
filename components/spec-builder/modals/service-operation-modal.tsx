@@ -16,13 +16,15 @@ import Field from "@/components/layout/modal-field";
 import { CompanyDialog } from "@/components/contacts/company-dialog";
 import {
   SERVICE_OPERATION_BLOCKED_STATUSES,
-  SERVICE_OPERATION_CONFIG,
+  operationLabel,
   specItemIdsInDeliveries,
   specItemIdsInInstallations,
   type ServiceOperationType,
 } from "@/lib/constants";
 import type { SpecPickerCompany } from "@/lib/queries";
 import type { SpecBuilderContext } from "@/hooks/use-spec-builder";
+import type { ServiceOperationFields } from "@/lib/validations";
+import { SPEC_STATUS_CONFIG } from "@/lib/spec/status";
 import {
   createServiceOperation,
   deleteServiceOperation,
@@ -43,6 +45,7 @@ function parseMoney(s: string): number | null {
 export function ServiceOperationModal({
   type,
   operation,
+  preselectedItemIds,
   ctx,
   companies,
   onClose,
@@ -50,12 +53,24 @@ export function ServiceOperationModal({
   type: ServiceOperationType;
   /** Передана — модалка открыта в режиме редактирования существующей операции. */
   operation?: ServiceOperation;
+  /**
+   * Создание из карточки позиции: эти позиции уже участвуют в операции.
+   * Из выделения в таблице список приходит пустым — берём выделение.
+   */
+  preselectedItemIds?: string[];
   ctx: SpecBuilderContext;
   companies: SpecPickerCompany[];
   onClose: () => void;
 }) {
-  const label = SERVICE_OPERATION_CONFIG[type].label;
+  const isService = type === "service";
   const isEdit = !!operation;
+  /**
+   * Название своей услуги — её подпись во всех списках и в смете. У «Доставки»
+   * и «Монтажа» подпись фиксирована, поэтому поля нет.
+   */
+  const [name, setName] = useState(operation?.name ?? "");
+  const label = operationLabel({ type, name });
+  const title = isEdit ? `Редактировать · ${label}` : isService ? "Новая услуга" : label;
 
   /**
    * Позиции, участвующие в НОВОЙ операции. Сразу исключаются заглушки,
@@ -64,16 +79,26 @@ export function ServiceOperationModal({
    * операцию того же типа — в другую доставку или в другой монтаж
    * (независимо от их текущего статуса). Доставка и монтаж независимы:
    * материал из доставки доступен для монтажа и наоборот.
+   *
+   * У своих услуг ограничений по статусу нет, и они необязательны: услуга
+   * может быть расходом проекта целиком.
    */
-  const selectedReal = ctx.selectedItems.filter((i) => !i.isPlaceholder);
-  const excludedPlaceholders = ctx.selectedItems.length - selectedReal.length;
+  const preselected = preselectedItemIds?.length
+    ? ctx.items.filter((i) => preselectedItemIds.includes(i.id))
+    : ctx.selectedItems;
+  const selectedReal = preselected.filter((i) => !i.isPlaceholder);
+  const excludedPlaceholders = preselected.length - selectedReal.length;
   const forbiddenStatuses = SERVICE_OPERATION_BLOCKED_STATUSES[type];
   const byStatus = selectedReal.filter(
     (i) => !forbiddenStatuses.includes(i.status),
   );
   const excludedByStatus = selectedReal.length - byStatus.length;
 
-  /** Материалы, уже связанные с другой операцией того же типа, не берём. */
+  /**
+   * Материалы, уже связанные с другой операцией того же типа, не берём.
+   * У своих услуг правила «один раз» нет: позицию можно привязать к
+   * нескольким услугам.
+   */
   const otherLinkedIds =
     type === "delivery"
       ? specItemIdsInDeliveries(ctx.operations)
@@ -101,9 +126,13 @@ export function ServiceOperationModal({
             ? `заглушки (${excludedPlaceholders})`
             : "",
           excludedByStatus > 0
-            ? type === "delivery"
-              ? `материалы со статусом «Доставлено»/«Заменить» (${excludedByStatus})`
-              : `материалы со статусом «Заменить» (${excludedByStatus})`
+            ? `материалы со статусом ${
+                forbiddenStatuses.length > 1
+                  ? forbiddenStatuses
+                      .map((s) => `«${SPEC_STATUS_CONFIG[s].label}»`)
+                      .join("/")
+                  : `«${SPEC_STATUS_CONFIG[forbiddenStatuses[0]].label}»`
+              } (${excludedByStatus})`
             : "",
           excludedByLinked > 0
             ? type === "delivery"
@@ -142,6 +171,12 @@ export function ServiceOperationModal({
     companies.find((c) => c.id === contractorCompanyId) ?? null;
 
   const submit = async () => {
+    const trimmedName = name.trim();
+    if (isService && !trimmedName) {
+      setError("Укажите название услуги");
+      return;
+    }
+
     const value = parseMoney(amount);
     if (value === null) {
       setError("Укажите стоимость");
@@ -151,32 +186,40 @@ export function ServiceOperationModal({
       setError("Стоимость не может быть отрицательной");
       return;
     }
-    if (!operation && eligible.length === 0) {
+    // Своя услуга может быть расходом проекта целиком — позиции необязательны.
+    if (!operation && !isService && eligible.length === 0) {
       setError("Выберите хотя бы одну заполненную позицию");
       return;
     }
 
     setError(null);
     setBusy(true);
+    // При редактировании список позиций сохраняется как есть: менять его здесь
+    // нечем, а «Доставка»/«Монтаж» не могут остаться без позиций.
+    const specItemIds = operation
+      ? operation.spec_item_ids
+      : eligible.map((i) => i.id);
+    const shared = {
+      specItemIds,
+      amount: value,
+      completed,
+      deadline: deadline || null,
+      contractorCompanyId: contractorCompanyId || null,
+      notes,
+    };
+    // Название — только у своей услуги; тип сужает дискриминированный union.
+    const input: ServiceOperationFields = isService
+      ? { ...shared, type: "service", name: trimmedName }
+      : { ...shared, type, name: null };
+
     const res = operation
-      ? await updateServiceOperation(ctx.orgSlug, ctx.projectId, operation.id, {
-          type,
-          specItemIds: operation.spec_item_ids,
-          amount: value,
-          completed,
-          deadline: deadline || null,
-          contractorCompanyId: contractorCompanyId || null,
-          notes,
-        })
-      : await createServiceOperation(ctx.orgSlug, ctx.projectId, {
-          type,
-          specItemIds: eligible.map((i) => i.id),
-          amount: value,
-          completed,
-          deadline: deadline || null,
-          contractorCompanyId: contractorCompanyId || null,
-          notes,
-        });
+      ? await updateServiceOperation(
+          ctx.orgSlug,
+          ctx.projectId,
+          operation.id,
+          input,
+        )
+      : await createServiceOperation(ctx.orgSlug, ctx.projectId, input);
     setBusy(false);
     if (!res.success) {
       setError(res.error);
@@ -206,13 +249,16 @@ export function ServiceOperationModal({
 
   return (
     <Dialog open onOpenChange={(v) => !v && !busy && !deleting && onClose()}>
-      <DialogContent className="flex max-h-[92vh] flex-col gap-0 overflow-hidden rounded-[22px] bg-bg p-0 sm:max-w-140">
+      <DialogContent className="max-h-[92vh] gap-0 overflow-hidden rounded-[22px] bg-bg p-0 sm:max-w-140">
         <DialogHeader className="flex-row items-center justify-between gap-3 border-b border-border-subtle px-5 py-4">
           <DialogTitle className="text-[19px] font-bold tracking-[-.01em]">
-            {isEdit ? `Редактировать · ${label}` : label}
+            {title}
             <span className="ml-2 font-mono text-[12px] font-medium uppercase tracking-[.08em] text-fg-muted">
-              доп. расход · {count}{" "}
-              {plural(count, "позиция", "позиции", "позиций")}
+              {/* У своей услуги позиции необязательны — «0 позиций» звучало бы
+                  как незаполненная форма, поэтому пишем, что это расход проекта. */}
+              {isService && count === 0
+                ? "расход проекта"
+                : `доп. расход · ${count} ${plural(count, "позиция", "позиции", "позиций")}`}
             </span>
           </DialogTitle>
         </DialogHeader>
@@ -224,8 +270,30 @@ export function ServiceOperationModal({
             </p>
           )}
 
-          <Field label="Позиции">
+          {isService && (
+            <div className="mb-4">
+              <Field label="Название услуги">
+                <Input
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  autoFocus
+                  maxLength={200}
+                  placeholder="Подъём на этаж, хранение на складе…"
+                  className="h-10 bg-bg-card"
+                />
+              </Field>
+            </div>
+          )}
+
+          <Field label={isService ? "Позиции (необязательно)" : "Позиции"}>
             <div className="max-h-44 overflow-y-auto rounded-lg border border-border-muted bg-bg-card">
+              {linkedItems.length === 0 && (
+                <p className="px-2.5 py-2 text-[12.5px] text-fg-muted">
+                  {isService
+                    ? "Позиции не выбраны: услуга будет учтена в расходах проекта целиком."
+                    : "Позиции не выбраны"}
+                </p>
+              )}
               {linkedItems.map((i) => (
                 <div
                   key={i.id}
@@ -248,7 +316,8 @@ export function ServiceOperationModal({
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
                 inputMode="decimal"
-                autoFocus
+                // У своей услуги фокус уже стоит в поле названия.
+                autoFocus={!isService}
                 placeholder="0"
                 className="h-10 bg-bg-card font-mono"
               />
@@ -419,7 +488,7 @@ export function ServiceOperationModal({
               ) : operation ? (
                 "Сохранить"
               ) : (
-                `Добавить ${label.toLowerCase()}`
+                isService ? "Добавить услугу" : `Добавить ${label.toLowerCase()}`
               )}
             </Button>
           </div>

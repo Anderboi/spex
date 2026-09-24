@@ -706,6 +706,7 @@ export type Database = {
           created_at: string
           deadline: string | null
           id: string
+          name: string | null
           notes: string | null
           org_id: string
           project_id: string
@@ -719,6 +720,7 @@ export type Database = {
           created_at?: string
           deadline?: string | null
           id?: string
+          name?: string | null
           notes?: string | null
           org_id: string
           project_id: string
@@ -732,6 +734,7 @@ export type Database = {
           created_at?: string
           deadline?: string | null
           id?: string
+          name?: string | null
           notes?: string | null
           org_id?: string
           project_id?: string

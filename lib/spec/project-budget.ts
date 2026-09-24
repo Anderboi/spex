@@ -1,8 +1,9 @@
-import type { ServiceOperationType } from "@/lib/constants";
+import { operationLabel, type ServiceOperationType } from "@/lib/constants";
 import { round2 } from "./pricing";
 
 /**
- * Бюджет дополнительных расходов проекта (операции «Монтаж» и «Доставка»).
+ * Бюджет дополнительных расходов проекта: «Доставка», «Монтаж» и свои услуги
+ * («Подъём на этаж», «Хранение на складе»).
  *
  * Операция имеет ОДНУ стоимость (amount) на уровне проекта, хотя может быть
  * связана сразу с несколькими материалами. Поэтому все агрегаты считаются по
@@ -25,7 +26,9 @@ export type ServiceBudgetTotals = {
   delivery: number;
   /** Сумма по монтажам. */
   installation: number;
-  /** Все дополнительные расходы проекта = delivery + installation. */
+  /** Сумма по своим услугам (type = 'service'). */
+  service: number;
+  /** Все дополнительные расходы проекта = delivery + installation + service. */
   servicesTotal: number;
 };
 
@@ -33,6 +36,7 @@ export type ServiceBudgetTotals = {
 export const EMPTY_SERVICE_BUDGET: ServiceBudgetTotals = {
   delivery: 0,
   installation: 0,
+  service: 0,
   servicesTotal: 0,
 };
 
@@ -48,17 +52,19 @@ export function sumServiceOperationAmounts(
 
   let delivery = 0;
   let installation = 0;
+  let service = 0;
   for (const op of ops) {
     const amount = Number(op.amount) || 0;
     if (op.type === "delivery") delivery += amount;
-    else installation += amount;
+    else if (op.type === "installation") installation += amount;
+    else service += amount;
   }
 
-  const servicesTotal = delivery + installation;
   return {
     delivery: round2(delivery),
     installation: round2(installation),
-    servicesTotal: round2(servicesTotal),
+    service: round2(service),
+    servicesTotal: round2(delivery + installation + service),
   };
 }
 
@@ -72,4 +78,53 @@ export function calcProjectTotal(
   servicesTotal: number,
 ): number {
   return round2(materialsTotal + servicesTotal);
+}
+
+/** Строка разбивки бюджета: «Доставка», «Монтаж», «Свои услуги». */
+export type ServiceBudgetRow = {
+  key: string;
+  label: string;
+  amount: number;
+};
+
+/**
+ * Операция, которой достаточно для поимённой разбивки услуг: id и название
+ * нужны только своим услугам, у «Доставки» и «Монтажа» их можно не передавать.
+ */
+export type ServiceBudgetRowInput = ServiceOperationBudgetRow & {
+  id?: string;
+  name?: string | null;
+};
+
+/**
+ * Разбивка услуг для бюджета и экспортов. Свои услуги называются поимённо,
+ * пока их немного: в смете важно видеть, за что именно платит клиент. Начиная
+ * с третьей строки они сворачиваются в один итог «Свои услуги», иначе список
+ * расходов разрастается и перестаёт читаться.
+ */
+export function serviceBudgetRows(
+  ops: readonly ServiceBudgetRowInput[],
+): ServiceBudgetRow[] {
+  const totals = sumServiceOperationAmounts(ops);
+  const own = ops.filter((op) => op.type === "service");
+  const ownTotal = own.reduce((sum, op) => sum + (Number(op.amount) || 0), 0);
+
+  const rows: ServiceBudgetRow[] = [
+    { key: "delivery", label: "Доставка", amount: totals.delivery },
+    { key: "installation", label: "Монтаж", amount: totals.installation },
+  ];
+
+  if (own.length <= 2 && ownTotal > 0) {
+    for (const [index, op] of own.entries()) {
+      rows.push({
+        key: op.id ?? `service-${index}`,
+        label: operationLabel({ type: "service", name: op.name }),
+        amount: round2(Number(op.amount) || 0),
+      });
+    }
+  } else {
+    rows.push({ key: "service", label: "Свои услуги", amount: totals.service });
+  }
+
+  return rows;
 }

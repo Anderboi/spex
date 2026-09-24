@@ -18,7 +18,7 @@ import {
   ALL_CATEGORIES,
   PICKING_FLOW,
   PROCUREMENT_FLOW,
-  SERVICE_OPERATION_CONFIG,
+  operationLabel,
   SpecStatus,
   SpecType,
   TYPE_ORDER,
@@ -73,6 +73,7 @@ export type Toast = {
  */
 export const DETAIL_PANEL_TABS = [
   "overview",
+  "parameters",
   "components",
   "variants",
   "rooms",
@@ -81,10 +82,28 @@ export const DETAIL_PANEL_TABS = [
 ] as const;
 export type DetailPanelTab = (typeof DETAIL_PANEL_TABS)[number];
 
+/**
+ * Вкладки, которых больше нет в интерфейсе. Значение остаётся в URL-контракте,
+ * чтобы старые ссылки (`?tab=supplier`) не открывали пустую панель: поставщик,
+ * менеджер и срок поставки переехали в раскрытый блок «Поставка» вкладки
+ * «Обзор», поэтому такая ссылка ведёт на «Обзор».
+ */
+const RETIRED_DETAIL_PANEL_TABS: Record<string, DetailPanelTab> = {
+  supplier: "overview",
+};
+
 function isDetailPanelTab(value: string | null): value is DetailPanelTab {
   return (
     value !== null && (DETAIL_PANEL_TABS as readonly string[]).includes(value)
   );
+}
+
+/** Значение `?tab=` с учётом переехавших вкладок; неизвестное значение — null. */
+function resolveDetailPanelTab(value: string | null): DetailPanelTab | null {
+  if (value !== null && value in RETIRED_DETAIL_PANEL_TABS) {
+    return RETIRED_DETAIL_PANEL_TABS[value];
+  }
+  return isDetailPanelTab(value) ? value : null;
 }
 
 /** Возврат к открытой ранее детализации после закрытия позиции-ссылки. */
@@ -101,7 +120,11 @@ export type Modal =
   | { kind: "delete"; ids: string[] }
   | { kind: "procure" }
   | { kind: "summary" }
-  | { kind: "operation"; type: ServiceOperationType }
+  /**
+   * Создание операции. `preselectedItemIds` — создание из карточки позиции:
+   * список позиций уже известен и не зависит от выделения в таблице.
+   */
+  | { kind: "operation"; type: ServiceOperationType; preselectedItemIds?: string[] }
   | { kind: "edit-operation"; operationId: string }
   | { kind: "edit-variant"; itemId: string; variantId: string };
 
@@ -196,7 +219,7 @@ export function useSpecBuilder({
   const searchParams = useSearchParams();
   const urlItemId = searchParams.get("item");
   const urlTabValue = searchParams.get("tab");
-  const urlTab = isDetailPanelTab(urlTabValue) ? urlTabValue : null;
+  const urlTab = resolveDetailPanelTab(urlTabValue);
   const {
     open: openItemUrl,
     set: setItemUrl,
@@ -1541,6 +1564,18 @@ export function useSpecBuilder({
   );
 
   /**
+   * Создать свою услугу из карточки позиции («Подъём на этаж», «Хранение на
+   * складе»). В отличие от доставки и монтажа, услуга не обязана быть привязана
+   * к материалам, поэтому открываем форму даже без выделения: позиция, из
+   * которой пришли, подставляется в список, и её можно снять.
+   */
+  const openServiceOperationCreate = useCallback(
+    (preselectedItemIds: string[]) =>
+      setModal({ kind: "operation", type: "service", preselectedItemIds }),
+    [],
+  );
+
+  /**
    * Локально отмечает связанные позиции «Доставлено». Сервер уже записал
    * статус в рамках update/createServiceOperation — здесь только зеркалим
    * изменение в таблице, не добавляя патч в очередь сохранения.
@@ -1571,7 +1606,7 @@ export function useSpecBuilder({
       if (op.type === "delivery" && op.completed)
         markItemsDelivered(op.spec_item_ids);
       showToast(
-        `Добавлено · ${SERVICE_OPERATION_CONFIG[op.type].label} · ${fmt(op.amount)} ₽`,
+        `Добавлено · ${operationLabel(op)} · ${fmt(op.amount)} ₽`,
       );
     },
     [showToast, markItemsDelivered],
@@ -1585,7 +1620,7 @@ export function useSpecBuilder({
         markItemsDelivered(op.spec_item_ids);
       closeModal();
       showToast(
-        `Сохранено · ${SERVICE_OPERATION_CONFIG[op.type].label} · ${fmt(op.amount)} ₽`,
+        `Сохранено · ${operationLabel(op)} · ${fmt(op.amount)} ₽`,
       );
     },
     [closeModal, showToast, markItemsDelivered],
@@ -1597,7 +1632,7 @@ export function useSpecBuilder({
       setOperations((prev) => prev.filter((x) => x.id !== op.id));
       closeModal();
       showToast(
-        `Удалено · ${SERVICE_OPERATION_CONFIG[op.type].label} · ${fmt(op.amount)} ₽`,
+        `Удалено · ${operationLabel(op)} · ${fmt(op.amount)} ₽`,
       );
     },
     [closeModal, showToast],
@@ -1664,8 +1699,7 @@ export function useSpecBuilder({
   }, [operations]);
 
   /** Дополнительные расходы проекта: итог по типам + общая сумма услуг.
-   *  Операция учитывается один раз — см. lib/spec/project-budget.ts. */
-  const serviceTotals = useMemo(
+   *  Операция учитывается один раз — см. lib/spec/project-budget.ts. */  const serviceTotals = useMemo(
     () => sumServiceOperationAmounts(operations),
     [operations],
   );
@@ -1765,6 +1799,7 @@ export function useSpecBuilder({
     openSummary,
     openServiceOperation,
     openServiceOperationEdit,
+    openServiceOperationCreate,
     onOperationCreated,
     onOperationUpdated,
     onOperationDeleted,

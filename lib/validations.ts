@@ -1,7 +1,6 @@
 import { z } from "zod";
 import {
   CODE_PATTERN,
-  SERVICE_OPERATION_TYPES,
   SPEC_STATUSES,
   SPEC_TYPES,
   TYPE_ORDER,
@@ -409,31 +408,63 @@ const serviceOperationDate = z.union([
 /**
  * Поля операции. Стоимость неотрицательна и считается ОДИН раз на операцию
  * (агрегат), а не на каждую связанную позицию.
+ *
+ * У «Доставки» и «Монтажа» список позиций обязателен: обе операции оформляются
+ * на конкретные материалы. Своя услуга («Подъём на этаж», «Хранение на складе»)
+ * может быть расходом проекта целиком, поэтому у неё позиции необязательны, зато
+ * обязательно название — оно и есть её подпись в списках.
  */
-export const serviceOperationFieldsSchema = z
-  .object({
-    type: z.enum(SERVICE_OPERATION_TYPES, {
-      error: "Неверный тип операции",
-    }),
-    /** Связанные позиции спецификации. Непустой список без повторов. */
-    specItemIds: z
-      .array(z.string().uuid("Некорректный идентификатор позиции"))
-      .min(1, "Выберите хотя бы одну позицию")
-      .max(500, "Слишком много позиций"),
-    amount: z.coerce
-      .number({ error: "Укажите стоимость" })
-      .min(0, "Стоимость не может быть отрицательной")
-      .max(1_000_000_000, "Стоимость слишком велика"),
-    /** Отметка «исполнено». Для доставки переводит материалы в «Доставлено». */
-    completed: z.boolean().default(false),
-    deadline: serviceOperationDate.default(null),
-    contractorCompanyId: z.string().uuid().nullable().default(null),
-    notes: z.string().trim().max(4000, "Комментарий слишком длинный").default(""),
-  })
-  .refine(
-    (d) => new Set(d.specItemIds).size === d.specItemIds.length,
-    { message: "Позиции не должны повторяться", path: ["specItemIds"] },
-  );
+const serviceOperationBaseFields = {
+  amount: z.coerce
+    .number({ error: "Укажите стоимость" })
+    .min(0, "Стоимость не может быть отрицательной")
+    .max(1_000_000_000, "Стоимость слишком велика"),
+  /** Отметка «исполнено». Для доставки переводит материалы в «Доставлено». */
+  completed: z.boolean().default(false),
+  deadline: serviceOperationDate.default(null),
+  contractorCompanyId: z.string().uuid().nullable().default(null),
+  notes: z.string().trim().max(4000, "Комментарий слишком длинный").default(""),
+};
+
+/** Список позиций без повторов. */
+const serviceOperationItemIds = z
+  .array(z.string().uuid("Некорректный идентификатор позиции"))
+  .max(500, "Слишком много позиций")
+  .refine((ids) => new Set(ids).size === ids.length, {
+    message: "Позиции не должны повторяться",
+  });
+
+export const serviceOperationFieldsSchema = z.discriminatedUnion("type", [
+  z.object({
+    type: z.literal("delivery"),
+    specItemIds: serviceOperationItemIds.min(
+      1,
+      "Выберите хотя бы одну позицию",
+    ),
+    ...serviceOperationBaseFields,
+    name: z.null().default(null),
+  }),
+  z.object({
+    type: z.literal("installation"),
+    specItemIds: serviceOperationItemIds.min(
+      1,
+      "Выберите хотя бы одну позицию",
+    ),
+    ...serviceOperationBaseFields,
+    name: z.null().default(null),
+  }),
+  z.object({
+    type: z.literal("service"),
+    specItemIds: serviceOperationItemIds.default([]),
+    ...serviceOperationBaseFields,
+    /** Название своей услуги: «Подъём на этаж», «Хранение на складе». */
+    name: z
+      .string()
+      .trim()
+      .min(1, "Укажите название услуги")
+      .max(200, "Название слишком длинное"),
+  }),
+]);
 
 export type ServiceOperationFields = z.infer<
   typeof serviceOperationFieldsSchema

@@ -23,6 +23,7 @@ export function StatusMenu({
   onChange,
   className,
   variant = "chip",
+  filled = false,
 }: {
   item: SpecItem;
   onChange: (s: SpecStatus) => void;
@@ -30,6 +31,12 @@ export function StatusMenu({
   /** `dot` — только цветовая точка в кнопке: для плотных списков, где
    *  подпись статуса не помещается, но меню смены статуса нужно. */
   variant?: "chip" | "dot";
+  /**
+   * Заливка чипа мягким цветом статуса (12%). Включается точечно — в хедере
+   * детализации. В строках таблицы статус намеренно без фона: там он повторяется
+   * десятки раз, и залитые плашки превратили бы столбец в россыпь цветных пятен.
+   */
+  filled?: boolean;
 }) {
   const [pending, setPending] = useState<{
     status: SpecStatus;
@@ -59,10 +66,24 @@ export function StatusMenu({
               ? "size-7 justify-center rounded-full border border-border-muted bg-bg-card"
               : cn(
                   "h-7 gap-1.5 rounded-full px-2.5 text-[12px] font-medium",
-                  cfg.chip,
+                  // У залитого чипа hover остаётся текстовым: подкрашивать
+                  // прозрачную плашку сильнее некуда, а цвет уже читается точкой.
+                  !filled && cfg.chip,
                 ),
             className,
           )}
+          // Оттенок берём из `bar` — того же цвета, что у точки и полосы статуса:
+          // один источник цвета на все состояния, без второй палитры в конфиге.
+          // `color-mix` вместо Tailwind-утилиты: hex из конфига не проходит
+          // через `@theme`, и класс вида `bg-[#3b82f6]/12` зависел бы от того,
+          // сгенерирует ли его Tailwind для этого файла.
+          style={
+            filled && variant === "chip"
+              ? {
+                  backgroundColor: `color-mix(in oklab, ${cfg.bar} 12%, transparent)`,
+                }
+              : undefined
+          }
         >
           {variant === "dot" ? (
             <span className={cn("size-3 rounded-full", cfg.dot)} />

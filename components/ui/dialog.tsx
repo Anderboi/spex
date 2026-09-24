@@ -53,7 +53,14 @@ function DialogContent({
       <DialogPrimitive.Popup
         data-slot="dialog-content"
         className={cn(
-          "fixed top-1/2 left-1/2 z-50 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-2xl bg-bg-card p-4 text-sm text-popover-foreground ring-1 ring-fg/10 duration-100 outline-none sm:max-w-sm data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
+          // `flex-col`, а не `grid`: Tailwind собирает `.flex` раньше `.grid`,
+          // поэтому любой `flex`, переданный из модалки, проигрывал базовому
+          // `grid`. В grid-попапе с `max-h` строки не сжимаются и не отдают
+          // место флекс-детям, из-за чего `shrink-0`-футер уезжал за границу
+          // попапа. Колонка ровно так же укладывает одного и нескольких детей
+          // с `gap-4`, а модалкам с прокруткой даёт рабочую пару
+          // `flex-1 min-h-0`.
+          "fixed top-1/2 left-1/2 z-50 flex w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 flex-col gap-4 rounded-2xl bg-bg-card p-4 text-sm text-popover-foreground ring-1 ring-fg/10 duration-100 outline-none sm:max-w-sm data-open:animate-in data-open:fade-in-0 data-open:zoom-in-95 data-closed:animate-out data-closed:fade-out-0 data-closed:zoom-out-95",
           className
         )}
         {...props}

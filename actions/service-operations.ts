@@ -7,6 +7,7 @@ import { canMutateRecord } from "@/lib/permissions";
 import { ok, fail, type ActionResult } from "@/lib/action-result";
 import {
   SERVICE_OPERATION_BLOCKED_STATUSES,
+  type FixedServiceOperationType,
   type ServiceOperationType,
 } from "@/lib/constants";
 import {
@@ -17,8 +18,8 @@ import {
 } from "@/lib/validations";
 
 /**
- * Дополнительные расходы проекта: операции «Монтаж» (installation) и
- * «Доставка» (delivery).
+ * Дополнительные расходы проекта: «Монтаж» (installation), «Доставка»
+ * (delivery) и свои услуги (service: «Подъём на этаж», «Хранение на складе»).
  *
  * Стоимость операции (amount) — самостоятельный агрегат: она не пишется в
  * spec_items.cost и не суммируется повторно на каждую связанную позицию.
@@ -29,6 +30,7 @@ import {
 type OperationRow = {
   id: string;
   type: string;
+  name: string | null;
   amount: number;
   completed: boolean;
   deadline: string | null;
@@ -40,7 +42,7 @@ type OperationRow = {
 
 /** Колонки service_operations, которые возвращаются клиенту. */
 const OP_COLUMNS =
-  "id, type, amount, completed, deadline, contractor_company_id, notes, created_at, updated_at";
+  "id, type, name, amount, completed, deadline, contractor_company_id, notes, created_at, updated_at";
 
 /**
  * Операция, как её получает клиент: значения + id связанных позиций и
@@ -50,6 +52,11 @@ const OP_COLUMNS =
 export type ServiceOperation = {
   id: string;
   type: ServiceOperationType;
+  /**
+   * Название своей услуги (type = 'service'). У «Доставки» и «Монтажа» — null:
+   * подпись берётся из SERVICE_OPERATION_CONFIG, см. operationLabel().
+   */
+  name: string | null;
   amount: number;
   /** Отметка «исполнено» (используется для доставки). */
   completed: boolean;
@@ -70,8 +77,11 @@ async function scoped(orgSlug: string, projectId: string) {
 
 type OpCtx = Awaited<ReturnType<typeof scoped>>;
 
+/** Тип из БД. Незнакомое значение считаем доставкой — как и раньше. */
 function toType(v: string): ServiceOperationType {
-  return v === "installation" ? "installation" : "delivery";
+  if (v === "installation") return "installation";
+  if (v === "service") return "service";
+  return "delivery";
 }
 
 /** Проект существует и принадлежит организации сессии (для записи). */
@@ -110,9 +120,13 @@ function describeBlocked(rows: Array<{ name: string }>): string {
 /**
  * Текст ошибки при создании операции, в которую попали материалы со
  * статусом, недоступным для этого типа операции.
+ *
+ * Тип здесь — только «Доставка» или «Монтаж»: у своих услуг список
+ * запрещённых статусов пуст, поэтому попасть сюда с `service` нельзя, и
+ * отдельная ветка для него вводила бы в заблуждение.
  */
 function blockedStatusError(
-  type: ServiceOperationType,
+  type: FixedServiceOperationType,
   blocked: Array<{ name: string }>,
 ): string {
   const names = describeBlocked(blocked);
@@ -281,7 +295,7 @@ async function assertNoOtherInstallation(
 async function assertProjectItems(
   c: OpCtx,
   ids: string[],
-  opts: { forbid?: ServiceOperationType } = {},
+  opts: { forbid?: FixedServiceOperationType } = {},
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   if (ids.length === 0) {
     return { ok: false, error: "Выберите хотя бы одну позицию" };
@@ -351,6 +365,7 @@ function rowToClient(row: OperationRow): Omit<ServiceOperation, "spec_item_ids">
   return {
     id: row.id,
     type: toType(row.type),
+    name: row.name,
     amount: Number(row.amount),
     completed: row.completed,
     deadline: row.deadline,
@@ -400,6 +415,9 @@ function insertPayload(c: OpCtx, d: ServiceOperationFields) {
     org_id: c.orgId,
     project_id: c.projectId,
     type: d.type,
+    // Название есть только у своих услуг; у доставки и монтажа подпись
+    // фиксирована, поэтому в БД остаётся null (см. service_operations_name_check).
+    name: d.type === "service" ? d.name : null,
     amount: d.amount,
     completed: d.completed,
     deadline: dbDeadline(d.deadline),
@@ -463,9 +481,13 @@ export async function createServiceOperation(
   if (guard.error) return fail(guard.error);
 
   const d = parsed.data;
-  const itemsOk = await assertProjectItems(c, d.specItemIds, {
-    forbid: d.type,
-  });
+  // Своя услуга может быть расходом проекта целиком: без позиций связок просто
+  // не создаётся. У доставки и монтажа непустой список гарантирует схема, но
+  // проверяем и здесь — Server Action доступен напрямую.
+  const itemsOk =
+    d.type === "service" || d.specItemIds.length === 0
+      ? ({ ok: true } as const)
+      : await assertProjectItems(c, d.specItemIds, { forbid: d.type });
   if (!itemsOk.ok) return fail(itemsOk.error);
 
   // Доставка: материал не может входить в две разные доставки. Проверка идёт
@@ -566,7 +588,12 @@ export async function updateServiceOperation(
   if (!existing) return fail("Операция не найдена");
 
   const d = parsed.data;
-  const itemsOk = await assertProjectItems(c, d.specItemIds);
+  // Список позиций обязателен у доставки и монтажа (гарантирует схема), но при
+  // обновлении своей услуги он может быть пустым — тогда проверять нечего.
+  const itemsOk =
+    d.specItemIds.length === 0
+      ? ({ ok: true } as const)
+      : await assertProjectItems(c, d.specItemIds);
   if (!itemsOk.ok) return fail(itemsOk.error);
   // При обновлении проверка нужна так же, как при создании: Server Action
   // доступен напрямую, а не только через UI с неизменяемым списком позиций.

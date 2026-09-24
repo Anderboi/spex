@@ -161,7 +161,7 @@ export function AttachToProjectDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="flex max-h-[88vh] flex-col gap-0 overflow-hidden bg-bg p-0 sm:max-w-140">
+      <DialogContent className="max-h-[88vh] gap-0 overflow-hidden bg-bg p-0 sm:max-w-140">
         <DialogHeader className="gap-1 border-b border-border-subtle p-4 pr-12">
           <DialogTitle>Добавить в проект</DialogTitle>
           <DialogDescription className="text-xs">{body}</DialogDescription>

@@ -14,12 +14,13 @@ import {
 import { Button } from "@/components/ui/button";
 import { SPEC_STATUS_CONFIG } from "@/lib/spec/status";
 import {
-  SERVICE_OPERATION_CONFIG,
+  operationLabel,
   SERVICE_OPERATION_TYPES,
   SPEC_STATUSES,
   TYPE_ORDER,
 } from "@/lib/constants";
 import { priceOf } from "@/lib/spec/pricing";
+import { serviceBudgetRows } from "@/lib/spec/project-budget";
 import type { SpecBuilderContext } from "@/hooks/use-spec-builder";
 import { fmt, cn } from "@/lib/utils";
 import {
@@ -357,7 +358,7 @@ export function SpecSummary({
                       className="flex items-baseline gap-2 py-1 leading-tight"
                     >
                       <span className="w-24 shrink-0 font-mono text-[11.5px] uppercase tracking-wide text-fg-muted">
-                        {SERVICE_OPERATION_CONFIG[op.type].label}
+                        {operationLabel(op)}
                       </span>
                       {op.deadline && (
                         <span className="shrink-0 font-mono text-[11.5px] text-fg-dim">
@@ -391,22 +392,21 @@ export function SpecSummary({
                 {fmt(ctx.stats.totalSum)} ₽
               </span>
             </div>
-            <div className="mt-1 flex items-baseline justify-between gap-6">
-              <span className="font-mono text-[12px] uppercase tracking-[.12em] text-fg-muted">
-                Доставка
-              </span>
-              <span className="shrink-0 font-mono text-[15px] tabular-nums">
-                {fmt(ctx.serviceTotals.delivery)} ₽
-              </span>
-            </div>
-            <div className="mt-1 flex items-baseline justify-between gap-6">
-              <span className="font-mono text-[12px] uppercase tracking-[.12em] text-fg-muted">
-                Монтаж
-              </span>
-              <span className="shrink-0 font-mono text-[15px] tabular-nums">
-                {fmt(ctx.serviceTotals.installation)} ₽
-              </span>
-            </div>
+            {/* Разбивка услуг общая для сводки, экспорта, PDF и публичной
+                ссылки: свои услуги называются поимённо (до двух строк). */}
+            {serviceBudgetRows(ctx.operations).map((row) => (
+              <div
+                key={row.key}
+                className="mt-1 flex items-baseline justify-between gap-6"
+              >
+                <span className="font-mono text-[12px] uppercase tracking-[.12em] text-fg-muted">
+                  {row.label}
+                </span>
+                <span className="shrink-0 font-mono text-[15px] tabular-nums">
+                  {fmt(row.amount)} ₽
+                </span>
+              </div>
+            ))}
             <div className="mt-3 flex items-baseline justify-between gap-6 border-t-[1.5px] border-fg pt-3">
               <span className="font-mono text-[13px] uppercase tracking-[-.01em]">
                 Общий бюджет проекта

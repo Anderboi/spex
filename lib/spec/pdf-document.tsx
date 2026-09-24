@@ -4,8 +4,9 @@ import { registerPdfFonts } from "./pdf-fonts";
 import { priceOf } from "@/lib/spec/pricing";
 import {
   calcProjectTotal,
+  serviceBudgetRows,
   sumServiceOperationAmounts,
-  type ServiceOperationBudgetRow,
+  type ServiceBudgetRowInput,
 } from "@/lib/spec/project-budget";
 import { SPEC_STATUS_CONFIG } from "@/lib/spec/status";
 import { TYPE_ORDER } from "@/lib/constants";
@@ -221,8 +222,11 @@ export function SpecPdfDocument({
   project: { title: string; client_name: string | null };
   items: SpecItem[];
   compositions?: Record<string, SpecSummaryCompositionNode[]>;
-  /** Операции «Монтаж»/«Доставка» проекта — учитываются в общем бюджете. */
-  serviceOperations?: readonly ServiceOperationBudgetRow[];
+  /**
+   * Операции «Монтаж»/«Доставка» и свои услуги проекта — учитываются в общем
+   * бюджете.
+   */
+  serviceOperations?: readonly ServiceBudgetRowInput[];
   clientView?: boolean;
   createdAt?: string;
 }) {
@@ -341,16 +345,14 @@ export function SpecPdfDocument({
             <Text style={styles.budgetLabel}>Стоимость материалов</Text>
             <Text style={styles.budgetValue}>{fmt(totalSum)} ₽</Text>
           </View>
-          <View style={styles.budgetRow}>
-            <Text style={styles.budgetLabel}>Доставка</Text>
-            <Text style={styles.budgetValue}>{fmt(serviceTotals.delivery)} ₽</Text>
-          </View>
-          <View style={styles.budgetRow}>
-            <Text style={styles.budgetLabel}>Монтаж</Text>
-            <Text style={styles.budgetValue}>
-              {fmt(serviceTotals.installation)} ₽
-            </Text>
-          </View>
+          {/* Свои услуги называются поимённо — как в экспорте и на странице
+              публичной ссылки. */}
+          {serviceBudgetRows(serviceOperations).map((row) => (
+            <View style={styles.budgetRow} key={row.key}>
+              <Text style={styles.budgetLabel}>{row.label}</Text>
+              <Text style={styles.budgetValue}>{fmt(row.amount)} ₽</Text>
+            </View>
+          ))}
           <View style={styles.budgetTotal}>
             <Text style={styles.budgetTotalLabel}>Общий бюджет проекта</Text>
             <Text style={styles.budgetTotalValue}>{fmt(projectTotal)} ₽</Text>

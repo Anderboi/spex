@@ -6,6 +6,7 @@ import { SPEC_STATUSES, TYPE_ORDER } from "@/lib/constants";
 import { priceOf } from "@/lib/spec/pricing";
 import {
   calcProjectTotal,
+  serviceBudgetRows,
   sumServiceOperationAmounts,
 } from "@/lib/spec/project-budget";
 import { fmt, cn } from "@/lib/utils";
@@ -136,22 +137,20 @@ export default async function PublicSpecPage({ params }: Props) {
               {fmt(totalSum)} ₽
             </span>
           </div>
-          <div className="flex items-baseline justify-between gap-6">
-            <span className="font-mono text-[12px] uppercase tracking-[.12em] text-fg-muted">
-              Доставка
-            </span>
-            <span className="font-mono text-[15px] font-bold tabular-nums">
-              {fmt(serviceTotals.delivery)} ₽
-            </span>
-          </div>
-          <div className="flex items-baseline justify-between gap-6">
-            <span className="font-mono text-[12px] uppercase tracking-[.12em] text-fg-muted">
-              Монтаж
-            </span>
-            <span className="font-mono text-[15px] font-bold tabular-nums">
-              {fmt(serviceTotals.installation)} ₽
-            </span>
-          </div>
+          {/* Свои услуги называются поимённо — как в экспорте и PDF. */}
+          {serviceBudgetRows(data.serviceOperations).map((row) => (
+            <div
+              key={row.key}
+              className="flex items-baseline justify-between gap-6"
+            >
+              <span className="font-mono text-[12px] uppercase tracking-[.12em] text-fg-muted">
+                {row.label}
+              </span>
+              <span className="font-mono text-[15px] font-bold tabular-nums">
+                {fmt(row.amount)} ₽
+              </span>
+            </div>
+          ))}
         </div>
         <div className="mt-3 flex items-baseline justify-between gap-6 border-t border-fg pt-3">
           <span className="text-[16px] font-bold">Общий бюджет проекта</span>

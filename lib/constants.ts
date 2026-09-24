@@ -575,20 +575,28 @@ export const ALL_CATEGORIES = "Все категории";
 export const STOCK_HINT_TYPES = new Set<SpecType>(["Отделка", "Текстиль"]);
 
 /* ------------------------------------------------------------------ */
-/*  Дополнительные расходы проекта: операции «Монтаж» и «Доставка»     */
+/*  Дополнительные расходы проекта: «Монтаж», «Доставка» и свои услуги */
 /* ------------------------------------------------------------------ */
 
-/** Ключи БД (service_operations.type). */
+/**
+ * Ключи БД (service_operations.type). «service» — своя услуга: её название
+ * лежит в service_operations.name, а не в конфиге, поэтому в подписях вместо
+ * SERVICE_OPERATION_CONFIG используйте operationLabel().
+ */
 export const SERVICE_OPERATION_TYPES = [
   "delivery",
   "installation",
+  "service",
 ] as const;
 
 export type ServiceOperationType = (typeof SERVICE_OPERATION_TYPES)[number];
 
+/** Типы, у которых подпись фиксирована конфигом (без своего названия). */
+export type FixedServiceOperationType = Exclude<ServiceOperationType, "service">;
+
 /** Подписи для UI. */
 export const SERVICE_OPERATION_CONFIG: Record<
-  ServiceOperationType,
+  FixedServiceOperationType,
   { label: string }
 > = {
   delivery: { label: "Доставка" },
@@ -596,9 +604,22 @@ export const SERVICE_OPERATION_CONFIG: Record<
 };
 
 /**
+ * Подпись операции: у своих услуг — собственное название, у «Доставки» и
+ * «Монтажа» — фиксированная. Единственная точка, где тип превращается в текст.
+ */
+export function operationLabel(op: {
+  type: ServiceOperationType;
+  name?: string | null;
+}): string {
+  if (op.type === "service") return op.name?.trim() || "Услуга";
+  return SERVICE_OPERATION_CONFIG[op.type].label;
+}
+
+/**
  * Статусы материалов, которые нельзя включать в новую операцию.
  * «Доставлено» — повторную доставку не оформляем; «Заменить» — позиция
- * ещё не готова ни к доставке, ни к монтажу.
+ * ещё не готова ни к доставке, ни к монтажу. Своя услуга статусом не
+ * ограничена: у неё нет ни перехода в «Доставлено», ни правила «один раз».
  */
 export const SERVICE_OPERATION_BLOCKED_STATUSES: Record<
   ServiceOperationType,
@@ -606,6 +627,7 @@ export const SERVICE_OPERATION_BLOCKED_STATUSES: Record<
 > = {
   delivery: ["replace", "delivered"],
   installation: ["replace"],
+  service: [],
 };
 
 /** Материал можно включить в новую операцию типа type. */

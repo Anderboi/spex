@@ -7,11 +7,12 @@ import { getProjectSpecItems } from "@/lib/queries";
 import { priceOf, sumItems } from "@/lib/spec/pricing";
 import {
   calcProjectTotal,
+  serviceBudgetRows,
   sumServiceOperationAmounts,
 } from "@/lib/spec/project-budget";
 import { fmt, fmtQty } from "@/lib/utils";
 import { SPEC_STATUS_CONFIG } from "@/lib/spec/status";
-import { SERVICE_OPERATION_CONFIG } from "@/lib/constants";
+import { operationLabel } from "@/lib/constants";
 import * as XLSX from "xlsx";
 import { listProjectSpecCompositions } from "@/actions/spec-components";
 import { listProjectServiceOperations } from "@/actions/service-operations";
@@ -141,7 +142,7 @@ export async function exportSpecToExcel(
 
   for (const op of ops) {
     const row: Record<string, string> = {
-      Наименование: SERVICE_OPERATION_CONFIG[op.type].label,
+      Наименование: operationLabel(op),
       Сумма: `${fmt(op.amount)} ₽`,
     };
     if (op.deadline) row.Характеристика = `до ${opDate(op.deadline)}`;
@@ -165,14 +166,14 @@ export async function exportSpecToExcel(
     Наименование: "Стоимость материалов",
     Сумма: `${fmt(materialsTotal)} ₽`,
   });
-  rows.push({
-    Наименование: "Доставка",
-    Сумма: `${fmt(serviceTotals.delivery)} ₽`,
-  });
-  rows.push({
-    Наименование: "Монтаж",
-    Сумма: `${fmt(serviceTotals.installation)} ₽`,
-  });
+  // Свои услуги называются поимённо (см. serviceBudgetRows) — в смете видно,
+  // за что именно платит клиент, а не строка «прочее».
+  for (const row of serviceBudgetRows(ops)) {
+    rows.push({
+      Наименование: row.label,
+      Сумма: `${fmt(row.amount)} ₽`,
+    });
+  }
   rows.push({
     Наименование: "Общий бюджет проекта",
     Сумма: `${fmt(budgetTotal)} ₽`,

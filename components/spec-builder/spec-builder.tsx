@@ -66,6 +66,7 @@ export default function SpecBuilder({
 }) {
   const ctx = useSpecBuilder({ orgSlug, projectId, initialItems });
   const [localCompanies, setLocalCompanies] = useState(companies);
+  const [localContacts, setLocalContacts] = useState(contacts);
   const isDesktop = useMediaQuery("(min-width: 820px)");
   const { density, setDensity } = useSpecDensity();
 
@@ -95,6 +96,39 @@ export default function SpecBuilder({
       return next;
     });
   }, []);
+
+  /**
+   * Менеджер создан или изменён в карточке контакта: кладём запись в локальный
+   * список, чтобы блок «Поставка» показал новое имя, телефон и почту сразу, не
+   * дожидаясь повторной загрузки страницы. Возвращаемое `ContactDialog` поле
+   * `company_id` может быть `null` — это «независимый» контакт, он тоже годится
+   * в менеджеры позиции.
+   */
+  const upsertLocalContact = useCallback(
+    (contact: {
+      id: string;
+      name: string;
+      phone?: string | null;
+      email?: string | null;
+      company_id?: string | null;
+    }) => {
+      setLocalContacts((prev) => {
+        const next: SpecPickerContact = {
+          id: contact.id,
+          name: contact.name,
+          company_id: contact.company_id ?? null,
+          phone: contact.phone,
+          email: contact.email,
+        };
+        const index = prev.findIndex((item) => item.id === next.id);
+        if (index < 0) return [...prev, next];
+        const list = [...prev];
+        list[index] = { ...list[index], ...next };
+        return list;
+      });
+    },
+    [],
+  );
 
   const { value: dialog, close: closeDialog } = useDialogUrl("dialog");
 
@@ -390,7 +424,7 @@ export default function SpecBuilder({
           onTabChange={ctx.setDetailTab}
           allItems={ctx.items}
           companies={localCompanies}
-          contacts={contacts}
+          contacts={localContacts}
           onClose={ctx.closeModal}
           onPatch={(p) => ctx.updateItem(ctx.current!.id, p)}
           onCode={(c) => ctx.setItemCode(ctx.current!.id, c)}
@@ -417,6 +451,10 @@ export default function SpecBuilder({
           saveError={ctx.saveError}
           ops={ctx.opsByItem[ctx.current.id] ?? []}
           onOpenOperation={ctx.openServiceOperationEdit}
+          // Своя услуга из карточки позиции: она сразу привязана к этой
+          // позиции, но список можно очистить — услуга бывает расходом проекта.
+          onAddService={() => ctx.openServiceOperationCreate([ctx.current!.id])}
+          onContactSaved={upsertLocalContact}
         />
       )}
 
@@ -559,14 +597,19 @@ export default function SpecBuilder({
         <SpecSummary ctx={ctx} project={project} onClose={ctx.closeModal} />
       )}
 
-      {ctx.modal.kind === "operation" && (
-        <ServiceOperationModal
-          type={ctx.modal.type}
-          ctx={ctx}
-          companies={localCompanies}
-          onClose={ctx.closeModal}
-        />
-      )}
+      {ctx.modal.kind === "operation" &&
+        (() => {
+          const { type, preselectedItemIds } = ctx.modal;
+          return (
+            <ServiceOperationModal
+              type={type}
+              preselectedItemIds={preselectedItemIds}
+              ctx={ctx}
+              companies={localCompanies}
+              onClose={ctx.closeModal}
+            />
+          );
+        })()}
 
       {ctx.modal.kind === "edit-operation" &&
         (() => {

@@ -42,7 +42,20 @@ interface ContactDialogProps {
   orgSlug: string;
   open: boolean;
   onClose: () => void;
-  onSuccess?: () => void;
+  /**
+   * Сохранённый контакт (созданный или изменённый). Передаём саму запись, а не
+   * просто сигнал: списки контактов живут в состоянии родителя, и без неё
+   * новая строка не появилась бы до повторной загрузки страницы — так же, как
+   * это сделано у `CompanyDialog`.
+   */
+  onSuccess?: (contact: {
+    id: string;
+    name: string;
+    phone?: string | null;
+    email?: string | null;
+    company_id?: string | null;
+    title?: string | null;
+  }) => void;
   companies?: CompanyInput[];
   /** Принудительная привязка к конкретной компании */
   fixedCompanyId?: string;
@@ -161,7 +174,14 @@ export function ContactDialog({
 
       form.reset();
       onClose();
-      onSuccess?.();
+      onSuccess?.({
+        id: res.data.id,
+        name: res.data.name,
+        phone: res.data.phone,
+        email: res.data.email,
+        company_id: res.data.company_id,
+        title: res.data.title,
+      });
     });
   };
 

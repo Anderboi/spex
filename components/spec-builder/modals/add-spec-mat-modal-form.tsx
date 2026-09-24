@@ -251,7 +251,10 @@ export default function AddModalForm({
   return (
     <>
       <Dialog open onOpenChange={handleOpenChange}>
-        <DialogContent className="flex max-h-[92vh] h-[80svh] flex-col gap-0 overflow-hidden rounded-[22px] bg-bg p-0 sm:max-w-180">
+        {/* flex-col идёт от DialogContent: дублировать его здесь нельзя —
+            Tailwind собирает `.flex` раньше `.grid`, и любое переопределение
+            display в className бессильно, а лишний класс только путает. */}
+        <DialogContent className="max-h-[92vh] h-[80svh] gap-0 overflow-hidden rounded-[22px] bg-bg p-0 sm:max-w-180">
           {/* ── шапка ───────────────────────────────────── */}
           <DialogHeader className="flex-row items-center gap-3 border-b border-border-subtle px-4 py-3">
             <DialogTitle className="flex text-[17px] tracking-[-.01em]">

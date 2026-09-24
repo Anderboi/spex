@@ -166,7 +166,7 @@ export function ProjectDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={handleOpenChange}>
-        <DialogContent className="sm:max-w-170 max-h-[88vh] flex-col bg-bg border-border-muted p-0 gap-0">
+        <DialogContent className="sm:max-w-170 max-h-[88vh] bg-bg border-border-muted p-0 gap-0">
           <DialogHeader className="sticky top-0 gap-2 border-b p-4">
             <DialogTitle className="text-xl font-bold tracking-tight">
               {isEditing ? "Редактировать проект" : "Новый проект"}
