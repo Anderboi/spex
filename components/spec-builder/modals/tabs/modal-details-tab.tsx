@@ -8,8 +8,8 @@ import { SpecItem, SpecItemPatch } from "@/lib/types";
 import { AttrsEditor } from "@/components/layout/attrs-editor";
 import { MaterialTypePicker } from "@/components/layout/material-type-picker";
 import { Separator } from "../../../ui/separator";
-import ModalBlockLabel from "../../layout/modal-block-label";
-import SpecParameterInlineEdit from "../../layout/spec-parameter-inline-edit";
+import ModalSection from "../../layout/modal-section";
+import SpecParameterInlineEdit from "../../../layout/inline-parameter";
 
 const ModalDetailsTab = ({
   item,
@@ -19,15 +19,19 @@ const ModalDetailsTab = ({
   onPatch: (patch: SpecItemPatch) => void;
 }) => {
   return (
-    <div className="py-4 space-y-4">
+    // `key` — на всей вкладке: при смене варианта перемонтируются поля (чтобы
+    // `defaultValue` перечитал данные), но состояние сворачивания блоков,
+    // которое живёт в `ModalSection`, сохраняется.
+    <div
+      key={item.activeVariantId ?? "base"}
+      className="flex flex-col gap-2 py-4"
+    >
       {/* //? Details */}
-      <section className="flex flex-col">
-        <ModalBlockLabel> Описание продукта</ModalBlockLabel>
-        <Separator />
-        <div key={item.activeVariantId ?? "base"} className="grid grid-cols-1 md:py-2">
+      <ModalSection title="Описание продукта" defaultOpen>
+        <div className="grid grid-cols-1 md:py-2">
           <SpecParameterInlineEdit label="Наименование">
             <Input
-              className="w-full border-0 bg-transparent font-semibold focus:bg-bg-card group-hover:bg-bg-card"
+              className="w-full border-0 bg-transparent font-semibold focus:bg-bg-card group-hover/param:bg-bg-card"
               defaultValue={item.name}
               id="Наименование"
               autoFocus
@@ -39,7 +43,7 @@ const ModalDetailsTab = ({
           <SpecParameterInlineEdit label="Производитель">
             <Input
               id="Производитель"
-              className="w-full border-0 bg-transparent font-semibold focus:bg-bg-card group-hover:bg-bg-card"
+              className="w-full border-0 bg-transparent font-semibold focus:bg-bg-card group-hover/param:bg-bg-card"
               defaultValue={item.brand}
               onBlur={(e) => onPatch({ brand: e.target.value.trim() })}
               onFocus={(e) => e.target.select()}
@@ -58,7 +62,7 @@ const ModalDetailsTab = ({
           <SpecParameterInlineEdit label="Артикул">
             <Input
               id="Артикул"
-              className="w-full border-0 bg-transparent font-semibold focus:bg-bg-card group-hover:bg-bg-card"
+              className="w-full border-0 bg-transparent font-semibold focus:bg-bg-card group-hover/param:bg-bg-card"
               defaultValue={item.article}
               onBlur={(e) => onPatch({ article: e.target.value.trim() })}
               onFocus={(e) => e.target.select()}
@@ -84,7 +88,7 @@ const ModalDetailsTab = ({
           <SpecParameterInlineEdit label="Ссылка">
             <Input
               id="Ссылка"
-              className="w-full border-0 bg-transparent font-semibold focus:bg-bg-card group-hover:bg-bg-card"
+              className="w-full border-0 bg-transparent font-semibold focus:bg-bg-card group-hover/param:bg-bg-card"
               defaultValue={item.product_url}
               onFocus={(e) => e.target.select()}
               onBlur={(e) => onPatch({ product_url: e.target.value.trim() })}
@@ -108,7 +112,7 @@ const ModalDetailsTab = ({
               <Input
                 id="Запас"
                 onFocus={(e) => e.target.select()}
-                className="w-full border-0 bg-transparent font-semibold focus:bg-bg-card group-hover:bg-bg-card"
+                className="w-full border-0 bg-transparent font-semibold focus:bg-bg-card group-hover/param:bg-bg-card"
                 onBlur={(e) => onPatch({ stockPct: +e.target.value })}
                 defaultValue={item.stockPct}
                 type="number"
@@ -120,43 +124,47 @@ const ModalDetailsTab = ({
                 id="Скидка %"
                 defaultValue={item.clientDiscountPct}
                 onFocus={(e) => e.target.select()}
-                className="w-full border-0 bg-transparent font-semibold focus:bg-bg-card group-hover:bg-bg-card"
+                className="w-full border-0 bg-transparent font-semibold focus:bg-bg-card group-hover/param:bg-bg-card"
                 onBlur={(e) => onPatch({ clientDiscountPct: +e.target.value })}
                 type="number"
               />
             </SpecParameterInlineEdit>
           </div>
         </div>
-        <Separator />
-      </section>
-      {/* //? Attributes  */}
-      <section className="flex flex-col gap-4">
+      </ModalSection>
+
+      {/* //? Attributes */}
+      <ModalSection title="Характеристики">
         <AttrsEditor
+          variant="inline"
+          header={false}
           category={item.type}
           materialType={item.product_type}
           attrs={item.attrs}
           onChange={(attrs) => onPatch({ attrs })}
         />
-      </section>
-      <Separator />
+      </ModalSection>
+
       {/* //? Notes */}
-      <section className="flex flex-col gap-4">
-        <Field label="Описание">
-          <textarea
-            defaultValue={item.spec}
-            onBlur={(e) => onPatch({ spec: e.target.value.trim() })}
-            className="min-h-16 w-full rounded-lg border border-border-muted bg-bg-card p-2 text-sm"
-          />
-        </Field>
-        <Field label="Заметки">
-          <textarea
-            defaultValue={item.notes}
-            onBlur={(e) => onPatch({ notes: e.target.value })}
-            placeholder="Условия, скидки, договорённости"
-            className="min-h-20 w-full rounded-lg border border-border-muted bg-bg-card p-2 text-sm"
-          />
-        </Field>
-      </section>
+      <ModalSection title="Заметки">
+        <div className="flex flex-col gap-4">
+          <Field label="Описание">
+            <textarea
+              defaultValue={item.spec}
+              onBlur={(e) => onPatch({ spec: e.target.value.trim() })}
+              className="min-h-16 w-full rounded-lg border border-border-muted bg-bg-card p-2 text-sm"
+            />
+          </Field>
+          <Field label="Заметки">
+            <textarea
+              defaultValue={item.notes}
+              onBlur={(e) => onPatch({ notes: e.target.value })}
+              placeholder="Условия, скидки, договорённости"
+              className="min-h-20 w-full rounded-lg border border-border-muted bg-bg-card p-2 text-sm"
+            />
+          </Field>
+        </div>
+      </ModalSection>
     </div>
   );
 };

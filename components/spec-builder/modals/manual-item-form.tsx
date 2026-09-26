@@ -338,6 +338,7 @@ export function ManualItemForm({
             name="attrs"
             render={({ field }) => (
               <AttrsEditor
+                variant="grid"
                 category={type}
                 materialType={productType}
                 attrs={(field.value ?? {}) as Record<string, string>}
