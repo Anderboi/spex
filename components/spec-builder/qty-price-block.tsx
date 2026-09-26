@@ -36,7 +36,7 @@ const QtyPriceBlock = ( { item, onQty, onPrice, onPatch }: Props) => {
               <select
                 defaultValue={item.unit}
                 onChange={(e) => onPatch({ unit: e.target.value })}
-                className="h-6 flex-1 w-full //rounded-sm font-mono bg-bg-card //px-3 text-sm"
+                className="h-6 flex-1 font-mono bg-bg-card text-sm"
               >
                 {UNIT_OPTIONS.map((u) => (
                   <option key={u} value={u}>
@@ -50,7 +50,8 @@ const QtyPriceBlock = ( { item, onQty, onPrice, onPatch }: Props) => {
         <div className="bg-bg-card h-20 p-3 w-full">
           <Field label="Цена за ед.">
             <PriceField
-              readOnly={p.hasPriceMod}
+              readOnly={false}
+              // readOnly={p.hasPriceMod}
               value={p.priceBase}
               onCommit={onPrice}
               className="text-[18px]! p-0! text-left! font-semibold tabular-nums"

@@ -26,16 +26,20 @@ import { cn } from "@/lib/utils";
  */
 export function ModalSection({
   title,
+  badge,
   defaultOpen = false,
   className,
   children,
+  emphasized,
 }: {
   /** Подпись блока: «Описание продукта», «Характеристики». */
   title: string;
+  badge?: React.ReactNode;
   defaultOpen?: boolean;
   /** Свои классы панели (например, `gap-2` для нескольких полей). */
   className?: string;
   children: React.ReactNode;
+  emphasized?: boolean;
 }) {
   const [open, setOpen] = useState(defaultOpen);
 
@@ -43,11 +47,22 @@ export function ModalSection({
     <Collapsible open={open} onOpenChange={setOpen} className="flex flex-col">
       <CollapsibleTrigger
         className={cn(
-          "group/section flex min-h-8 items-center justify-between gap-3 rounded-md text-left outline-none transition-colors",
-          "hover:text-fg focus-visible:ring-3 focus-visible:ring-ring/50",
+          "group/section -mx-2 flex min-h-10 items-center justify-between gap-3 rounded-md px-2 text-left outline-none transition-colors",
+          "hover:bg-bg-card focus-visible:ring-3 focus-visible:ring-ring/50",
         )}
       >
-        <ModalBlockLabel>{title}</ModalBlockLabel>
+        <span className="flex items-baseline gap-2">
+          <ModalBlockLabel
+            className={emphasized ? "text-[12px] text-fg" : undefined}
+          >
+            {title}
+          </ModalBlockLabel>
+          {badge != null && (
+            <span className="rounded-full bg-bg-card px-1.5 py-0.5 font-mono text-[10px] text-fg-muted">
+              {badge}
+            </span>
+          )}
+        </span>
         <ChevronDown
           aria-hidden
           className="size-4 shrink-0 text-fg-dim transition-transform duration-200 group-aria-expanded/section:rotate-180 motion-reduce:transition-none"
@@ -57,7 +72,7 @@ export function ModalSection({
           размонтировано, `overflow-hidden` страхует внешние отступы детей. */}
       <CollapsibleContent className="flex flex-col overflow-hidden">
         <Separator className="my-2" />
-        <div className={cn("flex flex-col", className)}>{children}</div>
+        <div className={cn("flex flex-col pt-2", className)}>{children}</div>
       </CollapsibleContent>
     </Collapsible>
   );

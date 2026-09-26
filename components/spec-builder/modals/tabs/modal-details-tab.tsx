@@ -7,9 +7,28 @@ import { ExternalLink } from "lucide-react";
 import { SpecItem, SpecItemPatch } from "@/lib/types";
 import { AttrsEditor } from "@/components/layout/attrs-editor";
 import { MaterialTypePicker } from "@/components/layout/material-type-picker";
-import { Separator } from "../../../ui/separator";
 import ModalSection from "../../layout/modal-section";
 import SpecParameterInlineEdit from "../../../layout/inline-parameter";
+import { useState } from "react";
+import { parseCommittedNumber, shortUrl } from "@/lib/utils";
+
+const EDITABLE_FIELD_CLASS =
+  "w-full border-0 border-b border-transparent bg-transparent font-semibold " +
+  "hover:border-border-muted focus:border-transparent focus:bg-bg-card " +
+  "group-hover/param:border-border-muted group-hover/param:bg-bg-card";
+
+function commitKeysHandler(defaultValue: string | number | undefined) {
+  return (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      e.currentTarget.blur();
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      e.currentTarget.value = String(defaultValue ?? "");
+      e.currentTarget.blur();
+    }
+  };
+}
 
 const ModalDetailsTab = ({
   item,
@@ -18,58 +37,73 @@ const ModalDetailsTab = ({
   item: SpecItem;
   onPatch: (patch: SpecItemPatch) => void;
 }) => {
+  const [urlEditing, setUrlEditing] = useState(false);
+
+  const filledAttrsCount = Object.values(item.attrs ?? {}).filter(
+    (v) => String(v ?? "").trim() !== "",
+  ).length;
+  const hasNotes = Boolean(
+    (item.spec ?? "").trim() || (item.notes ?? "").trim(),
+  );
+
   return (
-    // `key` — на всей вкладке: при смене варианта перемонтируются поля (чтобы
-    // `defaultValue` перечитал данные), но состояние сворачивания блоков,
-    // которое живёт в `ModalSection`, сохраняется.
     <div
       key={item.activeVariantId ?? "base"}
       className="flex flex-col gap-2 py-4"
     >
       {/* //? Details */}
-      <ModalSection title="Описание продукта" defaultOpen>
-        <div className="grid grid-cols-1 md:py-2">
-          <SpecParameterInlineEdit label="Наименование">
+      <ModalSection title="Описание продукта" defaultOpen emphasized>
+        <div className="grid grid-cols-1 divide-y divide-border-muted/60 md:py-2">
+          <SpecParameterInlineEdit label="Наименование" htmlFor="Наименование">
             <Input
-              className="w-full border-0 bg-transparent font-semibold focus:bg-bg-card group-hover/param:bg-bg-card"
+              className={EDITABLE_FIELD_CLASS}
               defaultValue={item.name}
               id="Наименование"
               autoFocus
               onBlur={(e) => onPatch({ name: e.target.value.trim() })}
               onFocus={(e) => e.target.select()}
+              onKeyDown={commitKeysHandler(item.name)}
             />
           </SpecParameterInlineEdit>
-          <Separator />
-          <SpecParameterInlineEdit label="Производитель">
+          <SpecParameterInlineEdit
+            label="Производитель"
+            htmlFor="Производитель"
+          >
             <Input
               id="Производитель"
-              className="w-full border-0 bg-transparent font-semibold focus:bg-bg-card group-hover/param:bg-bg-card"
+              className={EDITABLE_FIELD_CLASS}
               defaultValue={item.brand}
               onBlur={(e) => onPatch({ brand: e.target.value.trim() })}
               onFocus={(e) => e.target.select()}
+              onKeyDown={commitKeysHandler(item.brand)}
             />
           </SpecParameterInlineEdit>
-          <Separator />
-          <SpecParameterInlineEdit label="Тип">
+          <SpecParameterInlineEdit label="Тип" htmlFor="Тип">
             <MaterialTypePicker
               id="Тип"
               category={item.type}
               value={item.product_type}
               onChange={(v) => onPatch({ product_type: v ?? "" })}
+              className={
+                "w-full appearance-none border-0 border-b border-border-muted bg-transparent pr-8 font-semibold " +
+                "hover:bg-bg-card focus:bg-bg-card"
+              }
             />
           </SpecParameterInlineEdit>
-          <Separator />
-          <SpecParameterInlineEdit label="Артикул">
+          <SpecParameterInlineEdit label="Артикул" htmlFor="Артикул">
             <Input
               id="Артикул"
-              className="w-full border-0 bg-transparent font-semibold focus:bg-bg-card group-hover/param:bg-bg-card"
+              className={EDITABLE_FIELD_CLASS}
               defaultValue={item.article}
               onBlur={(e) => onPatch({ article: e.target.value.trim() })}
               onFocus={(e) => e.target.select()}
+              onKeyDown={commitKeysHandler(item.article)}
             />
           </SpecParameterInlineEdit>
-          <Separator />
-          <SpecParameterInlineEdit label="Срок поставки">
+          <SpecParameterInlineEdit
+            label="Срок поставки"
+            htmlFor="Срок поставки"
+          >
             <select
               id="Срок поставки"
               defaultValue={item.leadTime}
@@ -83,16 +117,32 @@ const ModalDetailsTab = ({
               ))}
             </select>
           </SpecParameterInlineEdit>
-          
-          <Separator />
-          <SpecParameterInlineEdit label="Ссылка">
-            <Input
-              id="Ссылка"
-              className="w-full border-0 bg-transparent font-semibold focus:bg-bg-card group-hover/param:bg-bg-card"
-              defaultValue={item.product_url}
-              onFocus={(e) => e.target.select()}
-              onBlur={(e) => onPatch({ product_url: e.target.value.trim() })}
-            />
+          <SpecParameterInlineEdit label="Ссылка" htmlFor="Ссылка">
+            {urlEditing || !item.product_url ? (
+              <Input
+                id="Ссылка"
+                className={EDITABLE_FIELD_CLASS}
+                defaultValue={item.product_url}
+                autoFocus={urlEditing}
+                placeholder="https://…"
+                onFocus={(e) => e.target.select()}
+                onBlur={(e) => {
+                  onPatch({ product_url: e.target.value.trim() });
+                  setUrlEditing(false);
+                }}
+                onKeyDown={commitKeysHandler(item.product_url)}
+              />
+            ) : (
+              <button
+                type="button"
+                id="Ссылка"
+                title={item.product_url}
+                onClick={() => setUrlEditing(true)}
+                className="w-full h-10 rounded-lg truncate border-0 border-b border-transparent bg-transparent px-2 text-left font-mono text-[13px] font-semibold hover:border-border-muted hover:bg-bg-card group-hover/param:border-border-muted group-hover/param:bg-bg-card"
+              >
+                {shortUrl(item.product_url)}
+              </button>
+            )}
             {item.product_url && (
               <a
                 href={item.product_url}
@@ -106,27 +156,45 @@ const ModalDetailsTab = ({
               </a>
             )}
           </SpecParameterInlineEdit>
-          <Separator />
-          <div className="flex gap-2">
-            <SpecParameterInlineEdit label="Запас">
+
+          <div
+            className="flex gap-2"
+            key={`${item.id}-${item.activeVariantId ?? "base"}`}
+          >
+            <SpecParameterInlineEdit label="Запас" htmlFor="Запас" hint="%">
               <Input
                 id="Запас"
-                onFocus={(e) => e.target.select()}
-                className="w-full border-0 bg-transparent font-semibold focus:bg-bg-card group-hover/param:bg-bg-card"
-                onBlur={(e) => onPatch({ stockPct: +e.target.value })}
-                defaultValue={item.stockPct}
                 type="number"
+                className={EDITABLE_FIELD_CLASS}
+                defaultValue={item.stockPct}
+                onFocus={(e) => e.target.select()}
+                onBlur={(e) => {
+                  const parsed = parseCommittedNumber(e.target.value);
+                  if (parsed === null) {
+                    // Невалидный ввод — откатываем визуал, ничего не патчим.
+                    e.target.value = String(item.stockPct);
+                    return;
+                  }
+                  onPatch({ stockPct: parsed });
+                }}
+                onKeyDown={commitKeysHandler(item.stockPct)}
               />
             </SpecParameterInlineEdit>
-            <Separator orientation="vertical" />
-            <SpecParameterInlineEdit label="Скидка %">
+            <SpecParameterInlineEdit label="Скидка" htmlFor="Скидка" hint="%">
               <Input
-                id="Скидка %"
-                defaultValue={item.clientDiscountPct}
-                onFocus={(e) => e.target.select()}
-                className="w-full border-0 bg-transparent font-semibold focus:bg-bg-card group-hover/param:bg-bg-card"
-                onBlur={(e) => onPatch({ clientDiscountPct: +e.target.value })}
+                id="Скидка"
                 type="number"
+                className={EDITABLE_FIELD_CLASS}
+                onFocus={(e) => e.target.select()}
+                onBlur={(e) => {
+                  const parsed = parseCommittedNumber(e.target.value);
+                  if (parsed === null) {
+                    e.target.value = String(item.clientDiscountPct);
+                    return;
+                  }
+                  onPatch({ clientDiscountPct: parsed });
+                }}
+                onKeyDown={commitKeysHandler(item.clientDiscountPct)}
               />
             </SpecParameterInlineEdit>
           </div>
@@ -134,7 +202,10 @@ const ModalDetailsTab = ({
       </ModalSection>
 
       {/* //? Attributes */}
-      <ModalSection title="Характеристики">
+      <ModalSection
+        title="Характеристики"
+        badge={filledAttrsCount > 0 ? filledAttrsCount : "пусто"}
+      >
         <AttrsEditor
           variant="inline"
           header={false}
@@ -146,7 +217,7 @@ const ModalDetailsTab = ({
       </ModalSection>
 
       {/* //? Notes */}
-      <ModalSection title="Заметки">
+      <ModalSection title="Заметки" badge={hasNotes ? undefined : "пусто"}>
         <div className="flex flex-col gap-4">
           <Field label="Описание">
             <textarea

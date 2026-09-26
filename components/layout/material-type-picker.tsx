@@ -94,7 +94,7 @@ export function MaterialTypePicker({
             aria-label={ariaLabel}
             disabled={disabled}
             className={cn(
-              "h-10 w-full justify-between bg-bg-card font-normal",
+              "h-10 flex-1 justify-between hover:bg-bg-card border-0 font-semibold",
               !current && "text-fg-muted",
               triggerClassName,
             )}
@@ -108,7 +108,7 @@ export function MaterialTypePicker({
         className={cn("w-(--anchor-width) min-w-60 p-0", className)}
         align="start"
       >
-        <Command>
+        <Command className="bg-bg-card">
           <CommandInput
             value={query}
             onValueChange={setQuery}

@@ -28,6 +28,31 @@ export const fmtRub = (n?: number | null) => {
   n.toLocaleString("ru-RU").replace(/,/g, "\u2009") + " ₽";
 };
 
+/**
+ * Безопасный парсинг числового поля: пустая строка или нечисловой ввод не
+ * должны молча превращаться в 0 и коммититься — это может незаметно обнулить
+ * скидку или запас. Возвращает `null`, если коммитить нечего (внешний
+ * обработчик в этом случае должен просто восстановить предыдущее значение).
+ */
+export function parseCommittedNumber(raw: string): number | null {
+  const trimmed = raw.trim();
+  if (trimmed === "") return 0;
+  const n = Number(trimmed);
+  return Number.isFinite(n) ? n : null;
+}
+
+/** Короткая подпись ссылки: домен + начало пути, без протокола и query. */
+export function shortUrl(raw: string): string {
+  try {
+    const u = new URL(raw);
+    const path = u.pathname !== "/" ? u.pathname : "";
+    const short = `${u.hostname}${path}`;
+    return short.length > 42 ? `${short.slice(0, 39)}…` : short;
+  } catch {
+    return raw.length > 42 ? `${raw.slice(0, 39)}…` : raw;
+  }
+}
+
 export const fmtDate = (iso: string) =>
   new Date(iso).toLocaleDateString("ru-RU", {
     day: "numeric",
