@@ -8,6 +8,8 @@ import { SpecItem, SpecItemPatch } from "@/lib/types";
 import { AttrsEditor } from "@/components/layout/attrs-editor";
 import { MaterialTypePicker } from "@/components/layout/material-type-picker";
 import { Separator } from "../../../ui/separator";
+import ModalBlockLabel from "../../layout/modal-block-label";
+import SpecParameterInlineEdit from "../../layout/spec-parameter-inline-edit";
 
 const ModalDetailsTab = ({
   item,
@@ -16,50 +18,59 @@ const ModalDetailsTab = ({
   item: SpecItem;
   onPatch: (patch: SpecItemPatch) => void;
 }) => {
-
   return (
-    <>
-     
+    <div className="py-4 space-y-4">
       {/* //? Details */}
-      <section className="flex flex-col gap-4">
-        <span className="font-semibold text-[15px] font-mono">
-          Описание продукта
-        </span>
-        <div
-          key={item.activeVariantId ?? "base"}
-          className="grid grid-cols-2 gap-4"
-        >
-          <Field label="Наименование" className="col-span-2">
+      <section className="flex flex-col">
+        <ModalBlockLabel> Описание продукта</ModalBlockLabel>
+        <Separator />
+        <div key={item.activeVariantId ?? "base"} className="grid grid-cols-1 md:py-2">
+          <SpecParameterInlineEdit label="Наименование">
             <Input
+              className="w-full border-0 bg-transparent font-semibold focus:bg-bg-card group-hover:bg-bg-card"
               defaultValue={item.name}
+              id="Наименование"
               autoFocus
               onBlur={(e) => onPatch({ name: e.target.value.trim() })}
+              onFocus={(e) => e.target.select()}
             />
-          </Field>
-          <Field label="Производитель">
+          </SpecParameterInlineEdit>
+          <Separator />
+          <SpecParameterInlineEdit label="Производитель">
             <Input
+              id="Производитель"
+              className="w-full border-0 bg-transparent font-semibold focus:bg-bg-card group-hover:bg-bg-card"
               defaultValue={item.brand}
               onBlur={(e) => onPatch({ brand: e.target.value.trim() })}
+              onFocus={(e) => e.target.select()}
             />
-          </Field>
-          <Field label="Тип">
+          </SpecParameterInlineEdit>
+          <Separator />
+          <SpecParameterInlineEdit label="Тип">
             <MaterialTypePicker
+              id="Тип"
               category={item.type}
               value={item.product_type}
               onChange={(v) => onPatch({ product_type: v ?? "" })}
             />
-          </Field>
-          <Field label="Артикул">
+          </SpecParameterInlineEdit>
+          <Separator />
+          <SpecParameterInlineEdit label="Артикул">
             <Input
+              id="Артикул"
+              className="w-full border-0 bg-transparent font-semibold focus:bg-bg-card group-hover:bg-bg-card"
               defaultValue={item.article}
               onBlur={(e) => onPatch({ article: e.target.value.trim() })}
+              onFocus={(e) => e.target.select()}
             />
-          </Field>
-          <Field label="Срок поставки">
+          </SpecParameterInlineEdit>
+          <Separator />
+          <SpecParameterInlineEdit label="Срок поставки">
             <select
+              id="Срок поставки"
               defaultValue={item.leadTime}
               onChange={(e) => onPatch({ leadTime: e.target.value })}
-              className="h-10 w-full rounded-lg font-mono border border-border-muted bg-bg-card px-3 text-sm"
+              className="h-10 w-full rounded-lg font-mono hover:bg-bg-card px-2 font-semibold //text-sm"
             >
               {LEAD_TIME_OPTIONS.map((u) => (
                 <option key={u} value={u}>
@@ -67,11 +78,13 @@ const ModalDetailsTab = ({
                 </option>
               ))}
             </select>
-          </Field>
-        </div>
-        <Field key={`url-${item.activeVariantId ?? "base"}`} label="Ссылка">
-          <div className="flex flex-row gap-2 items-center">
+          </SpecParameterInlineEdit>
+          
+          <Separator />
+          <SpecParameterInlineEdit label="Ссылка">
             <Input
+              id="Ссылка"
+              className="w-full border-0 bg-transparent font-semibold focus:bg-bg-card group-hover:bg-bg-card"
               defaultValue={item.product_url}
               onFocus={(e) => e.target.select()}
               onBlur={(e) => onPatch({ product_url: e.target.value.trim() })}
@@ -83,48 +96,41 @@ const ModalDetailsTab = ({
                 rel="noopener noreferrer"
                 onClick={(e) => e.stopPropagation()}
                 aria-label="Открыть на сайте"
-                className="shrink-0 text-fg-muted hover:text-fg"
+                className="shrink-0 text-fg-muted hover:text-fg pr-3"
               >
                 <ExternalLink className="size-3.5" />
               </a>
             )}
+          </SpecParameterInlineEdit>
+          <Separator />
+          <div className="flex gap-2">
+            <SpecParameterInlineEdit label="Запас">
+              <Input
+                id="Запас"
+                onFocus={(e) => e.target.select()}
+                className="w-full border-0 bg-transparent font-semibold focus:bg-bg-card group-hover:bg-bg-card"
+                onBlur={(e) => onPatch({ stockPct: +e.target.value })}
+                defaultValue={item.stockPct}
+                type="number"
+              />
+            </SpecParameterInlineEdit>
+            <Separator orientation="vertical" />
+            <SpecParameterInlineEdit label="Скидка %">
+              <Input
+                id="Скидка %"
+                defaultValue={item.clientDiscountPct}
+                onFocus={(e) => e.target.select()}
+                className="w-full border-0 bg-transparent font-semibold focus:bg-bg-card group-hover:bg-bg-card"
+                onBlur={(e) => onPatch({ clientDiscountPct: +e.target.value })}
+                type="number"
+              />
+            </SpecParameterInlineEdit>
           </div>
-        </Field>
-        <div className="grid grid-cols-2 gap-4">
-          <Field label="Запас">
-            <Input
-              onFocus={(e) => e.target.select()}
-              onBlur={(e) => onPatch({ stockPct: +e.target.value })}
-              defaultValue={item.stockPct}
-              type="number"
-            />
-          </Field>
-          <Field label="Скидка %">
-            <Input
-              defaultValue={item.clientDiscountPct}
-              onFocus={(e) => e.target.select()}
-              onBlur={(e) => onPatch({ clientDiscountPct: +e.target.value })}
-              type="number"
-            />
-          </Field>
         </div>
-
-        {/* //? Quantity & Price */}
         <Separator />
-        {/* <QtyPriceBlock
-          item={item}
-          onQty={onQty}
-          onPrice={onPrice}
-          onPatch={onPatch}
-        /> */}
-
-        {/* Поставщика здесь больше нет: компания, менеджер и срок поставки
-            правятся в раскрытом блоке «Поставка» вкладки «Обзор», и второй
-            вход в то же поле только путал бы. */}
       </section>
       {/* //? Attributes  */}
-      <Separator />
-      <section className="flex flex-col gap-4 pl-4 pr-6 py-4">
+      <section className="flex flex-col gap-4">
         <AttrsEditor
           category={item.type}
           materialType={item.product_type}
@@ -134,7 +140,7 @@ const ModalDetailsTab = ({
       </section>
       <Separator />
       {/* //? Notes */}
-      <section className="flex flex-col gap-4 pl-4 pr-6 py-4">
+      <section className="flex flex-col gap-4">
         <Field label="Описание">
           <textarea
             defaultValue={item.spec}
@@ -151,7 +157,7 @@ const ModalDetailsTab = ({
           />
         </Field>
       </section>
-    </>
+    </div>
   );
 };
 
