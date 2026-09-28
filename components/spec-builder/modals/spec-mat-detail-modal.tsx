@@ -1,10 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Eraser, Paperclip, Trash2 } from "lucide-react";
-import { Dialog, DialogContent, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { SpecStatus } from "@/lib/constants";
 import { SpecItem, SpecItemPatch, SpecVariant } from "@/lib/types";
@@ -12,11 +10,9 @@ import { type CompanyOption } from "@/components/layout/company-picker";
 import { ScrollArea } from "../../ui/scroll-area";
 import { CompanyDialog } from "@/components/contacts/company-dialog";
 import { SpecComponentsSection } from "./spec-components-section";
-import SaveIndicator from "../../layout/save-indicator";
 import type { DetailPanelTab } from "@/hooks/use-spec-builder";
 import type { ServiceOperation } from "@/actions/service-operations";
 import ModalDetailsTab from "./tabs/modal-details-tab";
-import { VariantsTab } from "./tabs/variants-tab";
 import OverviewTab from "./tabs/overview-tab";
 import CommentsTab from "./tabs/comments-tab";
 import DetailsHeader from "./details-header";
@@ -53,6 +49,7 @@ export function DetailModal({
   onTabChange,
   onClose,
   onPatch,
+  onSupplierChange,
   onCode,
   onQty,
   onPrice,
@@ -96,6 +93,15 @@ export function DetailModal({
   onTabChange?: (tab: DetailPanelTab) => void;
   onClose: () => void;
   onPatch: (patch: SpecItemPatch) => void;
+  /**
+   * Смена поставщика (компания + менеджер) — один домен: событие истории у
+   * него одно, поэтому канал отдельный от `onPatch`.
+   */
+  onSupplierChange: (
+    companyId: string | null,
+    contactId: string | null,
+    companyName?: string,
+  ) => void;
   onCode: (code: string) => void;
   onQty: (delta: number) => void;
   onPrice: (raw: string) => void;
@@ -194,7 +200,7 @@ export function DetailModal({
             <TabsTrigger value="comments">Комментарии</TabsTrigger>
           </TabsList>
           <ScrollArea
-            className="min-h-0 flex-1 md:h-[70svh] md:flex-none //pt-2 px-4"
+            className="min-h-0 flex-1 md:h-[70svh] md:flex-none px-4"
             viewportClassName="overscroll-contain"
             onViewportScroll={handleContentScroll}
           >
@@ -218,6 +224,7 @@ export function DetailModal({
                 companies={companies}
                 contacts={contacts}
                 projectRooms={projectRooms}
+                onSupplierChange={onSupplierChange}
                 onSwitchVariant={onSwitchVariant}
                 onAddVariant={onAddVariant}
                 // Компанию создаёт родитель модалки: он же держит единый список

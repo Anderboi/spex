@@ -427,6 +427,9 @@ export default function SpecBuilder({
           contacts={localContacts}
           onClose={ctx.closeModal}
           onPatch={(p) => ctx.updateItem(ctx.current!.id, p)}
+          onSupplierChange={(companyId, contactId, companyName) =>
+            ctx.setSupplier(ctx.current!.id, companyId, contactId, companyName)
+          }
           onCode={(c) => ctx.setItemCode(ctx.current!.id, c)}
           onQty={(d) => ctx.incQty(ctx.current!.id, d)}
           onPrice={(v) => ctx.setPrice(ctx.current!.id, v)}
@@ -441,7 +444,9 @@ export default function SpecBuilder({
           }
           onAddVariant={() => ctx.addVariantLocal(ctx.current!.id)}
           onUpdateVariant={(vid, patch) =>
-            ctx.updateVariantLocal(ctx.current!.id, vid, patch)
+            // явная правка варианта из формы — единственный источник
+            // variant_updated
+            ctx.updateVariantLocal(ctx.current!.id, vid, patch, "edit")
           }
           onDeleteVariant={(vid) =>
             ctx.deleteVariantLocal(ctx.current!.id, vid)
@@ -492,33 +497,47 @@ export default function SpecBuilder({
               onAddFromLibrary={() => {}}
               onFillFromLibrary={() => {}}
               onAddManual={(input) => {
-                ctx.updateVariantLocal(itemId, variantId, {
-                  name: input.name,
-                  brand: input.brand,
-                  article: input.article,
-                  spec: input.spec,
-                  price: input.price,
-                  imageUrl: input.imageUrl ?? null,
-                  companyId: input.companyId ?? null,
-                  companyName:
-                    localCompanies.find((c) => c.id === input.companyId)
-                      ?.name ?? "",
-                });
+                // Явная правка варианта: единственный источник variant_updated
+                // (у зеркалирования полей позиции и заполнения нового варианта
+                // свои пометки — см. hooks/use-spec-builder.ts).
+                ctx.updateVariantLocal(
+                  itemId,
+                  variantId,
+                  {
+                    name: input.name,
+                    brand: input.brand,
+                    article: input.article,
+                    spec: input.spec,
+                    price: input.price,
+                    imageUrl: input.imageUrl ?? null,
+                    companyId: input.companyId ?? null,
+                    companyName:
+                      localCompanies.find((c) => c.id === input.companyId)
+                        ?.name ?? "",
+                  },
+                  "edit",
+                );
                 ctx.closeModal();
               }}
               onFillManual={(input) => {
-                ctx.updateVariantLocal(itemId, variantId, {
-                  name: input.name,
-                  brand: input.brand,
-                  article: input.article,
-                  spec: input.spec,
-                  price: input.price,
-                  imageUrl: input.imageUrl ?? null,
-                  companyId: input.companyId ?? null,
-                  companyName:
-                    localCompanies.find((c) => c.id === input.companyId)
-                      ?.name ?? "",
-                });
+                // Вторая кнопка той же формы — тоже явная правка варианта.
+                ctx.updateVariantLocal(
+                  itemId,
+                  variantId,
+                  {
+                    name: input.name,
+                    brand: input.brand,
+                    article: input.article,
+                    spec: input.spec,
+                    price: input.price,
+                    imageUrl: input.imageUrl ?? null,
+                    companyId: input.companyId ?? null,
+                    companyName:
+                      localCompanies.find((c) => c.id === input.companyId)
+                        ?.name ?? "",
+                  },
+                  "edit",
+                );
                 ctx.closeModal();
               }}
             />

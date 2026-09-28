@@ -21,6 +21,19 @@ interface Props {
   onQty: (delta: number) => void;
   onPrice: (raw: string) => void;
   onPatch: (patch: SpecItemPatch) => void;
+  /**
+   * Смена поставщика — отдельный канал, а не `onPatch`: блок «Поставка» меняет
+   * компанию и менеджера одним доменом, и история должна записать одно событие
+   * `supplier_changed`, а не по событию на поле.
+   *
+   * `companyName` — подсказка из пикера; `undefined` означает «имя неизвестно,
+   * разреши на сервере».
+   */
+  onSupplierChange: (
+    companyId: string | null,
+    contactId: string | null,
+    companyName?: string,
+  ) => void;
   ops: ServiceOperation[];
   onOpenOperation: (operationId: string) => void;
   /** Создать свою услугу («Подъём на этаж», «Хранение на складе»). */
@@ -104,6 +117,7 @@ const OverviewTab = ({
   onQty,
   onPrice,
   onPatch,
+  onSupplierChange,
   ops,
   onOpenOperation,
   onAddService,
@@ -228,11 +242,7 @@ const OverviewTab = ({
           onChange={(companyId, contactId, companyName) =>
             // companyName undefined — компания не найдена в локальном списке:
             // снапшот не трогаем, id всё равно назначен.
-            onPatch(
-              companyName === undefined
-                ? { companyId, contactId }
-                : { companyId, contactId, companyName },
-            )
+            onSupplierChange(companyId, contactId, companyName)
           }
           onChangeLeadTime={(next) => onPatch({ leadTime: next })}
           onCreateCompany={onCreateCompany}

@@ -33,6 +33,8 @@ import {
   deleteSpecItems,
   restoreSpecItems,
   setSpecItemCode,
+  setSpecItemPrice,
+  setSpecItemsStatus,
 } from "@/actions/specifications";
 import {
   listProjectServiceOperations,
@@ -46,6 +48,11 @@ import {
 } from "@/actions/spec-variants";
 import { SPEC_STATUS_CONFIG } from "@/lib/spec/status";
 import { nextCodesFrom } from "@/lib/spec/codes";
+import type {
+  SpecItemCreateOrigin,
+  SpecVariantUpdateOrigin,
+} from "@/lib/spec/history";
+import type { PendingPatchOptions } from "@/lib/spec/pending-patches";
 import { applyActiveVariant } from "@/lib/spec/variants";
 import { round2, sumItems } from "@/lib/spec/pricing";
 import {
@@ -298,9 +305,19 @@ export function useSpecBuilder({
    * Объявлено до `updateItem` намеренно: правки полей материала из строки и
    * карточки (цена, название, поставщик) зеркалятся в активный вариант —
    * см. `updateItem`.
+   *
+   * `origin` едет до `updateVariant` без изменений: от него зависит, писать ли
+   * событие `variant_updated`. Его называют все вызывающие явно — умолчания
+   * нет, потому что одинаковый патч приходит и от правки варианта, и от
+   * зеркалирования полей позиции, и решать за вызывающего здесь нельзя.
    */
   const updateVariantLocal = useCallback(
-    (itemId: string, variantId: string, patch: Partial<SpecVariant>) => {
+    (
+      itemId: string,
+      variantId: string,
+      patch: Partial<SpecVariant>,
+      origin: SpecVariantUpdateOrigin,
+    ) => {
       setItems((prev) =>
         prev.map((it) => {
           if (it.id !== itemId) return it;
@@ -326,7 +343,13 @@ export function useSpecBuilder({
       }
 
       startTransition(async () => {
-        const res = await updateVariant(orgSlug, itemId, variantId, dbPatch);
+        const res = await updateVariant(
+          orgSlug,
+          itemId,
+          variantId,
+          dbPatch,
+          origin,
+        );
         if (!res.success) showToast(res.error);
       });
     },
@@ -334,12 +357,45 @@ export function useSpecBuilder({
   );
 
   /**
+   * Зеркалит поля материала в активный вариант.
+   *
+   * Материал позиции физически хранится в активном варианте, а плоские поля
+   * spec_items — общая копия: `applyActiveVariant` перекрывает их при каждой
+   * загрузке. Без зеркалирования правка цены/названия/поставщика в строке
+   * терялась бы при следующем открытии проекта.
+   *
+   * Это не правка варианта пользователем, а побочный эффект правки позиции:
+   * те же поля уже описаны её собственными событиями (`details_changed`,
+   * `price_changed`, `supplier_changed`), поэтому `origin` — `mirror`.
+   */
+  const mirrorMaterialFields = useCallback(
+    (id: string, patch: SpecItemPatch) => {
+      const material = materialPatchOf(patch);
+      if (!material) return;
+
+      const active = itemsRef.current
+        .find((i) => i.id === id)
+        ?.variants.find((v) => v.isActive);
+      if (active) updateVariantLocal(id, active.id, material, "mirror");
+    },
+    [updateVariantLocal],
+  );
+
+  /**
    * Единственный путь изменения позиции.
    * Патч вычисляется вне setItems — побочные эффекты в updater-функции
    * дублируются в StrictMode и при конкурентном рендере.
+   *
+   * `options.explicitQuantity` едет вместе с патчем до самого
+   * `saveSpecItemPatch`: он отличает явную правку количества от составных
+   * жестов (ручное заполнение заглушки), которые тоже пишут `qty`.
    */
   const updateItem = useCallback(
-    (id: string, patch: SpecItemPatch | ((it: SpecItem) => SpecItemPatch)) => {
+    (
+      id: string,
+      patch: SpecItemPatch | ((it: SpecItem) => SpecItemPatch),
+      options: PendingPatchOptions = {},
+    ) => {
       const current = itemsRef.current.find((i) => i.id === id);
       if (!current) return;
 
@@ -347,19 +403,10 @@ export function useSpecBuilder({
       if (Object.keys(p).length === 0) return;
 
       setItems((prev) => prev.map((i) => (i.id === id ? { ...i, ...p } : i)));
-      persist.push(id, p);
-
-      // Материал позиции физически хранится в активном варианте, а плоские
-      // поля spec_items — общая копия: `applyActiveVariant` перекрывает их при
-      // каждой загрузке. Без зеркалирования правка цены/названия/поставщика
-      // в строке терялась бы при следующем открытии проекта.
-      const material = materialPatchOf(p);
-      const active = material
-        ? current.variants.find((v) => v.isActive)
-        : undefined;
-      if (active && material) updateVariantLocal(id, active.id, material);
+      persist.push(id, p, options);
+      mirrorMaterialFields(id, p);
     },
-    [persist, updateVariantLocal],
+    [persist, mirrorMaterialFields],
   );
 
   /** Несколько позиций разом (групповые операции). */
@@ -405,19 +452,40 @@ export function useSpecBuilder({
     [updateItem, showToast],
   );
 
+  /**
+   * Смена статуса одной позиции. Пишется отдельным действием, а не патчем
+   * через очередь: событию истории нужен прежний статус ИЗ БД, а отложенный
+   * патч мог бы уйти в одном запросе с правкой цены — тогда явную смену
+   * статуса уже не отличить от побочной.
+   */
   const setStatus = useCallback(
     (id: string, status: SpecStatus) => {
-      updateItem(id, { status });
-      void persist.flush(); // статус — сразу, пользователь может закрыть вкладку
+      setItems((prev) =>
+        prev.map((i) => (i.id === id ? { ...i, status } : i)),
+      );
+
+      startTransition(async () => {
+        // Сначала долить очередь: иначе отложенный патч перезапишет статус,
+        // а сервер прочитает уже неверный `from`.
+        await persist.flush();
+        const res = await setSpecItemsStatus(orgSlug, projectId, [id], status);
+        if (!res.success) showToast(res.error);
+      });
     },
-    [updateItem, persist],
+    [orgSlug, projectId, persist, showToast],
   );
 
   const incQty = useCallback(
     (id: string, delta: number) => {
-      updateItem(id, (it) => ({
-        qty: Math.max(0.01, Math.round((it.qty + delta) * 100) / 100),
-      }));
+      updateItem(
+        id,
+        (it) => ({
+          qty: Math.max(0.01, Math.round((it.qty + delta) * 100) / 100),
+        }),
+        // Серия быстрых «+/−» склеивается очередью и уходит одной mutation,
+        // поэтому событие истории получает `from` из БД и итоговый `to`.
+        { explicitQuantity: true },
+      );
     },
     [updateItem],
   );
@@ -426,20 +494,44 @@ export function useSpecBuilder({
     (id: string, raw: string) => {
       const n = Number(raw.replace(/\s/g, "").replace(",", "."));
       if (!Number.isFinite(n) || n <= 0) return;
-      updateItem(id, { qty: Math.round(n * 100) / 100 });
+      updateItem(
+        id,
+        { qty: Math.round(n * 100) / 100 },
+        { explicitQuantity: true },
+      );
     },
     [updateItem],
   );
 
-  /** Принимает «1 234,56» и «1234.5». parseInt здесь съедал бы копейки. */
+  /**
+   * Явная правка цены. Пишется отдельным действием (см. пояснение у
+   * `setStatus`): истории нужна прежняя цена ИЗ БД, а очередь может склеить
+   * цену с заполнением заглушки или очисткой позиции — там цена меняется как
+   * побочный эффект и событием не считается.
+   *
+   * Принимает «1 234,56» и «1234.5». parseInt здесь съедал бы копейки.
+   */
   const setPrice = useCallback(
     (id: string, raw: string) => {
       const n = Number(raw.replace(/[^\d.,-]/g, "").replace(",", "."));
-      updateItem(id, {
-        price: Number.isFinite(n) ? Math.max(0, Math.round(n * 100) / 100) : 0,
+      const price = Number.isFinite(n)
+        ? Math.max(0, Math.round(n * 100) / 100)
+        : 0;
+
+      setItems((prev) => prev.map((i) => (i.id === id ? { ...i, price } : i)));
+      // Цена — поле материала: без зеркала в активный вариант правка
+      // потеряется при следующей загрузке проекта.
+      mirrorMaterialFields(id, { price });
+
+      startTransition(async () => {
+        // Сначала долить очередь: иначе отложенный патч перезапишет цену,
+        // а сервер прочитает уже неверный `from`.
+        await persist.flush();
+        const res = await setSpecItemPrice(orgSlug, projectId, id, price);
+        if (!res.success) showToast(res.error);
       });
     },
-    [updateItem],
+    [orgSlug, projectId, persist, showToast, mirrorMaterialFields],
   );
 
   const setUnit = useCallback(
@@ -450,9 +542,28 @@ export function useSpecBuilder({
     (id: string, notes: string) => updateItem(id, { notes }),
     [updateItem],
   );
+  /**
+   * Явная правка поставщика — единственный путь, помечающий домен для истории.
+   * Компания и менеджер едут одним патчем, поэтому и событие будет одно, даже
+   * если пользователь сменил обоих подряд: дебаунс склеит серию.
+   *
+   * `companyName` приходит из пикера как подсказка и может отсутствовать —
+   * тогда имя разрешит сервер по справочнику.
+   */
   const setSupplier = useCallback(
-    (id: string, companyId: string | null, contactId: string | null) =>
-      updateItem(id, { companyId, contactId }),
+    (
+      id: string,
+      companyId: string | null,
+      contactId: string | null,
+      companyName?: string,
+    ) =>
+      updateItem(
+        id,
+        companyName === undefined
+          ? { companyId, contactId }
+          : { companyId, contactId, companyName },
+        { explicitSupplier: true },
+      ),
     [updateItem],
   );
 
@@ -544,7 +655,11 @@ export function useSpecBuilder({
         const companyName =
           companies.find((c) => c.id === m.companyId)?.name ?? "";
 
-        // сразу обновляем поля нового варианта данными материала
+        // сразу обновляем поля нового варианта данными материала.
+        // `origin: "create"` — это вторая половина того же жеста, что и
+        // `addVariant`: отдельного `variant_updated` у неё нет, иначе одно
+        // действие пользователя выглядело бы как «создал пустой вариант,
+        // потом его отредактировал».
         const patch = {
           name: m.name,
           brand: m.brand ?? "",
@@ -558,7 +673,13 @@ export function useSpecBuilder({
           contact_id: m.contactId ?? null,
           label: m.name,
         };
-        const upd = await updateVariant(orgSlug, itemId, res.data.id, patch);
+        const upd = await updateVariant(
+          orgSlug,
+          itemId,
+          res.data.id,
+          patch,
+          "create",
+        );
         if (!upd.success) {
           showToast(upd.error);
           return;
@@ -617,6 +738,8 @@ export function useSpecBuilder({
         const companyName =
           companies.find((c) => c.id === input.companyId)?.name ?? "";
 
+        // `origin: "create"` — заполнение только что созданного варианта:
+        // вторая половина жеста «добавить вариант» (см. commitVariantFromLibrary).
         const patch = {
           name: input.name,
           brand: input.brand ?? "",
@@ -630,7 +753,13 @@ export function useSpecBuilder({
           company_name_snapshot: companyName,
           label: input.name || "Альтернатива",
         };
-        const upd = await updateVariant(orgSlug, itemId, res.data.id, patch);
+        const upd = await updateVariant(
+          orgSlug,
+          itemId,
+          res.data.id,
+          patch,
+          "create",
+        );
         if (!upd.success) {
           showToast(upd.error);
           return;
@@ -836,14 +965,29 @@ export function useSpecBuilder({
     [projectId],
   );
 
-  /** Оптимистичная вставка с откатом при ошибке сервера. */
+  /**
+   * Оптимистичная вставка с откатом при ошибке сервера.
+   *
+   * `origin` называет серверу, откуда пришла позиция: по самим данным это
+   * неразличимо (дубликат переносит `materialId` источника и выглядит как
+   * добавление из библиотеки), а событие истории должно знать источник.
+   */
   const commitNew = useCallback(
-    (created: SpecItem[], successMsg: string) => {
+    (
+      created: SpecItem[],
+      origin: SpecItemCreateOrigin,
+      successMsg: string,
+    ) => {
       if (created.length === 0) return;
       setItems((prev) => [...prev, ...created]);
 
       startTransition(async () => {
-        const res = await createSpecItems(orgSlug, projectId, created);
+        const res = await createSpecItems(
+          orgSlug,
+          projectId,
+          created,
+          origin,
+        );
         if (!res.success) {
           const ids = new Set(created.map((c) => c.id));
           setItems((prev) => prev.filter((i) => !ids.has(i.id)));
@@ -861,6 +1005,7 @@ export function useSpecBuilder({
       const [code] = nextCodes(type, 1);
       commitNew(
         [blank(type, code, { parentId })],
+        "placeholder",
         `Добавлена пустая позиция · ${code}`,
       );
     },
@@ -913,6 +1058,7 @@ export function useSpecBuilder({
 
       commitNew(
         created,
+        "library",
         `Добавлено · ${created.length} ${plural(created.length, "позиция", "позиции", "позиций")}`,
       );
     },
@@ -939,7 +1085,10 @@ export function useSpecBuilder({
         product_url: m.product_url ?? "",
         attrs: m.attrs ?? {},
         imageUrl: m.imageUrl ?? null,
-      });
+        // Составной жест: история получит одно `filled`, а не событие на каждое
+        // изменившееся поле. Пометка ставится явно — по набору полей составной
+        // жест не угадывается.
+      }, { composite: true, fillOrigin: "placeholder" });
       void persist.flush();
       setModal({ kind: "none" });
       showToast(`Позиция заполнена · ${m.name}`);
@@ -1026,7 +1175,8 @@ export function useSpecBuilder({
         product_url: input.productUrl,
         leadTime: input.leadTime,
         attrs: input.attrs,
-      });
+        // Составной жест — см. fillPlaceholder: история получит `filled`.
+      }, { composite: true, fillOrigin: "manual" });
       void persist.flush();
       setModal({ kind: "none" });
       showToast(`Позиция заполнена · ${input.name}`);
@@ -1051,7 +1201,7 @@ export function useSpecBuilder({
         variants: [],
         activeVariantId: null,
       });
-      commitNew([copy], `Создана копия · ${code}`);
+      commitNew([copy], "duplicate", `Создана копия · ${code}`);
     },
     [nextCodes, blank, commitNew],
   );
@@ -1129,13 +1279,24 @@ export function useSpecBuilder({
         showToast("Заглушкам статус не назначается");
         return;
       }
-      updateMany(ids, { status });
-      void persist.flush();
+
+      // Локально сразу — список не должен ждать сервер.
+      const set = new Set(ids);
+      setItems((prev) =>
+        prev.map((i) => (set.has(i.id) ? { ...i, status } : i)),
+      );
+
+      startTransition(async () => {
+        await persist.flush();
+        const res = await setSpecItemsStatus(orgSlug, projectId, ids, status);
+        if (!res.success) showToast(res.error);
+      });
+
       showToast(
         `Статус «${SPEC_STATUS_CONFIG[status].label}» · позиций: ${ids.length}`,
       );
     },
-    [selected, updateMany, persist, showToast],
+    [selected, orgSlug, projectId, persist, showToast],
   );
 
   /** Очистить содержимое, оставив марку — «место занято, материал переподбирается». */
@@ -1166,11 +1327,18 @@ export function useSpecBuilder({
         isPlaceholder: true,
         materialId: null,
         attrs: {},
-      });
+        // Составной жест: позиция очищена целиком — её история будет `cleared`,
+        // а не набор полевых событий. Марку, количество, единицу измерения и
+        // поставщика очистка не трогает.
+      }, { composite: true, cleared: true });
       setModal({ kind: "none" });
 
       showToast(`${src.code} очищена · марка сохранена`, "Отменить", () => {
-        updateItem(id, before);
+        // Отмена возвращает содержимое в опустевшую позицию — фактически это
+        // заполнение, поэтому событие будет `filled` с origin `undo`. Если
+        // очищали пустую заглушку, `before` вернёт `isPlaceholder: true`, и
+        // события не будет: позиция так и осталась незаполненной.
+        updateItem(id, before, { composite: true, fillOrigin: "undo" });
         showToast("Действие отменено");
       });
     },

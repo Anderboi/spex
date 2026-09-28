@@ -7,6 +7,12 @@ import { canMutateRecord } from "@/lib/permissions";
 import { ok, fail, type ActionResult } from "@/lib/action-result";
 import type { Tables } from "@/lib/supabase/database.types";
 import {
+  buildComponentAddedEvents,
+  buildComponentRemovedEvents,
+  eventActorOf,
+  recordSpecItemEvents,
+} from "@/lib/spec/history";
+import {
   specItemComponentCreateSchema,
   specItemComponentRefSchema,
   specItemGroupSchema,
@@ -514,7 +520,7 @@ export async function listProjectSpecCompositions(
   return ok(byItem);
 }
 
-/** Создать компонент состава. Никогда не трогает spec_items/основную таблицу. */
+/** Создать компонент состава. Никогда не трогает spec_items/основную таблицу. Владелец события component_added. */
 export async function createSpecItemComponent(
   orgSlug: string,
   projectId: string,
@@ -605,6 +611,26 @@ export async function createSpecItemComponent(
     return fail("Не удалось добавить компонент");
   }
 
+  // Событие — строго после успешной вставки, и снимок берётся из вернувшейся
+  // строки, а не из входных данных клиента: в истории должно остаться то, что
+  // записано в БД.
+  await recordSpecItemEvents(
+    base.c.supabase,
+    buildComponentAddedEvents({
+      orgId: base.c.orgId,
+      actor: eventActorOf(base.c),
+      items: [
+        {
+          specItemId,
+          componentId: data.id,
+          kind: "component",
+          name: data.name,
+          ref: null,
+        },
+      ],
+    }),
+  );
+
   revalidatePath(`/${orgSlug}/projects/${projectId}`);
   return ok(toClientRow(data));
 }
@@ -682,6 +708,9 @@ export async function updateSpecItemComponent(
  * Удалить конкретный компонент состава.
  * Удаляется только строка spec_item_components; spec_items и основная
  * таблица не затрагиваются.
+ *
+ * Владелец события `component_removed`: `.select()` на DELETE отдаёт удалённую
+ * строку, поэтому снимок для истории берётся из неё, а не отдельным чтением.
  */
 export async function deleteSpecItemComponent(
   orgSlug: string,
@@ -708,18 +737,42 @@ export async function deleteSpecItemComponent(
   const item = await assertSpecItemInProject(base.c, comp.specItemId);
   if (!item.ok) return fail(item.error);
 
-  const { error } = await base.c.supabase
+  const { data: removed, error } = await base.c.supabase
     .from("spec_item_components")
     .delete()
     .eq("id", componentId)
     .eq("spec_item_id", comp.specItemId)
     .eq("org_id", base.c.orgId)
-    .eq("kind", "component");
+    .eq("kind", "component")
+    .select(ROW_COLUMNS);
 
   if (error) {
     console.error("[deleteSpecItemComponent]", error.message);
     return fail("Не удалось удалить компонент");
   }
+
+  // Ноль удалённых строк — компонент чужой, уже удалённый или его нет: ни
+  // события, ни побочных эффектов.
+  const snapshot = (removed ?? [])[0];
+  if (!snapshot) return fail("Компонент не найден");
+
+  // Событие — строго после успешного удаления.
+  await recordSpecItemEvents(
+    base.c.supabase,
+    buildComponentRemovedEvents({
+      orgId: base.c.orgId,
+      actor: eventActorOf(base.c),
+      items: [
+        {
+          specItemId: comp.specItemId,
+          componentId: snapshot.id,
+          kind: "component",
+          name: snapshot.name,
+          ref: null,
+        },
+      ],
+    }),
+  );
 
   revalidatePath(`/${orgSlug}/projects/${projectId}`);
   return ok(null);
@@ -871,6 +924,9 @@ export async function moveSpecItemComponent(
  * Создать группу состава. Группа — это только название: без родителя,
  * стоимости, компании, контакта и заметок; position считается на сервере.
  * Вложенность групп запрещена, поэтому parent_component_id = null.
+ *
+ * Владелец события `component_added` (kind = 'group'): добавление группы —
+ * такой же пользовательский жест, как добавление компонента.
  */
 export async function createSpecItemComponentGroup(
   orgSlug: string,
@@ -927,6 +983,25 @@ export async function createSpecItemComponentGroup(
     console.error("[createSpecItemComponentGroup]", error.message);
     return fail("Не удалось создать группу");
   }
+
+  // Группа — такая же строка состава, как компонент: добавление группы тоже
+  // жест пользователя, и в ленте оно отмечается `component_added` с своим kind.
+  await recordSpecItemEvents(
+    base.c.supabase,
+    buildComponentAddedEvents({
+      orgId: base.c.orgId,
+      actor: eventActorOf(base.c),
+      items: [
+        {
+          specItemId,
+          componentId: data.id,
+          kind: "group",
+          name: data.name,
+          ref: null,
+        },
+      ],
+    }),
+  );
 
   revalidatePath(`/${orgSlug}/projects/${projectId}`);
   return ok(toClientRow(data));
@@ -995,6 +1070,10 @@ export async function updateSpecItemComponentGroup(
  * Удалить группу состава.
  * Группа удаляется, только если в ней нет строк (parent_component_id не
  * ссылается на группу); иначе возвращается ошибка и группа сохраняется.
+ *
+ * Владелец события `component_removed`. Проверка непустой группы важна и для
+ * истории: дочерние строки не уезжают каскадом FK, поэтому одно действие
+ * удаляет ровно одну строку и терять нечего.
  */
 export async function deleteSpecItemComponentGroup(
   orgSlug: string,
@@ -1035,19 +1114,42 @@ export async function deleteSpecItemComponentGroup(
     return fail("Нельзя удалить группу: сначала удалите её элементы");
   }
 
-  const { error } = await base.c.supabase
+  const { data: removed, error } = await base.c.supabase
     .from("spec_item_components")
     .delete()
     .eq("id", groupId)
     .eq("spec_item_id", group.specItemId)
     .eq("org_id", base.c.orgId)
     .eq("kind", "group")
-    .is("parent_component_id", null);
+    .is("parent_component_id", null)
+    .select(ROW_COLUMNS);
 
   if (error) {
     console.error("[deleteSpecItemComponentGroup]", error.message);
     return fail("Не удалось удалить группу");
   }
+
+  // Ноль удалённых строк — группа чужая или её уже нет.
+  const snapshot = (removed ?? [])[0];
+  if (!snapshot) return fail("Группа не найдена");
+
+  // Событие — строго после успешного удаления.
+  await recordSpecItemEvents(
+    base.c.supabase,
+    buildComponentRemovedEvents({
+      orgId: base.c.orgId,
+      actor: eventActorOf(base.c),
+      items: [
+        {
+          specItemId: group.specItemId,
+          componentId: snapshot.id,
+          kind: "group",
+          name: snapshot.name,
+          ref: null,
+        },
+      ],
+    }),
+  );
 
   revalidatePath(`/${orgSlug}/projects/${projectId}`);
   return ok(null);
@@ -1057,6 +1159,9 @@ export async function deleteSpecItemComponentGroup(
  * Добавить в состав ссылку на существующий SpecItem (kind = 'spec_ref').
  * Создаётся только строка spec_item_components: стоимость, компания, контакт
  * и заметки не используются; исходный SpecItem и основная таблица не меняются.
+ *
+ * Владелец события `component_added` (kind = 'spec_ref'): в payload уходит
+ * снимок подписи связанной позиции — позже она может стать недоступной.
  */
 export async function createSpecItemComponentRef(
   orgSlug: string,
@@ -1144,6 +1249,33 @@ export async function createSpecItemComponentRef(
 
   const row = toClientRow(data);
   const [hydrated] = await hydrateRefItems(base.c, [row]);
+
+  // Событие — строго после успешной вставки. Подпись связанной позиции берём
+  // из уже прочитанной строки БД (`assertRefSpecItemInProject`), а не из
+  // входных данных клиента: позицию могут мягко удалить позже, и тогда
+  // `hydrateRefItems` покажет «недоступна» — в истории должно остаться то, что
+  // пользователь видел при добавлении.
+  await recordSpecItemEvents(
+    base.c.supabase,
+    buildComponentAddedEvents({
+      orgId: base.c.orgId,
+      actor: eventActorOf(base.c),
+      items: [
+        {
+          specItemId,
+          componentId: data.id,
+          kind: "spec_ref",
+          name: data.name,
+          ref: {
+            specItemId: target.ref.id,
+            code: target.ref.code,
+            name: target.ref.name,
+          },
+        },
+      ],
+    }),
+  );
+
   revalidatePath(`/${orgSlug}/projects/${projectId}`);
   return ok(hydrated);
 }
@@ -1233,6 +1365,10 @@ export async function updateSpecItemComponentRef(
 /**
  * Удалить ссылку на позицию из состава. Удаляется только строка
  * spec_item_components; исходный SpecItem и основная таблица не меняются.
+ *
+ * Владелец события `component_removed`: подпись связанной позиции для снимка
+ * читается из БД уже после удаления строки — сама позиция при этом не
+ * удаляется.
  */
 export async function deleteSpecItemComponentRef(
   orgSlug: string,
@@ -1259,18 +1395,54 @@ export async function deleteSpecItemComponentRef(
   const owner = await assertSpecItemInProject(base.c, specRef.specItemId);
   if (!owner.ok) return fail(owner.error);
 
-  const { error } = await base.c.supabase
+  const { data: removed, error } = await base.c.supabase
     .from("spec_item_components")
     .delete()
     .eq("id", componentId)
     .eq("spec_item_id", specRef.specItemId)
     .eq("org_id", base.c.orgId)
-    .eq("kind", "spec_ref");
+    .eq("kind", "spec_ref")
+    .select(ROW_COLUMNS);
 
   if (error) {
     console.error("[deleteSpecItemComponentRef]", error.message);
     return fail("Не удалось удалить ссылку");
   }
+
+  // Ноль удалённых строк — ссылка чужая или её уже нет.
+  const snapshot = (removed ?? [])[0];
+  if (!snapshot) return fail("Ссылка не найдена");
+
+  // Подпись связанной позиции — из БД, а не из входных данных клиента. Сама
+  // позиция не удаляется вместе со ссылкой (FK `on delete restrict`, а удаление
+  // позиций — мягкое), поэтому её марку и название можно прочитать и после
+  // удаления строки состава — теми же «свежими» данными, что и в списке.
+  const [deletedRow] = await hydrateRefItems(base.c, [toClientRow(snapshot)]);
+  const refView = deletedRow.ref_spec_item;
+
+  // Событие — строго после успешного удаления.
+  await recordSpecItemEvents(
+    base.c.supabase,
+    buildComponentRemovedEvents({
+      orgId: base.c.orgId,
+      actor: eventActorOf(base.c),
+      items: [
+        {
+          specItemId: specRef.specItemId,
+          componentId: snapshot.id,
+          kind: "spec_ref",
+          name: snapshot.name,
+          ref: snapshot.ref_spec_item_id
+            ? {
+                specItemId: snapshot.ref_spec_item_id,
+                code: refView?.available ? refView.code : null,
+                name: refView?.available ? refView.name : null,
+              }
+            : null,
+        },
+      ],
+    }),
+  );
 
   revalidatePath(`/${orgSlug}/projects/${projectId}`);
   return ok(null);

@@ -11,6 +11,13 @@ import {
   type ServiceOperationType,
 } from "@/lib/constants";
 import {
+  buildServiceAddedEvents,
+  buildServiceCompletedEvents,
+  buildServiceRemovedEvents,
+  eventActorOf,
+  recordSpecItemEvents,
+} from "@/lib/spec/history";
+import {
   serviceOperationCreateSchema,
   serviceOperationDeleteSchema,
   serviceOperationUpdateSchema,
@@ -465,6 +472,9 @@ async function markLinkedItemsDelivered(
  * Создать операцию для выделенных позиций. org_id — из сессии.
  * Позиции проверяются до вставки; при сбое вставки связок созданная
  * операция удаляется (best effort) — операция не остаётся без позиций.
+ *
+ * Владелец события `service_added`: операция принадлежит проекту, поэтому одна
+ * запись даёт по событию в ленту каждой связанной позиции.
  */
 export async function createServiceOperation(
   orgSlug: string,
@@ -550,6 +560,40 @@ export async function createServiceOperation(
   const client = rowToClient(created as OperationRow);
   await hydrateContractorNames(c, [client]);
 
+  // Фактический список связанных позиций — из БД, как в завершении и удалении
+  // операции: входной список остаётся тем, что мы записали, а история берёт
+  // подтверждённое состояние.
+  const { data: linkRows, error: linkReadError } = await c.supabase
+    .from("service_operation_items")
+    .select("spec_item_id")
+    .eq("operation_id", created.id);
+
+  if (linkReadError) {
+    // Операция и связки уже созданы: валить действие нельзя, но и выдумывать
+    // список позиций тоже. Пишем в лог и не создаём событий.
+    console.error("[createServiceOperation] links read", linkReadError.message);
+  }
+
+  // Событие — строго после всех шагов создания: операция записана, связки
+  // записаны, авто-отметка «Доставлено» (если была) прошла. Любой `fail` выше
+  // означает, что пользователь увидит ошибку, и истории в этом случае быть не
+  // должно. Снимок — из вернувшейся строки, а не из входных данных клиента.
+  // Своя услуга без позиций событий не даёт: связок нет, а лента персональная.
+  await recordSpecItemEvents(
+    c.supabase,
+    buildServiceAddedEvents({
+      orgId: c.orgId,
+      actor: eventActorOf(c),
+      service: {
+        serviceId: created.id,
+        type: toType(created.type),
+        name: created.name,
+        amount: created.amount,
+      },
+      specItemIds: (linkRows ?? []).map((r) => r.spec_item_id),
+    }),
+  );
+
   revalidatePath(`/${orgSlug}/projects/${projectId}`);
   return ok({ ...client, spec_item_ids: d.specItemIds });
 }
@@ -557,6 +601,10 @@ export async function createServiceOperation(
 /**
  * Обновить операцию. Поля меняются целиком; список позиций обязателен —
  * операция не может остаться без связанных позиций.
+ *
+ * Владелец события `service_completed`: завершение — это переход отметки
+ * «Исполнено» из false в true, и его следствия (доставленные материалы) в
+ * историю отдельными событиями не идут.
  */
 export async function updateServiceOperation(
   orgSlug: string,
@@ -681,11 +729,55 @@ export async function updateServiceOperation(
   const client = rowToClient(updated as OperationRow);
   await hydrateContractorNames(c, [client]);
 
+  // `service_completed` — только настоящий переход «не исполнена → исполнена».
+  // Обе стороны берутся из БД: прежняя отметка — из прочитанной до mutation
+  // строки, новая — из её результата. Повторное сохранение уже исполненной
+  // операции события не даёт, а снятие отметки (`true → false`) — это не
+  // завершение, и отдельного события у него нет.
+  //
+  // Событие пишется после замены связок: и удаление, и вставка связок могут
+  // вернуть fail, а при ошибке пользователь увидит её, и истории быть не должно.
+  if (!existing.completed && updated.completed === true) {
+    // Фактический список связанных позиций — из БД, уже после записи связок.
+    const { data: linkRows, error: linkReadError } = await c.supabase
+      .from("service_operation_items")
+      .select("spec_item_id")
+      .eq("operation_id", operationId);
+
+    if (linkReadError) {
+      // Операция уже завершена и связки записаны: валить действие нельзя — но и
+      // выдумывать список позиций тоже. Пишем в лог и не создаём событий.
+      console.error("[updateServiceOperation] links read", linkReadError.message);
+    } else {
+      await recordSpecItemEvents(
+        c.supabase,
+        buildServiceCompletedEvents({
+          orgId: c.orgId,
+          actor: eventActorOf(c),
+          service: {
+            serviceId: updated.id,
+            type: toType(updated.type),
+            name: updated.name,
+            amount: updated.amount,
+          },
+          specItemIds: (linkRows ?? []).map((r) => r.spec_item_id),
+        }),
+      );
+    }
+  }
+
   revalidatePath(`/${orgSlug}/projects/${projectId}`);
   return ok({ ...client, spec_item_ids: d.specItemIds });
 }
 
-/** Удалить операцию вместе со связками service_operation_items. */
+/**
+ * Удалить операцию вместе со связками service_operation_items.
+ *
+ * Владелец события `service_removed`. Удаление физическое, поэтому и строка
+ * операции, и её связки снимаются снимком в момент удаления (`.select()` на
+ * DELETE возвращает удалённые строки): после него список связанных позиций уже
+ * не восстановить.
+ */
 export async function deleteServiceOperation(
   orgSlug: string,
   projectId: string,
@@ -700,7 +792,9 @@ export async function deleteServiceOperation(
   const guard = await guardProject(c);
   if (guard.error) return fail(guard.error);
 
-  // Операция обязана принадлежать этому проекту организации сессии.
+  // Операция обязана принадлежать этому проекту организации сессии. Проверка
+  // идёт до удаления связок: удаление связок фильтруется только по
+  // operation_id, и чужой id не должен трогать чужие строки.
   const { data: existing, error: findErr } = await c.supabase
     .from("service_operations")
     .select("id")
@@ -717,27 +811,54 @@ export async function deleteServiceOperation(
 
   // Сначала связки — чтобы удаление работало и на БД без каскада.
   // (Если каскад включён, этот delete просто не найдёт строк.)
-  const { error: linksErr } = await c.supabase
+  // Заодно это и снимок списка позиций: `.select()` возвращает удалённые
+  // строки, а после удаления операции каскад уничтожил бы их молча.
+  const { data: removedLinks, error: linksErr } = await c.supabase
     .from("service_operation_items")
     .delete()
-    .eq("operation_id", operationId);
+    .eq("operation_id", operationId)
+    .select("spec_item_id");
 
   if (linksErr) {
     console.error("[deleteServiceOperation] links", linksErr.message);
     return fail("Не удалось удалить связанные позиции");
   }
 
-  const { error } = await c.supabase
+  // Снимок операции — из удаляемой строки: после DELETE читать нечего.
+  const { data: removed, error } = await c.supabase
     .from("service_operations")
     .delete()
     .eq("id", operationId)
     .eq("project_id", c.projectId)
-    .eq("org_id", c.orgId);
+    .eq("org_id", c.orgId)
+    .select(OP_COLUMNS);
 
   if (error) {
     console.error("[deleteServiceOperation]", error.message);
     return fail("Не удалось удалить операцию");
   }
+
+  // Операции не стало между проверкой и удалением — удалять было нечего,
+  // значит и события нет.
+  const snapshot = (removed ?? [])[0];
+  if (!snapshot) return fail("Операция не найдена");
+
+  // Событие — строго после успешного удаления. Операция без связанных позиций
+  // (своя услуга-расход проекта) событий не даёт: лента персональная.
+  await recordSpecItemEvents(
+    c.supabase,
+    buildServiceRemovedEvents({
+      orgId: c.orgId,
+      actor: eventActorOf(c),
+      service: {
+        serviceId: snapshot.id,
+        type: toType(snapshot.type),
+        name: snapshot.name,
+        amount: snapshot.amount,
+      },
+      specItemIds: (removedLinks ?? []).map((r) => r.spec_item_id),
+    }),
+  );
 
   revalidatePath(`/${orgSlug}/projects/${projectId}`);
   return ok(null);

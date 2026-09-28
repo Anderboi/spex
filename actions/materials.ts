@@ -15,6 +15,11 @@ import {
 } from "@/lib/constants";
 import { prefixFor } from "@/lib/utils";
 import { nextCodesFrom } from "@/lib/spec/codes";
+import {
+  buildCreatedEvents,
+  eventActorOf,
+  recordSpecItemEvents,
+} from "@/lib/spec/history";
 import { getMaterialProjectTargets, type MaterialProjectTarget } from "@/lib/queries";
 import { storeMaterialImage } from "@/lib/material-import/storage";
 import type { TablesInsert } from "@/lib/supabase/database.types";
@@ -327,6 +332,19 @@ export async function addMaterialToProject(
       .insert({ ...row, id: itemId, code });
 
     if (!error) {
+      // Событие жизненного цикла: позиция создана этим жестом. Пишем только
+      // на успешной попытке — предыдущие падали на уникальности марки и
+      // строки не создавали.
+      await recordSpecItemEvents(
+        ctx.supabase,
+        buildCreatedEvents({
+          orgId: ctx.orgId,
+          actor: eventActorOf(ctx),
+          origin: "library_page",
+          items: [{ id: itemId, code, name: material.name, type }],
+        }),
+      );
+
       revalidatePath(`/${orgSlug}/projects/${projectId}`);
       revalidatePath(`/${orgSlug}/materials`);
       return ok({

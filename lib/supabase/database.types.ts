@@ -794,6 +794,84 @@ export type Database = {
           },
         ]
       }
+      spec_item_comments: {
+        Row: {
+          author_id: string | null
+          author_name_snapshot: string | null
+          body: string
+          created_at: string
+          deleted_at: string | null
+          edited_at: string | null
+          id: string
+          org_id: string
+          parent_id: string | null
+          root_id: string | null
+          spec_item_id: string
+        }
+        Insert: {
+          author_id?: string | null
+          author_name_snapshot?: string | null
+          body: string
+          created_at?: string
+          deleted_at?: string | null
+          edited_at?: string | null
+          id?: string
+          org_id: string
+          parent_id?: string | null
+          root_id?: string | null
+          spec_item_id: string
+        }
+        Update: {
+          author_id?: string | null
+          author_name_snapshot?: string | null
+          body?: string
+          created_at?: string
+          deleted_at?: string | null
+          edited_at?: string | null
+          id?: string
+          org_id?: string
+          parent_id?: string | null
+          root_id?: string | null
+          spec_item_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "spec_item_comments_author_id_fkey"
+            columns: ["author_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "spec_item_comments_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "spec_item_comments_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "spec_item_comments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "spec_item_comments_spec_item_id_fkey"
+            columns: ["spec_item_id"]
+            isOneToOne: false
+            referencedRelation: "spec_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "spec_item_comments_spec_item_id_fkey"
+            columns: ["spec_item_id"]
+            isOneToOne: false
+            referencedRelation: "spec_items_priced"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       spec_item_components: {
         Row: {
           additional_cost: number | null
@@ -898,6 +976,68 @@ export type Database = {
           },
           {
             foreignKeyName: "spec_item_components_spec_item_id_fkey"
+            columns: ["spec_item_id"]
+            isOneToOne: false
+            referencedRelation: "spec_items_priced"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      spec_item_events: {
+        Row: {
+          actor_id: string | null
+          actor_name_snapshot: string | null
+          created_at: string
+          id: string
+          kind: string
+          org_id: string
+          payload: Json
+          spec_item_id: string
+        }
+        Insert: {
+          actor_id?: string | null
+          actor_name_snapshot?: string | null
+          created_at?: string
+          id?: string
+          kind: string
+          org_id: string
+          payload?: Json
+          spec_item_id: string
+        }
+        Update: {
+          actor_id?: string | null
+          actor_name_snapshot?: string | null
+          created_at?: string
+          id?: string
+          kind?: string
+          org_id?: string
+          payload?: Json
+          spec_item_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "spec_item_events_actor_id_fkey"
+            columns: ["actor_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "spec_item_events_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "spec_item_events_spec_item_id_fkey"
+            columns: ["spec_item_id"]
+            isOneToOne: false
+            referencedRelation: "spec_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "spec_item_events_spec_item_id_fkey"
             columns: ["spec_item_id"]
             isOneToOne: false
             referencedRelation: "spec_items_priced"

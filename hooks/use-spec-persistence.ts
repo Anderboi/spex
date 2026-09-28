@@ -2,12 +2,18 @@
 
 import { saveSpecItemPatch } from '@/actions/specifications';
 import { SpecItemPatch } from '@/lib/types';
+import {
+  mergePendingPatch,
+  takePendingPatches,
+  type PendingPatchEntry,
+  type PendingPatchOptions,
+} from "@/lib/spec/pending-patches";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 export type SaveStatus = "idle" | "saving" | "saved" | "error";
 
 export function useSpecPersistence(orgSlug: string, projectId: string) {
-  const queue = useRef(new Map<string, SpecItemPatch>());
+  const queue = useRef(new Map<string, PendingPatchEntry>());
   const timer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const [status, setStatus] = useState<SaveStatus>("idle");
   const [error, setError] = useState<string | null>(null);
@@ -16,13 +22,18 @@ export function useSpecPersistence(orgSlug: string, projectId: string) {
     clearTimeout(timer.current);
     if (queue.current.size === 0) return;
 
-    const batch = [...queue.current.entries()];
-    queue.current.clear();
+    const batch = takePendingPatches(queue.current);
     setStatus("saving");
 
     const results = await Promise.all(
-      batch.map(([id, patch]) =>
-        saveSpecItemPatch(orgSlug, projectId, id, patch),
+      batch.map(([id, entry]) =>
+        saveSpecItemPatch(orgSlug, projectId, id, entry.patch, {
+          explicitQuantity: entry.explicitQuantity,
+          explicitSupplier: entry.explicitSupplier,
+          composite: entry.composite,
+          fillOrigin: entry.fillOrigin,
+          cleared: entry.cleared,
+        }),
       ),
     );
     const failed = results.find((r) => !r.success);
@@ -35,10 +46,13 @@ export function useSpecPersistence(orgSlug: string, projectId: string) {
     setError(null);
   }, [orgSlug, projectId]);
 
-  /** Ставит патч в очередь. Патчи одной позиции сливаются. */
+  /**
+   * Ставит патч в очередь. Патчи одной позиции сливаются, разные позиции
+   * независимы; отправка — одна на серию, через 800 мс тишины.
+   */
   const push = useCallback(
-    (id: string, patch: SpecItemPatch) => {
-      queue.current.set(id, { ...queue.current.get(id), ...patch });
+    (id: string, patch: SpecItemPatch, options: PendingPatchOptions = {}) => {
+      queue.current = mergePendingPatch(queue.current, id, patch, options);
       setStatus("saving");
       clearTimeout(timer.current);
       timer.current = setTimeout(() => void flush(), 800);

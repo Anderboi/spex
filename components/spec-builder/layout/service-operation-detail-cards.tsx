@@ -16,6 +16,7 @@ import {
 } from "@/lib/constants";
 import { fmt } from "@/lib/utils";
 import type { ServiceOperation } from "@/actions/service-operations";
+import ModalBlockLabel from "@/components/layout/modal-block-label";
 
 const ICON_BY_TYPE: Record<ServiceOperationType, LucideIcon> = {
   delivery: Truck,
@@ -134,7 +135,7 @@ export function ServiceOperationDetailCards({
   return (
     <section className="border-t border-border-muted pt-4">
       <div className="flex items-baseline gap-3">
-        <h4 className="font-mono text-xs text-fg-muted uppercase">Услуги</h4>
+        <ModalBlockLabel>Услуги</ModalBlockLabel>
         <span className="ml-auto font-mono text-[13px] font-semibold tabular-nums text-fg">
           {total > 0 ? `${fmt(total)} ₽` : ""}
         </span>
