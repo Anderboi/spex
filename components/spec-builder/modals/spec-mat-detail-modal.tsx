@@ -35,6 +35,40 @@ type Contact = {
   email?: string | null;
 };
 
+/**
+ * Вкладка с собственным вертикальным скроллом: `TabsContent` растягивается на
+ * высоту контентной области, `ScrollArea` забирает остаток. Общего `ScrollArea`
+ * вокруг всех вкладок больше нет — «Комментарии» получают собственный
+ * скролл-контейнер.
+ */
+function ScrollableTab({
+  value,
+  className,
+  onViewportScroll,
+  children,
+}: {
+  value: string;
+  className?: string;
+  /** Прокрутка именно этой вкладки управляет сворачиванием `DetailsHeader`. */
+  onViewportScroll?: React.UIEventHandler<HTMLDivElement>;
+  children: React.ReactNode;
+}) {
+  return (
+    <TabsContent
+      value={value}
+      className="flex h-full min-h-0 flex-1 flex-col overflow-hidden"
+    >
+      <ScrollArea
+        className={cn("h-full min-h-0 px-4", className)}
+        viewportClassName="overscroll-contain"
+        onViewportScroll={onViewportScroll}
+      >
+        {children}
+      </ScrollArea>
+    </TabsContent>
+  );
+}
+
 export function DetailModal({
   item,
   childrenItems,
@@ -165,9 +199,12 @@ export function DetailModal({
         showCloseButton={false}
         className={cn(
           "flex flex-col gap-0 bg-bg p-0",
+          // Высота попапа фиксирована по высоте экрана: без этого она следовала
+          // за контентом активной вкладки и скакала при переключении. `h-dvh` на
+          // мобильном, `h-[90vh]` на десктопе — потолок `max-h` из базы.
           "max-md:inset-0 max-md:top-0 max-md:left-0 max-md:h-dvh max-md:max-w-none",
           "max-md:translate-x-0 max-md:translate-y-0 max-md:rounded-none max-md:ring-0",
-          "md:max-h-[90vh] sm:max-w-3xl",
+          "md:h-[90vh] md:max-h-[90vh] sm:max-w-3xl",
         )}
       >
         <DetailsHeader
@@ -184,10 +221,14 @@ export function DetailModal({
           isCollapsed={isHeaderCollapsed}
         />
 
+        {/* Контентная область получает определённую высоту от попапа: растёт как
+            `flex-1`, но и сжимается (`min-h-0`) — иначе вкладка выше доступного
+            места растягивала бы `Tabs` и обрезалась бы без возможности
+            прокрутки. Сам скролл живёт во вкладках, `Tabs` только клипает. */}
         <Tabs
           value={tab}
           onValueChange={changeTab}
-          className="min-h-0 flex-1 gap-0"
+          className="h-full min-h-0 flex-1 gap-0 overflow-hidden"
         >
           <TabsList
             variant="line"
@@ -199,73 +240,82 @@ export function DetailModal({
             <TabsTrigger value="files">Файлы</TabsTrigger>
             <TabsTrigger value="comments">Комментарии</TabsTrigger>
           </TabsList>
-          <ScrollArea
-            className="min-h-0 flex-1 md:h-[70svh] md:flex-none px-4"
-            viewportClassName="overscroll-contain"
+          {/* У каждой вкладки собственный скролл: `comments` не вложена в общий
+              `ScrollArea`, чтобы внутри неё встал `MessageScroller`. */}
+          <ScrollableTab
+            value="overview"
+            className="md:h-[70svh] md:flex-none"
             onViewportScroll={handleContentScroll}
           >
-            {/* overview */}
-            <TabsContent value="overview">
-              <OverviewTab
-                item={item}
-                onQty={onQty}
-                onPrice={onPrice}
-                onPatch={onPatch}
-                onOpenItem={onOpenItem}
-                childrenItems={childrenItems}
-                onOpenOperation={onOpenOperation}
-                ops={ops}
-                onAddService={onAddService}
-                // «Открыть» у блоков обзора ведёт на вкладку: состояние живёт
-                // там же, где правка, а `?tab=` переживает перезагрузку.
-                onTabChange={changeTab}
-                orgSlug={orgSlug}
-                projectId={projectId}
-                companies={companies}
-                contacts={contacts}
-                projectRooms={projectRooms}
-                onSupplierChange={onSupplierChange}
-                onSwitchVariant={onSwitchVariant}
-                onAddVariant={onAddVariant}
-                // Компанию создаёт родитель модалки: он же держит единый список
-                // компаний, поэтому новая запись сразу видна в подписи блока.
-                onCreateCompany={(name, onCreated) => {
-                  setNewCompanyName(name);
-                  setCompanyCreated({ notify: onCreated });
-                  setShowAddCompany(true);
-                }}
-                onCompanyCreated={onCompanyCreated}
-                onContactSaved={onContactSaved}
-              />
-            </TabsContent>
-            {/* parameters */}
-            <TabsContent value="parameters">
-              <ModalDetailsTab item={item} onPatch={onPatch} />
-            </TabsContent>
-            {/* components (состав: spec_item_components, не строки таблицы) */}
-            <TabsContent value="components">
-              <SpecComponentsSection
-                orgSlug={orgSlug}
-                projectId={projectId}
-                specItemId={item.id}
-                companies={companies}
-                contacts={contacts}
-                specItems={allItems}
-                onOpenRefItem={onOpenRefItem ?? onOpenItem}
-                onCompanyCreated={onCompanyCreated}
-              />
-            </TabsContent>
-            {/* rooms */}
-            <TabsContent value="comments" className="flex flex-col gap-4">
-              <CommentsTab />
-            </TabsContent>
-            {/* supplier — вкладки нет: поставщик, менеджер и срок поставки
-                правятся прямо в раскрытом блоке «Поставка» вкладки «Обзор». */}
-            {/* files */}
-            <TabsContent value="files" className="flex flex-col gap-4">
-              <FilesTab />
-            </TabsContent>
-          </ScrollArea>
+            <OverviewTab
+              item={item}
+              onQty={onQty}
+              onPrice={onPrice}
+              onPatch={onPatch}
+              onOpenItem={onOpenItem}
+              childrenItems={childrenItems}
+              onOpenOperation={onOpenOperation}
+              ops={ops}
+              onAddService={onAddService}
+              // «Открыть» у блоков обзора ведёт на вкладку: состояние живёт
+              // там же, где правка, а `?tab=` переживает перезагрузку.
+              onTabChange={changeTab}
+              orgSlug={orgSlug}
+              projectId={projectId}
+              companies={companies}
+              contacts={contacts}
+              projectRooms={projectRooms}
+              onSupplierChange={onSupplierChange}
+              onSwitchVariant={onSwitchVariant}
+              onAddVariant={onAddVariant}
+              // Компанию создаёт родитель модалки: он же держит единый список
+              // компаний, поэтому новая запись сразу видна в подписи блока.
+              onCreateCompany={(name, onCreated) => {
+                setNewCompanyName(name);
+                setCompanyCreated({ notify: onCreated });
+                setShowAddCompany(true);
+              }}
+              onCompanyCreated={onCompanyCreated}
+              onContactSaved={onContactSaved}
+            />
+          </ScrollableTab>
+          {/* parameters */}
+          <ScrollableTab
+            value="parameters"
+            onViewportScroll={handleContentScroll}
+          >
+            <ModalDetailsTab item={item} onPatch={onPatch} />
+          </ScrollableTab>
+          {/* components (состав: spec_item_components, не строки таблицы) */}
+          <ScrollableTab
+            value="components"
+            onViewportScroll={handleContentScroll}
+          >
+            <SpecComponentsSection
+              orgSlug={orgSlug}
+              projectId={projectId}
+              specItemId={item.id}
+              companies={companies}
+              contacts={contacts}
+              specItems={allItems}
+              onOpenRefItem={onOpenRefItem ?? onOpenItem}
+              onCompanyCreated={onCompanyCreated}
+            />
+          </ScrollableTab>
+          {/* comments: flex-контейнер под будущий MessageScroller, своего
+              `ScrollArea` здесь быть не должно */}
+          <TabsContent
+            value="comments"
+            className="flex h-full min-h-0 flex-1 flex-col gap-4 overflow-hidden"
+          >
+            <CommentsTab />
+          </TabsContent>
+          {/* supplier — вкладки нет: поставщик, менеджер и срок поставки
+              правятся прямо в раскрытом блоке «Поставка» вкладки «Обзор». */}
+          {/* files */}
+          <ScrollableTab value="files" onViewportScroll={handleContentScroll}>
+            <FilesTab />
+          </ScrollableTab>
         </Tabs>
       </DialogContent>
       {showAddCompany && (

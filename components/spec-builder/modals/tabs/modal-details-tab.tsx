@@ -59,7 +59,7 @@ const ModalDetailsTab = ({
               className={EDITABLE_FIELD_CLASS}
               defaultValue={item.name}
               id="Наименование"
-              autoFocus
+              // autoFocus
               onBlur={(e) => onPatch({ name: e.target.value.trim() })}
               onFocus={(e) => e.target.select()}
               onKeyDown={commitKeysHandler(item.name)}
