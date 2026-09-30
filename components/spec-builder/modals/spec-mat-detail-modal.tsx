@@ -302,13 +302,13 @@ export function DetailModal({
               onCompanyCreated={onCompanyCreated}
             />
           </ScrollableTab>
-          {/* comments: flex-контейнер под будущий MessageScroller, своего
-              `ScrollArea` здесь быть не должно */}
+          {/* comments: лента активности со своим `MessageScroller`; `ScrollArea`
+              здесь быть не должно — второй уровень скролла сломал бы её */}
           <TabsContent
             value="comments"
-            className="flex h-full min-h-0 flex-1 flex-col gap-4 overflow-hidden"
+            className="flex h-full min-h-0 flex-1 flex-col overflow-hidden"
           >
-            <CommentsTab />
+            <CommentsTab orgSlug={orgSlug} specItemId={item.id} />
           </TabsContent>
           {/* supplier — вкладки нет: поставщик, менеджер и срок поставки
               правятся прямо в раскрытом блоке «Поставка» вкладки «Обзор». */}

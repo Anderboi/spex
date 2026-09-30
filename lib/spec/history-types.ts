@@ -33,9 +33,13 @@ import type {
  * `batchSize` — число ЗАПИСАННЫХ событий операции (не число выбранных позиций
  * и не число операций). `null` означает, что поля нет в payload'е: так
  * выглядит одиночное действие, у которого размер не пишется.
+ *
+ * `batch` необязателен наравне с `batchSize`: часть payload'ов на месте `batch`
+ * пишет `undefined` (`{ batch: undefined }` при спреде `{ batch?: true }`), и
+ * требовать здесь строгий `boolean` значило бы описывать данные нечёстно.
  */
 export type HistoryBatchFields = {
-  batch: boolean;
+  batch?: boolean;
   batchSize: number | null;
 };
 
@@ -265,3 +269,16 @@ export type HistoryCommentEntry = HistoryEntryBase & {
 
 /** Элемент единой ленты: системное событие или комментарий. */
 export type HistoryEntry = HistoryEventEntry | HistoryCommentEntry;
+
+/**
+ * Позиция в ленте, с которой продолжается следующая страница.
+ *
+ * Пара, а не одно `createdAt`: записи одной миллисекунды нужно чем-то
+ * упорядочивать, иначе граница страницы разойдётся с порядком в БД. Тип лежит
+ * в доменном контракте, а не в читающем слое: это часть формы ленты, и её
+ * используют и клиент (курсор «Показать ещё»), и сервер.
+ */
+export type HistoryCursor = {
+  createdAt: string;
+  id: string;
+};

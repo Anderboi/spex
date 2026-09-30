@@ -39,6 +39,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../types";
 import type {
   HistoryCommentEntry,
+  HistoryCursor,
   HistoryEntry,
   HistoryEventEntry,
 } from "./history-types";
@@ -52,11 +53,12 @@ import {
 /** Клиент БД: как у write-хелперов, приходит аргументом. */
 export type HistoryReadDb = SupabaseClient<Database>;
 
-/** Позиция в ленте, с которой продолжается следующая страница. */
-export type HistoryCursor = {
-  createdAt: string;
-  id: string;
-};
+/**
+ * Курсор объявлен в доменном контракте (`./history-types`) и реэкспортируется
+ * здесь: читающий слой — его основной потребитель, и импорт из `./history-read`
+ * уже используется тестами.
+ */
+export type { HistoryCursor };
 
 export type GetSpecItemHistoryOptions = {
   /** Размер страницы; по умолчанию 50, допускается 1…100. */
