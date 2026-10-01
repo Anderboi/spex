@@ -1,5 +1,6 @@
 "use client";
 
+import { Button } from "@/components/ui/button";
 import {
   Message,
   MessageAvatar,
@@ -9,6 +10,7 @@ import {
 import ActivityMeta from "./activity-meta";
 import { activityQuoteText } from "@/lib/spec/activity-view";
 import { formatActivityActor } from "@/lib/spec/activity-format";
+import { isOptimisticCommentId } from "@/lib/spec/comment-write";
 import type { HistoryCommentEntry } from "@/lib/spec/history-types";
 
 /**
@@ -22,10 +24,13 @@ import type { HistoryCommentEntry } from "@/lib/spec/history-types";
 export default function ActivityReply({
   reply,
   parent,
+  onReply,
 }: {
   reply: HistoryCommentEntry;
   /** Снимок родителя для цитаты; `null` — родителя нет в прочитанном. */
   parent: HistoryCommentEntry | null;
+  /** Начать ответ внутри той же ветки; сервер сам приведёт его к корню. */
+  onReply?: (comment: HistoryCommentEntry) => void;
 }) {
   const quote = activityQuoteText(parent);
   const author = formatActivityActor(reply.actor);
@@ -61,6 +66,20 @@ export default function ActivityReply({
           <p className="text-[13px] text-fg-muted italic">Комментарий удалён</p>
         ) : (
           <p className="text-[13px] text-fg wrap-break-word">{reply.body}</p>
+        )}
+
+        {/* Ответ на ответ разрешён: ветка остаётся плоской, третий уровень не
+            появляется ни здесь, ни на сервере. */}
+        {onReply && !isOptimisticCommentId(reply.id) && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="xs"
+            className="self-start text-fg-muted"
+            onClick={() => onReply(reply)}
+          >
+            Ответить
+          </Button>
         )}
       </MessageContent>
     </Message>

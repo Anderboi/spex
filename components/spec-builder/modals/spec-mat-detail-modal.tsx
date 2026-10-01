@@ -78,6 +78,8 @@ export function DetailModal({
   companies,
   contacts,
   orgSlug,
+  orgId,
+  currentUser,
   projectId,
   initialTab,
   onTabChange,
@@ -120,6 +122,13 @@ export function DetailModal({
   companies: Company[];
   contacts: Contact[];
   orgSlug: string;
+  /** Организация позиции: нужна optimistic-записи комментария (не уходит на сервер). */
+  orgId: string;
+  /**
+   * Текущий пользователь — автор для optimistic-предпросмотра комментария.
+   * Окончательный автор берётся из ответа сервера, а не отсюда.
+   */
+  currentUser: { id: string; name: string | null; email: string | null };
   projectId: string;
   /** Вкладка при открытии (например, «Состав» после возврата из ссылки). */
   initialTab?: DetailPanelTab;
@@ -329,7 +338,9 @@ export function DetailModal({
           >
             <CommentsTab
               orgSlug={orgSlug}
+              orgId={orgId}
               specItemId={item.id}
+              currentUser={currentUser}
               /* Та же логика сворачивания, что у остальных вкладок: вьюпорт
                  ленты отдаёт свой `scrollTop`, порог считает модалка. */
               onViewportScroll={handleScrollTop}

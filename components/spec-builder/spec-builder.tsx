@@ -43,6 +43,8 @@ import { ServiceOperationModal } from "./modals/service-operation-modal";
 
 export default function SpecBuilder({
   orgSlug,
+  orgId,
+  currentUser,
   projectId,
   project,
   initialItems,
@@ -51,6 +53,10 @@ export default function SpecBuilder({
   library,
 }: {
   orgSlug: string;
+  /** Организация: нужна optimistic-записи комментария в карточке позиции. */
+  orgId: string;
+  /** Текущий пользователь — автор для optimistic-предпросмотра. */
+  currentUser: { id: string; name: string | null; email: string | null };
   projectId: string;
   project: {
     id: string;
@@ -415,6 +421,8 @@ export default function SpecBuilder({
         <DetailModal
           key={ctx.current.id}
           orgSlug={orgSlug}
+          orgId={orgId}
+          currentUser={currentUser}
           projectId={projectId}
           item={ctx.current}
           childrenItems={currentChildren}

@@ -135,8 +135,12 @@ export type SpecItemEventInput = {
 /**
  * Подпись автора на момент события. Порядок взят у списка команды
  * (`components/team/member-row.tsx`): имя → почта → «Пользователь».
+ *
+ * Экспортируется, потому что это правило — часть контракта истории, а не
+ * деталь записи событий: комментарии (`./comment-write`) сохраняют снимок
+ * автора ровно так же, и второй копии правила в проекте быть не должно.
  */
-function actorNameSnapshot(actor: SpecItemEventActor): string {
+export function actorNameSnapshot(actor: SpecItemEventActor): string {
   return actor.name || actor.email || "Пользователь";
 }
 

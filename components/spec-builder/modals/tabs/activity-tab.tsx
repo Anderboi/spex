@@ -13,8 +13,10 @@ import {
   MessageScrollerViewport,
 } from "@/components/ui/message-scroller";
 import ActivityComment from "../activity/activity-comment";
+import ActivityComposer from "../activity/activity-composer";
 import ActivityDateSeparator from "../activity/activity-date-separator";
 import ActivityEvent from "../activity/activity-event";
+import { useCommentComposer } from "../activity/use-comment-composer";
 import { getSpecItemActivity } from "@/actions/spec-activity";
 import {
   ACTIVITY_SKELETON_COUNT,
@@ -23,6 +25,7 @@ import {
   type ActivityRecord,
 } from "@/lib/spec/activity-types";
 import { buildActivityFeed } from "@/lib/spec/activity-view";
+import type { HistoryCommentEntry } from "@/lib/spec/history-types";
 
 /**
  * Вкладка «Комментарии»: read-only лента активности позиции.
@@ -89,12 +92,21 @@ type FirstPageResult =
 
 export default function ActivityTab({
   orgSlug,
+  orgId,
   specItemId,
+  currentUser,
   onViewportScroll,
 }: {
   orgSlug: string;
+  /** Организация позиции: нужна optimistic-записи, на сервер не уходит. */
+  orgId: string;
   /** Позиция, чью ленту читаем. Больше ничего из `SpecItem` не нужно. */
   specItemId: string;
+  /**
+   * Автор для optimistic-предпросмотра — тот же снимок, что положит сервер.
+   * Окончательный `actor` берётся из ответа сервера, а не отсюда.
+   */
+  currentUser: { id: string; name: string | null; email: string | null };
   /**
    * Прокрутка вьюпорта: наружу уходит только `scrollTop`.
    *
@@ -208,6 +220,48 @@ export default function ActivityTab({
     }
   }, [orgSlug, specItemId, nextCursor, loadingMore]);
 
+  const isCurrent = loadedKey === specItemId;
+  const loading = !isCurrent && error === null;
+  const failed = !isCurrent && error !== null;
+
+  /**
+   * Подтверждённая запись от сервера дописывается в конец `records`.
+   *
+   * Порядок `records` — серверный (`createdAt DESC, id DESC`), поэтому свежая
+   * запись идёт последней; раскладывает её `buildActivityFeed`, а не этот
+   * обработчик: новый корень встаёт наверх, ответ — в конец своей ветки.
+   * `nextCursor` не трогается, лента не перезагружается.
+   */
+  const handleCreated = useCallback((comment: HistoryCommentEntry) => {
+    setRecords((current) => [...current, comment]);
+  }, []);
+
+  const composer = useCommentComposer({
+    orgSlug,
+    orgId,
+    specItemId,
+    author: currentUser,
+    onCreated: handleCreated,
+  });
+
+  /** Лента + незавершённая отправка: подтверждённые записи не мутируются. */
+  const visibleRecords = useMemo(
+    () =>
+      composer.optimistic ? [...records, composer.optimistic] : records,
+    [records, composer.optimistic],
+  );
+
+  /**
+   * `replyCount` с учётом ещё не подтверждённых ответов.
+   *
+   * Считается на отрисовке, а не хранится отдельным состоянием: при ошибке
+   * временная запись исчезает, и счётчик сам возвращается к серверному
+   * значению — откатывать вручную нечего. Число считается по незавершённой
+   * отправке, а не по всей ветке, потому что серверный `replyCount` уже учёл
+   * все подтверждённые ответы.
+   */
+  const pendingReplyRootId = composer.optimistic?.rootId ?? null;
+
   /**
    * Раскладка ленты: разделители дней и ветки ответов.
    *
@@ -217,12 +271,8 @@ export default function ActivityTab({
    */
   const feed = useMemo(() => {
     if (loadedKey !== specItemId) return [];
-    return buildActivityFeed(records);
-  }, [records, loadedKey, specItemId]);
-
-  const isCurrent = loadedKey === specItemId;
-  const loading = !isCurrent && error === null;
-  const failed = !isCurrent && error !== null;
+    return buildActivityFeed(visibleRecords);
+  }, [visibleRecords, loadedKey, specItemId]);
 
   /**
    * Прокрутка вьюпорта → число наружу.
@@ -278,7 +328,7 @@ export default function ActivityTab({
               </div>
             )}
 
-            {isCurrent && records.length === 0 && (
+            {isCurrent && visibleRecords.length === 0 && (
               <div className="flex flex-col items-center gap-2 px-4 py-12 text-center">
                 <History className="size-7 text-fg-muted" aria-hidden="true" />
                 <p className="text-[14px] font-medium text-fg">
@@ -316,6 +366,15 @@ export default function ActivityTab({
                   <ActivityComment
                     comment={item.comment}
                     replies={item.replies}
+                    onReply={composer.startReply}
+                    // Счётчик растёт на время отправки ответа и сам
+                    // возвращается к серверному, если отправка не удалась.
+                    replyCountOverride={
+                      composer.optimistic &&
+                      pendingReplyRootId === item.comment.id
+                        ? item.comment.replyCount + 1
+                        : undefined
+                    }
                   />
                 </MessageScrollerItem>
               ),
@@ -340,6 +399,24 @@ export default function ActivityTab({
             )}
           </MessageScrollerContent>
         </MessageScrollerViewport>
+
+        {/*
+          Composer — сосед скролл-контейнера, а не его содержимое: лента
+          прокручивается, поле ввода остаётся на месте. `MessageScroller`
+          остаётся единственным scroll-контейнером, chat-механика не
+          добавляется: ни `autoScroll`, ни якоря, ни кнопок перехода.
+        */}
+        {isCurrent && (
+          <ActivityComposer
+            value={composer.body}
+            onChange={composer.changeBody}
+            onSubmit={() => void composer.submit()}
+            onCancelReply={composer.cancelReply}
+            replyTo={composer.replyTarget?.comment ?? null}
+            pending={composer.pending}
+            error={composer.error}
+          />
+        )}
       </MessageScroller>
     </MessageScrollerProvider>
   );

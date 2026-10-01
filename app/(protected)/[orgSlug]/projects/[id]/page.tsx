@@ -12,6 +12,7 @@ import {
   getSpecPickerData,
 } from "@/lib/queries";
 import { withSearchParams } from "@/lib/query-string";
+import { requireOrgBySlug } from "@/lib/auth/session";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
@@ -26,6 +27,11 @@ export default async function ProjectSpecification({
 }: ProjectPageProps) {
   const { id, orgSlug } = await params;
   const sp = await searchParams;
+
+  // Сессия нужна не только для чтения данных: `orgId` и текущий пользователь
+  // уезжают в конструктор как есть — из них собирается optimistic-запись
+  // комментария, а окончательного автора всё равно возвращает сервер.
+  const ctx = await requireOrgBySlug(orgSlug);
 
   const [project, specItems, picker, library] = await Promise.all([
     getProjectById(orgSlug, id),
@@ -84,6 +90,12 @@ export default async function ProjectSpecification({
       <EditProjectDialog orgSlug={orgSlug} project={project} />
       <SpecBuilder
         orgSlug={orgSlug}
+        orgId={ctx.orgId}
+        currentUser={{
+          id: ctx.userId,
+          name: ctx.user.name ?? null,
+          email: ctx.user.email ?? null,
+        }}
         projectId={id}
         project={project}
         initialItems={specItems}
