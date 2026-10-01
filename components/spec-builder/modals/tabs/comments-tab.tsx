@@ -12,11 +12,24 @@ import ActivityTab from "./activity-tab";
 const CommentsTab = ({
   orgSlug,
   specItemId,
+  onViewportScroll,
 }: {
   orgSlug: string;
   specItemId: string;
+  /**
+   * Прокрутка ленты наружу — в `SpecMatDetailModal`, где живёт состояние
+   * свёрнутости `DetailsHeader`. Проп только пробрасывается: своей логики
+   * вкладка не добавляет.
+   */
+  onViewportScroll?: (scrollTop: number) => void;
 }) => {
-  return <ActivityTab orgSlug={orgSlug} specItemId={specItemId} />;
+  return (
+    <ActivityTab
+      orgSlug={orgSlug}
+      specItemId={specItemId}
+      onViewportScroll={onViewportScroll}
+    />
+  );
 };
 
 export default CommentsTab;

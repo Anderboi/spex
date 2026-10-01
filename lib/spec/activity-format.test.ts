@@ -328,7 +328,10 @@ describe("formatActivityEvent: устойчивость", () => {
   });
 
   it("незнакомый kind (из будущей версии приложения) не ломает ленту", () => {
-    const future = event("teleported", { name: "Диван" });
+    // Вид события, которого нет в доменном объединении: так выглядит запись,
+    // записанная более новой версией приложения. Приведение типа намеренное —
+    // иначе этот случай не проверить, а рантайм обязан его выдержать.
+    const future = event("teleported" as SpecItemEventKind, { name: "Диван" });
 
     expect(() => formatActivityEvent(future)).not.toThrow();
     expect(formatActivityEvent(future)).toBeNull();

@@ -96,11 +96,14 @@ export default function ActivityTab({
   /** Позиция, чью ленту читаем. Больше ничего из `SpecItem` не нужно. */
   specItemId: string;
   /**
-   * Прокрутка вьюпорта. Пока не передаётся: сворачивание `DetailsHeader` от
-   * Activity Feed намеренно не подключено — как вести себя шапке при чтении
-   * истории, решается отдельно. Точка подключения уже здесь.
+   * Прокрутка вьюпорта: наружу уходит только `scrollTop`.
+   *
+   * Отдаётся число, а не DOM-событие: потребителю (сворачивание
+   * `DetailsHeader` в `SpecMatDetailModal`) нужна ровно позиция прокрутки, а
+   * `event.currentTarget` живёт только внутри обработчика. Состояние
+   * свёрнутости остаётся в модалке — своего состояния лента не заводит.
    */
-  onViewportScroll?: React.UIEventHandler<HTMLDivElement>;
+  onViewportScroll?: (scrollTop: number) => void;
 }) {
   const [records, setRecords] = useState<ActivityRecord[]>([]);
   const [nextCursor, setNextCursor] = useState<ActivityCursor | null>(null);
@@ -221,6 +224,19 @@ export default function ActivityTab({
   const loading = !isCurrent && error === null;
   const failed = !isCurrent && error !== null;
 
+  /**
+   * Прокрутка вьюпорта → число наружу.
+   *
+   * Читается в момент события: `currentTarget` после обработчика уже не тот
+   * элемент, а `scrollTop` как значение от него не зависит.
+   */
+  const handleViewportScroll = useCallback(
+    (event: React.UIEvent<HTMLDivElement>) => {
+      onViewportScroll?.(event.currentTarget.scrollTop);
+    },
+    [onViewportScroll],
+  );
+
   return (
     <MessageScrollerProvider defaultScrollPosition="start">
       <MessageScroller>
@@ -230,7 +246,7 @@ export default function ActivityTab({
         */}
         <MessageScrollerViewport
           aria-label="Лента активности"
-          onScroll={onViewportScroll}
+          onScroll={handleViewportScroll}
         >
           <MessageScrollerContent className="gap-0 px-4 py-4">
             {loading &&

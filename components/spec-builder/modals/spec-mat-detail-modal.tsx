@@ -185,12 +185,31 @@ export function DetailModal({
     onTabChange?.(value as DetailPanelTab);
   };
 
-  const handleContentScroll = (event: React.UIEvent<HTMLDivElement>) => {
-    const collapsed = event.currentTarget.scrollTop > 32;
+  /**
+   * Порог сворачивания шапки — единственное место, где он задан.
+   *
+   * Состояние живёт здесь, в модалке: вкладки только сообщают свою позицию
+   * прокрутки, своего `isHeaderCollapsed` ни у одной из них нет.
+   */
+  const setHeaderCollapsed = (scrollTop: number) => {
+    const collapsed = scrollTop > 32;
 
     setIsHeaderCollapsed((current) =>
       current === collapsed ? current : collapsed,
     );
+  };
+
+  const handleContentScroll = (event: React.UIEvent<HTMLDivElement>) => {
+    setHeaderCollapsed(event.currentTarget.scrollTop);
+  };
+
+  /**
+   * Та же логика для вьюпорта, который отдаёт позицию прокрутки числом
+   * (`MessageScrollerViewport` ленты активности). Порог считает
+   * `setHeaderCollapsed` — второй копии условия `> 32` в проекте нет.
+   */
+  const handleScrollTop = (scrollTop: number) => {
+    setHeaderCollapsed(scrollTop);
   };
 
   return (
@@ -308,7 +327,13 @@ export function DetailModal({
             value="comments"
             className="flex h-full min-h-0 flex-1 flex-col overflow-hidden"
           >
-            <CommentsTab orgSlug={orgSlug} specItemId={item.id} />
+            <CommentsTab
+              orgSlug={orgSlug}
+              specItemId={item.id}
+              /* Та же логика сворачивания, что у остальных вкладок: вьюпорт
+                 ленты отдаёт свой `scrollTop`, порог считает модалка. */
+              onViewportScroll={handleScrollTop}
+            />
           </TabsContent>
           {/* supplier — вкладки нет: поставщик, менеджер и срок поставки
               правятся прямо в раскрытом блоке «Поставка» вкладки «Обзор». */}
