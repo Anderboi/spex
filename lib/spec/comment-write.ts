@@ -39,6 +39,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database, TablesInsert } from "../types";
 import { actorNameSnapshot, type SpecItemEventActor } from "./history";
+import {
+  HISTORY_COMMENT_COLUMNS,
+  mapSpecItemComment,
+} from "./history-mappers";
 import type { HistoryCommentEntry } from "./history-types";
 import { COMMENT_LIMITS, createCommentSchema } from "../validations";
 
@@ -81,9 +85,18 @@ export type CreateCommentInput = {
   parentId?: string | null;
 };
 
-/** Колонки, которые реально нужны для доменного `HistoryCommentEntry`. */
+/**
+ * Колонки, которые реально нужны для доменного `HistoryCommentEntry`.
+ *
+ * Литерал, а не ссылка на константу: только по литералу supabase-js выводит тип
+ * строки. Совпадение со `HISTORY_COMMENT_COLUMNS` проверяет компилятор —
+ * присваивание ниже не соберётся, если списки разойдутся.
+ */
 const COMMENT_COLUMNS =
   "id, org_id, spec_item_id, parent_id, root_id, author_id, author_name_snapshot, body, created_at, edited_at, deleted_at";
+
+const _columnsMatchReadLayer: typeof HISTORY_COMMENT_COLUMNS = COMMENT_COLUMNS;
+void _columnsMatchReadLayer;
 
 /** Строка комментария в том виде, в каком её вернул PostgREST. */
 function toCommentRow(
@@ -228,57 +241,11 @@ export async function recordSpecItemComment(
   }
 
   // Ответ строится из ФАКТИЧЕСКИ записанной строки, а не из входных данных:
-  // только она подтверждает, что сохранилось именно это.
-  return { ok: true, comment: rowToCommentEntry(data) };
-}
-
-/**
- * Строка БД → доменный `HistoryCommentEntry`.
- *
- * `replyCount` у только что созданного комментария всегда `0`: ответов у него
- * ещё нет, а считает их read-layer по всей позиции. `editedAt`/`deleted`
- * берутся из строки, а не из предположения.
- *
- * Тот же смысл, что у `mapSpecItemComment` из `./history-mappers`, но вход —
- * не `Tables<"spec_item_comments">` целиком (в ответе только выбранные
- * колонки), поэтому используется локальное преобразование. Обе функции
- * обязаны давать одинаковый домен: контракт между ними закреплён тестом.
- */
-function rowToCommentEntry(row: {
-  id: string;
-  org_id: string;
-  spec_item_id: string;
-  parent_id: string | null;
-  root_id: string | null;
-  author_id: string | null;
-  author_name_snapshot: string | null;
-  body: string;
-  created_at: string;
-  edited_at: string | null;
-  deleted_at: string | null;
-}): HistoryCommentEntry {
-  const name = row.author_name_snapshot;
-  return {
-    id: row.id,
-    orgId: row.org_id,
-    specItemId: row.spec_item_id,
-    createdAt: row.created_at,
-    actor: {
-      id: row.author_id,
-      // Пустая строка — то же «не заполнено», что и `null`: подставлять текст
-      // вместо отсутствующих данных контракт не должен.
-      name: typeof name === "string" && name.length > 0 ? name : null,
-    },
-    source: "comment",
-    parentId: row.parent_id,
-    rootId: row.root_id,
-    body: row.body,
-    // Отсутствие метки — то же «не изменялся / не удалён», что и `null`:
-    // `undefined` здесь значил бы «удалён», то есть ровно наоборот.
-    editedAt: row.edited_at ?? null,
-    deleted: (row.deleted_at ?? null) !== null,
-    replyCount: 0,
-  };
+  // только она подтверждает, что сохранилось именно это. Домен собирает тот же
+  // `mapSpecItemComment`, что и чтение ленты, поэтому расходиться им нечем.
+  // `replyCount` у только что созданного комментария — 0: ответов у него ещё
+  // нет, а считает их read-layer по всей позиции.
+  return { ok: true, comment: mapSpecItemComment(data, 0) };
 }
 
 /** Пределы текста комментария — для UI и для тестов. */

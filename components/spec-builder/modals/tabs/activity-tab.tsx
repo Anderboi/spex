@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { History } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   MessageScroller,
@@ -16,7 +17,9 @@ import ActivityComment from "../activity/activity-comment";
 import ActivityComposer from "../activity/activity-composer";
 import ActivityDateSeparator from "../activity/activity-date-separator";
 import ActivityEvent from "../activity/activity-event";
+import type { CommentMutationSlots } from "../activity/comment-actions";
 import { useCommentComposer } from "../activity/use-comment-composer";
+import { useCommentMutations } from "../activity/use-comment-mutations";
 import { getSpecItemActivity } from "@/actions/spec-activity";
 import {
   ACTIVITY_SKELETON_COUNT,
@@ -24,6 +27,10 @@ import {
   type ActivityFeedPage,
   type ActivityRecord,
 } from "@/lib/spec/activity-types";
+import {
+  applyCommentMutations,
+  canMutateComment,
+} from "@/lib/spec/comment-mutation-model";
 import { buildActivityFeed } from "@/lib/spec/activity-view";
 import type { HistoryCommentEntry } from "@/lib/spec/history-types";
 
@@ -225,15 +232,22 @@ export default function ActivityTab({
   const failed = !isCurrent && error !== null;
 
   /**
-   * Подтверждённая запись от сервера дописывается в конец `records`.
+   * Подтверждённая серверная запись заменяет прежнюю в `records`.
    *
-   * Порядок `records` — серверный (`createdAt DESC, id DESC`), поэтому свежая
-   * запись идёт последней; раскладывает её `buildActivityFeed`, а не этот
-   * обработчик: новый корень встаёт наверх, ответ — в конец своей ветки.
-   * `nextCursor` не трогается, лента не перезагружается.
+   * Используется и созданием (дописывает в конец — порядок `records` серверный,
+   * `createdAt DESC`), и правкой/удалением (заменяет ту же позицию). В обоих
+   * случаях в ленту попадает серверный объект целиком, а `nextCursor` не
+   * трогается: пагинация остаётся той же.
    */
   const handleCreated = useCallback((comment: HistoryCommentEntry) => {
     setRecords((current) => [...current, comment]);
+  }, []);
+
+  /** Правка/удаление: заменить запись серверным результатом на том же месте. */
+  const handleUpdated = useCallback((comment: HistoryCommentEntry) => {
+    setRecords((current) =>
+      current.map((record) => (record.id === comment.id ? comment : record)),
+    );
   }, []);
 
   const composer = useCommentComposer({
@@ -244,12 +258,29 @@ export default function ActivityTab({
     onCreated: handleCreated,
   });
 
-  /** Лента + незавершённая отправка: подтверждённые записи не мутируются. */
-  const visibleRecords = useMemo(
-    () =>
-      composer.optimistic ? [...records, composer.optimistic] : records,
-    [records, composer.optimistic],
-  );
+  const mutations = useCommentMutations({
+    orgSlug,
+    specItemId,
+    onUpdated: handleUpdated,
+  });
+
+  /**
+   * Лента + незавершённые операции.
+   *
+   * Подтверждённые `records` не меняются: правка и удаление — это операции в
+   * `mutations`, применяемые на отрисовке. Поэтому откат при ошибке не требует
+   * ничего восстанавливать — достаточно убрать операцию из `mutations`, и
+   * запись снова берётся из `records`.
+   *
+   * Операции применяются только к комментариям: события править нечем, и
+   * `applyCommentMutations` их возвращает как есть.
+   */
+  const visibleRecords = useMemo(() => {
+    const withMutations = applyCommentMutations(records, mutations.mutations);
+    return composer.optimistic
+      ? [...withMutations, composer.optimistic]
+      : withMutations;
+  }, [records, mutations.mutations, composer.optimistic]);
 
   /**
    * `replyCount` с учётом ещё не подтверждённых ответов.
@@ -263,11 +294,47 @@ export default function ActivityTab({
   const pendingReplyRootId = composer.optimistic?.rootId ?? null;
 
   /**
+   * Что renderer'у нужно знать про правку и удаление.
+   *
+   * Один объект: `ActivityComment` прокидывает его в `ActivityReply`, и плоский
+   * список пропсов пришлось бы дублировать на каждом уровне. Ни одного server
+   * action здесь нет — они живут в `useCommentMutations`.
+   */
+  const mutationSlots: CommentMutationSlots = useMemo(
+    () => ({
+      mutations: mutations.mutations,
+      editingId: mutations.editingId,
+      editBody: mutations.editBody,
+      editError: mutations.editError,
+      // UX-условие, а не граница безопасности: сервер проверит авторство сам.
+      canMutate: (comment) =>
+        canMutateComment({ comment, currentUserId: currentUser.id }),
+      isPending: (commentId) => mutations.mutations.get(commentId)?.pending === true,
+      startEdit: mutations.startEdit,
+      changeEditBody: mutations.changeEditBody,
+      cancelEdit: mutations.cancelEdit,
+      submitEdit: mutations.submitEdit,
+      requestDelete: mutations.requestDelete,
+    }),
+    [
+      mutations.mutations,
+      mutations.editingId,
+      mutations.editBody,
+      mutations.editError,
+      mutations.startEdit,
+      mutations.changeEditBody,
+      mutations.cancelEdit,
+      mutations.submitEdit,
+      mutations.requestDelete,
+      currentUser.id,
+    ],
+  );
+
+  /**
    * Раскладка ленты: разделители дней и ветки ответов.
    *
-   * Момент `now` фиксируется один раз на набор записей, чтобы все разделители
-   * считались от одного времени: иначе «Сегодня» могло бы появиться в одном
-   * месте ленты и не появиться в другом при отрисовке через полночь.
+   * `buildActivityFeed` сам дедуплицирует записи по `id`: повтор id дал бы
+   * повтор ключа React, и лента начала бы дублировать или терять записи.
    */
   const feed = useMemo(() => {
     if (loadedKey !== specItemId) return [];
@@ -367,6 +434,7 @@ export default function ActivityTab({
                     comment={item.comment}
                     replies={item.replies}
                     onReply={composer.startReply}
+                    mutation={mutationSlots}
                     // Счётчик растёт на время отправки ответа и сам
                     // возвращается к серверному, если отправка не удалась.
                     replyCountOverride={
@@ -418,6 +486,27 @@ export default function ActivityTab({
           />
         )}
       </MessageScroller>
+
+      {/*
+        Подтверждение удаления — существующий `ConfirmDialog`, один на вкладку:
+        держать диалог в каждой записи значило бы держать невидимый диалог на
+        каждый комментарий ленты.
+      */}
+      <ConfirmDialog
+        open={mutations.confirmingDeleteId !== null}
+        title="Удалить комментарий?"
+        description="Комментарий будет скрыт, но ответы останутся."
+        confirmLabel="Удалить"
+        destructive
+        autoFocusCancel
+        pending={mutations.isDeletePending}
+        onConfirm={() => {
+          if (mutations.confirmingDeleteId) {
+            void mutations.confirmDelete(mutations.confirmingDeleteId);
+          }
+        }}
+        onCancel={mutations.cancelDelete}
+      />
     </MessageScrollerProvider>
   );
 }

@@ -9,10 +9,14 @@ import {
 } from "@/components/ui/message";
 import ActivityMeta from "./activity-meta";
 import ActivityReply from "./activity-reply";
+import CommentActions from "./comment-actions";
+import CommentEditForm from "./comment-edit-form";
 import {
   formatActivityActor,
   plural,
 } from "@/lib/spec/activity-format";
+import type { CommentMutationSlots } from "./comment-actions";
+import { isEditingComment } from "@/lib/spec/comment-mutation-model";
 import { isOptimisticCommentId } from "@/lib/spec/comment-write";
 import type { ActivityReplyItem } from "@/lib/spec/activity-view";
 import type { HistoryCommentEntry } from "@/lib/spec/history-types";
@@ -31,15 +35,16 @@ import type { HistoryCommentEntry } from "@/lib/spec/history-types";
  * удалённые ответы. Отдельного запроса на комментарий нет, поэтому счётчик
  * показывается всегда, а не только когда ветка видна на этой странице.
  *
- * Компонент ничего не знает о создании комментариев: он зовёт `onReply` и
- * забывает. Отправка, optimistic-запись и server action живут выше, в
- * `ActivityTab` и его хуке, поэтому renderer остаётся отображением.
+ * Компонент ничего не знает ни о server actions, ни об optimistic-состоянии:
+ * он зовёт `mutation.*` и рендерит то, что ему дали. Отправка живёт выше, в
+ * `ActivityTab` и его хуках, поэтому renderer остаётся отображением.
  */
 export default function ActivityComment({
   comment,
   replies,
   onReply,
   replyCountOverride,
+  mutation,
 }: {
   comment: HistoryCommentEntry;
   replies: readonly ActivityReplyItem[];
@@ -51,9 +56,18 @@ export default function ActivityComment({
    * переписывать его здесь нельзя.
    */
   replyCountOverride?: number;
+  /** Действия и режим правки; `undefined` — лента их не предоставляет. */
+  mutation?: CommentMutationSlots;
 }) {
   const author = formatActivityActor(comment.actor);
   const replyCount = replyCountOverride ?? comment.replyCount;
+  // Правка идёт только у подтверждённой записи: у временной optimistic-записи
+  // своего `id` на сервере ещё нет.
+  const confirmed = !isOptimisticCommentId(comment.id);
+  const editing =
+    confirmed &&
+    mutation !== undefined &&
+    isEditingComment({ commentId: comment.id, editingId: mutation.editingId });
 
   return (
     <div className="flex flex-col gap-3">
@@ -72,7 +86,16 @@ export default function ActivityComment({
             />
           </MessageHeader>
 
-          {comment.deleted ? (
+          {editing && mutation ? (
+            <CommentEditForm
+              value={mutation.editBody}
+              error={mutation.editError}
+              pending={mutation.isPending(comment.id)}
+              onChange={mutation.changeEditBody}
+              onSubmit={() => void mutation.submitEdit(comment.id)}
+              onCancel={mutation.cancelEdit}
+            />
+          ) : comment.deleted ? (
             <p className="text-[13.5px] text-fg-muted italic">
               Комментарий удалён
             </p>
@@ -90,19 +113,29 @@ export default function ActivityComment({
 
           {/*
             Действия — только у подтверждённых записей: у временной
-            optimistic-записи своего `id` нет, отвечать на неё нечем.
+            optimistic-записи своего `id` нет, ни ответить, ни изменить её нечем.
           */}
-          {onReply && !isOptimisticCommentId(comment.id) && (
+          {confirmed && !editing && (onReply || mutation?.canMutate(comment)) && (
             <div className="flex items-center gap-1">
-              <Button
-                type="button"
-                variant="ghost"
-                size="xs"
-                className="text-fg-muted"
-                onClick={() => onReply(comment)}
-              >
-                Ответить
-              </Button>
+              {onReply && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="xs"
+                  className="text-fg-muted"
+                  onClick={() => onReply(comment)}
+                >
+                  Ответить
+                </Button>
+              )}
+              {mutation?.canMutate(comment) && (
+                <CommentActions
+                  comment={comment}
+                  disabled={mutation.isPending(comment.id)}
+                  onEdit={mutation.startEdit}
+                  onDelete={mutation.requestDelete}
+                />
+              )}
             </div>
           )}
         </MessageContent>
@@ -116,6 +149,7 @@ export default function ActivityComment({
               reply={item.reply}
               parent={item.parent}
               onReply={onReply}
+              mutation={mutation}
             />
           ))}
         </div>

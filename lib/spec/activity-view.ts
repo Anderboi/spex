@@ -68,6 +68,30 @@ function dayKeyOf(iso: string): string {
 }
 
 /**
+ * Уникальные записи, первое вхождение сохраняет позицию.
+ *
+ * `id` записи уникален по построению (UUID из БД), поэтому повтор — это одна и
+ * та же запись, пришедшая дважды: оптимистичная запись, которую не убрали после
+ * подтверждения, повторная страница пагинации, гонка двух загрузок. Дедупликация
+ * нужна не косметики ради: два одинаковых `id` дают два одинаковых ключа React,
+ * а два одинаковых дня — ещё и два одинаковых разделителя, и лента начинает
+ * дублировать или терять записи (именно это ломало добавление комментария).
+ *
+ * Первое вхождение оставляем как есть: порядок ленты — серверный, и
+ * переупорядочивать его клиент не имеет права.
+ */
+function dedupeById<T extends { id: string }>(records: readonly T[]): T[] {
+  const seen = new Set<string>();
+  const out: T[] = [];
+  for (const record of records) {
+    if (seen.has(record.id)) continue;
+    seen.add(record.id);
+    out.push(record);
+  }
+  return out;
+}
+
+/**
  * Корневой ли это комментарий.
  *
  * Признак — отсутствие `parentId`: `rootId` у корня тоже `null`, но полагаться
@@ -99,15 +123,19 @@ export function buildActivityFeed(
   records: readonly ActivityRecord[],
   now: Date = new Date(),
 ): ActivityFeedItem[] {
+  // Дальше работаем с уникальными записями: повтор `id` дал бы повтор ключа
+  // React и повтор разделителя дня.
+  const unique = dedupeById(records);
+
   /** Комментарии текущей страницы по id — источник цитат для ответов. */
   const commentsById = new Map<string, HistoryCommentEntry>();
-  for (const record of records) {
+  for (const record of unique) {
     if (record.source === "comment") commentsById.set(record.id, record);
   }
 
   // ── ветки: корни в порядке ленты, ответы — по родителю ────────────────────
   const threads = new Map<string, ActivityCommentItem>();
-  for (const record of records) {
+  for (const record of unique) {
     if (record.source !== "comment" || !isRootComment(record)) continue;
     threads.set(record.id, {
       kind: "comment",
@@ -117,7 +145,7 @@ export function buildActivityFeed(
     });
   }
 
-  for (const record of records) {
+  for (const record of unique) {
     if (record.source !== "comment" || isRootComment(record)) continue;
 
     // Ответ прикрепляется к своему корню (`rootId`, иначе родителю): корень
@@ -145,8 +173,14 @@ export function buildActivityFeed(
   // ── лента: те же позиции, что пришли с сервера, плюс разделители дней ─────
   const items: ActivityFeedItem[] = [];
   let currentDay: string | null = null;
+  /**
+   * Номер разделителя. В ключ идёт вместе с записью, чтобы ключ был уникален
+   * БЕЗ опоры на данные: React требует уникальность только среди соседей, а
+   * дубликат записи (или её `createdAt`) больше не может её нарушить.
+   */
+  let separatorIndex = 0;
 
-  for (const record of records) {
+  for (const record of unique) {
     const day = dayKeyOf(record.createdAt);
 
     // Разделитель ставится перед первой записью дня. Подпись считается по
@@ -155,7 +189,9 @@ export function buildActivityFeed(
       currentDay = day;
       items.push({
         kind: "date",
-        id: `date:${day}`,
+        // Полная ISO-дата вместо короткого `day`: он не несёт год и часовой
+        // пояс, поэтому два разных дня могли дать один ключ.
+        id: `date:${separatorIndex++}:${record.createdAt}`,
         label: formatActivityDate(record.createdAt, now),
         date: record.createdAt,
       });

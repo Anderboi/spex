@@ -50,6 +50,19 @@ import type {
 export type SpecItemEventRow = Tables<"spec_item_events">;
 export type SpecItemCommentRow = Tables<"spec_item_comments">;
 
+/**
+ * Колонки, из которых собирается доменная запись.
+ *
+ * Экспортируются как документация контракта и для тестов: запросы обязаны
+ * оставаться литералами (`select("id, …")`), иначе supabase-js теряет вывод
+ * типов и отдаёт `GenericStringError` вместо строки.
+ */
+export const HISTORY_EVENT_COLUMNS =
+  "id, org_id, spec_item_id, kind, actor_id, actor_name_snapshot, payload, created_at" as const;
+
+export const HISTORY_COMMENT_COLUMNS =
+  "id, org_id, spec_item_id, parent_id, root_id, author_id, author_name_snapshot, body, created_at, edited_at, deleted_at" as const;
+
 /* ------------------------------------------------------------------ */
 /*  Чтение значений из payload                                         */
 /* ------------------------------------------------------------------ */
@@ -407,15 +420,36 @@ export function mapSpecItemEvent(row: SpecItemEventRow): HistoryEventEntry | nul
 }
 
 /**
+ * Строка комментария, какой её достаточно для домена.
+ *
+ * Шире, чем `SpecItemCommentRow`: подходит и полная строка таблицы, и выборка
+ * только нужных колонок (её делает и чтение ленты, и запись комментария).
+ * `edited_at`/`deleted_at` необязательны наравне с `null`: отсутствие метки —
+ * это «не изменялся / не удалён», и трактовать `undefined` наоборот нельзя.
+ */
+export type SpecItemCommentRowLike = Omit<
+  SpecItemCommentRow,
+  "edited_at" | "deleted_at"
+> & {
+  edited_at?: string | null;
+  deleted_at?: string | null;
+};
+
+/**
  * Строка комментария → доменный комментарий. Чистая функция: `replyCount`
  * приходит аргументом, потому что считать ответы — задача читающего слоя.
  *
  * Мягко удалённый комментарий остаётся в ленте: `deleted` отмечает факт,
  * `body` не подменяется и не вычищается — иначе удалённый корень ветки оставил
- * бы ответы без плейсхолдера.
+ * бы ответы без плейсхолдера, а цитата в ответе — без своего текста. Скрывает
+ * тело отображение (`activityQuoteText`, рендерер комментария), а не данные.
+ *
+ * Эту же функцию использует запись комментария (`./comment-mutate`), поэтому
+ * результат мутации и результат чтения ленты — один и тот же домен по
+ * построению, а не по совпадению.
  */
 export function mapSpecItemComment(
-  row: SpecItemCommentRow,
+  row: SpecItemCommentRowLike,
   replyCount: number,
 ): HistoryCommentEntry {
   return {
@@ -424,8 +458,8 @@ export function mapSpecItemComment(
     parentId: row.parent_id,
     rootId: row.root_id,
     body: row.body,
-    editedAt: row.edited_at,
-    deleted: row.deleted_at !== null,
+    editedAt: row.edited_at ?? null,
+    deleted: (row.deleted_at ?? null) !== null,
     replyCount,
   };
 }

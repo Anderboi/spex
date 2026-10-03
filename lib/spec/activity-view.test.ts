@@ -237,6 +237,75 @@ describe("buildActivityFeed: ветки ответов", () => {
   });
 });
 
+describe("buildActivityFeed: ключи элементов уникальны", () => {
+  it("повтор записи не удваивает ни запись, ни разделитель дня", () => {
+    // Именно этот случай ломал добавление комментария: одна и та же запись,
+    // пришедшая дважды, давала два ключа `date:…`, React ругался на
+    // неуникальные ключи, а лента дублировала записи.
+    const duplicate = comment("cm-1", "2026-09-01T10:00:00.000Z");
+    const records: ActivityRecord[] = [duplicate, duplicate];
+
+    const items = buildActivityFeed(records, NOW);
+    const keys = items.map((item) => item.id);
+
+    expect(new Set(keys).size).toBe(keys.length);
+    expect(separators(items)).toHaveLength(1);
+    expect(threads(items)).toHaveLength(1);
+  });
+
+  it("повтор записи вперемешку с другими не сдвигает порядок", () => {
+    const records: ActivityRecord[] = [
+      event("ev-2", "2026-09-25T14:00:00.000Z"),
+      comment("cm-1", "2026-09-25T13:00:00.000Z"),
+      event("ev-2", "2026-09-25T14:00:00.000Z"),
+      comment("cm-1", "2026-09-25T13:00:00.000Z"),
+    ];
+
+    const items = buildActivityFeed(records, NOW);
+
+    expect(items.map((item) => item.id)).toEqual([
+      "date:0:2026-09-25T14:00:00.000Z",
+      "ev-2",
+      "cm-1",
+    ]);
+  });
+
+  it("ключи разделителей уникальны и различают дни и годы", () => {
+    const records: ActivityRecord[] = [
+      event("ev-3", "2026-09-01T10:00:00.000Z"),
+      event("ev-2", "2025-09-01T10:00:00.000Z"),
+      event("ev-1", "2025-09-02T10:00:00.000Z"),
+    ];
+
+    const keys = buildActivityFeed(records, NOW).map((item) => item.id);
+
+    expect(new Set(keys).size).toBe(keys.length);
+  });
+
+  it("записи одного дня делят один разделитель, соседний день даёт свой", () => {
+    // Время берётся «серединой» суток, а не границей: локальная зона сдвигает
+    // UTC-полночь на соседний день, и тест стал бы зависеть от пояса машины.
+    const records: ActivityRecord[] = [
+      event("ev-3", "2026-09-25T12:00:00.000Z"),
+      event("ev-2", "2026-09-25T10:00:00.000Z"),
+      event("ev-1", "2026-09-24T12:00:00.000Z"),
+    ];
+
+    const items = buildActivityFeed(records, NOW);
+
+    // Два дня — два разделителя; записи одного дня второго не получают.
+    expect(separators(items)).toHaveLength(2);
+    expect(items.map((item) => item.id)).toEqual([
+      // Ключ разделителя — номер плюс `createdAt` первой записи дня.
+      "date:0:2026-09-25T12:00:00.000Z",
+      "ev-3",
+      "ev-2",
+      "date:1:2026-09-24T12:00:00.000Z",
+      "ev-1",
+    ]);
+  });
+});
+
 describe("activityQuoteText", () => {
   it("удалённый родитель не раскрывает текст", () => {
     expect(
