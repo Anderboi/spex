@@ -14,6 +14,12 @@ import {
   type PendingCommentMutation,
   type PendingCommentMutations,
 } from "@/lib/spec/comment-mutation-model";
+import {
+  beginCommentRequest,
+  isCommentRequestCurrent,
+  type CommentRequestToken,
+  type CommentRequestTokens,
+} from "@/lib/spec/comment-request-tokens";
 import { checkComposerBody } from "@/lib/spec/comment-write";
 import type { HistoryCommentEntry } from "@/lib/spec/history-types";
 
@@ -64,10 +70,33 @@ export function useCommentMutations(args: {
   );
 
   /**
-   * Номер попытки. Ответ устаревшего запроса не должен трогать состояние
-   * нового: пока он шёл, операцию могли отменить.
+   * Токены запросов — ПО КАЖДОМУ комментарию.
+   *
+   * Общий счётчик на все комментарии делал операции независимых записей взаимно
+   * устаревающими: правка A и удаление B получали номера 1 и 2, и ответ A
+   * сравнивался с номером B. Ответ признавался устаревшим и выходил, не сняв
+   * `pending`, — операция A оставалась «в полёте» навсегда.
+   *
+   * Здесь номер свой у каждого `commentId`, поэтому инвалидирует операцию
+   * только новая операция ТОГО ЖЕ комментария (правило «одна активная операция
+   * на комментарий»). См. `@/lib/spec/comment-request-tokens`.
    */
-  const attemptRef = useRef(0);
+  const requestTokensRef = useRef<CommentRequestTokens>(new Map());
+
+  /** Начать запрос по комментарию: вернуть его токен. */
+  const beginRequest = useCallback((commentId: string) => {
+    const { token, tokens } = beginCommentRequest(
+      requestTokensRef.current,
+      commentId,
+    );
+    requestTokensRef.current = tokens;
+    return token;
+  }, []);
+
+  /** Актуален ли ответ: устаревший не трогает ничего. */
+  const isCurrent = useCallback((token: CommentRequestToken) => {
+    return isCommentRequestCurrent(requestTokensRef.current, token);
+  }, []);
 
   const setMutation = useCallback(
     (mutation: PendingCommentMutation | null, commentId: string) => {
@@ -121,7 +150,7 @@ export function useCommentMutations(args: {
       }
 
       const mutation = markMutationPending(createEditMutation(commentId, check.body));
-      const attempt = ++attemptRef.current;
+      const token = beginRequest(commentId);
       setMutation(mutation, commentId);
       setEditError(null);
 
@@ -132,7 +161,10 @@ export function useCommentMutations(args: {
           commentId,
           { body: check.body },
         );
-        if (attempt !== attemptRef.current) return false;
+        // Проверка ДО первого изменения состояния: устаревший ответ не снимает
+        // `pending` новой операции, не применяет свой результат и не показывает
+        // свою ошибку.
+        if (!isCurrent(token)) return false;
 
         setMutation(null, commentId);
 
@@ -153,14 +185,14 @@ export function useCommentMutations(args: {
         setEditBody("");
         return true;
       } catch (cause) {
-        if (attempt !== attemptRef.current) return false;
+        if (!isCurrent(token)) return false;
         console.error("[useCommentMutations] edit", cause);
         setMutation(null, commentId);
         toast.error("Не удалось сохранить комментарий");
         return false;
       }
     },
-    [mutations, editBody, orgSlug, specItemId, onUpdated, setMutation],
+    [mutations, editBody, orgSlug, specItemId, onUpdated, setMutation, beginRequest, isCurrent],
   );
 
   /** Открыть подтверждение удаления (без него комментарий не удаляется). */
@@ -183,12 +215,12 @@ export function useCommentMutations(args: {
       if (existing?.pending) return false;
 
       const mutation = markMutationPending(createDeleteMutation(commentId));
-      const attempt = ++attemptRef.current;
+      const token = beginRequest(commentId);
       setMutation(mutation, commentId);
 
       try {
         const res = await deleteSpecItemComment(orgSlug, specItemId, commentId);
-        if (attempt !== attemptRef.current) return false;
+        if (!isCurrent(token)) return false;
 
         setMutation(null, commentId);
 
@@ -201,14 +233,14 @@ export function useCommentMutations(args: {
         setConfirmingDeleteId(null);
         return true;
       } catch (cause) {
-        if (attempt !== attemptRef.current) return false;
+        if (!isCurrent(token)) return false;
         console.error("[useCommentMutations] delete", cause);
         setMutation(null, commentId);
         toast.error("Не удалось удалить комментарий");
         return false;
       }
     },
-    [mutations, orgSlug, specItemId, onUpdated, setMutation],
+    [mutations, orgSlug, specItemId, onUpdated, setMutation, beginRequest, isCurrent],
   );
 
   return {
