@@ -31,7 +31,11 @@ import {
   applyCommentMutations,
   canMutateComment,
 } from "@/lib/spec/comment-mutation-model";
-import { buildActivityFeed } from "@/lib/spec/activity-view";
+import {
+  buildActivityFeed,
+  insertOptimisticRecord,
+  placeActivityRecord,
+} from "@/lib/spec/activity-view";
 import type { HistoryCommentEntry } from "@/lib/spec/history-types";
 
 /**
@@ -232,22 +236,19 @@ export default function ActivityTab({
   const failed = !isCurrent && error !== null;
 
   /**
-   * Подтверждённая серверная запись заменяет прежнюю в `records`.
+   * Поставить серверную запись на её место в `records`.
    *
-   * Используется и созданием (дописывает в конец — порядок `records` серверный,
-   * `createdAt DESC`), и правкой/удалением (заменяет ту же позицию). В обоих
-   * случаях в ленту попадает серверный объект целиком, а `nextCursor` не
-   * трогается: пагинация остаётся той же.
+   * Одна функция на создание и на правку/удаление: правило места одно — серверное
+   * `createdAt DESC, id DESC` (`placeActivityRecord`). Дописать новую запись в
+   * конец нельзя: это ломает инвариант порядка, и комментарии начинают
+   * показываться в обратном порядке — первый внизу, каждый следующий выше
+   * предыдущего.
+   *
+   * Вставка ничего не сортирует: остальные записи остаются на своих позициях.
+   * `nextCursor` не трогается, серверный объект используется целиком.
    */
-  const handleCreated = useCallback((comment: HistoryCommentEntry) => {
-    setRecords((current) => [...current, comment]);
-  }, []);
-
-  /** Правка/удаление: заменить запись серверным результатом на том же месте. */
-  const handleUpdated = useCallback((comment: HistoryCommentEntry) => {
-    setRecords((current) =>
-      current.map((record) => (record.id === comment.id ? comment : record)),
-    );
+  const placeRecord = useCallback((comment: HistoryCommentEntry) => {
+    setRecords((current) => placeActivityRecord(current, comment));
   }, []);
 
   const composer = useCommentComposer({
@@ -255,13 +256,13 @@ export default function ActivityTab({
     orgId,
     specItemId,
     author: currentUser,
-    onCreated: handleCreated,
+    onCreated: placeRecord,
   });
 
   const mutations = useCommentMutations({
     orgSlug,
     specItemId,
-    onUpdated: handleUpdated,
+    onUpdated: placeRecord,
   });
 
   /**
@@ -272,13 +273,18 @@ export default function ActivityTab({
    * ничего восстанавливать — достаточно убрать операцию из `mutations`, и
    * запись снова берётся из `records`.
    *
-   * Операции применяются только к комментариям: события править нечем, и
-   * `applyCommentMutations` их возвращает как есть.
+   * Операции применяются ко всей ленте: события править нечем, и
+   * `applyCommentMutations` возвращает их как есть.
+   *
+   * Незавершённая отправка встаёт на СВОЁ место по той же модели порядка, а не
+   * в конец массива: `insertOptimisticRecord` определяет позицию и не трогает
+   * порядок подтверждённых записей. Иначе новый корневой комментарий оказывался
+   * бы внизу ленты — до ответа сервера.
    */
   const visibleRecords = useMemo(() => {
     const withMutations = applyCommentMutations(records, mutations.mutations);
     return composer.optimistic
-      ? [...withMutations, composer.optimistic]
+      ? insertOptimisticRecord(withMutations, composer.optimistic)
       : withMutations;
   }, [records, mutations.mutations, composer.optimistic]);
 

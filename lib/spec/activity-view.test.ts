@@ -3,6 +3,8 @@ import { describe, expect, it } from "vitest";
 import {
   activityQuoteText,
   buildActivityFeed,
+  insertOptimisticRecord,
+  placeActivityRecord,
   type ActivityCommentItem,
   type ActivityEventItem,
   type ActivityFeedItem,
@@ -303,6 +305,187 @@ describe("buildActivityFeed: ключи элементов уникальны", 
       "date:1:2026-09-24T12:00:00.000Z",
       "ev-1",
     ]);
+  });
+});
+
+describe("insertOptimisticRecord: место незавершённой записи", () => {
+  it("самая свежая запись встаёт в начало ленты", () => {
+    const records: ActivityRecord[] = [
+      event("ev-new", "2026-09-25T12:00:00.000Z"),
+      comment("cm-old", "2026-09-25T10:00:00.000Z"),
+    ];
+    const optimistic = comment("cm-new", "2026-09-25T13:00:00.000Z");
+
+    const merged = insertOptimisticRecord(records, optimistic);
+
+    expect(merged.map((record) => record.id)).toEqual([
+      "cm-new",
+      "ev-new",
+      "cm-old",
+    ]);
+  });
+
+  it("порядок подтверждённых записей не пересчитывается", () => {
+    // Лента намеренно «неидеальна»: если бы клиент сортировал массив, он бы её
+    // переупорядочил. Вставка обязана сохранить пришедший порядок как есть.
+    const records: ActivityRecord[] = [
+      event("ev-b", "2026-09-25T10:00:00.000Z"),
+      event("ev-a", "2026-09-25T12:00:00.000Z"),
+    ];
+    const optimistic = comment("cm-new", "2026-09-25T13:00:00.000Z");
+
+    const merged = insertOptimisticRecord(records, optimistic);
+
+    expect(merged.map((record) => record.id)).toEqual([
+      "cm-new",
+      "ev-b",
+      "ev-a",
+    ]);
+  });
+
+  it("запись с датой новее подтверждённых встаёт после них", () => {
+    // Часы клиента отстали: правило порядка одно и то же, без исключений.
+    const records: ActivityRecord[] = [
+      event("ev-future", "2026-09-25T20:00:00.000Z"),
+      event("ev-old", "2026-09-25T10:00:00.000Z"),
+    ];
+    const optimistic = comment("cm-new", "2026-09-25T13:00:00.000Z");
+
+    const merged = insertOptimisticRecord(records, optimistic);
+
+    expect(merged.map((record) => record.id)).toEqual([
+      "ev-future",
+      "cm-new",
+      "ev-old",
+    ]);
+  });
+
+  it("совпавший createdAt разрешается тем же правилом, что на сервере", () => {
+    // `createdAt DESC, id DESC`: при равном времени порядок задаёт `id`, и
+    // клиент не имеет права решать иначе — иначе позиция записи разошлась бы
+    // с серверной. У неподтверждённой записи `id` ещё временный, поэтому сразу
+    // после ответа сервера место уточняется.
+    const at = "2026-09-25T13:00:00.000Z";
+    const older = comment("cm-a", at);
+    const newer = comment("cm-z", at);
+
+    expect(
+      placeActivityRecord([older], newer).map((record) => record.id),
+    ).toEqual(["cm-z", "cm-a"]);
+    // Обратный случай: меньший `id` идёт после — сравнение как в read-layer'е.
+    expect(
+      placeActivityRecord([newer], older).map((record) => record.id),
+    ).toEqual(["cm-z", "cm-a"]);
+  });
+
+  it("повторная постановка той же записи не удваивает её", () => {
+    const at = "2026-09-25T13:00:00.000Z";
+    const confirmed = comment("cm-1", at);
+
+    // Так выглядит замена optimistic-предпросмотра серверным результатом:
+    // запись уже в ленте, и ставится та же самая.
+    const once = placeActivityRecord([confirmed], confirmed);
+    const twice = placeActivityRecord(once, confirmed);
+
+    expect(once.map((record) => record.id)).toEqual(["cm-1"]);
+    expect(twice.map((record) => record.id)).toEqual(["cm-1"]);
+  });
+
+  it("создание: каждый следующий комментарий встаёт выше предыдущего", () => {
+    // Именно этот порядок ломался, когда подтверждённая запись дописывалась в
+    // конец массива: первый комментарий оказывался внизу, а каждый следующий
+    // выше предыдущего — лента показывала комментарии в обратном порядке.
+    const first: ActivityRecord = event("ev-1", "2026-09-25T10:00:00.000Z");
+
+    let records: ActivityRecord[] = [first];
+    records = placeActivityRecord(
+      records,
+      comment("cm-1", "2026-09-25T11:00:00.000Z"),
+    );
+    records = placeActivityRecord(
+      records,
+      comment("cm-2", "2026-09-25T12:00:00.000Z"),
+    );
+    records = placeActivityRecord(
+      records,
+      comment("cm-3", "2026-09-25T13:00:00.000Z"),
+    );
+
+    expect(records.map((record) => record.id)).toEqual([
+      "cm-3",
+      "cm-2",
+      "cm-1",
+      "ev-1",
+    ]);
+
+    // И в готовой ленте свежий комментарий идёт первым.
+    const items = buildActivityFeed(records, NOW);
+    expect(
+      items
+        .filter((item) => item.kind === "comment")
+        .map((item) => (item.kind === "comment" ? item.id : "")),
+    ).toEqual(["cm-3", "cm-2", "cm-1"]);
+  });
+
+  it("пустая лента и лента из более старых записей", () => {
+    const optimistic = comment("cm-new", "2026-09-25T13:00:00.000Z");
+
+    expect(insertOptimisticRecord([], optimistic).map((r) => r.id)).toEqual([
+      "cm-new",
+    ]);
+    expect(
+      insertOptimisticRecord(
+        [event("ev-old", "2026-09-25T10:00:00.000Z")],
+        optimistic,
+      ).map((r) => r.id),
+    ).toEqual(["cm-new", "ev-old"]);
+  });
+
+  it("новый корневой комментарий оказывается сверху готовой ленты", () => {
+    const records: ActivityRecord[] = [
+      event("ev-1", "2026-09-25T12:00:00.000Z"),
+      comment("cm-root", "2026-09-25T11:00:00.000Z"),
+    ];
+    const optimistic = comment("cm-new", "2026-09-25T13:00:00.000Z");
+
+    const items = buildActivityFeed(
+      insertOptimisticRecord(records, optimistic),
+      NOW,
+    );
+
+    // Первый элемент — разделитель дня, сразу за ним новая запись.
+    expect(items[0].kind).toBe("date");
+    expect(items[1].kind === "comment" && items[1].id).toBe("cm-new");
+  });
+
+  it("новый ответ оказывается в конце своей ветки, а не ленты", () => {
+    const records: ActivityRecord[] = [
+      comment("cm-root", "2026-09-25T10:00:00.000Z"),
+      comment("cm-reply", "2026-09-25T11:00:00.000Z", {
+        parentId: "cm-root",
+        rootId: "cm-root",
+      }),
+      event("ev-1", "2026-09-25T10:30:00.000Z"),
+    ];
+    const optimistic = comment("cm-new-reply", "2026-09-25T13:00:00.000Z", {
+      parentId: "cm-root",
+      rootId: "cm-root",
+    });
+
+    const merged = insertOptimisticRecord(records, optimistic);
+    // Место в массиве — начало: запись самая свежая.
+    expect(merged[0].id).toBe("cm-new-reply");
+
+    // Но в ленте она идёт не первой, а в конце своей ветки — так решил
+    // `buildActivityFeed`, а не порядок массива.
+    const items = buildActivityFeed(merged, NOW);
+    const thread = items.find(
+      (item) => item.kind === "comment" && item.id === "cm-root",
+    );
+    expect(items.filter((item) => item.kind === "comment")).toHaveLength(1);
+    expect(
+      thread?.kind === "comment" ? thread.replies.map((r) => r.id) : [],
+    ).toEqual(["cm-reply", "cm-new-reply"]);
   });
 });
 

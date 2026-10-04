@@ -26,11 +26,12 @@ import type { HistoryCommentEntry, HistoryEntry } from "./history-types";
 /** Разделитель дней: «Сегодня», «Вчера», «25 сентября». */
 export type ActivityDateSeparatorItem = {
   kind: "date";
-  /** Ключ React: день одинаковых подписей в разных годах не совпадёт. */
+  /**
+   * Ключ React: номер разделителя плюс `createdAt` первой записи дня.
+   * Номер гарантирует уникальность даже при повторе записи в ленте.
+   */
   id: string;
   label: string;
-  /** ISO-дата записи, с которой началась группа. */
-  date: string;
 };
 
 export type ActivityEventItem = {
@@ -65,6 +66,72 @@ function dayKeyOf(iso: string): string {
   const date = new Date(iso);
   if (Number.isNaN(date.getTime())) return iso;
   return `${date.getFullYear()}-${date.getMonth()}-${date.getDate()}`;
+}
+
+/**
+ * Порядок ленты: `createdAt DESC, id DESC` — тот же, что в read-layer'е.
+ *
+ * Оба сравнения — по строке, без разбора в `Date`: разбор потерял бы
+ * микросекунды, и две записи одной миллисекунды получили бы порядок, которого
+ * нет в БД. Тогда место записи разошлось бы с порядком сервера.
+ */
+function isNewerFirst(a: ActivityRecord, b: ActivityRecord): boolean {
+  if (a.createdAt !== b.createdAt) return a.createdAt > b.createdAt;
+  return a.id > b.id;
+}
+
+/**
+ * Поставить запись в ленту: создать, заменить существующую или заменить
+ * optimistic-предпросмотр подтверждённой записью.
+ *
+ * ── Почему вставка, а не сортировка ───────────────────────────────────────
+ *
+ * Порядок ленты — серверный (`createdAt DESC, id DESC`), и клиент его не
+ * пересчитывает: сортировать весь массив значило бы завести второй источник
+ * истины для порядка и молча переупорядочить то, что уже пришло проверенным.
+ * Здесь меняется ровно одно: определяется МЕСТО одной записи, а все остальные
+ * остаются на своих позициях в исходном порядке.
+ *
+ * ── Почему это касается не только optimistic ──────────────────────────────
+ *
+ * Тот же вопрос встаёт при СОЗДАНИИ: подтверждённую серверную запись тоже надо
+ * поставить на её место. Дописать её в конец (как было раньше) — значит сломать
+ * инвариант `createdAt DESC`: первый комментарий оказался бы внизу ленты, а
+ * каждый следующий — выше предыдущего, то есть лента показывала бы комментарии
+ * в обратном порядке. Поэтому создание, правка и optimistic-предпросмотр идут
+ * через одну функцию: правило места одно и то же.
+ *
+ * Запись с тем же `id` не добавляется второй раз (дедупликация ниже — вторая
+ * линия на случай гонки, когда одна запись пришла двумя путями).
+ *
+ * Если `createdAt` записи больше, чем у подтверждённых (часы клиента отстали,
+ * на странице запись «из будущего»), она встанет после них: правило порядка без
+ * исключений для optimistic-записей.
+ */
+export function placeActivityRecord(
+  records: readonly ActivityRecord[],
+  record: ActivityRecord,
+): ActivityRecord[] {
+  // Та же запись могла уже лежать в ленте: optimistic-предпросмотр заменяется
+  // серверным результатом, а не дополняется им.
+  const rest = records.filter((item) => item.id !== record.id);
+
+  const at = rest.findIndex((item) => isNewerFirst(record, item));
+  if (at < 0) return [...rest, record];
+  return [...rest.slice(0, at), record, ...rest.slice(at)];
+}
+
+/**
+ * Вставить незавершённую optimistic-запись в ленту.
+ *
+ * Отдельное имя нужно там, где речь именно о предпросмотре до ответа сервера;
+ * правило места — общее с подтверждёнными записями (`placeActivityRecord`).
+ */
+export function insertOptimisticRecord(
+  records: readonly ActivityRecord[],
+  optimistic: ActivityRecord,
+): ActivityRecord[] {
+  return placeActivityRecord(records, optimistic);
 }
 
 /**
@@ -117,7 +184,11 @@ function sortReplies(replies: ActivityReplyItem[]): ActivityReplyItem[] {
  * Записи → элементы ленты.
  *
  * `now` передаётся параметром, чтобы «Сегодня» / «Вчера» можно было проверить
- * тестом и чтобы все разделители одной отрисовки считались от одного момента.
+ * тестом и чтобы все разделители ОДНОГО вызова считались от одного момента.
+ * Набор подписей при этом всегда согласован внутри вызова: даже если сборка
+ * пришлась на полночь, «Сегодня» и «Вчера» не могут перемешаться между
+ * группами одного дня. Обновляются подписи только при следующей сборке ленты —
+ * как и у любой ленты, открытой в фоне.
  */
 export function buildActivityFeed(
   records: readonly ActivityRecord[],
@@ -193,7 +264,6 @@ export function buildActivityFeed(
         // пояс, поэтому два разных дня могли дать один ключ.
         id: `date:${separatorIndex++}:${record.createdAt}`,
         label: formatActivityDate(record.createdAt, now),
-        date: record.createdAt,
       });
     }
 

@@ -327,6 +327,32 @@ describe("formatActivityEvent: устойчивость", () => {
     }
   });
 
+  it("каждому виду достаётся иконка, и вид с ней не перепутан", () => {
+    const icons = new Map<string, string>();
+    for (const kind of SPEC_ITEM_EVENT_KINDS) {
+      const icon = formatActivityEvent(event(kind, {}))?.icon;
+      // Иконка обязана быть: `EVENT_ICON` в UI — `Record<ActivityIcon, …>`,
+      // поэтому незнакомое значение там не отрисуется вовсе.
+      expect(typeof icon, kind).toBe("string");
+      icons.set(kind, icon!);
+    }
+
+    // Явные пары: текст события и иконка должны различать смысл, а не
+    // схлопываться в одну картинку на разные действия.
+    expect(icons.get("created")).toBe("created");
+    expect(icons.get("removed")).toBe("trash");
+    expect(icons.get("restored")).toBe("restore");
+    expect(icons.get("details_changed")).toBe("details");
+    expect(icons.get("component_added")).toBe("componentAdd");
+    expect(icons.get("service_completed")).toBe("serviceDone");
+
+    // Разные действия — разные иконки там, где их легко перепутать.
+    expect(icons.get("service_completed")).not.toBe(icons.get("status_changed"));
+    expect(icons.get("component_added")).not.toBe(icons.get("component_removed"));
+    expect(icons.get("variant_added")).not.toBe(icons.get("variant_removed"));
+    expect(icons.get("code_changed")).not.toBe(icons.get("details_changed"));
+  });
+
   it("незнакомый kind (из будущей версии приложения) не ломает ленту", () => {
     // Вид события, которого нет в доменном объединении: так выглядит запись,
     // записанная более новой версией приложения. Приведение типа намеренное —
@@ -528,6 +554,23 @@ describe("batch", () => {
     expect(formatActivityBatch(5)).toContain("5 позиций");
     expect(formatActivityBatch(11)).toContain("11 позиций");
     expect(formatActivityBatch(21)).toContain("21 позиция");
+  });
+
+  it("условие подписи: размер известен и больше единицы", () => {
+    // Подпись решает размер, а не флаг: у билдеров `batch_size` без `batch` не
+    // бывает, поэтому проверять оба поля значило бы требовать то, что и так
+    // следует из первого. Тест фиксирует это как осознанное решение.
+    expect(
+      activityBatchSize(event("removed", { batch: true, batch_size: 3 })),
+    ).toBe(3);
+    // Флаг без размера подписи не даёт: «групповая операция · неизвестно».
+    expect(activityBatchSize(event("removed", { batch: true }))).toBeNull();
+    // Размер без флага — историческая строка; размер важнее флага.
+    expect(activityBatchSize(event("removed", { batch_size: 3 }))).toBe(3);
+    // Нечисловой размер не превращается в подпись.
+    expect(
+      activityBatchSize(event("removed", { batch: true, batch_size: "3" })),
+    ).toBeNull();
   });
 });
 

@@ -877,6 +877,261 @@ describe("getSpecItemHistory: события", () => {
 });
 
 /* ------------------------------------------------------------------ */
+/*  Неизвестные виды событий и пагинация                               */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Неизвестный `kind` — историческая строка, которую контракт обещает
+ * ПРОПУСТИТЬ. Пропустить её легко, а вот не потерять вместе с ней всю
+ * оставшуюся ленту — отдельная забота: признак «есть ещё» и граница страницы
+ * считаются по годным записям, а не по строкам, пришедшим из таблицы.
+ */
+describe("getSpecItemHistory: неизвестный kind и пагинация", () => {
+  /**
+   * Максимум чтений событий на одну страницу. В `history-read.ts` добор
+   * ограничен `MAX_ROWS_READS = 4`, поэтому чтений не больше пяти: первое плюс
+   * четыре добора. Здесь зафиксирована именно граница «цикл конечен».
+   */
+  const MAX_EXPECTED_READS = 5;
+
+  /** Строка события неизвестного текущему коду вида. */
+  const unknownRow = (id: string, createdAt: string) =>
+    eventRow(id, createdAt, { kind: "teleported" });
+
+  /** Лестница событий: `count` строк, свежие сверху, шаг — секунда. */
+  const eventLadder = (count: number, from = 60) =>
+    Array.from({ length: count }, (_, i) => eventRow(`e-${from - i}`, at(from - i)));
+
+  it("unknown внутри страницы не съедает остаток ленты", async () => {
+    // 12 годных (e-30…e-19), затем неизвестная, затем ещё 10 годных (e-18…e-9);
+    // limit = 12. Без добора страница схлопнулась бы ровно на границе и
+    // объявила бы конец ленты, оставив e-18…e-9 недостижимыми.
+    const events = [
+      ...eventLadder(12, 30),
+      unknownRow("x-1", at(18)),
+      ...Array.from({ length: 10 }, (_, i) => eventRow(`e-${18 - i}`, at(18 - i))),
+    ];
+    const { db } = fakeDb({ events });
+
+    const first = await getSpecItemHistory(db, {
+      orgId: ORG,
+      specItemId: ITEM,
+      limit: 12,
+    });
+
+    expect(first.entries.map((entry) => entry.id)).toEqual([
+      "e-30",
+      "e-29",
+      "e-28",
+      "e-27",
+      "e-26",
+      "e-25",
+      "e-24",
+      "e-23",
+      "e-22",
+      "e-21",
+      "e-20",
+      "e-19",
+    ]);
+    // Страница не «схлопнулась» до конца ленты: за ней остались записи.
+    expect(first.nextCursor).toEqual({ createdAt: at(19), id: "e-19" });
+    // И неизвестной записи в ленте нет.
+    expect(first.entries.map((entry) => entry.id)).not.toContain("x-1");
+
+    const second = await getSpecItemHistory(db, {
+      orgId: ORG,
+      specItemId: ITEM,
+      limit: 12,
+      ...(first.nextCursor ? { before: first.nextCursor } : {}),
+    });
+
+    // Вторая страница продолжает с того места, где остановилась первая.
+    expect(second.entries.map((entry) => entry.id)).toEqual([
+      "e-18",
+      "e-17",
+      "e-16",
+      "e-15",
+      "e-14",
+      "e-13",
+      "e-12",
+      "e-11",
+      "e-10",
+      "e-9",
+    ]);
+
+    // Вместе страницы покрывают все годные записи, без дублей и пропусков.
+    const ids = [
+      ...first.entries.map((entry) => entry.id),
+      ...second.entries.map((entry) => entry.id),
+    ];
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(ids).toHaveLength(22);
+  });
+
+  it("unknown на границе limit не отменяет следующую страницу", async () => {
+    // Ровно `limit` годных, затем неизвестная, затем ещё годные: без добора
+    // признак «есть ещё» терялся бы именно на этой границе.
+    const events = [
+      ...eventLadder(12, 30),
+      unknownRow("x-1", at(18)),
+      ...Array.from({ length: 4 }, (_, i) => eventRow(`e-${17 - i}`, at(17 - i))),
+    ];
+    const { db } = fakeDb({ events });
+
+    const page = await getSpecItemHistory(db, {
+      orgId: ORG,
+      specItemId: ITEM,
+      limit: 12,
+    });
+
+    expect(page.entries).toHaveLength(12);
+    expect(page.nextCursor).toEqual({
+      createdAt: at(19),
+      id: "e-19",
+    });
+  });
+
+  it("несколько unknown подряд не сокращают страницу", async () => {
+    const events = [
+      ...eventLadder(10, 30),
+      unknownRow("x-1", at(20)),
+      unknownRow("x-2", at(19)),
+      unknownRow("x-3", at(18)),
+      ...Array.from({ length: 6 }, (_, i) => eventRow(`e-${17 - i}`, at(17 - i))),
+    ];
+    const { db } = fakeDb({ events });
+
+    const page = await getSpecItemHistory(db, {
+      orgId: ORG,
+      specItemId: ITEM,
+      limit: 12,
+    });
+
+    // Страница полная, а не 10 записей из 12.
+    expect(page.entries).toHaveLength(12);
+    expect(page.entries.map((entry) => entry.id)).toEqual([
+      "e-30",
+      "e-29",
+      "e-28",
+      "e-27",
+      "e-26",
+      "e-25",
+      "e-24",
+      "e-23",
+      "e-22",
+      "e-21",
+      "e-17",
+      "e-16",
+    ]);
+    expect(page.nextCursor).toEqual({ createdAt: at(16), id: "e-16" });
+  });
+
+  it("годные записи после unknown читаются следующей страницей", async () => {
+    const events = [
+      ...eventLadder(15, 60),
+      unknownRow("x-1", at(45)),
+      ...Array.from({ length: 40 }, (_, i) => eventRow(`e-${44 - i}`, at(44 - i))),
+    ];
+    const { db } = fakeDb({ events });
+
+    const result = await readAll(db, 50);
+
+    // Один настоящий курсор и завершающий `null`: страниц ровно две.
+    expect(result.cursors.filter(Boolean)).toHaveLength(1);
+    // Ни одной неизвестной записи, ни одного дубля и ни одной потери.
+    expect(result.collected.map((entry) => entry.id)).not.toContain("x-1");
+    expect(new Set(result.collected.map((entry) => entry.id)).size).toBe(
+      result.collected.length,
+    );
+    expect(result.collected).toHaveLength(55);
+  });
+
+  it("после неизвестной записи ничего нет — курсора нет", async () => {
+    const events = [...eventLadder(12, 30), unknownRow("x-1", at(18))];
+    const { db } = fakeDb({ events });
+
+    const page = await getSpecItemHistory(db, {
+      orgId: ORG,
+      specItemId: ITEM,
+      limit: 12,
+    });
+
+    expect(page.entries).toHaveLength(12);
+    // Добор упирается в конец таблицы: продолжения нет, и обещать его нельзя.
+    expect(page.nextCursor).toBeNull();
+  });
+
+  it("только неизвестные записи дают пустую ленту без курсора", async () => {
+    const events = [
+      unknownRow("x-1", at(30)),
+      unknownRow("x-2", at(29)),
+      unknownRow("x-3", at(28)),
+    ];
+    const { db, calls } = fakeDb({ events });
+
+    const page = await getSpecItemHistory(db, {
+      orgId: ORG,
+      specItemId: ITEM,
+      limit: 12,
+    });
+
+    expect(page.entries).toEqual([]);
+    expect(page.nextCursor).toBeNull();
+    // Добор ограничен: конечное число чтений, а не бесконечный цикл.
+    //
+    // Здесь ровно ОДНО чтение: `limit + 1` строк не набралось, значит таблица
+    // исчерпана, и увеличивать `limit` бессмысленно — продолжения нет.
+    const reads = calls.filter((call) => call.table === "spec_item_events").length;
+    expect(reads).toBe(1);
+    expect(reads).toBeLessThanOrEqual(MAX_EXPECTED_READS);
+  });
+
+  it("плотный поток неизвестных не уводит чтение в бесконечность", async () => {
+    // Неизвестных ровно столько, чтобы каждый добор снова терял строку:
+    // предел `MAX_ROWS_READS` обязан остановить цикл.
+    const events = [
+      ...eventLadder(13, 60),
+      unknownRow("x-1", at(47)),
+      ...eventLadder(13, 46),
+      unknownRow("x-2", at(33)),
+      ...eventLadder(13, 32),
+      unknownRow("x-3", at(19)),
+      ...eventLadder(13, 18),
+    ];
+    const { db, calls } = fakeDb({ events });
+
+    const page = await getSpecItemHistory(db, {
+      orgId: ORG,
+      specItemId: ITEM,
+      limit: 12,
+    });
+
+    const reads = calls.filter((call) => call.table === "spec_item_events").length;
+    expect(reads).toBeLessThanOrEqual(MAX_EXPECTED_READS);
+    // Страница всё равно полная: добор успел набрать годные записи.
+    expect(page.entries).toHaveLength(12);
+    expect(page.nextCursor).not.toBeNull();
+  });
+
+  it("обычная пагинация без неизвестных не изменилась", async () => {
+    const events = eventLadder(25, 40);
+    const { db, calls } = fakeDb({ events });
+
+    const result = await readAll(db, 10);
+
+    expect(result.collected.map((entry) => entry.id)).toEqual(
+      eventLadder(25, 40).map((row) => row.id),
+    );
+    expect(result.cursors.filter(Boolean)).toHaveLength(2);
+    // По-прежнему один запрос событий на страницу: добора нет, потому что
+    // mapper ничего не выбросил.
+    expect(
+      calls.filter((call) => call.table === "spec_item_events").length,
+    ).toBe(3);
+  });
+});
+
+/* ------------------------------------------------------------------ */
 /*  Изоляция и форма запросов                                          */
 /* ------------------------------------------------------------------ */
 

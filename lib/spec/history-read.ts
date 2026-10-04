@@ -115,48 +115,157 @@ function readError(subject: string, error: { message: string }): Error {
   });
 }
 
-/** Страница событий: свежие сверху, `created_at DESC, id DESC`. */
+/**
+ * Сколько раз максимум добирать строки из одной таблицы за одну страницу.
+ *
+ * Ограничение нужно только для патологического случая (почти все строки —
+ * неизвестного вида): без него чтение превратилось бы в бесконечный цикл.
+ * Четыре добора накрывают до `5 × pageSize` строк, то есть до 255 при
+ * `limit = 50`; остаток отдаст следующая страница, и записи не потеряются.
+ */
+const MAX_ROWS_READS = 4;
+
+/**
+ * Одна выборка: уже доменные записи источника.
+ *
+ * Признака «есть ещё» здесь нет намеренно: решение о следующей странице
+ * принимается ОДИН раз, после объединения двух таблиц (`merged.length > limit`).
+ * Считать его отдельно по каждой таблице — верный способ объявить конец ленты,
+ * когда во второй таблице записи ещё остались.
+ */
+type Page<T> = { entries: T[] };
+
+/** Одна выборка строк таблицы: та же семантика курсора и порядок. */
+async function fetchRows<TRow>(
+  db: HistoryReadDb,
+  input: GetSpecItemHistoryInput,
+  limit: number,
+  source: {
+    table: "spec_item_events" | "spec_item_comments";
+    columns: string;
+    subject: string;
+    /** Сужение строки PostgREST до строки таблицы: без него тип не выводится. */
+    toRow: (raw: unknown) => TRow;
+  },
+): Promise<TRow[]> {
+  const base = db
+    .from(source.table)
+    .select(source.columns)
+    .eq("org_id", input.orgId)
+    .eq("spec_item_id", input.specItemId);
+  const scoped = input.before ? base.or(cursorFilter(input.before)) : base;
+
+  const { data, error } = await scoped
+    .order("created_at", { ascending: false })
+    .order("id", { ascending: false })
+    .limit(limit);
+
+  if (error) throw readError(source.subject, error);
+  return (data ?? []).map(source.toRow);
+}
+
+/**
+ * Прочитать строки с добором, пока mapper не отдаст `limit` записей.
+ *
+ * `limit` здесь — уже не размер страницы, а порог доказательства: пока годных
+ * записей меньше, нельзя утверждать, что дальше ничего нет. Как только их
+ * набралось `limit`, исходное правило страницы работает без изменений —
+ * лишняя запись поверх `pageSize = limit + 1` доказывает продолжение.
+ *
+ * Добор нужен только когда mapper действительно что-то выбросил: без
+ * неизвестных видов поведение остаётся прежним — один запрос на страницу.
+ * Условие остановки — «строк пришло меньше, чем просили»: это конец таблицы
+ * (курсор уже пройден), и увеличивать `limit` после него бессмысленно.
+ */
+async function fetchEntries<TRow, TEntry>(
+  db: HistoryReadDb,
+  input: GetSpecItemHistoryInput,
+  pageSize: number,
+  source: {
+    table: "spec_item_events" | "spec_item_comments";
+    columns: string;
+    subject: string;
+    toRow: (raw: unknown) => TRow;
+  },
+  mapAll: (rows: TRow[]) => TEntry[],
+): Promise<Page<TEntry>> {
+  let limit = pageSize;
+
+  for (let attempt = 0; ; attempt++) {
+    const rows = await fetchRows(db, input, limit, source);
+    const entries = mapAll(rows);
+
+    const dropped = rows.length - entries.length;
+    const tableExhausted = rows.length < limit;
+
+    if (!dropped || tableExhausted || attempt >= MAX_ROWS_READS) {
+      return { entries };
+    }
+
+    limit += pageSize;
+  }
+}
+
+/**
+ * Страница событий, ДОСТАТОЧНАЯ после отбрасывания неизвестных видов.
+ *
+ * `limit + 1` строк хватает, чтобы доказать «есть ещё», но не хватает, чтобы
+ * отдать полную страницу, если часть строк отбросит mapper: неизвестный `kind`
+ * — это историческая строка, которую контракт обещает пропустить, а не потерять
+ * вместе с ней всю оставшуюся ленту.
+ *
+ * Пример: `limit = 12`, в таблице 21 событие, а 13-я по порядку строка —
+ * неизвестного вида. Первая выборка отдаст 13 строк (12 годных + 1
+ * неизвестная), страница схлопнется до 12 записей, и признак «есть ещё» будет
+ * потерян — вместе с оставшимися девятью событиями. Поэтому, потеряв строку на
+ * mapper'е, выборка повторяется с увеличенным `limit`: курсор тот же, чтение
+ * продолжается ровно с того места, где остановилось.
+ *
+ * Возвращаются уже доменные записи: `getSpecItemHistory` их не мапит повторно —
+ * именно на этом шаге неизвестные виды и отбрасываются.
+ */
 async function queryEvents(
   db: HistoryReadDb,
   input: GetSpecItemHistoryInput,
   pageSize: number,
-): Promise<SpecItemEventRow[]> {
-  const base = db
-    .from("spec_item_events")
-    .select(EVENT_COLUMNS)
-    .eq("org_id", input.orgId)
-    .eq("spec_item_id", input.specItemId);
-  const scoped = input.before ? base.or(cursorFilter(input.before)) : base;
-
-  const { data, error } = await scoped
-    .order("created_at", { ascending: false })
-    .order("id", { ascending: false })
-    .limit(pageSize);
-
-  if (error) throw readError("события", error);
-  return data ?? [];
+): Promise<Page<HistoryEventEntry>> {
+  return fetchEntries(
+    db,
+    input,
+    pageSize,
+    {
+      table: "spec_item_events",
+      columns: EVENT_COLUMNS,
+      subject: "события",
+      toRow: (raw: unknown) => raw as SpecItemEventRow,
+    },
+    (rows) =>
+      rows
+        .map(mapSpecItemEvent)
+        .filter((entry): entry is HistoryEventEntry => entry !== null),
+  );
 }
 
-/** Страница комментариев: та же семантика курсора и порядок. */
+/**
+ * Страница комментариев: та же семантика курсора и порядок.
+ *
+ * Добор не нужен: комментарий не может быть «неизвестного вида» — mapper для
+ * них ничего не отбрасывает, поэтому `limit + 1` строк всегда даёт ровно
+ * `limit + 1` записей. Строки остаются сырыми: `replyCount` подставляется в
+ * `getSpecItemHistory` вместе со счётчиками.
+ */
 async function queryComments(
   db: HistoryReadDb,
   input: GetSpecItemHistoryInput,
   pageSize: number,
-): Promise<SpecItemCommentRow[]> {
-  const base = db
-    .from("spec_item_comments")
-    .select(COMMENT_COLUMNS)
-    .eq("org_id", input.orgId)
-    .eq("spec_item_id", input.specItemId);
-  const scoped = input.before ? base.or(cursorFilter(input.before)) : base;
-
-  const { data, error } = await scoped
-    .order("created_at", { ascending: false })
-    .order("id", { ascending: false })
-    .limit(pageSize);
-
-  if (error) throw readError("комментарии", error);
-  return data ?? [];
+): Promise<Page<SpecItemCommentRow>> {
+  const rows = await fetchRows(db, input, pageSize, {
+    table: "spec_item_comments",
+    columns: COMMENT_COLUMNS,
+    subject: "комментарии",
+    toRow: (raw: unknown) => raw as SpecItemCommentRow,
+  });
+  return { entries: rows };
 }
 
 /**
@@ -225,31 +334,33 @@ export async function getSpecItemHistory(
   // есть ещё записи. Делить limit между источниками нельзя.
   const pageSize = limit + 1;
 
-  const [eventRows, commentRows, replyCounts] = await Promise.all([
+  // Источники отдают уже годные доменные записи: неизвестные виды событий
+  // отброшены на чтении, с добором, чтобы страница не оказалась короче `limit`.
+  const [events, comments, replyCounts] = await Promise.all([
     queryEvents(db, input, pageSize),
     queryComments(db, input, pageSize),
     queryReplyCounts(db, input.orgId, input.specItemId),
   ]);
 
-  // Неизвестный kind mapper отдаёт как null: одна плохая историческая запись
-  // пропускается, остальная лента остаётся.
-  const eventEntries: HistoryEventEntry[] = eventRows
-    .map(mapSpecItemEvent)
-    .filter((entry): entry is HistoryEventEntry => entry !== null);
-
-  const commentEntries: HistoryCommentEntry[] = commentRows.map((row) =>
+  const commentEntries: HistoryCommentEntry[] = comments.entries.map((row) =>
     mapSpecItemComment(row, replyCounts.get(row.id) ?? 0),
   );
 
-  const merged = [...eventEntries, ...commentEntries].sort(compareEntries);
+  const merged = [...events.entries, ...commentEntries].sort(compareEntries);
   const entries = merged.slice(0, limit);
   const last = entries[entries.length - 1];
+
+  // «Есть ещё» на уровне ленты = хотя бы один источник отдал больше, чем
+  // поместилось в страницу. Признак считается по годным строкам: если источник
+  // отдал ровно `limit + 1` записей, лишняя доказывает продолжение; если он
+  // упёрся в конец таблицы, лишней записи не будет.
+  const hasMore = merged.length > limit;
 
   return {
     entries,
     // Решение о следующей странице принимается после объединения: наличие
     // лишней строки в одной таблице ещё не значит, что она попадает в ленту.
-    nextCursor: merged.length > limit && last
+    nextCursor: hasMore && last
       ? { createdAt: last.createdAt, id: last.id }
       : null,
   };

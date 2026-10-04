@@ -14,6 +14,7 @@ import {
   Pencil,
   RotateCcw,
   Ruler,
+  SquareCheck,
   SquarePen,
   Trash2,
   Truck,
@@ -48,7 +49,9 @@ const EVENT_ICON: Record<ActivityIcon, LucideIcon> = {
   trash: Trash2,
   restore: RotateCcw,
   hash: Hash,
-  status: BadgeCheck,
+  // Смена статуса — «отметка», исполнение услуги — «подтверждение»: разные
+  // действия не должны выглядеть одной и той же иконкой.
+  status: SquareCheck,
   price: CircleDollarSign,
   quantity: Ruler,
   supplier: Truck,
