@@ -177,11 +177,24 @@ export function extOf(n: string): string {
   return m ? m[1].toUpperCase() : "FILE";
 }
 
+/**
+ * Человекочитаемый размер файла: B / KB / MB.
+ *
+ * Округление по единице, а не «всегда до целого»: 1.5 KB и 1.2 MB читаются
+ * лучше, чем 2 KB и 1 MB, а мелкие файлы не теряют точность. Ноль — это ноль
+ * байт, а не «нет данных»: пустой файл в списке должен выглядеть как `0 B`.
+ */
 export function humanSize(b: number): string {
-  if (!b) return "—";
-  if (b < 1024) return b + " B";
-  if (b < 1048576) return (b / 1024).toFixed(0) + " KB";
-  return (b / 1048576).toFixed(1) + " MB";
+  if (!Number.isFinite(b) || b < 0) return "—";
+  if (b === 0) return "0 B";
+  if (b < 1024) return `${round1(b)} B`;
+  if (b < 1048576) return `${round1(b / 1024)} KB`;
+  return `${round1(b / 1048576)} MB`;
+}
+
+/** Одно число после точки, без висящего «.0». */
+function round1(value: number): string {
+  return String(Math.round(value * 10) / 10);
 }
 
 export function prefixOf(code: string) {

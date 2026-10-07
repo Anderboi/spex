@@ -1045,6 +1045,87 @@ export type Database = {
           },
         ]
       }
+      spec_item_files: {
+        Row: {
+          category: string
+          created_at: string
+          deleted_at: string | null
+          file_name: string
+          id: string
+          mime_type: string
+          org_id: string
+          project_id: string
+          size_bytes: number
+          spec_item_id: string
+          storage_path: string
+          uploaded_by: string | null
+        }
+        Insert: {
+          category: string
+          created_at?: string
+          deleted_at?: string | null
+          file_name: string
+          id?: string
+          mime_type: string
+          org_id: string
+          project_id: string
+          size_bytes: number
+          spec_item_id: string
+          storage_path: string
+          uploaded_by?: string | null
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          deleted_at?: string | null
+          file_name?: string
+          id?: string
+          mime_type?: string
+          org_id?: string
+          project_id?: string
+          size_bytes?: number
+          spec_item_id?: string
+          storage_path?: string
+          uploaded_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "spec_item_files_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "spec_item_files_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "spec_item_files_spec_item_id_fkey"
+            columns: ["spec_item_id"]
+            isOneToOne: false
+            referencedRelation: "spec_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "spec_item_files_spec_item_id_fkey"
+            columns: ["spec_item_id"]
+            isOneToOne: false
+            referencedRelation: "spec_items_priced"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "spec_item_files_uploaded_by_fkey"
+            columns: ["uploaded_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       spec_item_variants: {
         Row: {
           article: string | null

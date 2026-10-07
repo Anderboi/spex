@@ -348,9 +348,11 @@ export function DetailModal({
           </TabsContent>
           {/* supplier — вкладки нет: поставщик, менеджер и срок поставки
               правятся прямо в раскрытом блоке «Поставка» вкладки «Обзор». */}
-          {/* files */}
+          {/* files — read-only список. `orgSlug` это адрес страницы, а не
+              доказательство доступа: организация берётся на сервере из сессии.
+              `orgId` вкладке не нужен и намеренно не передаётся. */}
           <ScrollableTab value="files" onViewportScroll={handleContentScroll}>
-            <FilesTab />
+            <FilesTab orgSlug={orgSlug} specItemId={item.id} />
           </ScrollableTab>
         </Tabs>
       </DialogContent>

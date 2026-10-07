@@ -97,6 +97,10 @@ const ORG_STORAGE_BUCKETS = [
   "material-images",
   "project-images",
   "company-images",
+  // Файлы позиций спецификации (миграция 20260927_001). Путь —
+  // `<org_id>/spec-items/<spec_item_id>/<uuid>.<ext>`, то есть с вложенной
+  // папкой: см. `recursive` в `removeOrganizationStorage`.
+  "spec-item-files",
 ] as const;
 
 function rpcMessage(message: string, fallback: string): string {
@@ -226,30 +230,70 @@ export async function transferOwnership(
   return ok(null);
 }
 
-/** Удаление объектов Storage организации. Best-effort: строки в БД важнее файлов. */
-async function removeOrganizationStorage(
-  supabase: ReturnType<typeof createAdminClient>,
-  orgId: string,
-): Promise<void> {
-  for (const bucket of ORG_STORAGE_BUCKETS) {
-    const { data, error } = await supabase.storage
-      .from(bucket)
-      .list(orgId, { limit: 1000 });
+/** Сколько объектов запрашивать за один листинг при уборке Storage. */
+const STORAGE_LIST_LIMIT = 1000;
 
-    if (error) {
-      console.error("[deleteOrganization] storage list", bucket, error.message);
+/** Предел обхода вложенности при уборке Storage (страховка от зацикливания). */
+const MAX_STORAGE_WALK_DEPTH = 8;
+
+/**
+ * Удаление всех объектов организации из одного bucket'а.
+ *
+ * ── Почему обход дерева, а не `recursive: true` ───────────────────────────
+ *
+ * Установленная версия `@supabase/storage-js` (2.112.2) не поддерживает
+ * `recursive` в `SearchOptions`, а нерекурсивный `list` на вложенной папке
+ * возвращает записи-папки (`id === null`), а не файлы внутри неё. Объекты
+ * проекта лежат на разной глубине:
+ *
+ *   * `material-images`, `project-images` — `<orgId>/<uuid>.<ext>`;
+ *   * `company-images` — `<orgId>/companies/<uuid>.<ext>`, `<orgId>/contacts/...`;
+ *   * `spec-item-files` — `<orgId>/spec-items/<specItemId>/<uuid>.<ext>`.
+ *
+ * Поэтому папки обходятся явно: листинг верхнего уровня, удаление файлов и
+ * рекурсивный спуск в каждую папку. Имя папки при листинге всегда локальное
+ * (последний сегмент), поэтому путь собирается как `<prefix>/<name>` — от
+ * поведения вложенных ключей ответа это не зависит.
+ */
+async function removeBucketPrefix(
+  supabase: ReturnType<typeof createAdminClient>,
+  bucket: (typeof ORG_STORAGE_BUCKETS)[number],
+  prefix: string,
+  depth = 0,
+): Promise<void> {
+  // Дерево в этих bucket'ах плоское по построению; ограничение глубины — только
+  // страховка от патологического состояния, в котором листинг вернул бы папку
+  // внутри самой себя.
+  if (depth > MAX_STORAGE_WALK_DEPTH) {
+    console.error("[deleteOrganization] storage: слишком глубокая вложенность", bucket, prefix);
+    return;
+  }
+
+  const { data, error } = await supabase.storage
+    .from(bucket)
+    .list(prefix, { limit: STORAGE_LIST_LIMIT });
+
+  if (error) {
+    console.error("[deleteOrganization] storage list", bucket, prefix, error.message);
+    return;
+  }
+
+  const files: string[] = [];
+  const folders: string[] = [];
+
+  for (const entry of data ?? []) {
+    // Папка приходит без `id` — это не объект, удалять нечего.
+    if (!entry.id) {
+      folders.push(`${prefix}/${entry.name}`);
       continue;
     }
+    files.push(`${prefix}/${entry.name}`);
+  }
 
-    const paths = (data ?? [])
-      .filter((entry) => entry.id !== null) // папки пропускаем
-      .map((entry) => `${orgId}/${entry.name}`);
-
-    if (paths.length === 0) continue;
-
+  if (files.length > 0) {
     const { error: removeError } = await supabase.storage
       .from(bucket)
-      .remove(paths);
+      .remove(files);
 
     if (removeError) {
       console.error(
@@ -258,6 +302,20 @@ async function removeOrganizationStorage(
         removeError.message,
       );
     }
+  }
+
+  for (const folder of folders) {
+    await removeBucketPrefix(supabase, bucket, folder, depth + 1);
+  }
+}
+
+/** Удаление объектов Storage организации. Best-effort: строки в БД важнее файлов. */
+async function removeOrganizationStorage(
+  supabase: ReturnType<typeof createAdminClient>,
+  orgId: string,
+): Promise<void> {
+  for (const bucket of ORG_STORAGE_BUCKETS) {
+    await removeBucketPrefix(supabase, bucket, orgId);
   }
 }
 
