@@ -1,3 +1,4 @@
+
 <!-- BEGIN:nextjs-agent-rules -->
 # This is NOT the Next.js you know
 
@@ -19,3 +20,17 @@ display/flex-направление, не «перебивайте» его кл
 `DialogContent`: базовый `grid` перебивал `flex flex-col` модалки, и
 `shrink-0`-футер с `flex-1`-прокруткой не работали — футер уезжал за границу
 попапа.
+
+## Agent skills
+
+### Issue tracker
+
+Issues and specs live as markdown files under `.scratch/<feature>/` in this repo. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+The five default roles (`needs-triage`, `needs-info`, `ready-for-agent`, `ready-for-human`, `wontfix`), recorded as a `Status:` line in each issue file. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Single-context: one `GLOSSARY.md` and `docs/adr/` at the repo root. See `docs/agents/domain.md`.
