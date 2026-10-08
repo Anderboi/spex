@@ -248,14 +248,52 @@ function formatMillimetres(mm: number): string {
   return `${mm.toLocaleString("ru-RU")} мм`;
 }
 
-/** Проценты: `0.15` → «15 %». */
+/** Доля единицы в проценты: `0.15` → «15 %». */
 function formatPercent(ratio: number): string {
   return `${(ratio * 100).toLocaleString("ru-RU", { maximumFractionDigits: 2 })} %`;
 }
 
-/** Поле-процент: значения приходят долей единицы, но могут быть и числом. */
-function isPercentField(field: string): boolean {
-  return field.endsWith("_pct");
+/** Значение, уже выраженное в процентах: `10` → «10 %». */
+function formatPercentPoints(value: number): string {
+  return `${value.toLocaleString("ru-RU", { maximumFractionDigits: 2 })} %`;
+}
+
+/**
+ * Масштаб значения процентного поля в payload'е истории.
+ *
+ *   * `percent` — значение уже в процентах: `10` → «10 %»;
+ *   * `ratio`   — доля единицы: `0.15` → «15 %».
+ */
+type PercentScale = "percent" | "ratio";
+
+/**
+ * Процентные поля и их масштаб.
+ *
+ * Масштаб задаётся ПОЛЕМ, а не общим правилом «любое `*_pct` — доля единицы»:
+ * одинаковый суффикс не означает одинаковую единицу измерения. `client_discount_pct`
+ * лежит в `spec_items` целым числом процентов (`clientDiscountPct: 5` — это 5 %:
+ * так его ограничивает `specItemPatchSchema` и так же считает `priceOf`, деля на
+ * 100), поэтому в ленте он показывается как есть. Общее правило «умножить на 100»
+ * превращало скидку 10 % в «1000 %».
+ *
+ * `stock_pct` остаётся долей единицы: это существующее поведение форматтера, и
+ * менять его вместе со скидкой нельзя — иначе поехало бы отображение запаса.
+ */
+const PERCENT_FIELD_SCALE: Readonly<Record<string, PercentScale>> = {
+  client_discount_pct: "percent",
+  stock_pct: "ratio",
+};
+
+/**
+ * Масштаб процентного значения для поля; `null` — поле не процентное.
+ *
+ * Незнакомое поле с суффиксом `_pct` разбирается как доля единицы: так выглядели
+ * исторические payload'ы, и новая запись словаря не должна менять их вид.
+ */
+function percentScaleOf(field: string): PercentScale | null {
+  const known = PERCENT_FIELD_SCALE[field];
+  if (known) return known;
+  return field.endsWith("_pct") ? "ratio" : null;
 }
 
 /** Поле-картинка: показывать путь целиком бессмысленно. */
@@ -300,7 +338,9 @@ export function formatActivityValue(
   }
   if (typeof value === "number") {
     if (!Number.isFinite(value)) return emptyLabel;
-    if (isPercentField(field)) return formatPercent(value);
+    const percentScale = percentScaleOf(field);
+    if (percentScale === "percent") return formatPercentPoints(value);
+    if (percentScale === "ratio") return formatPercent(value);
     if (field === "price") return `${formatNumber(value)} ₽`;
     if (field === "lead_time") return formatMillimetres(value);
     return formatNumber(value);

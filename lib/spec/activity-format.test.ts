@@ -519,6 +519,72 @@ describe("details_changed и variant_updated: таблица изменений"
   });
 });
 
+/**
+ * Регрессия скидки клиента.
+ *
+ * В `spec_items.client_discount_pct` значение лежит целым числом процентов
+ * (`clientDiscountPct: 5` — это 5 %), и в payload события `details_changed`
+ * попадает ровно оно: в живой БД запись выглядит как `{"from":10,"to":5}`.
+ * Общий множитель ×100 для всех `*_pct` показывал «1000 % → 500 %».
+ */
+describe("скидка клиента в details_changed", () => {
+  /** Строки таблицы изменений одного события, разложенные по полю. */
+  function changesOf(list: HistoryFieldChange[]) {
+    const presentation = formatActivityEvent(
+      event("details_changed", { changes: list }),
+    );
+    expect(presentation).not.toBeNull();
+    return new Map(
+      presentation!.changes!.map((change) => [change.field, change]),
+    );
+  }
+
+  it("10 % → 5 %: raw 10 → 5 показывается как «10 % → 5 %»", () => {
+    const discount = changesOf([
+      { field: "client_discount_pct", from: 10, to: 5 },
+    ]).get("client_discount_pct")!;
+
+    expect(discount.label).toBe("Скидка клиента");
+    expect(plain(discount.from)).toBe("10 %");
+    expect(plain(discount.to)).toBe("5 %");
+  });
+
+  it("обратный сценарий: raw 5 → 10 показывается как «5 % → 10 %»", () => {
+    const discount = changesOf([
+      { field: "client_discount_pct", from: 5, to: 10 },
+    ]).get("client_discount_pct")!;
+
+    expect(plain(discount.from)).toBe("5 %");
+    expect(plain(discount.to)).toBe("10 %");
+  });
+
+  it("дробная скидка и ноль не теряют вид процентов", () => {
+    expect(plain(formatActivityValue("client_discount_pct", 7.5))).toBe("7,5 %");
+    expect(plain(formatActivityValue("client_discount_pct", 0))).toBe("0 %");
+    // Пустое значение остаётся состоянием поля, а не «0 %».
+    expect(formatActivityValue("client_discount_pct", null)).toBe("не заполнено");
+  });
+
+  it("соседние параметры не начали делиться на 100 и не стали процентами", () => {
+    const byField = changesOf([
+      { field: "client_discount_pct", from: 10, to: 5 },
+      { field: "stock_pct", from: 0.15, to: 0.3 },
+      { field: "price", from: 1500, to: 2000 },
+      { field: "name", from: "Диван", to: "Кресло" },
+    ]);
+
+    // Запас форматируется как раньше — долей единицы: правка скидки его не задела.
+    expect(plain(byField.get("stock_pct")!.from)).toBe("15 %");
+    expect(plain(byField.get("stock_pct")!.to)).toBe("30 %");
+    // Цена — прежние «₽» и разряды, без процентов.
+    expect(plain(byField.get("price")!.from)).toBe("1 500 ₽");
+    expect(byField.get("name")).toMatchObject({
+      from: "Диван",
+      to: "Кресло",
+    });
+  });
+});
+
 describe("batch", () => {
   it("групповая операция с размером > 1 подписана", () => {
     const record = event("status_changed", {
