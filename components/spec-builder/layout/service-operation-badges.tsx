@@ -1,16 +1,11 @@
 "use client";
 
-import { Wrench, Truck, ConciergeBell, AlertTriangle } from "lucide-react";
-import { operationLabel, type ServiceOperationType } from "@/lib/constants";
-import { fmt, fmtCompact, cn } from "@/lib/utils";
-import { isCompletedDelivery } from "@/lib/spec/service-operation-deadline";
+import { AlertTriangle } from "lucide-react";
+import { operationLabel } from "@/lib/constants";
+import { fmt, cn } from "@/lib/utils";
+import { serviceOperationDeadline } from "@/lib/spec/service-operation-deadline";
 import type { ServiceOperation } from "@/actions/service-operations";
-
-const OP_ICON: Record<ServiceOperationType, typeof Truck> = {
-  installation: Wrench,
-  delivery: Truck,
-  service: ConciergeBell,
-};
+import { SERVICE_OPERATION_ICON } from "./service-operation-icons";
 
 const MAX_VISIBLE = 2;
 
@@ -18,18 +13,13 @@ function dateLabel(iso: string): string {
   return new Date(`${iso}T00:00:00`).toLocaleDateString("ru-RU");
 }
 
-function isOverdue(op: ServiceOperation): boolean {
-  if (op.type !== "delivery" || !op.deadline) return false;
-  // Завершённая доставка — не активный дедлайн: тот же признак терминального
-  // состояния, что и у срока в строке услуги (serviceOperationDeadline).
-  if (isCompletedDelivery(op)) return false;
-  return new Date(`${op.deadline}T00:00:00`) < new Date();
-}
-
 function opTitle(op: ServiceOperation): string {
   const parts = [`${operationLabel(op)} · ${fmt(op.amount)} ₽`];
-  if (op.type === "delivery")
-    parts.push(op.completed ? "исполнено" : "не исполнено");
+  parts.push(op.completed ? "исполнено" : "не исполнено");
+  // Сумма операции общая на все её позиции: в подсказке видно, сколько их.
+  if (op.spec_item_ids.length > 1) {
+    parts.push(`позиций в операции: ${op.spec_item_ids.length}`);
+  }
   if (op.deadline) parts.push(`срок: ${dateLabel(op.deadline)}`);
   if (op.contractor_name) parts.push(`подрядчик: ${op.contractor_name}`);
   if (op.notes) parts.push(op.notes);
@@ -41,6 +31,10 @@ function opTitle(op: ServiceOperation): string {
  * привязанных к позиции. Намеренно НЕ оформлена как pill/чип — это
  * информационная аннотация, а не элемент управления, и не должна визуально
  * спорить со статусом позиции или со свитчером вариантов.
+ *
+ * Суммы операции здесь нет: она одна на все позиции операции, и в строке одной
+ * позиции читалась бы как её расход. Видны тип, признак просрочки и счётчик
+ * скрытых операций; сумма, срок и подрядчик — в подсказке и в модалке.
  *
  * Показываются в строке таблицы и в карточке на мобильном. Когда передан
  * onOpen — строка кликабельна и открывает операцию в модалке редактирования.
@@ -61,8 +55,10 @@ export function ServiceOperationBadges({
   return (
     <div className="flex flex-col items-start gap-1">
       {visible.map((op) => {
-        const Icon = OP_ICON[op.type];
-        const overdue = isOverdue(op);
+        const Icon = SERVICE_OPERATION_ICON[op.type];
+        // Просрочка считается тем же правилом, что и срок в строке услуги:
+        // исполненная операция активного дедлайна не имеет.
+        const overdue = serviceOperationDeadline(op)?.overdue ?? false;
         const content = (
           <>
             <Icon
@@ -71,15 +67,9 @@ export function ServiceOperationBadges({
                 overdue ? "text-fg-red" : "text-fg-dim",
               )}
             />
-            <span
-              className={cn(
-                "font-mono text-[11px] leading-none tabular-nums",
-                overdue ? "text-fg-red" : "text-fg-muted",
-              )}
-            >
-              {fmtCompact(op.amount)} ₽
-            </span>
-            {overdue && <AlertTriangle className="size-3 flex-none shrink-0 text-fg-red" />}
+            {overdue && (
+              <AlertTriangle className="size-3 flex-none shrink-0 text-fg-red" />
+            )}
           </>
         );
         return onOpen ? (
@@ -108,7 +98,11 @@ export function ServiceOperationBadges({
           </span>
         );
       })}
-      {hidden > 0 && <span className="pl-4 text-[11px] leading-none text-fg-dim">+{hidden}</span>}
+      {hidden > 0 && (
+        <span className="pl-4 text-[11px] leading-none text-fg-dim">
+          +{hidden}
+        </span>
+      )}
     </div>
   );
 }

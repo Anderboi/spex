@@ -464,9 +464,22 @@ export default function SpecBuilder({
           saveError={ctx.saveError}
           ops={ctx.opsByItem[ctx.current.id] ?? []}
           onOpenOperation={ctx.openServiceOperationEdit}
-          // Своя услуга из карточки позиции: она сразу привязана к этой
-          // позиции, но список можно очистить — услуга бывает расходом проекта.
-          onAddService={() => ctx.openServiceOperationCreate([ctx.current!.id])}
+          // Createable Combobox ищет по всем услугам проекта, а не только по
+          // привязанным к позиции: «Доставка» и «Монтаж» — обычные услуги
+          // проекта, отдельных кнопок под них нет.
+          serviceCatalog={ctx.operations}
+          onAddExistingService={(operation) =>
+            ctx.addExistingServiceToItem(ctx.current!.id, operation)
+          }
+          // Новая услуга создаётся в существующей модалке услуги: тип приходит
+          // из команды списка или от кнопки быстрого добавления, набранное
+          // название подставляется, позиция идёт в предвыбранные.
+          onCreateService={(type, name) =>
+            ctx.openServiceOperationCreate([ctx.current!.id], type, name)
+          }
+          onRetryServiceCatalog={ctx.reloadServiceOperations}
+          serviceCatalogError={ctx.operationsError}
+          serviceCatalogLoading={ctx.operationsLoading}
           onContactSaved={upsertLocalContact}
         />
       )}
@@ -626,11 +639,15 @@ export default function SpecBuilder({
 
       {ctx.modal.kind === "operation" &&
         (() => {
-          const { type, preselectedItemIds } = ctx.modal;
+          const { type, preselectedItemIds, name } = ctx.modal;
           return (
             <ServiceOperationModal
               type={type}
               preselectedItemIds={preselectedItemIds}
+              // Название, набранное в Createable Combobox карточки материала:
+              // форма открывается уже с ним, но остаётся обычной формой услуги
+              // со стоимостью, сроком и подрядчиком.
+              initialName={name}
               ctx={ctx}
               companies={localCompanies}
               onClose={ctx.closeModal}

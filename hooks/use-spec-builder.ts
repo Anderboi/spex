@@ -38,6 +38,7 @@ import {
 } from "@/actions/specifications";
 import {
   listProjectServiceOperations,
+  updateServiceOperation,
   type ServiceOperation,
 } from "@/actions/service-operations";
 import {
@@ -54,6 +55,7 @@ import type {
 } from "@/lib/spec/history";
 import type { PendingPatchOptions } from "@/lib/spec/pending-patches";
 import { applyActiveVariant } from "@/lib/spec/variants";
+import { serviceUpdateFields } from "@/lib/spec/service-catalog";
 import { round2, sumItems } from "@/lib/spec/pricing";
 import {
   calcProjectTotal,
@@ -130,8 +132,15 @@ export type Modal =
   /**
    * Создание операции. `preselectedItemIds` — создание из карточки позиции:
    * список позиций уже известен и не зависит от выделения в таблице.
+   * `name` — черновик названия своей услуги из combobox карточки материала;
+   * форма открывается уже с ним.
    */
-  | { kind: "operation"; type: ServiceOperationType; preselectedItemIds?: string[] }
+  | {
+      kind: "operation";
+      type: ServiceOperationType;
+      preselectedItemIds?: string[];
+      name?: string | null;
+    }
   | { kind: "edit-operation"; operationId: string }
   | { kind: "edit-variant"; itemId: string; variantId: string };
 
@@ -251,20 +260,51 @@ export function useSpecBuilder({
 
   /** Операции дополнительных расходов проекта («Монтаж»/«Доставка»). */
   const [operations, setOperations] = useState<ServiceOperation[]>([]);
+  /**
+   * Состояние загрузки справочника услуг: combobox в карточке материала должен
+   * показать «загружаем»/«не удалось», а не пустой список.
+   */
+  const [operationsLoading, setOperationsLoading] = useState(true);
+  const [operationsError, setOperationsError] = useState<string | null>(null);
+  /**
+   * Счётчик перезапуска загрузки: «Повторить» в combobox. Он же — `key` эффекта,
+   * поэтому загрузка запускается заново без сброса состояния внутри эффекта
+   * (синхронный `setState` в теле эффекта вызывает каскадные рендеры).
+   */
+  const [operationsReloadKey, setOperationsReloadKey] = useState(0);
 
   /**
    * Первичная загрузка операций проекта. Таблица позиций не блокируется;
    * после успешного сохранения список обновляется локально (см. onOperationCreated).
+   * Ошибка не глотается: combobox в карточке материала показывает её и даёт
+   * повторить — иначе пустой список читался бы как «услуг нет».
    */
   useEffect(() => {
     let cancelled = false;
     listProjectServiceOperations(orgSlug, projectId).then((res) => {
-      if (!cancelled && res.success) setOperations(res.data);
+      if (cancelled) return;
+      setOperationsLoading(false);
+      if (res.success) {
+        setOperations(res.data);
+        return;
+      }
+      setOperationsError(res.error);
     });
     return () => {
       cancelled = true;
     };
-  }, [orgSlug, projectId]);
+  }, [orgSlug, projectId, operationsReloadKey]);
+
+  /**
+   * Повторить загрузку списка услуг (кнопка «Повторить» в combobox): состояние
+   * «загружаем» возвращается здесь, а не в эффекте, — иначе синхронный
+   * `setState` в теле эффекта вызвал бы каскадный рендер.
+   */
+  const reloadServiceOperations = useCallback(() => {
+    setOperationsLoading(true);
+    setOperationsError(null);
+    setOperationsReloadKey((k) => k + 1);
+  }, []);
 
   /** Актуальный список без ожидания ре-рендера — нужен для вычисления патчей. */
   const itemsRef = useRef(items);
@@ -1732,23 +1772,34 @@ export function useSpecBuilder({
   );
 
   /**
-   * Создать свою услугу из карточки позиции («Подъём на этаж», «Хранение на
-   * складе»). В отличие от доставки и монтажа, услуга не обязана быть привязана
-   * к материалам, поэтому открываем форму даже без выделения: позиция, из
-   * которой пришли, подставляется в список, и её можно снять.
+   * Создать услугу из карточки позиции. Тип приходит из команды списка
+   * («Создать доставку», «Создать монтаж», «Создать «…»»), название — из
+   * набранного текста.
+   *
+   * Услуга привязывается к позиции, из которой её создают: она попадает в
+   * предвыбранные. Свою услугу можно и отвязать — она не обязана быть привязана
+   * к материалам, — но у доставки и монтажа позиция обязательна, поэтому форма
+   * открывается без выделения в таблице.
    */
   const openServiceOperationCreate = useCallback(
-    (preselectedItemIds: string[]) =>
-      setModal({ kind: "operation", type: "service", preselectedItemIds }),
+    (
+      preselectedItemIds: string[],
+      type: ServiceOperationType,
+      name?: string | null,
+    ) => setModal({ kind: "operation", type, preselectedItemIds, name }),
     [],
   );
 
   /**
    * Локально отмечает связанные позиции «Доставлено». Сервер уже записал
-   * статус в рамках update/createServiceOperation — здесь только зеркалим
-   * изменение в таблице, не добавляя патч в очередь сохранения.
+   * статус в рамках update/createServiceOperation — в том числе когда материал
+   * привязывают к уже исполненной доставке, — здесь только зеркалим изменение
+   * в таблице, не добавляя патч в очередь сохранения.
    * Материалы со статусом «Заменить» пропускаем — авто-отметка не должна
    * сбрасывать осознанную замену позиции.
+   *
+   * Объявлено до `addExistingServiceToItem`: тот ссылается на эту функцию в
+   * списке зависимостей `useCallback`, а он вычисляется в момент рендера.
    */
   const markItemsDelivered = useCallback((ids: string[]) => {
     const set = new Set(ids);
@@ -1761,6 +1812,46 @@ export function useSpecBuilder({
       ),
     );
   }, []);
+
+  /**
+   * Привязать СУЩЕСТВУЮЩУЮ услугу проекта к материалу — выбор строки в combobox
+   * карточки материала.
+   *
+   * Услуга не создаётся заново: материал добавляется в позиции уже
+   * существующей операции проекта (`service_operations` — единственная модель
+   * услуг, отдельного справочника в проекте нет). Стоимость, срок, подрядчик и
+   * комментарий операции при этом не меняются — их считает
+   * `serviceUpdateFields`.
+   *
+   * Возвращает `true`, если услуга привязана. `false` означает, что ошибку уже
+   * показал тост, а combobox должен остаться открытым и позволить повтор.
+   */
+  const addExistingServiceToItem = useCallback(
+    async (itemId: string, operation: ServiceOperation): Promise<boolean> => {
+      const res = await updateServiceOperation(
+        orgSlug,
+        projectId,
+        operation.id,
+        serviceUpdateFields(operation, itemId),
+      );
+      if (!res.success) {
+        showToast(res.error);
+        return false;
+      }
+
+      setOperations((prev) =>
+        prev.map((x) => (x.id === res.data.id ? res.data : x)),
+      );
+      // Исполненная доставка уже отмечена — материал, который в неё добавили,
+      // доставлен сразу (то же делает сервер при привязке).
+      if (res.data.type === "delivery" && res.data.completed) {
+        markItemsDelivered([itemId]);
+      }
+      showToast(`Добавлено · ${operationLabel(res.data)}`);
+      return true;
+    },
+    [orgSlug, projectId, showToast, markItemsDelivered],
+  );
 
   /**
    * После успешного создания: добавляем операцию в локальный список,
@@ -1885,6 +1976,9 @@ export function useSpecBuilder({
     visibleIds,
     stats,
     operations,
+    operationsLoading,
+    operationsError,
+    reloadServiceOperations,
     opsByItem,
     serviceTotals,
     servicesTotal,
@@ -1968,6 +2062,7 @@ export function useSpecBuilder({
     openServiceOperation,
     openServiceOperationEdit,
     openServiceOperationCreate,
+    addExistingServiceToItem,
     onOperationCreated,
     onOperationUpdated,
     onOperationDeleted,

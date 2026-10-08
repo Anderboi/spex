@@ -8,6 +8,7 @@ import { SpecItem, SpecItemPatch } from "@/lib/types";
 import { priceOf } from "@/lib/spec/pricing";
 import { ServiceOperationDetailCards } from "../../layout/service-operation-detail-cards";
 import { ServiceOperation } from "@/actions/service-operations";
+import type { ServiceOperationType } from "@/lib/constants";
 import { Button } from "@/components/ui/button";
 import { OverviewSection } from "../../layout/overview-section";
 import { ComponentsPreview } from "../../layout/components-preview";
@@ -36,8 +37,29 @@ interface Props {
   ) => void;
   ops: ServiceOperation[];
   onOpenOperation: (operationId: string) => void;
-  /** Создать свою услугу («Подъём на этаж», «Хранение на складе»). */
-  onAddService?: () => void;
+  /**
+   * Все услуги проекта — источник списка для Createable Combobox «Добавить
+   * услугу» (существующие «Доставка»/«Монтаж» и свои услуги).
+   */
+  serviceCatalog: ServiceOperation[];
+  /**
+   * Привязать существующую услугу к позиции. `false` — ошибка: её уже показал
+   * вызывающий, а combobox остаётся открытым для повтора.
+   */
+  onAddExistingService: (operation: ServiceOperation) => Promise<boolean>;
+  /**
+   * Создать новую услугу: тип приходит из команды списка, набранное название
+   * подставляется в существующую форму услуги, которую открывает вызывающий.
+   */
+  onCreateService: (type: ServiceOperationType, name: string | null) => void;
+  /** Повторить загрузку списка услуг после ошибки. */
+  onRetryServiceCatalog: () => void;
+  /** Список услуг проекта не загрузился. */
+  serviceCatalogError: string | null;
+  /** Список услуг проекта ещё грузится. */
+  serviceCatalogLoading: boolean;
+  /** Все позиции проекта: по ним видно, какие материалы уже в каждой услуге. */
+  allItems: SpecItem[];
   childrenItems: SpecItem[];
   onOpenItem: (id: string) => void;
   /** Переход на вкладку модалки: «Открыть» у состава и вариантов. */
@@ -120,7 +142,13 @@ const OverviewTab = ({
   onSupplierChange,
   ops,
   onOpenOperation,
-  onAddService,
+  serviceCatalog,
+  onAddExistingService,
+  onCreateService,
+  onRetryServiceCatalog,
+  serviceCatalogError,
+  serviceCatalogLoading,
+  allItems,
   childrenItems,
   onOpenItem,
   onTabChange,
@@ -438,11 +466,19 @@ const OverviewTab = ({
       </OverviewSection>
 
       {/* ── Услуги: доставка, монтаж и свои услуги. Строки компактные, а
-             «Добавить услугу» создаёт свою и сразу привязывает её к позиции ── */}
+             добавление идёт через один Createable Combobox: выбрать
+             существующую услугу проекта или создать новую ── */}
       <ServiceOperationDetailCards
+        item={item}
+        allItems={allItems}
         ops={ops}
         onOpenOperation={onOpenOperation}
-        onAddService={onAddService}
+        serviceCatalog={serviceCatalog}
+        onAddExistingService={onAddExistingService}
+        onCreateService={onCreateService}
+        onRetryServiceCatalog={onRetryServiceCatalog}
+        serviceCatalogError={serviceCatalogError}
+        serviceCatalogLoading={serviceCatalogLoading}
       />
 
       {/* ── Субэлементы остаются в конце: это переходы по дереву ───── */}

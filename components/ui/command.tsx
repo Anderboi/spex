@@ -68,10 +68,39 @@ function CommandDialog({
 
 function CommandInput({
   className,
+  placeholder,
   ...props
 }: React.ComponentProps<typeof CommandPrimitive.Input>) {
+  const wrapperRef = React.useRef<HTMLDivElement>(null);
+  /**
+   * Доступное имя поля поиска. Всё, что есть, — `placeholder`: он же и есть
+   * подпись поля в разметке, и второго пропа для имени ни один вызов не
+   * передавал.
+   *
+   * cmdk проставляет инпуту `aria-labelledby` на свою подпись, но её текст не
+   * рендерится (React 19 отбрасывает дублирующийся `id`), и поле остаётся без
+   * имени: `aria-label` проигрывает непустому `aria-labelledby`, а сам
+   * `aria-labelledby` внутри cmdk перезаписывается — передать своё значение
+   * через проп не получается. Поэтому текст подписи ставится тому же элементу,
+   * на который ссылается cmdk, уже после монтирования.
+   */
+  const labelText = placeholder ?? "Поиск";
+
+  React.useEffect(() => {
+    const input = wrapperRef.current?.querySelector("[cmdk-input]");
+    const labelledBy = input?.getAttribute("aria-labelledby");
+    if (!labelledBy) return;
+    const labelEl = document.getElementById(labelledBy);
+    // Только пустую подпись: если текст уже есть, DOM cmdk не трогаем.
+    if (labelEl && !labelEl.textContent?.trim()) labelEl.textContent = labelText;
+  });
+
   return (
-    <div data-slot="command-input-wrapper" className="p-1 pb-0">
+    <div
+      ref={wrapperRef}
+      data-slot="command-input-wrapper"
+      className="p-1 pb-0"
+    >
       <InputGroup className="h-8! bg-transparent rounded-lg! border-input/30 //bg-input/30 shadow-none! *:data-[slot=input-group-addon]:pl-2!">
         <CommandPrimitive.Input
           data-slot="command-input"
@@ -79,6 +108,7 @@ function CommandInput({
             "w-full text-sm outline-hidden disabled:cursor-not-allowed disabled:opacity-50",
             className
           )}
+          placeholder={placeholder}
           {...props}
         />
         <InputGroupAddon>

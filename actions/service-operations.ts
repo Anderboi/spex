@@ -668,18 +668,29 @@ export async function updateServiceOperation(
   const contractorOk = await assertContractorInOrg(c, d.contractorCompanyId);
   if (!contractorOk.ok) return fail(contractorOk.error);
 
-  // Исполненная доставка автоматически отмечает связанные материалы
-  // «Доставлено». Обратный переход (снять отметку) статусы не откатывает.
-  if (d.type === "delivery" && d.completed && !existing.completed) {
-    const marked = await markLinkedItemsDelivered(c, d.specItemIds);
-    if (!marked.ok) return fail(marked.error);
-  }
-
+  // Прежние связи нужны дважды: для замены связок ниже и для авто-отметки
+  // «Доставлено» — материал, привязанный к УЖЕ исполненной доставке, доставлен
+  // сразу, а не остаётся недоставленным внутри исполненной операции.
   const { data: prevLinks } = await c.supabase
     .from("service_operation_items")
     .select("spec_item_id")
     .eq("operation_id", operationId);
   const prevIds = (prevLinks ?? []).map((r) => r.spec_item_id);
+
+  // Исполненная доставка автоматически отмечает связанные материалы
+  // «Доставлено»: при первом включении отметки — все её позиции, при
+  // добавлении материала в уже исполненную доставку — только новые.
+  // Обратный переход (снять отметку) статусы не откатывает.
+  //
+  // Авто-отметка идёт до записи связок: если она не удалась, операция не
+  // меняется вовсе, и пользователь видит ошибку.
+  if (d.type === "delivery" && d.completed) {
+    const toMark = existing.completed
+      ? d.specItemIds.filter((id) => !prevIds.includes(id))
+      : d.specItemIds;
+    const marked = await markLinkedItemsDelivered(c, toMark);
+    if (!marked.ok) return fail(marked.error);
+  }
 
   const { data: updated, error: updErr } = await c.supabase
     .from("service_operations")

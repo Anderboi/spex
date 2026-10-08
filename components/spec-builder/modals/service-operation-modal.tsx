@@ -14,6 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import Field from "@/components/layout/modal-field";
 import { CompanyDialog } from "@/components/contacts/company-dialog";
+import { ServiceTypeCombobox } from "@/components/spec-builder/layout/add-service-combobox";
 import {
   SERVICE_OPERATION_BLOCKED_STATUSES,
   operationLabel,
@@ -25,6 +26,10 @@ import type { SpecPickerCompany } from "@/lib/queries";
 import type { SpecBuilderContext } from "@/hooks/use-spec-builder";
 import type { ServiceOperationFields } from "@/lib/validations";
 import { SPEC_STATUS_CONFIG } from "@/lib/spec/status";
+import {
+  serviceTypeCreateLabel,
+  type ServiceTypePick,
+} from "@/lib/spec/service-type";
 import {
   createServiceOperation,
   deleteServiceOperation,
@@ -46,10 +51,12 @@ export function ServiceOperationModal({
   type,
   operation,
   preselectedItemIds,
+  initialName,
   ctx,
   companies,
   onClose,
 }: {
+  /** Начальный тип услуги. Дальше тип — обычное поле формы и меняется в ней. */
   type: ServiceOperationType;
   /** Передана — модалка открыта в режиме редактирования существующей операции. */
   operation?: ServiceOperation;
@@ -58,19 +65,38 @@ export function ServiceOperationModal({
    * Из выделения в таблице список приходит пустым — берём выделение.
    */
   preselectedItemIds?: string[];
+  /**
+   * Черновик названия своей услуги. Приходит из Createable Combobox карточки
+   * материала: пользователь уже набрал название, и вводить его второй раз не
+   * нужно. Поле остаётся обычным — название можно исправить.
+   */
+  initialName?: string | null;
   ctx: SpecBuilderContext;
   companies: SpecPickerCompany[];
   onClose: () => void;
 }) {
-  const isService = type === "service";
   const isEdit = !!operation;
   /**
-   * Название своей услуги — её подпись во всех списках и в смете. У «Доставки»
-   * и «Монтажа» подпись фиксирована, поэтому поля нет.
+   * Тип услуги выбирается в форме (`ServiceTypeCombobox` в поле «Тип услуги»).
+   * Тип определяет подпись, наличие названия, доступные материалы и отметку
+   * «Исполнено», поэтому дальше по коду используется только он, а не проп.
    */
-  const [name, setName] = useState(operation?.name ?? "");
-  const label = operationLabel({ type, name });
-  const title = isEdit ? `Редактировать · ${label}` : isService ? "Новая услуга" : label;
+  const [currentType, setCurrentType] = useState<ServiceOperationType>(type);
+  const isService = currentType === "service";
+  const isDelivery = currentType === "delivery";
+  /**
+   * Название своей услуги — её подпись во всех списках и в смете. У «Доставки»
+   * и «Монтажа» подпись фиксирована, поэтому поля нет. Значение сохраняется при
+   * переключении типа: вернувшись к своей услуге, пользователь находит прежний
+   * текст, а не пустое поле.
+   */
+  const [name, setName] = useState(operation?.name ?? initialName ?? "");
+  const label = operationLabel({ type: currentType, name });
+  const title = isEdit
+    ? `Редактировать · ${label}`
+    : isService
+      ? "Новая услуга"
+      : label;
 
   /**
    * Позиции, участвующие в НОВОЙ операции. Сразу исключаются заглушки,
@@ -82,13 +108,16 @@ export function ServiceOperationModal({
    *
    * У своих услуг ограничений по статусу нет, и они необязательны: услуга
    * может быть расходом проекта целиком.
+   *
+   * Всё считается от ВЫБРАННОГО типа: смена типа в форме сразу пересчитывает
+   * список и пояснение к нему.
    */
   const preselected = preselectedItemIds?.length
     ? ctx.items.filter((i) => preselectedItemIds.includes(i.id))
     : ctx.selectedItems;
   const selectedReal = preselected.filter((i) => !i.isPlaceholder);
   const excludedPlaceholders = preselected.length - selectedReal.length;
-  const forbiddenStatuses = SERVICE_OPERATION_BLOCKED_STATUSES[type];
+  const forbiddenStatuses = SERVICE_OPERATION_BLOCKED_STATUSES[currentType];
   const byStatus = selectedReal.filter(
     (i) => !forbiddenStatuses.includes(i.status),
   );
@@ -97,13 +126,18 @@ export function ServiceOperationModal({
   /**
    * Материалы, уже связанные с другой операцией того же типа, не берём.
    * У своих услуг правила «один раз» нет: позицию можно привязать к
-   * нескольким услугам.
+   * нескольким услугам. Собственная операция (режим редактирования) «другой»
+   * не считается.
    */
   const otherLinkedIds =
-    type === "delivery"
-      ? specItemIdsInDeliveries(ctx.operations)
-      : type === "installation"
-        ? specItemIdsInInstallations(ctx.operations)
+    currentType === "delivery"
+      ? specItemIdsInDeliveries(
+          ctx.operations.filter((o) => o.id !== operation?.id),
+        )
+      : currentType === "installation"
+        ? specItemIdsInInstallations(
+            ctx.operations.filter((o) => o.id !== operation?.id),
+          )
         : new Set<string>();
   const eligible = byStatus.filter((i) => !otherLinkedIds.has(i.id));
   const excludedByLinked = byStatus.length - eligible.length;
@@ -135,7 +169,7 @@ export function ServiceOperationModal({
               } (${excludedByStatus})`
             : "",
           excludedByLinked > 0
-            ? type === "delivery"
+            ? currentType === "delivery"
               ? `материалы из другой доставки (${excludedByLinked})`
               : `материалы из другого монтажа (${excludedByLinked})`
             : "",
@@ -153,7 +187,9 @@ export function ServiceOperationModal({
   );
   const [notes, setNotes] = useState(operation?.notes ?? "");
   /**
-   * Отметка «исполнено» — показывается для доставки.
+   * Отметка «исполнено» — у всех типов: закрыть работу можно и у монтажа, и у
+   * своей услуги. Следствие отметки есть только у доставки (материалы
+   * становятся «Доставлено»).
    * Если связанный материал получил статус «Заменить», отметку автоматически
    * не включаем: материал требует замены, и авто-отметка не должна
    * «возвращать» его в «Доставлено».
@@ -169,6 +205,32 @@ export function ServiceOperationModal({
   const [showContractorCard, setShowContractorCard] = useState(false);
   const contractorCompany =
     companies.find((c) => c.id === contractorCompanyId) ?? null;
+
+  /**
+   * Свои услуги, уже созданные в проекте: подсказки в поле типа и защита от
+   * дубликата по названию. Текущая операция исключается — её собственное
+   * название не должно выглядеть как «уже существует».
+   */
+  const usedCustomNames = ctx.operations
+    .filter((o) => o.type === "service" && o.id !== operation?.id)
+    .map((o) => o.name?.trim() ?? "")
+    .filter(Boolean);
+
+  /**
+   * Смена типа в форме. Меняются только последствия типа: подпись, поля и
+   * список позиций (он вычисляется из `currentType`). Уже введённые стоимость,
+   * срок, подрядчик, комментарий и отметка «Исполнено» остаются — они не
+   * зависят от типа: закрыть работу можно у любой операции.
+   */
+  const applyTypePick = (pick: ServiceTypePick) => {
+    const next: ServiceOperationType =
+      pick.kind === "fixed" ? pick.type : "service";
+    setError(null);
+    setCurrentType(next);
+    // Название, набранное в поле типа, становится названием услуги: для
+    // пользователя это одно действие «создать «Подъём на этаж»».
+    if (pick.kind === "custom" && pick.name) setName(pick.name);
+  };
 
   const submit = async () => {
     const trimmedName = name.trim();
@@ -208,9 +270,10 @@ export function ServiceOperationModal({
       notes,
     };
     // Название — только у своей услуги; тип сужает дискриминированный union.
+    // Тип берётся из поля формы: пользователь мог сменить его здесь же.
     const input: ServiceOperationFields = isService
       ? { ...shared, type: "service", name: trimmedName }
-      : { ...shared, type, name: null };
+      : { ...shared, type: currentType, name: null };
 
     const res = operation
       ? await updateServiceOperation(
@@ -264,11 +327,21 @@ export function ServiceOperationModal({
         </DialogHeader>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-5 py-4">
-          {excludedNote && (
-            <p className="mb-3 rounded-lg border border-border-muted bg-bg-card2 px-3 py-2 text-[12.5px] text-fg-muted">
-              {excludedNote} не включаются в операцию.
-            </p>
-          )}
+          {/*
+            Тип услуги — первое поле формы. Он определяет всё остальное: подпись
+            в заголовке, наличие названия, список позиций и отметку «Исполнено».
+            Один и тот же диалог создаёт и «Доставку», и «Монтаж», и свою услугу.
+          */}
+          <div className="mb-4">
+            <Field label="Тип услуги">
+              <ServiceTypeCombobox
+                type={currentType}
+                onChange={applyTypePick}
+                usedCustomNames={usedCustomNames}
+                disabled={busy || deleting}
+              />
+            </Field>
+          </div>
 
           {isService && (
             <div className="mb-4">
@@ -276,6 +349,7 @@ export function ServiceOperationModal({
                 <Input
                   value={name}
                   onChange={(e) => setName(e.target.value)}
+                  // Тип уже выбран; при своей услуге сразу вводится название.
                   autoFocus
                   maxLength={200}
                   placeholder="Подъём на этаж, хранение на складе…"
@@ -283,6 +357,12 @@ export function ServiceOperationModal({
                 />
               </Field>
             </div>
+          )}
+
+          {excludedNote && (
+            <p className="mb-3 rounded-lg border border-border-muted bg-bg-card2 px-3 py-2 text-[12.5px] text-fg-muted">
+              {excludedNote} не включаются в операцию.
+            </p>
           )}
 
           <Field label={isService ? "Позиции (необязательно)" : "Позиции"}>
@@ -363,30 +443,35 @@ export function ServiceOperationModal({
             </Field>
           </div>
 
-          {type === "delivery" && (
-            <div className="mt-4 rounded-lg border border-border-muted bg-bg-card2 px-3 py-2.5">
-              <label className="flex cursor-pointer items-center gap-2.5">
-                <Checkbox
-                  checked={completed}
-                  onCheckedChange={(v) => setCompleted(v === true)}
-                  aria-label="Доставка исполнена"
-                />
-                <span className="text-[14px] font-semibold text-fg">
-                  Исполнено
-                </span>
-              </label>
-              <p className="pl-6 text-[12px] leading-relaxed text-fg-muted">
-                При сохранении отметки связанные материалы автоматически
-                получат статус «Доставлено». Их стоимость не изменится.
+          {/*
+            Отметка «Исполнено» есть у всех типов: закрыть работу можно и у
+            монтажа, и у своей услуги — иначе у операции со сроком нечем снять
+            просрочку. Следствие отметки зависит от типа: «Доставлено» получают
+            только материалы доставки.
+          */}
+          <div className="mt-4 rounded-lg border border-border-muted bg-bg-card2 px-3 py-2.5">
+            <label className="flex cursor-pointer items-center gap-2.5">
+              <Checkbox
+                checked={completed}
+                onCheckedChange={(v) => setCompleted(v === true)}
+                aria-label="Исполнено"
+              />
+              <span className="text-[14px] font-semibold text-fg">
+                Исполнено
+              </span>
+            </label>
+            <p className="pl-6 text-[12px] leading-relaxed text-fg-muted">
+              {isDelivery
+                ? "При сохранении отметки связанные материалы автоматически получат статус «Доставлено». Их стоимость не изменится."
+                : "Отметка закрывает операцию: срок перестаёт считаться просроченным. Статусы материалов не меняются."}
+            </p>
+            {isDelivery && hasReplaceLinked && (
+              <p className="mt-1 pl-6 text-[12px] leading-relaxed text-fg-red">
+                Материалы со статусом «Заменить» доставленными автоматически
+                не отмечаются.
               </p>
-              {hasReplaceLinked && (
-                <p className="mt-1 pl-6 text-[12px] leading-relaxed text-fg-red">
-                  Материалы со статусом «Заменить» доставленными автоматически
-                  не отмечаются.
-                </p>
-              )}
-            </div>
-          )}
+            )}
+          </div>
 
           <div className="mt-4">
             <Field label="Комментарий (необязательно)">
@@ -488,7 +573,10 @@ export function ServiceOperationModal({
               ) : operation ? (
                 "Сохранить"
               ) : (
-                isService ? "Добавить услугу" : `Добавить ${label.toLowerCase()}`
+                // Подпись зависит от выбранного в форме типа: у услуги «Создать
+                // услугу», у доставки и монтажа — свой винительный падеж
+                // (см. serviceTypeCreateLabel).
+                serviceTypeCreateLabel(currentType)
               )}
             </Button>
           </div>

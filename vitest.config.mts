@@ -29,6 +29,17 @@ export default defineConfig({
   resolve: {
     alias: {
       "@": fileURLToPath(new URL("./", import.meta.url)),
+      /**
+       * `server-only` есть только внутри сборки Next: пакета нет в
+       * `node_modules`, и Vitest не может его разрешить. Без алиаса любой тест,
+       * который транзитивно доходит до `lib/auth/session.ts` или
+       * `lib/db/guard.ts` (например, через тип `SpecBuilderContext`), падает на
+       * импорте. Заглушка — пустой модуль: ограничение «только сервер»
+       * относится к сборке, а не к поведению кода.
+       */
+      "server-only": fileURLToPath(
+        new URL("./tests/stubs/server-only.ts", import.meta.url),
+      ),
     },
   },
   test: {

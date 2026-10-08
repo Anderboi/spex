@@ -4,7 +4,10 @@ import { useState } from "react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
-import { SpecStatus } from "@/lib/constants";
+import {
+  SpecStatus,
+  type ServiceOperationType,
+} from "@/lib/constants";
 import { SpecItem, SpecItemPatch, SpecVariant } from "@/lib/types";
 import { type CompanyOption } from "@/components/layout/company-picker";
 import { ScrollArea } from "../../ui/scroll-area";
@@ -103,8 +106,13 @@ export function DetailModal({
   saveStatus,
   saveError,
   ops,
+  serviceCatalog,
   onOpenOperation,
-  onAddService,
+  onAddExistingService,
+  onCreateService,
+  onRetryServiceCatalog,
+  serviceCatalogError,
+  serviceCatalogLoading,
   onContactSaved,
 }: {
   item: SpecItem;
@@ -167,10 +175,27 @@ export function DetailModal({
    * услуги.
    */
   ops: ServiceOperation[];
+  /** Все услуги проекта — источник списка Createable Combobox «Добавить услугу». */
+  serviceCatalog: ServiceOperation[];
   /** Открыть операцию в модалке редактирования (с возвратом в детализацию). */
   onOpenOperation: (operationId: string) => void;
-  /** Создать свою услугу («Подъём на этаж») из блока услуг «Обзора». */
-  onAddService?: () => void;
+  /**
+   * Привязать существующую услугу проекта к этой позиции. `false` — не
+   * получилось: ошибку уже показал вызывающий.
+   */
+  onAddExistingService: (operation: ServiceOperation) => Promise<boolean>;
+  /**
+   * Создать услугу из combobox: тип приходит из команды списка, набранное
+   * название подставляется в существующую форму услуги, позиция идёт в
+   * предвыбранные.
+   */
+  onCreateService: (type: ServiceOperationType, name: string | null) => void;
+  /** Повторить загрузку списка услуг после ошибки. */
+  onRetryServiceCatalog: () => void;
+  /** Список услуг проекта не загрузился. */
+  serviceCatalogError: string | null;
+  /** Список услуг проекта ещё грузится. */
+  serviceCatalogLoading: boolean;
   /** Менеджер создан или изменён — родитель обновляет список контактов. */
   onContactSaved?: (contact: {
     id: string;
@@ -284,7 +309,13 @@ export function DetailModal({
               childrenItems={childrenItems}
               onOpenOperation={onOpenOperation}
               ops={ops}
-              onAddService={onAddService}
+              serviceCatalog={serviceCatalog}
+              onAddExistingService={onAddExistingService}
+              onCreateService={onCreateService}
+              allItems={allItems}
+              onRetryServiceCatalog={onRetryServiceCatalog}
+              serviceCatalogError={serviceCatalogError}
+              serviceCatalogLoading={serviceCatalogLoading}
               // «Открыть» у блоков обзора ведёт на вкладку: состояние живёт
               // там же, где правка, а `?tab=` переживает перезагрузку.
               onTabChange={changeTab}
