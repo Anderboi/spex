@@ -162,7 +162,7 @@ export function ServiceOperationDetailCards({
         <Button
           type="button"
           variant="outline"
-          size="sm"
+          // size="sm"
           onClick={onAddService}
           className="mt-2 gap-1.5"
         >

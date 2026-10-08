@@ -11,10 +11,22 @@ import {
   Paperclip,
   Plus,
   Ruler,
+  Trash2,
+  Upload,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   Attachment,
   AttachmentAction,
@@ -34,7 +46,11 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
-import { getSpecItemFileUrl, listSpecItemFiles } from "@/actions/spec-item-files";
+import {
+  deleteSpecItemFile,
+  getSpecItemFileUrl,
+  listSpecItemFiles,
+} from "@/actions/spec-item-files";
 import { MAX_SPEC_ITEM_FILE_BYTES, MAX_SPEC_ITEM_FILE_LABEL } from "@/lib/spec/file-content";
 import type { SpecItemFileEntry } from "@/lib/spec/spec-item-files";
 import {
@@ -42,6 +58,7 @@ import {
   fileCategoryLabel,
   fileKindOf,
   fileMetaLine,
+  isLeavingDropZone,
   placeFileEntry,
   type SpecItemFileKind,
 } from "@/lib/spec/file-view";
@@ -101,7 +118,7 @@ const SKELETON_ROWS = 4;
  * переопределяя его классы по одному.
  */
 const LIST_CLASS =
-  "flex flex-col gap-1.5 py-1 [--card:#fcf9f3] [--card-foreground:#221d18] [--muted:#f5f2eb] [--muted-foreground:#a8a296] [--border:#e2ddd1]";
+  "flex flex-col pt-2 gap-1.5 rounded-xl py-1 transition-colors data-[drag-active=true]:bg-bg-card data-[drag-active=true]:outline-2 data-[drag-active=true]:outline-dashed data-[drag-active=true]:outline-offset-4 data-[drag-active=true]:outline-fg-brand [--card:#fcf9f3] [--card-foreground:#221d18] [--muted:#f5f2eb] [--muted-foreground:#a8a296] [--border:#e2ddd1]";
 
 /** Иконка вида файла. Отдельной «системы иконок» нет — только этот маппинг. */
 const KIND_ICON: Record<
@@ -154,6 +171,14 @@ export default function FilesTab({
    * осталась бы пустой вместо skeleton.
    */
   const [inFlight, setInFlight] = useState(false);
+  /**
+   * Курсор с файлами над вкладкой (drag & drop).
+   *
+   * Объявлено среди прочего состояния, потому что подсветку гасит в том числе
+   * cleanup загрузки списка (смена позиции) — ссылаться на сеттер раньше его
+   * объявления нельзя.
+   */
+  const [dragHover, setDragHover] = useState(false);
 
   /** Номер попытки загрузки списка: гасит устаревшие ответы. */
   const requestIdRef = useRef(0);
@@ -192,6 +217,23 @@ export default function FilesTab({
   const [picked, setPicked] = useState<File | null>(null);
   /** UX-ошибка picker'а (слишком большой файл): до сервера дело не доходит. */
   const [pickError, setPickError] = useState<string | null>(null);
+
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
+  /** Удаление идёт: одна попытка на файл, повторный клик заблокирован. */
+  const [deleting, setDeleting] = useState<{
+    itemKey: string;
+    fileId: string;
+  } | null>(null);
+  /**
+   * Ошибка удаления: файл ОСТАЁТСЯ в списке. Оптимистичного удаления здесь нет
+   * намеренно — иначе при отказе сервера пришлось бы восстанавливать строку, а
+   * это ровно та потеря состояния, которой просили избежать.
+   */
+  const [deleteError, setDeleteError] = useState<{
+    itemKey: string;
+    fileId: string;
+    message: string;
+  } | null>(null);
 
   /** Скрытый `<input type="file">`: открывается кнопкой «Добавить файл». */
   const pickerRef = useRef<HTMLInputElement>(null);
@@ -260,10 +302,15 @@ export default function FilesTab({
      * попытки растёт, и поздний ответ обеих операций (список и ссылка) уже не
      * актуален. Сверять «текущий» `specItemId` через ref здесь не нужно —
      * ровно эту работу делает счётчик.
+     *
+     * Здесь же гасится подсветка drag & drop: дроп мог закончиться сменой
+     * позиции, и `dragleave` тогда не придёт вовсе. Сброс в cleanup, а не в
+     * отдельном эффекте: подсветка — состояние ЭТОЙ операции загрузки списка.
      */
     return () => {
       requestIdRef.current += 1;
       urlRequestRef.current += 1;
+      setDragHover(false);
     };
   }, [requestList, applyList]);
 
@@ -319,7 +366,7 @@ export default function FilesTab({
   );
 
   /**
-   * Пока открыт диалог загрузки, повторный выбор файла запрещён.
+   * Пока диалог открыт, повторный выбор файла запрещён.
    *
    * Загрузки идут строго по одной: второй параллельный upload не поддерживается
    * ни этим этапом, ни UI (в списке не было бы понятно, какая строка чья).
@@ -327,19 +374,17 @@ export default function FilesTab({
   const dialogOpen = picked !== null;
 
   /**
-   * Разбор выбора файла из picker'а.
+   * Разбор выбранного файла — ОДНА точка входа для всех способов выбора.
+   *
+   * И picker (`change` у скрытого input), и drag & drop приходят сюда: дальше
+   * путь общий — `FileUploadDialog`, выбор категории, `uploadSpecItemFile`.
+   * Второго upload pipeline нет, отличается только способ получить `File`.
    *
    * Здесь только UX-проверки: файл есть и не больше лимита сервера. MIME и
    * сигнатуру содержимого проверяет сервер — второй такой проверки на клиенте
    * нет намеренно, иначе они разойдутся.
-   *
-   * `input.value` сбрасывается сразу после обработки: без этого повторный выбор
-   * ТОГО ЖЕ файла не вызовет `change` (браузер считает значение неизменным), и
-   * после ошибки пользователь не смог бы выбрать файл заново.
    */
-  const handlePick = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0] ?? null;
-    event.target.value = "";
+  const acceptFile = useCallback((file: File | null) => {
     if (!file) return;
 
     if (file.size > MAX_SPEC_ITEM_FILE_BYTES) {
@@ -352,6 +397,175 @@ export default function FilesTab({
     setPickError(null);
     setPicked(file);
   }, []);
+
+  /**
+   * `change` у скрытого input.
+   *
+   * `input.value` сбрасывается сразу после обработки: без этого повторный выбор
+   * ТОГО ЖЕ файла не вызовет `change` (браузер считает значение неизменным), и
+   * после ошибки пользователь не смог бы выбрать файл заново.
+   */
+  const handlePick = useCallback(
+    (event: React.ChangeEvent<HTMLInputElement>) => {
+      const file = event.target.files?.[0] ?? null;
+      event.target.value = "";
+      acceptFile(file);
+    },
+    [acceptFile],
+  );
+
+  /* ------------------------------------------------------------------ */
+  /*  Drag & drop                                                        */
+  /* ------------------------------------------------------------------ */
+
+  /**
+   * Курсор с файлами над вкладкой.
+   *
+   * Состояние держится на `dragover`, а не на счётчике enter/leave. Счётчик
+   * кажется очевидным решением, но он хрупкий: браузеры по-разному шлют пары
+   * `dragenter`/`dragleave` для вложенных элементов, и счётчик легко
+   * «застревает» (подсветка не снимается) или обнуляется раньше времени.
+   *
+   * `dragover` приходит многократно, пока курсор внутри зоны, и это делает
+   * состояние самовосстанавливающимся: одно потерянное событие ничего не
+   * ломает. А `dragleave` снимает подсветку только тогда, когда курсор ушёл
+   * ИЗ зоны, а не на её дочерний элемент (`relatedTarget` внутри зоны).
+   *
+   * Само состояние (`dragHover`) объявлено выше, вместе с остальным.
+   */
+  /**
+   * Приём файлов включён, как только список загружен, — НЕЗАВИСИМО от того,
+   * пуст он или нет.
+   *
+   * Так drop работает и в пустом состоянии (`Empty` — цель перетаскивания), и
+   * над непустым списком. Пока идёт загрузка списка или его не удалось прочитать,
+   * приём выключен: неизвестно, что в позиции уже есть.
+   */
+  const isCurrent = loadedKey === specItemId;
+  const dropEnabled = isCurrent && !dialogOpen && pendingDeleteId === null;
+
+  /**
+   * Итоговая подсветка — производная, а не отдельное состояние.
+   *
+   * Так не нужен эффект, снимающий подсветку при выходе из режима приёма:
+   * когда список пропал (сменилась позиция, началась перезагрузка), выражение
+   * само даёт `false`. Своё «сырое» состояние сбрасывают события (`drop`,
+   * `dragleave`) и cleanup загрузки списка.
+   */
+  const dragActive = dragHover && dropEnabled;
+
+  /**
+   * Текст подсказки о перетаскивании: во время переноса он меняется на
+   * приглашение отпустить — действие становится понятным без эксперимента.
+   */
+  const dropHint = dragActive
+    ? "Отпустите файл для загрузки"
+    : "Перетащите файл сюда";
+
+  /**
+   * Файл, для которого открыт диалог подтверждения.
+   *
+   * Ищем в текущем списке, а не храним объект целиком: если строку успели
+   * удалить (например, с другой вкладки), в подтверждении не будет устаревшего
+   * имени.
+   */
+  const pendingDeleteFile =
+    files.find((file) => file.id === pendingDeleteId) ?? null;
+
+  /** В `dataTransfer` действительно есть файлы (а не текст или ссылка). */
+  const hasFiles = (event: React.DragEvent) =>
+    Array.from(event.dataTransfer?.types ?? []).includes("Files");
+
+  const handleDragEnter = useCallback(
+    (event: React.DragEvent) => {
+      if (!dropEnabled || !hasFiles(event)) return;
+      // Обязательно: без `preventDefault` браузер не считает элемент целью
+      // drop и не пришлёт ни `dragover`, ни `drop`.
+      event.preventDefault();
+      setDragHover(true);
+    },
+    [dropEnabled],
+  );
+
+ const handleDragOver = (e: React.DragEvent) => {
+   if (!hasFiles(e)) return;
+   e.preventDefault(); // всегда, иначе браузер откроет файл сам
+   e.dataTransfer.dropEffect = dropEnabled ? "copy" : "none";
+   if (dropEnabled) setDragHover(true);
+ };
+
+  const handleDragLeave = useCallback((event: React.DragEvent) => {
+    // Уход на дочерний элемент (например, на строку списка) — это не выход из
+    // зоны: подсветку снимать нельзя. Правило живёт в `isLeavingDropZone`,
+    // потому что через синтетические события оно непроверяемо.
+    if (!isLeavingDropZone(event.currentTarget, event.relatedTarget)) return;
+    setDragHover(false);
+  }, []);
+
+  const handleDrop = useCallback(
+    (event: React.DragEvent) => {
+      // Подсветка снимается всегда — сразу после drop, в том числе если файлов
+      // в переносе не оказалось.
+      setDragHover(false);
+      if (!dropEnabled) return;
+
+      event.preventDefault();
+
+      // Один файл за раз: берём первый и не запускаем массовую загрузку.
+      // Отдельного сообщения о «лишних» файлах нет — это самый предсказуемый
+      // вариант: пользователь получает ровно то, что видит в диалоге.
+      acceptFile(event.dataTransfer?.files?.[0] ?? null);
+    },
+    [dropEnabled, acceptFile],
+  );
+
+  /**
+   * Удаление файла после подтверждения.
+   *
+   * Единственная операция удаления на вкладку: запрос уходит, только если для
+   * этого файла он ещё не идёт, поэтому повторные клики (и Enter в диалоге) не
+   * плодят запросы. Список НЕ меняется оптимистично: строка исчезает только
+   * после успешного ответа, а при отказе остаётся на месте с текстом ошибки —
+   * восстанавливать состояние не приходится.
+   */
+  const handleDelete = useCallback(async () => {
+    const fileId = pendingDeleteId;
+    if (!fileId) return;
+    if (deleting?.fileId === fileId) return;
+
+    const forItem = specItemId;
+    setDeleting({ itemKey: forItem, fileId });
+    setDeleteError(null);
+
+    try {
+      const res = await deleteSpecItemFile(orgSlug, forItem, fileId);
+      if (specItemIdRef.current !== forItem) return;
+
+      if (!res.success) {
+        // Попытка завершилась — диалог закрываем: иначе он остался бы висеть
+        // поверх списка, а сообщение об ошибке и сама строка были бы под ним.
+        // Файл при этом остаётся в списке, ошибка видна у его строки, и
+        // удаление можно повторить тем же способом.
+        setPendingDeleteId(null);
+        setDeleteError({ itemKey: forItem, fileId, message: res.error });
+        return;
+      }
+
+      setFiles((current) => current.filter((file) => file.id !== fileId));
+      setPendingDeleteId(null);
+    } catch (cause) {
+      if (specItemIdRef.current !== forItem) return;
+      console.error("[FilesTab] удаление файла", cause);
+      setPendingDeleteId(null);
+      setDeleteError({
+        itemKey: forItem,
+        fileId,
+        message: "Не удалось удалить файл",
+      });
+    } finally {
+      if (specItemIdRef.current === forItem) setDeleting(null);
+    }
+  }, [pendingDeleteId, deleting, orgSlug, specItemId]);
 
   /**
    * Успешная загрузка: в список встаёт ЗАПИСЬ СЕРВЕРА, а не локальная догадка.
@@ -375,15 +589,32 @@ export default function FilesTab({
     [],
   );
 
-  const isCurrent = loadedKey === specItemId;
   const loading = !isCurrent && (error === null || inFlight);
   const failed = !isCurrent && error !== null && !inFlight;
   /** Состояния открытия не «протекают» на другую позицию. */
   const openingHere = opening?.itemKey === specItemId ? opening : null;
   const openErrorHere = openError?.itemKey === specItemId ? openError : null;
+  /** Строка удаляется прямо сейчас: кнопка удаления выключена и показывает спиннер. */
+  const deletingHere = deleting?.itemKey === specItemId ? deleting : null;
+  /** Ошибка удаления — под строкой своего файла, пока пользователь её не повторит. */
+  const deleteErrorHere =
+    deleteError?.itemKey === specItemId ? deleteError : null;
 
   return (
-    <div className={LIST_CLASS}>
+    <div
+      className={LIST_CLASS}
+      /*
+        Подсветка drop-зоны — атрибутом, а не классом из состояния: классы
+        Tailwind одной группы не переопределяют друг друга по порядку в строке
+        (см. AGENTS.md), поэтому условный `border-*` мог бы молча проиграть
+        базовому. Селектор `data-[drag-active=true]:…` не зависит от порядка.
+      */
+      data-drag-active={dragActive ? "true" : "false"}
+      onDragEnter={handleDragEnter}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
       {/*
         Скрытый native input живёт вне веток состояния: и empty state, и (в
         будущем) любое другое место открывают ОДИН и тот же picker — второго
@@ -411,14 +642,24 @@ export default function FilesTab({
           className="flex flex-col items-center gap-2 rounded-xl border border-dashed border-border-muted px-4 py-8 text-center"
         >
           <p className="text-[13px] text-fg-muted">{error}</p>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={retry}
-          >
+          <Button type="button" variant="outline" size="sm" onClick={retry}>
             Повторить
           </Button>
+        </div>
+      )}
+
+      {dragActive && (
+        <div
+          className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed border-fg-brand bg-bg-card/90 backdrop-blur-sm *:pointer-events-none"
+          onDragLeave={() => setDragHover(false)}
+        >
+          <Upload className="size-6 text-fg-brand motion-safe:animate-bounce" />
+          <p className="text-[13px] font-medium text-fg">
+            Отпустите, чтобы добавить файл
+          </p>
+          <p className="text-[12px] text-fg-muted">
+            до {MAX_SPEC_ITEM_FILE_LABEL}
+          </p>
         </div>
       )}
 
@@ -430,7 +671,7 @@ export default function FilesTab({
         контейнера списка (`LIST_CLASS`) — так тёплая палитра модалки сохраняется.
       */}
       {isCurrent && files.length === 0 && (
-        <Empty className="gap-3 border border-border-muted px-4 py-8">
+        <Empty className="gap-3 border-2 border-border-muted px-4 py-8">
           <EmptyHeader className="gap-1.5">
             <EmptyMedia
               variant="icon"
@@ -443,7 +684,8 @@ export default function FilesTab({
               Файлов пока нет
             </EmptyTitle>
             <EmptyDescription className="max-w-xs text-[12.5px] text-fg-muted">
-              Добавьте документы или другие файлы, связанные с этим материалом.
+              Перетащите файл сюда или добавьте его кнопкой — счета,
+              спецификации поставщика и другие вложения к этому материалу.
             </EmptyDescription>
           </EmptyHeader>
 
@@ -451,7 +693,7 @@ export default function FilesTab({
             <Button
               type="button"
               variant="outline"
-              size="sm"
+              // size="sm"
               className="gap-1.5"
               disabled={dialogOpen}
               onClick={() => pickerRef.current?.click()}
@@ -475,18 +717,48 @@ export default function FilesTab({
         место. Справа — по условию задачи.
       */}
       {isCurrent && files.length > 0 && (
-        <div className="flex justify-end">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="gap-1.5"
-            disabled={dialogOpen}
-            onClick={() => pickerRef.current?.click()}
-          >
-            <Plus className="size-3.5" />
-            Добавить файл
-          </Button>
+        <div className="flex flex-col gap-1.5">
+          <div className="flex items-center justify-between gap-2">
+            {/*
+              Подсказка о перетаскивании: делает drop обнаружимым, не занимая
+              места. Во время переноса текст меняется на приглашение отпустить —
+              это часть состояния зоны, layout при этом не двигается.
+            */}
+            <span
+              className={
+                dragActive
+                  ? "min-w-0 truncate text-[11.5px] font-medium text-fg-brand"
+                  : "min-w-0 truncate text-[11.5px] text-fg-muted"
+              }
+            >
+              {dropHint}
+            </span>
+
+            <Button
+              type="button"
+              variant="outline"
+              // size="sm"
+              className="shrink-0 gap-1.5"
+              disabled={dialogOpen}
+              onClick={() => pickerRef.current?.click()}
+            >
+              <Plus className="size-3.5" />
+              Добавить файл
+            </Button>
+          </div>
+
+          {/*
+            Ошибка выбора показывается и при непустом списке: сюда попадает в
+            том числе слишком большой файл, перетащенный в зону, — сообщение не
+            должно теряться только потому, что строки уже есть. В пустом
+            состоянии эта же ошибка выводится внутри `Empty`, поэтому условия
+            взаимоисключающие и дубля не возникает.
+          */}
+          {pickError && (
+            <p role="alert" className="text-right text-[12px] text-fg-red">
+              {pickError}
+            </p>
+          )}
         </div>
       )}
 
@@ -500,7 +772,8 @@ export default function FilesTab({
           return (
             <Attachment
               key={file.id}
-              size="sm"
+              // size="sm"
+              // orientation="vertical"
               // Ошибка открытия — это состояние строки, поэтому оно уходит в
               // `state`: компонент сам подсвечивает и рамку, и иконку.
               state={rowError ? "error" : "done"}
@@ -558,30 +831,96 @@ export default function FilesTab({
                     // продолжал работать.
                     <span role="alert"> · {rowError}</span>
                   )}
+                  {deleteErrorHere?.fileId === file.id && (
+                    // Ошибка удаления — тоже подпись своей строки: файл остался
+                    // в списке, и рядом видно, почему.
+                    <span role="alert" className="text-fg-red">
+                      {" · "}
+                      {deleteErrorHere.message}
+                    </span>
+                  )}
                 </AttachmentDescription>
               </AttachmentContent>
 
               {/*
-                Слот действий. `aria-hidden` на нём — потому что отдельной
-                цели для таба здесь нет: единственная доступная кнопка строки —
-                триггер выше, а иконка лишь подсказывает действие.
+                Слот действий. `aria-hidden` здесь нет: в нём теперь настоящая
+                кнопка удаления со своим `aria-label`, и прятать её от
+                скринридера нельзя. Иконка-подсказка открытия, наоборот, из
+                дерева доступности убрана — отдельной цели для таба у неё нет,
+                единственная кнопка строки для таба — триггер выше.
               */}
-              <AttachmentActions aria-hidden="true">
+              <AttachmentActions>
                 {isOpening ? (
                   <Loader2 className="size-4 animate-spin text-fg-muted" />
                 ) : (
                   <AttachmentAction
                     tabIndex={-1}
+                    aria-hidden="true"
                     className="text-fg-muted"
                     disabled={isOpening}
                   >
                     <ExternalLink />
                   </AttachmentAction>
                 )}
+
+                {/*
+                  Кнопка удаления живёт в слоте действий (`z-20`), поэтому её
+                  клик не доходит до триггера строки (`z-10`) и файл не
+                  открывается. Вложенных `button` в `button` не возникает:
+                  триггер — отдельный абсолютный элемент, а не родитель.
+                */}
+                <AttachmentAction
+                  aria-label={`Удалить «${file.fileName}»`}
+                  title="Удалить"
+                  className="text-fg-muted hover:bg-bg-red-light hover:text-fg-red"
+                  disabled={deletingHere?.fileId === file.id}
+                  onClick={() => setPendingDeleteId(file.id)}
+                >
+                  {deletingHere?.fileId === file.id ? (
+                    <Loader2 className="animate-spin" />
+                  ) : (
+                    <Trash2 />
+                  )}
+                </AttachmentAction>
               </AttachmentActions>
             </Attachment>
           );
         })}
+
+      {/*
+        Подтверждение удаления — один диалог на вкладку, а не свой у каждой
+        строки: иначе в списке одновременно жило бы столько невидимых диалогов,
+        сколько файлов. Тот же `AlertDialog`, что и у удаления материалов и
+        контактов.
+      */}
+      <AlertDialog
+        open={pendingDeleteId !== null}
+        onOpenChange={(next) => !next && setPendingDeleteId(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Удалить файл?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {/* Имя файла — из списка: строку могли уже удалить с другой
+                  вкладки, тогда текст остаётся общим, без пустых кавычек. */}
+              {pendingDeleteFile
+                ? `Файл «${pendingDeleteFile.fileName}» будет удалён.`
+                : "Файл будет удалён."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Отмена</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => void handleDelete()}
+              disabled={deleting !== null}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {deleting && <Loader2 className="mr-2 size-4 animate-spin" />}
+              Удалить
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       {/*
         Диалог загрузки. Монтируется всегда, но открыт только при выбранном

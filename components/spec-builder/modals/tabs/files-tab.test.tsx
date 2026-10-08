@@ -27,11 +27,13 @@ import type { SpecItemFileEntry } from "@/lib/spec/spec-item-files";
 const listMock = vi.hoisted(() => vi.fn());
 const urlMock = vi.hoisted(() => vi.fn());
 const uploadMock = vi.hoisted(() => vi.fn());
+const deleteMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/actions/spec-item-files", () => ({
   listSpecItemFiles: listMock,
   getSpecItemFileUrl: urlMock,
   uploadSpecItemFile: uploadMock,
+  deleteSpecItemFile: deleteMock,
 }));
 
 /* ------------------------------------------------------------------ */
@@ -83,6 +85,34 @@ function pickFile(input: HTMLElement, file: File) {
 const pickerInput = () =>
   screen.getByLabelText("Выбрать файл для загрузки") as HTMLInputElement;
 
+/** Кнопки удаления: по одной на строку, с доступным именем файла. */
+const deleteButtons = () =>
+  screen.queryAllByRole("button", { name: /^Удалить «/ });
+
+const deleteButtonFor = (fileName: string) =>
+  screen.getByRole("button", { name: `Удалить «${fileName}»` });
+
+/**
+ * Элемент, на котором включён приём файлов.
+ *
+ * Ищем по атрибуту состояния, а не по классам: классы — не контракт, а
+ * `data-drag-active` показывает, активна ли зона прямо сейчас.
+ */
+const dropZone = () => document.querySelector("[data-drag-active]") as HTMLElement;
+
+const isDragActive = () => dropZone().getAttribute("data-drag-active") === "true";
+
+/** Перенос файлов: `types` содержит `Files`, иначе зона не обязана реагировать. */
+function dragEvent(files: File[]) {
+  return { dataTransfer: { files, types: files.length > 0 ? ["Files"] : [] } };
+}
+
+/** Перенос, в котором файлов нет (например, перетаскивают текст). */
+const textDragEvent = { dataTransfer: { files: [], types: ["text/plain"] } };
+
+const pdfFile = (name = "Счёт.pdf") =>
+  new File(["счёт"], name, { type: "application/pdf" });
+
 /**
  * Кнопка «Добавить файл».
  *
@@ -110,12 +140,14 @@ beforeEach(() => {
   listMock.mockReset();
   urlMock.mockReset();
   uploadMock.mockReset();
+  deleteMock.mockReset();
   listMock.mockResolvedValue({ success: true, data: serverOrder });
   urlMock.mockResolvedValue({
     success: true,
     data: { url: SIGNED_URL, expiresAt: "2026-10-06T09:35:00.000Z" },
   });
   uploadMock.mockResolvedValue({ success: true, data: uploadedEntry });
+  deleteMock.mockResolvedValue({ success: true, data: { deleted: true } });
 });
 
 /**
@@ -432,7 +464,7 @@ describe("FilesTab: смена позиции", () => {
 /* ------------------------------------------------------------------ */
 
 describe("FilesTab: разметка строки", () => {
-  it("строка собрана из слотов Attachment, доступная кнопка — одна", async () => {
+  it("строка собрана из слотов Attachment; кнопок ровно две — открыть и удалить", async () => {
     render(<FilesTab orgSlug="andy" specItemId="item-1" />);
     await screen.findByText("Новый.pdf");
 
@@ -458,10 +490,17 @@ describe("FilesTab: разметка строки", () => {
     expect(title?.textContent).toBe("Новый.pdf");
     expect(description?.textContent).toMatch(/1\.2 MB · /);
 
-    // Внутри строки ровно одна кнопка, доступная пользователю: триггер.
+    // Две доступные кнопки: триггер открытия (вся строка) и удаление в слоте
+    // действий. Вложенных `button` в `button` нет: это соседи, а не родитель
+    // и ребёнок.
     const buttons = within(row as HTMLElement).getAllByRole("button");
-    expect(buttons).toHaveLength(1);
-    expect(buttons[0].getAttribute("data-slot")).toBe("attachment-trigger");
+    expect(buttons).toHaveLength(2);
+    expect(
+      buttons.map((button) => button.getAttribute("data-slot")).sort(),
+    ).toEqual(["attachment-action", "attachment-trigger"]);
+    expect(buttons.some((b) => b.contains(buttons[0]) && b !== buttons[0])).toBe(
+      false,
+    );
   });
 
   it("строка не превращена в ссылку: открытие остаётся обработчиком", async () => {
@@ -578,9 +617,7 @@ describe("FilesTab: empty state", () => {
 
     expect(await screen.findByText("Файлов пока нет")).toBeTruthy();
     expect(
-      screen.getByText(
-        "Добавьте документы или другие файлы, связанные с этим материалом.",
-      ),
+      screen.getByText(/Перетащите файл сюда или добавьте его кнопкой/),
     ).toBeTruthy();
     // Структура `Empty` — по слотам компонента.
     expect(document.querySelector('[data-slot="empty"]')).not.toBeNull();
@@ -1060,6 +1097,390 @@ describe("FilesTab: добавление при непустом списке", 
     expect(await screen.findByText("Загруженный.pdf")).toBeTruthy();
     expect(screen.getAllByText("Документ")).toHaveLength(2);
     expect(listMock).toHaveBeenCalledTimes(1);
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/*  Drag & drop                                                        */
+/* ------------------------------------------------------------------ */
+
+describe("FilesTab: drag & drop", () => {
+  it("перетаскивание файла над списком включает состояние drop-зоны", async () => {
+    render(<FilesTab orgSlug="andy" specItemId="item-1" />);
+    await screen.findByText("Новый.pdf");
+
+    expect(isDragActive()).toBe(false);
+
+    fireEvent.dragEnter(dropZone(), dragEvent([pdfFile()]));
+    expect(isDragActive()).toBe(true);
+
+    // Повторный dragover состояние не сбрасывает.
+    fireEvent.dragOver(dropZone(), dragEvent([pdfFile()]));
+    expect(isDragActive()).toBe(true);
+
+    // Ничего не отправлено: перенос ещё не завершён.
+    expect(uploadMock).not.toHaveBeenCalled();
+    expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("уход курсора снимает состояние", async () => {
+    render(<FilesTab orgSlug="andy" specItemId="item-1" />);
+    await screen.findByText("Новый.pdf");
+
+    fireEvent.dragEnter(dropZone(), dragEvent([pdfFile()]));
+    fireEvent.dragOver(dropZone(), dragEvent([pdfFile()]));
+    expect(isDragActive()).toBe(true);
+
+    // Курсор ушёл с вкладки целиком.
+    fireEvent.dragLeave(dropZone(), { relatedTarget: document.body });
+    expect(isDragActive()).toBe(false);
+  });
+
+  it("уход на дочерний элемент подсветку не гасит", async () => {
+    // Разделение «ушли на строку» и «ушли совсем» живёт в чистой функции
+    // `isLeavingDropZone` (у неё свой тест): синтетические события библиотеки
+    // не проставляют `relatedTarget`, поэтому через них это правило не проверить.
+    // Здесь проверяется другое: пока идут `dragover`, подсветка активна.
+    render(<FilesTab orgSlug="andy" specItemId="item-1" />);
+    await screen.findByText("Новый.pdf");
+
+    for (let i = 0; i < 3; i += 1) {
+      fireEvent.dragOver(dropZone(), dragEvent([pdfFile()]));
+    }
+
+    expect(isDragActive()).toBe(true);
+  });
+
+  it("drop открывает тот же диалог и не грузит файл в обход", async () => {
+    render(<FilesTab orgSlug="andy" specItemId="item-1" />);
+    await screen.findByText("Новый.pdf");
+
+    fireEvent.dragEnter(dropZone(), dragEvent([pdfFile()]));
+    expect(isDragActive()).toBe(true);
+
+    fireEvent.drop(dropZone(), dragEvent([pdfFile("Счёт из drop.pdf")]));
+
+    // Визуальное состояние сбрасывается сразу после drop.
+    expect(isDragActive()).toBe(false);
+
+    // Открылся существующий диалог загрузки — с выбором категории.
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText("Счёт из drop.pdf")).toBeTruthy();
+    expect(screen.getByRole("radio", { name: "Документ" })).toBeTruthy();
+
+    // В обход диалога ничего не ушло.
+    expect(uploadMock).not.toHaveBeenCalled();
+    expect(screen.queryByText("Загруженный.pdf")).toBeNull();
+  });
+
+  it("из drop проходит весь существующий путь загрузки до списка", async () => {
+    const user = userEvent.setup();
+    render(<FilesTab orgSlug="andy" specItemId="item-1" />);
+    await screen.findByText("Новый.pdf");
+
+    fireEvent.drop(dropZone(), dragEvent([pdfFile()]));
+
+    const dialog = await screen.findByRole("dialog");
+    await user.click(within(dialog).getByText("Текстура"));
+    await user.click(screen.getByRole("button", { name: "Загрузить" }));
+
+    // В списке — серверная запись, а категория ушла выбранная в диалоге.
+    expect(await screen.findByText("Загруженный.pdf")).toBeTruthy();
+    expect(formDataOf(0).get("category")).toBe("texture");
+
+    // Список обновлён локально, повторного запроса не было.
+    expect(listMock).toHaveBeenCalledTimes(1);
+    // И появилась верхняя кнопка добавления — список стал непустым.
+    expect(
+      screen.getByRole("button", { name: "Добавить файл" }),
+    ).toBeTruthy();
+  });
+
+  it("из нескольких файлов берётся первый: массовой загрузки нет", async () => {
+    render(<FilesTab orgSlug="andy" specItemId="item-1" />);
+    await screen.findByText("Новый.pdf");
+
+    fireEvent.drop(
+      dropZone(),
+      dragEvent([pdfFile("Первый.pdf"), pdfFile("Второй.pdf"), pdfFile("Третий.pdf")]),
+    );
+
+    const dialog = await screen.findByRole("dialog");
+    // В диалоге ровно один файл — первый.
+    expect(within(dialog).getByText("Первый.pdf")).toBeTruthy();
+    expect(screen.queryByText("Второй.pdf")).toBeNull();
+    expect(screen.queryByText("Третий.pdf")).toBeNull();
+
+    // Загружается тоже один файл и только после подтверждения.
+    expect(uploadMock).not.toHaveBeenCalled();
+    const user = userEvent.setup();
+    await user.click(screen.getByRole("button", { name: "Загрузить" }));
+    await waitFor(() => expect(uploadMock).toHaveBeenCalledTimes(1));
+    expect((formDataOf(0).get("file") as File).name).toBe("Первый.pdf");
+  });
+
+  it("слишком большой файл из drop не открывает диалог", async () => {
+    render(<FilesTab orgSlug="andy" specItemId="item-1" />);
+    await screen.findByText("Новый.pdf");
+
+    const huge = new File(["x"], "огромный.pdf", { type: "application/pdf" });
+    Object.defineProperty(huge, "size", { value: MAX_SPEC_ITEM_FILE_BYTES + 1 });
+
+    fireEvent.drop(dropZone(), dragEvent([huge]));
+
+    expect(
+      await screen.findByText("Файл слишком большой. Максимальный размер — 25 МБ."),
+    ).toBeTruthy();
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(uploadMock).not.toHaveBeenCalled();
+    // Визуальное состояние сброшено, несмотря на отказ.
+    expect(isDragActive()).toBe(false);
+  });
+
+  it("при drag-over подсветка и текст приглашают отпустить файл", async () => {
+    render(<FilesTab orgSlug="andy" specItemId="item-1" />);
+    await screen.findByText("Новый.pdf");
+
+    // До переноса — ненавязчивая подсказка о том, что сюда можно перетащить.
+    expect(screen.getByText("Перетащите файл сюда")).toBeTruthy();
+
+    fireEvent.dragEnter(dropZone(), dragEvent([pdfFile()]));
+
+    // Активное состояние: и подсветка зоны, и текст.
+    expect(isDragActive()).toBe(true);
+    expect(screen.getByText("Отпустите файл для загрузки")).toBeTruthy();
+    expect(screen.queryByText("Перетащите файл сюда")).toBeNull();
+
+    // После drop состояние сбрасывается сразу.
+    fireEvent.drop(dropZone(), dragEvent([pdfFile()]));
+    expect(isDragActive()).toBe(false);
+    expect(screen.getByText("Перетащите файл сюда")).toBeTruthy();
+  });
+
+  it("перенос без файлов зону не активирует и диалог не открывает", async () => {
+    render(<FilesTab orgSlug="andy" specItemId="item-1" />);
+    await screen.findByText("Новый.pdf");
+
+    fireEvent.dragEnter(dropZone(), textDragEvent);
+    expect(isDragActive()).toBe(false);
+
+    fireEvent.drop(dropZone(), textDragEvent);
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(uploadMock).not.toHaveBeenCalled();
+  });
+
+  it("drop в пустом состоянии работает: Empty — тоже drop target", async () => {
+    listMock.mockResolvedValue({ success: true, data: [] });
+
+    render(<FilesTab orgSlug="andy" specItemId="item-1" />);
+    await screen.findByText("Файлов пока нет");
+
+    fireEvent.dragEnter(dropZone(), dragEvent([pdfFile()]));
+    expect(isDragActive()).toBe(true);
+
+    fireEvent.drop(dropZone(), dragEvent([pdfFile("Счёт из drop.pdf")]));
+
+    expect(isDragActive()).toBe(false);
+    // Открылся тот же диалог загрузки: путь один и тот же.
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByText("Счёт из drop.pdf")).toBeTruthy();
+    expect(uploadMock).not.toHaveBeenCalled();
+  });
+
+  it("в пустом состоянии описание подсказывает и перетаскивание, и кнопку", async () => {
+    listMock.mockResolvedValue({ success: true, data: [] });
+
+    render(<FilesTab orgSlug="andy" specItemId="item-1" />);
+    await screen.findByText("Файлов пока нет");
+
+    expect(
+      screen.getByText(/Перетащите файл сюда или добавьте его кнопкой/),
+    ).toBeTruthy();
+    // Кнопка и иконка остались на месте.
+    expect(screen.getByRole("button", { name: "Добавить файл" })).toBeTruthy();
+    expect(document.querySelector('[data-slot="empty-icon"]')).not.toBeNull();
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/*  Удаление файла                                                     */
+/* ------------------------------------------------------------------ */
+
+describe("FilesTab: удаление файла", () => {
+  it("у каждого файла есть доступная кнопка удаления в слоте действий", async () => {
+    render(<FilesTab orgSlug="andy" specItemId="item-1" />);
+    await screen.findByText("Новый.pdf");
+
+    const buttons = deleteButtons();
+    expect(buttons).toHaveLength(2);
+    // Кнопки находятся в слоте действий строки и не скрыты от скринридера.
+    for (const button of buttons) {
+      expect(button.closest('[data-slot="attachment-actions"]')).not.toBeNull();
+      expect(button.getAttribute("aria-hidden")).toBeNull();
+    }
+    // Имя файла в доступном имени — понятно, что именно удаляется.
+    expect(deleteButtonFor("Новый.pdf")).toBeTruthy();
+    expect(deleteButtonFor("Старый.pdf")).toBeTruthy();
+  });
+
+  it("клик по удалению не открывает файл, а открывает подтверждение", async () => {
+    const user = userEvent.setup();
+    const openSpy = vi.spyOn(window, "open").mockReturnValue(null);
+
+    render(<FilesTab orgSlug="andy" specItemId="item-1" />);
+    await screen.findByText("Новый.pdf");
+
+    await user.click(deleteButtonFor("Новый.pdf"));
+
+    // Подтверждение с именем файла.
+    const dialog = await screen.findByRole("alertdialog");
+    expect(within(dialog).getByText("Удалить файл?")).toBeTruthy();
+    expect(
+      within(dialog).getByText("Файл «Новый.pdf» будет удалён."),
+    ).toBeTruthy();
+    expect(within(dialog).getByRole("button", { name: "Отмена" })).toBeTruthy();
+    expect(within(dialog).getByRole("button", { name: "Удалить" })).toBeTruthy();
+
+    // Файл НЕ открылся: ни запроса ссылки, ни новой вкладки.
+    expect(urlMock).not.toHaveBeenCalled();
+    expect(openSpy).not.toHaveBeenCalled();
+    // И удаление не началось само по себе.
+    expect(deleteMock).not.toHaveBeenCalled();
+
+    openSpy.mockRestore();
+  });
+
+  it("«Отмена» закрывает подтверждение и ничего не удаляет", async () => {
+    const user = userEvent.setup();
+
+    render(<FilesTab orgSlug="andy" specItemId="item-1" />);
+    await screen.findByText("Новый.pdf");
+
+    await user.click(deleteButtonFor("Новый.pdf"));
+    const dialog = await screen.findByRole("alertdialog");
+    await user.click(within(dialog).getByRole("button", { name: "Отмена" }));
+
+    await waitFor(() => expect(screen.queryByRole("alertdialog")).toBeNull());
+    expect(deleteMock).not.toHaveBeenCalled();
+    expect(screen.getByText("Новый.pdf")).toBeTruthy();
+  });
+
+  it("подтверждение вызывает deleteSpecItemFile с нужными аргументами", async () => {
+    const user = userEvent.setup();
+
+    render(<FilesTab orgSlug="andy" specItemId="item-1" />);
+    await screen.findByText("Новый.pdf");
+
+    await user.click(deleteButtonFor("Новый.pdf"));
+    const dialog = await screen.findByRole("alertdialog");
+    await user.click(within(dialog).getByRole("button", { name: "Удалить" }));
+
+    await waitFor(() => expect(deleteMock).toHaveBeenCalledTimes(1));
+    // Слаг организации, позиция и id именно выбранного файла.
+    expect(deleteMock).toHaveBeenCalledWith("andy", "item-1", "file-new");
+  });
+
+  it("после успешного удаления файл исчезает из списка", async () => {
+    const user = userEvent.setup();
+
+    render(<FilesTab orgSlug="andy" specItemId="item-1" />);
+    await screen.findByText("Новый.pdf");
+
+    await user.click(deleteButtonFor("Новый.pdf"));
+    await user.click(
+      within(await screen.findByRole("alertdialog")).getByRole("button", {
+        name: "Удалить",
+      }),
+    );
+
+    await waitFor(() => expect(screen.queryByText("Новый.pdf")).toBeNull());
+    // Диалог закрылся, вторая строка не тронута.
+    expect(screen.queryByRole("alertdialog")).toBeNull();
+    expect(screen.getByText("Старый.pdf")).toBeTruthy();
+    expect(deleteButtons()).toHaveLength(1);
+    // Список обновлён локально: повторного запроса не было.
+    expect(listMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("после удаления последнего файла показывается Empty", async () => {
+    const user = userEvent.setup();
+    listMock.mockResolvedValue({ success: true, data: [serverOrder[0]] });
+
+    render(<FilesTab orgSlug="andy" specItemId="item-1" />);
+    await screen.findByText("Новый.pdf");
+
+    await user.click(deleteButtonFor("Новый.pdf"));
+    await user.click(
+      within(await screen.findByRole("alertdialog")).getByRole("button", {
+        name: "Удалить",
+      }),
+    );
+
+    // Пустое состояние вернулось само — с кнопкой добавления.
+    expect(await screen.findByText("Файлов пока нет")).toBeTruthy();
+    expect(document.querySelector('[data-slot="empty"]')).not.toBeNull();
+    expect(screen.getAllByRole("button", { name: "Добавить файл" })).toHaveLength(1);
+    expect(deleteButtons()).toHaveLength(0);
+    expect(listMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("ошибка удаления оставляет файл в списке и показывает причину", async () => {
+    const user = userEvent.setup();
+    deleteMock.mockResolvedValue({ success: false, error: "Нет доступа" });
+
+    render(<FilesTab orgSlug="andy" specItemId="item-1" />);
+    await screen.findByText("Новый.pdf");
+
+    await user.click(deleteButtonFor("Новый.pdf"));
+    await user.click(
+      within(await screen.findByRole("alertdialog")).getByRole("button", {
+        name: "Удалить",
+      }),
+    );
+
+    // Файл на месте, текст серверной ошибки виден у его строки. Текст в подписи
+    // склеен с размером и датой, поэтому ищем по вхождению.
+    expect(await screen.findByText(/Нет доступа/)).toBeTruthy();
+    expect(screen.getByText("Новый.pdf")).toBeTruthy();
+    expect(deleteButtons()).toHaveLength(2);
+  });
+
+  it("во время удаления повторный запрос не отправляется", async () => {
+    const user = userEvent.setup();
+
+    // Ответ не разрешаем: удаление «идёт».
+    let release: (value: unknown) => void = () => {};
+    deleteMock.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          release = resolve;
+        }),
+    );
+
+    render(<FilesTab orgSlug="andy" specItemId="item-1" />);
+    await screen.findByText("Новый.pdf");
+
+    await user.click(deleteButtonFor("Новый.pdf"));
+    const dialog = await screen.findByRole("alertdialog");
+    const confirm = within(dialog).getByRole("button", { name: "Удалить" });
+
+    await user.click(confirm);
+    await waitFor(() => expect(deleteMock).toHaveBeenCalledTimes(1));
+
+    // Кнопка подтверждения выключена, строка в состоянии удаления. Выключенную
+    // кнопку библиотека не считает доступной, поэтому спрашиваем скрытые.
+    await waitFor(() => expect(confirm.hasAttribute("disabled")).toBe(true));
+    expect(
+      screen
+        .getByRole("button", { name: "Удалить «Новый.pdf»", hidden: true })
+        .hasAttribute("disabled"),
+    ).toBe(true);
+
+    // Повторный клик по подтверждению второго запроса не создаёт.
+    await user.click(confirm);
+    expect(deleteMock).toHaveBeenCalledTimes(1);
+
+    release({ success: true, data: { deleted: true } });
   });
 });
 

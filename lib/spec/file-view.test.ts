@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 
 import {
   FILE_CATEGORY_OPTIONS,
@@ -10,6 +10,7 @@ import {
   fileMetaLine,
   formatFileDate,
   formatFileSize,
+  isLeavingDropZone,
   placeFileEntry,
 } from "./file-view";
 import { SPEC_ITEM_FILE_CATEGORIES } from "./file-content";
@@ -236,6 +237,55 @@ describe("fileAuthorLabel", () => {
     // Инвариант на будущее: если поле имени появится в `fileMetaLine`, тест
     // `fileAuthorLabel` должен измениться вместе с моделью.
     expect(Object.keys(entry("x"))).not.toContain("uploadedByName");
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/*  Область приёма файлов                                              */
+/* ------------------------------------------------------------------ */
+
+describe("isLeavingDropZone", () => {
+  /** Настоящее дерево: зона → строка → имя файла. */
+  const buildZone = () => {
+    const zone = document.createElement("div");
+    const row = document.createElement("div");
+    const title = document.createElement("span");
+    row.appendChild(title);
+    zone.appendChild(row);
+    document.body.appendChild(zone);
+    return { zone, row, title };
+  };
+
+  afterEach(() => {
+    document.body.innerHTML = "";
+  });
+
+  it("уход на дочерний элемент — это не выход из зоны", () => {
+    const { zone, row, title } = buildZone();
+
+    expect(isLeavingDropZone(zone, row)).toBe(false);
+    expect(isLeavingDropZone(zone, title)).toBe(false);
+  });
+
+  it("уход наружу — выход из зоны", () => {
+    const { zone } = buildZone();
+    const outside = document.createElement("div");
+    document.body.appendChild(outside);
+
+    expect(isLeavingDropZone(zone, outside)).toBe(true);
+    expect(isLeavingDropZone(zone, document.body)).toBe(true);
+  });
+
+  it("без relatedTarget считаем, что курсор ушёл", () => {
+    // Иначе подсветка могла бы остаться навсегда: браузер не всегда сообщает,
+    // куда именно ушёл курсор.
+    const { zone } = buildZone();
+
+    expect(isLeavingDropZone(zone, null)).toBe(true);
+  });
+
+  it("без зоны считаем, что курсор ушёл", () => {
+    expect(isLeavingDropZone(null, document.body)).toBe(true);
   });
 });
 

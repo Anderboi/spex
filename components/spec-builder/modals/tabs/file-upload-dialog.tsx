@@ -22,7 +22,10 @@ import {
 } from "@/components/ui/attachment";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { uploadSpecItemFile } from "@/actions/spec-item-files";
-import { MAX_SPEC_ITEM_FILE_BYTES, MAX_SPEC_ITEM_FILE_LABEL } from "@/lib/spec/file-content";
+import {
+  MAX_SPEC_ITEM_FILE_BYTES,
+  MAX_SPEC_ITEM_FILE_LABEL,
+} from "@/lib/spec/file-content";
 import { FILE_CATEGORY_OPTIONS, formatFileSize } from "@/lib/spec/file-view";
 import type { SpecItemFileCategory } from "@/lib/spec/file-content";
 import type { SpecItemFileEntry } from "@/lib/spec/spec-item-files";
@@ -110,7 +113,8 @@ export default function FileUploadDialog({
    * начинает с начала, а правила «не сбрасывать состояние в эффекте» соблюдены
    * без исключений.
    */
-  const [category, setCategory] = useState<SpecItemFileCategory>(DEFAULT_CATEGORY);
+  const [category, setCategory] =
+    useState<SpecItemFileCategory>(DEFAULT_CATEGORY);
   const [status, setStatus] = useState<"idle" | "uploading" | "error">("idle");
   const [error, setError] = useState<string | null>(null);
   /**
@@ -148,8 +152,7 @@ export default function FileUploadDialog({
     }
   }, []);
 
-  const canSubmit =
-    file !== null && !fileUnreadable && status !== "uploading";
+  const canSubmit = file !== null && !fileUnreadable && status !== "uploading";
 
   const submit = useCallback(async () => {
     if (!file || status === "uploading") return;
@@ -158,7 +161,9 @@ export default function FileUploadDialog({
     // измениться, а серверный лимит — остаться тем же.
     if (file.size > MAX_SPEC_ITEM_FILE_BYTES) {
       setStatus("error");
-      setError(`Файл слишком большой. Максимальный размер — ${MAX_SPEC_ITEM_FILE_LABEL}.`);
+      setError(
+        `Файл слишком большой. Максимальный размер — ${MAX_SPEC_ITEM_FILE_LABEL}.`,
+      );
       return;
     }
 
@@ -216,8 +221,8 @@ export default function FileUploadDialog({
         if (!next && !uploading) onClose();
       }}
     >
-      <DialogContent className="sm:max-w-115" showCloseButton={!uploading}>
-        <DialogHeader>
+      <DialogContent className="sm:max-w-115 px-0" showCloseButton={!uploading}>
+        <DialogHeader className="px-4">
           <DialogTitle className="text-base font-semibold">
             Загрузка файла
           </DialogTitle>
@@ -229,41 +234,41 @@ export default function FileUploadDialog({
 
         {/* Выбранный файл: до загрузки — обычная строка, во время — uploading,
             после отказа — error. Тот же `Attachment`, что и в списке. */}
-        <Attachment
-          size="sm"
-          state={uploading ? "uploading" : status === "error" ? "error" : "done"}
-          className="w-full min-w-0"
-        >
-          <AttachmentMedia aria-hidden="true">
-            {uploading ? (
-              <Loader2 className="animate-spin" />
-            ) : (
-              <Paperclip />
-            )}
-          </AttachmentMedia>
-          <AttachmentContent>
-            <AttachmentTitle className="text-fg">
-              {file?.name ?? "Файл недоступен"}
-            </AttachmentTitle>
-            <AttachmentDescription className="text-fg-dim">
-              {file ? formatFileSize(file.size) : "Выберите файл заново"}
-            </AttachmentDescription>
-          </AttachmentContent>
-          <AttachmentActions aria-hidden="true">
-            {uploading && (
-              <span className="font-mono text-[11px] text-fg-muted">
-                Загрузка…
-              </span>
-            )}
-          </AttachmentActions>
-        </Attachment>
+        <div className="px-4">
+          <Attachment
+            size="sm"
+            state={
+              uploading ? "uploading" : status === "error" ? "error" : "done"
+            }
+            className="w-full min-w-0"
+          >
+            <AttachmentMedia aria-hidden="true">
+              {uploading ? <Loader2 className="animate-spin" /> : <Paperclip />}
+            </AttachmentMedia>
+            <AttachmentContent>
+              <AttachmentTitle className="text-fg">
+                {file?.name ?? "Файл недоступен"}
+              </AttachmentTitle>
+              <AttachmentDescription className="text-fg-dim">
+                {file ? formatFileSize(file.size) : "Выберите файл заново"}
+              </AttachmentDescription>
+            </AttachmentContent>
+            <AttachmentActions aria-hidden="true">
+              {uploading && (
+                <span className="font-mono text-[11px] text-fg-muted">
+                  Загрузка…
+                </span>
+              )}
+            </AttachmentActions>
+          </Attachment>
+        </div>
 
         <RadioGroup
           value={category}
           onValueChange={(value) => setCategory(value as SpecItemFileCategory)}
           disabled={uploading}
           aria-label="Категория файла"
-          className="gap-2"
+          className="gap-2 px-4"
         >
           {CATEGORY_OPTIONS.map((option) => (
             <label

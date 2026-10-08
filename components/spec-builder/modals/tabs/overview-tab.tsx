@@ -413,7 +413,7 @@ const OverviewTab = ({
 
             <Button
               variant="outline"
-              size="sm"
+              // size="sm"
               onClick={onAddVariant}
               className="mt-1 gap-1.5 self-start"
             >
