@@ -3,6 +3,7 @@
 import { Wrench, Truck, ConciergeBell, AlertTriangle } from "lucide-react";
 import { operationLabel, type ServiceOperationType } from "@/lib/constants";
 import { fmt, fmtCompact, cn } from "@/lib/utils";
+import { isCompletedDelivery } from "@/lib/spec/service-operation-deadline";
 import type { ServiceOperation } from "@/actions/service-operations";
 
 const OP_ICON: Record<ServiceOperationType, typeof Truck> = {
@@ -18,7 +19,10 @@ function dateLabel(iso: string): string {
 }
 
 function isOverdue(op: ServiceOperation): boolean {
-  if (op.type !== "delivery" || op.completed || !op.deadline) return false;
+  if (op.type !== "delivery" || !op.deadline) return false;
+  // Завершённая доставка — не активный дедлайн: тот же признак терминального
+  // состояния, что и у срока в строке услуги (serviceOperationDeadline).
+  if (isCompletedDelivery(op)) return false;
   return new Date(`${op.deadline}T00:00:00`) < new Date();
 }
 

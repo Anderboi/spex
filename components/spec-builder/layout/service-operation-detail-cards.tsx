@@ -15,6 +15,7 @@ import {
   type ServiceOperationType,
 } from "@/lib/constants";
 import { fmt } from "@/lib/utils";
+import { serviceOperationDeadline } from "@/lib/spec/service-operation-deadline";
 import type { ServiceOperation } from "@/actions/service-operations";
 import ModalBlockLabel from "@/components/layout/modal-block-label";
 
@@ -23,18 +24,6 @@ const ICON_BY_TYPE: Record<ServiceOperationType, LucideIcon> = {
   installation: Wrench,
   service: ConciergeBell,
 };
-
-/** Срок — «сегодня», «просрочено N дн.» или «через N дн.» от даты-строки. */
-function deadlineNote(iso: string): { text: string; overdue: boolean } {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  const due = new Date(`${iso}T00:00:00`);
-  const days = Math.round((due.getTime() - today.getTime()) / 86_400_000);
-
-  if (days === 0) return { text: "сегодня", overdue: false };
-  if (days < 0) return { text: `просрочено ${-days} дн.`, overdue: true };
-  return { text: `через ${days} дн.`, overdue: false };
-}
 
 /**
  * Строка услуги в блоке «Обзор». Высота фиксирована (h-11), поэтому список
@@ -50,7 +39,11 @@ function ServiceRow({
 }) {
   const Icon = ICON_BY_TYPE[op.type];
   const label = operationLabel(op);
-  const deadline = op.deadline ? deadlineNote(op.deadline) : null;
+  /**
+   * Срок — «сегодня», «просрочено N дн.» или «через N дн.». У завершённой
+   * доставки состояния нет: плановая дата перестала быть дедлайном.
+   */
+  const deadline = serviceOperationDeadline(op);
 
   return (
     <button
