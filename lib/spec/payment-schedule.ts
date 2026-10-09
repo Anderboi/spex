@@ -49,7 +49,19 @@ export type PaidAmountLike = {
   /** Строка графика; `null` — оплата вне графика. */
   paymentPlanId: string | null;
   amount: number | string;
+  /**
+   * Вид записи. `undefined` — оплата: так вызывающий, которому вид ещё не
+   * известен (покрытие строки в первой задаче этапа), не обязан его выдумывать,
+   * а незнакомое значение читается как оплата — та же граница, что у CHECK
+   * «вид записи только payment или refund».
+   */
+  kind?: PaymentRecordKind;
+  /** Мягкое удаление: `null` или `undefined` — запись активна. */
+  deletedAt?: string | null;
 };
+
+/** Вид записи о деньгах: оплата или возврат (решение O1). */
+export type PaymentRecordKind = "payment" | "refund";
 
 /* ------------------------------------------------------------------ */
 /*  Перестановка                                                       */
@@ -83,8 +95,14 @@ export type PaymentPlanMoveDirection = "up" | "down";
 export type PaymentScheduleSummary = {
   /** Σ сумм активных строк графика. Стоимость позиции в это не входит. */
   planned: number;
-  /** Σ фактов (в этой задаче — всегда 0: фактов ещё нет). */
+  /**
+   * Σ фактов: оплаты минус возвраты. Возврат уменьшает оплаченное, но виден и
+   * отдельной величиной `refunded` — иначе уменьшение оплаты выглядело бы как
+   * правка истории, а не как отдельное событие.
+   */
   paid: number;
+  /** Σ возвратов, справочно. Возврат входит в `paid` со знаком минус. */
+  refunded: number;
   /** `planned − paid`: больше нуля — осталось, меньше — переплата. */
   remaining: number;
   /**
@@ -93,6 +111,12 @@ export type PaymentScheduleSummary = {
    * все сто процентов.
    */
   overpaid: number;
+  /**
+   * Сколько денег прошло ВНЕ графика: оплаты и возвраты без строки плана.
+   * Показывается отдельной строкой — иначе оплата без плана читалась бы как
+   * покрытие первой попавшейся строки.
+   */
+  unplanned: number;
   /** Есть ли в графике хотя бы одна активная строка. */
   hasPlan: boolean;
 };
@@ -163,27 +187,86 @@ export function orderPaymentPlans<T extends PaymentPlanLike>(
 }
 
 /**
- * Сводка по графику позиции.
+ * Денежная сумма: округление до копейки на границе расчёта.
  *
- * `paidRows` по умолчанию пуст: в этой задаче фактических оплат ещё нет, а
- * сигнатура уже та, которой будет пользоваться следующая. `planned = 0` — не
- * «график целиком не оплачен»: это отсутствие графика, и правило границы
- * (`overpaid`) именно об этом.
+ * Суммы приходят из `numeric(12,2)`, то есть уже с двумя знаками, но их
+ * СЛОЖЕНИЕ идёт в двоичной плавающей точке: `0.1 + 0.2` даёт
+ * `0.30000000000000004`. В БД агрегат считается над `numeric`
+ * (`coalesce(sum(...))`, REPORT §5.1), поэтому единственное место, где может
+ * появиться расхождение, — эта арифметика. Округление здесь повторяет то, что
+ * вернул бы SQL, и убирает артефакт до того, как он станет подписью в интерфейсе
+ * или строкой сравнения.
+ *
+ * `round2` — не «форматирование»: форматирует `fmtRub`. Это часть правила
+ * «деньги считаются один раз и до копейки».
+ */
+export function roundMoney(value: number): number {
+  return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
+/** Мягко удалённая запись вычитается из всех сумм: её больше нет. */
+function activeMoneyRows<
+  T extends { amount: number | string; deletedAt?: string | null },
+>(rows: readonly T[]): T[] {
+  return rows.filter((row) => (row.deletedAt ?? null) === null);
+}
+
+/**
+ * Сводка по позиции: план, оплачено, возвраты, остаток, переплата и оплаты вне
+ * графика.
+ *
+ * ── Правила (REPORT §5.1) ──────────────────────────────────────────────────
+ *
+ * 1. **План — не оплата.** `planned` и `paid` — разные величины: они не
+ *    вычитаются при записи и не подменяют друг друга. Стоимость позиции
+ *    (`price × qty`) во вход не входит вовсе: вывести из неё сумму нечем.
+ * 2. **Частичные оплаты допустимы.** Несколько фактов складываются в `paid`, и
+ *    каждый из них отдельно виден в `paymentPlanCoverage`.
+ * 3. **Возврат уменьшает оплаченное и виден отдельно** (`refunded`).
+ * 4. **Оплата без плана разрешена** и попадает в `paid`, но не в покрытие
+ *    строк; её величина — `unplanned`.
+ * 5. **Переплата показывается явно**, но только при непустом графике: при
+ *    `planned = 0` факт — это «оплачено вне графика».
+ * 6. **Мягко удалённые строки исключаются** из обеих сумм. Удаление СТРОКИ
+ *    ГРАФИКА не превращает её оплаты во «вне графика»: факт остаётся фактом
+ *    (`paid`), но строка в `planned` уже не входит — так же считает и SQL из
+ *    REPORT §5.1, где оба агрегата фильтруются по `deleted_at is null` в своих
+ *    таблицах.
+ *
+ * `paidRows` по умолчанию пуст — у вызывающего может не быть фактов вовсе.
  */
 export function summarisePaymentSchedule(
   plans: readonly PaymentPlanLike[],
   paidRows: readonly PaidAmountLike[] = [],
 ): PaymentScheduleSummary {
   const active = paymentPlanRows(plans);
+  const facts = activeMoneyRows(paidRows);
 
-  const planned = active.reduce((sum, plan) => sum + toAmount(plan.amount), 0);
-  const paid = paidRows.reduce((sum, row) => sum + toAmount(row.amount), 0);
+  const payment = (row: PaidAmountLike) =>
+    (row.kind ?? "payment") === "payment";
+  const amountOf = (row: PaidAmountLike) => toAmount(row.amount);
+  /** Сумма выборки; пустая выборка — ноль, а не `NaN`. */
+  const sumOf = (rows: PaidAmountLike[], where: (row: PaidAmountLike) => boolean) =>
+    roundMoney(rows.reduce((sum, row) => (where(row) ? sum + amountOf(row) : sum), 0));
+
+  const planned = roundMoney(
+    active.reduce((sum, plan) => sum + toAmount(plan.amount), 0),
+  );
+  const refunded = sumOf(facts, (row) => !payment(row));
+  const paidGross = sumOf(facts, payment);
+  const paid = roundMoney(paidGross - refunded);
+  const unplanned = roundMoney(
+    sumOf(facts, (row) => payment(row) && row.paymentPlanId === null) -
+      sumOf(facts, (row) => !payment(row) && row.paymentPlanId === null),
+  );
 
   return {
     planned,
     paid,
-    remaining: planned - paid,
-    overpaid: active.length > 0 ? Math.max(paid - planned, 0) : 0,
+    refunded,
+    remaining: roundMoney(planned - paid),
+    overpaid: active.length > 0 ? Math.max(roundMoney(paid - planned), 0) : 0,
+    unplanned,
     hasPlan: active.length > 0,
   };
 }
@@ -193,8 +276,12 @@ export function summarisePaymentSchedule(
  * осталось.
  *
  * Частичные оплаты складываются: несколько фактов могут ссылаться на одну
- * строку. Факты без строки (оплата вне графика) в покрытие не попадают — у них
- * нет строки, к которой их отнести, и приписывать их первой попавшейся строке
+ * строку. Возврат по строке уменьшает её покрытие — иначе возврат выглядел бы
+ * как оплата, а остаток по строке оставался бы заниженным навсегда. Мягко
+ * удалённый факт не считается: его нет ни в покрытии, ни в сумме.
+ *
+ * Факты без строки (оплата вне графика) в покрытие не попадают — у них нет
+ * строки, к которой их отнести, и приписывать их первой попавшейся строке
  * значило бы показывать неправду.
  */
 export function paymentPlanCoverage(
@@ -204,11 +291,17 @@ export function paymentPlanCoverage(
   const active = paymentPlanRows(plans);
   const paidByPlan = new Map<string, number>();
 
-  for (const row of paidRows) {
+  for (const row of activeMoneyRows(paidRows)) {
     if (row.paymentPlanId === null) continue;
+    // Возврат входит со знаком минус — тем же правилом, что в сводке
+    // (`paid = оплаты − возвраты`); третьей формулы «сколько заплачено» быть не
+    // должно.
+    const signed = (row.kind ?? "payment") === "payment"
+      ? toAmount(row.amount)
+      : -toAmount(row.amount);
     paidByPlan.set(
       row.paymentPlanId,
-      (paidByPlan.get(row.paymentPlanId) ?? 0) + toAmount(row.amount),
+      (paidByPlan.get(row.paymentPlanId) ?? 0) + signed,
     );
   }
 
@@ -216,11 +309,11 @@ export function paymentPlanCoverage(
 
   for (const plan of active) {
     const amount = toAmount(plan.amount);
-    const paid = paidByPlan.get(plan.id) ?? 0;
+    const paid = roundMoney(paidByPlan.get(plan.id) ?? 0);
     coverage.set(plan.id, {
       paid,
-      remaining: Math.max(amount - paid, 0),
-      overpaid: Math.max(paid - amount, 0),
+      remaining: Math.max(roundMoney(amount - paid), 0),
+      overpaid: Math.max(roundMoney(paid - amount), 0),
     });
   }
 

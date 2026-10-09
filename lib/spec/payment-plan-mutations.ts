@@ -59,6 +59,13 @@ import type {
   PaymentPlanValues,
 } from "./payment-plan-types";
 
+/**
+ * Причина отказа графика — тот же тип, которым отвечают действия вкладки.
+ * Реэкспортируется для ядра оплат: проверка «есть ли оплаты по строке» живёт
+ * там, а отказ принадлежит словарю плана.
+ */
+export type { PaymentPlanError };
+
 /** Клиент БД: как у остальных слоёв, приходит аргументом. */
 export type PaymentPlansDb = SupabaseClient<Database>;
 
@@ -106,6 +113,22 @@ export type UpdatePaymentPlanResult = MutationSuccess | { ok: false; error: Paym
 export type RemovePaymentPlanResult =
   | { ok: true; plan: PaymentPlanEntry; deleted: boolean; events: SpecItemEventInput[] }
   | { ok: false; error: PaymentPlanError };
+
+/**
+ * Текст отказа «по строке графика есть неудалённые оплаты» (решение Q9).
+ *
+ * Чистая функция: текст не зависит ни от клиента БД, ни от того, кто его
+ * вызвал, — а вызвать его обязаны ДВА места. Ядро (`removePaymentPlan`) —
+ * чтобы правило нельзя было обойти, вызвав ядро напрямую, и action — чтобы
+ * проверить оплаты ДО удаления и не оставить в журнале событие об удалении,
+ * которого не было. Два текста вместо одного разошлись бы на первой правке.
+ */
+export function planHasPaymentsMessage(count: number): string {
+  if (count === 1) {
+    return "По строке графика есть оплата: сначала отвяжите или отмените её";
+  }
+  return `По строке графика есть оплаты (${count}): сначала отвяжите или отмените их`;
+}
 
 /*
  * Результат перестановки объявлен ниже, рядом с самой операцией: её исход —
@@ -180,8 +203,12 @@ type SpecItemRow = {
  * Проверка идёт по `org_id` из сессии, а не по аргументу: чужой id не даёт ни
  * графика, ни сведения о том, существует ли он. Тот же паттерн, что в
  * `resolveItem` у файлов и комментариев.
+ *
+ * Экспортируется: фактические оплаты (`./payment-mutations`) проверяют позицию
+ * РОВНО тем же запросом, и вторая его копия означала бы второе правило
+ * «позиция в организации».
  */
-async function resolveSpecItem(
+export async function resolveSpecItem(
   db: PaymentPlansDb,
   args: { orgId: string; specItemId: string },
 ): Promise<
@@ -410,8 +437,12 @@ export async function addPaymentPlan(
  * Пустая строка и `null` — одно и то же «не заполнено»: иначе снятие условия
  * оплаты давало бы ложное изменение `"" → null`. Числа сравниваются как числа
  * (`12000` и `"12000.00"` — одно значение).
+ *
+ * Экспортируется: тем же сравнением пользуется ядро фактических оплат
+ * (`./payment-mutations`) — правило «пустое и `null` — одно состояние» должно
+ * быть одно на весь этап.
  */
-function sameValue(left: unknown, right: unknown): boolean {
+export function sameValue(left: unknown, right: unknown): boolean {
   const normalize = (value: unknown): unknown => {
     if (value === null || value === undefined) return null;
     if (typeof value === "string") {
@@ -558,9 +589,16 @@ export async function updatePaymentPlan(
  * события. Второе `payment_plan_removed` за то же действие было бы записью о
  * том, чего не происходило.
  *
- * Проверки «нет ли по строке фактических оплат» здесь пока нет: таблицы фактов
- * ещё не существует — она появляется следующей задачей вместе с запретом на
- * удаление плана с неудалёнными фактами (решение Q9).
+ * ── Почему план с неудалёнными оплатами удалить нельзя (решение Q9) ────────
+ *
+ * Мягкое удаление не нарушает внешний ключ: строка остаётся в БД, а оплата
+ * продолжает на неё ссылаться. Поэтому запрет — проверка, и живёт она ЗДЕСЬ, а
+ * не только в action: обойти её вызовом ядра напрямую нельзя. Иначе строка
+ * исчезла бы из графика и из суммы плана, а её оплаты остались бы в покрытии
+ * несуществующей строки — то есть «оплачено по строке, которой нет».
+ *
+ * Отменённые (мягко удалённые) оплаты строку не держат: иначе после ошибки
+ * график нельзя было бы почистить, не удалив сначала историю фактов.
  */
 export async function removePaymentPlan(
   db: PaymentPlansDb,
@@ -593,6 +631,28 @@ export async function removePaymentPlan(
 
   if (current.deleted_at !== null) {
     return { ok: true, plan: toEntry(current), deleted: false, events: [] };
+  }
+
+  // Строка с оплатами не удаляется: мягкое удаление FK не нарушает, поэтому
+  // единственная защита от «оплаты по строке, которой нет» — эта проверка.
+  const { count, error: countError } = await db
+    .from("spec_item_payments")
+    .select("id", { count: "exact", head: true })
+    .eq("org_id", input.orgId)
+    .eq("spec_item_id", input.specItemId)
+    .eq("payment_plan_id", input.planId)
+    .is("deleted_at", null);
+
+  if (countError) {
+    console.error("[removePaymentPlan] payments", countError.message);
+    return failed("Не удалось удалить платёж");
+  }
+
+  if ((count ?? 0) > 0) {
+    return {
+      ok: false,
+      error: { code: "FAILED", message: planHasPaymentsMessage(count ?? 0) },
+    };
   }
 
   const deletedAt = new Date().toISOString();

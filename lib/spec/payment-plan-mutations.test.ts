@@ -79,13 +79,17 @@ function planRow(over: Row = {}): Row {
   };
 }
 
-function fakeAdmin(seed: Row[] = [planRow()]) {
+function fakeAdmin(seed: Row[] = [planRow()], payments: Row[] = []) {
   const tables: Record<string, Row[]> = {
     spec_items: [
       { id: ITEM, org_id: ORG, project_id: PROJECT, deleted_at: null },
       { id: OTHER_ITEM, org_id: ORG, project_id: PROJECT, deleted_at: null },
     ],
     spec_item_payment_plans: seed,
+    // Фактические оплаты: нужны только для проверки «по строке есть оплаты»
+    // (решение Q9). Пустая таблица — обычный случай этой задачи, поэтому
+    // аргумент необязательный.
+    spec_item_payments: payments,
   };
 
   /** Строки, изменённые UPDATE'ом: по ним видно, сколько строк тронула операция. */
@@ -122,6 +126,8 @@ function fakeAdmin(seed: Row[] = [planRow()]) {
     let operation: "select" | "insert" | "update" = "select";
     const orderBy: { column: string; ascending: boolean }[] = [];
     let limitCount: number | null = null;
+    let countRequested = false;
+    let headOnly = false;
 
     const matches = (row: Row) =>
       eqs.every(([column, value]) => {
@@ -181,7 +187,17 @@ function fakeAdmin(seed: Row[] = [planRow()]) {
     };
 
     const chain = {
-      select: () => chain,
+      /**
+       * `select("id", { count: "exact", head: true })` — проверка «есть ли по
+       * строке графика неудалённые оплаты». Счётчик воспроизводится явно: без
+       * него тест подтверждал бы заглушку, а не правило «строку с оплатами
+       * удалять нельзя».
+       */
+      select: (_columns?: string, options?: { count?: string; head?: boolean }) => {
+        countRequested = options?.count === "exact";
+        headOnly = options?.head === true;
+        return chain;
+      },
       eq(column: string, value: unknown) {
         eqs.push([column, value]);
         return chain;
@@ -216,8 +232,24 @@ function fakeAdmin(seed: Row[] = [planRow()]) {
         Promise.resolve({ data: first(finish()), error: null }),
       single: () => Promise.resolve({ data: first(finish()), error: null }),
       then: (
-        resolve: (value: { data: Row[] | null; error: null }) => unknown,
-      ) => Promise.resolve(resolve(finish() as { data: Row[] | null; error: null })),
+        resolve: (value: {
+          data: Row[] | null;
+          error: null;
+          count?: number | null;
+        }) => unknown,
+      ) => {
+        const result = finish() as { data: Row[] | null; error: null };
+        return Promise.resolve(
+          resolve({
+            // `head: true` — ответ без строк, но со счётчиком.
+            data: headOnly ? null : result.data,
+            error: null,
+            ...(countRequested
+              ? { count: Array.isArray(result.data) ? result.data.length : 0 }
+              : {}),
+          }),
+        );
+      },
     };
 
     function first(result: { data: unknown; error: unknown }) {
@@ -685,6 +717,67 @@ describe("removePaymentPlan", () => {
     });
 
     expect(errorCodeOf(result)).toBe("NOT_FOUND");
+  });
+
+  it("строку с неудалённой оплатой удалить нельзя (решение Q9)", async () => {
+    // Мягкое удаление не нарушает внешний ключ: строка осталась бы в БД, а её
+    // оплата — в покрытии несуществующей строки. Поэтому запрет живёт в ядре, а
+    // не только в action: обойти его вызовом ядра напрямую нельзя.
+    const { client, tables } = fakeAdmin(
+      [planRow({ id: PLAN_A })],
+      [
+        {
+          id: "66666666-6666-4666-8666-666666666666",
+          org_id: ORG,
+          spec_item_id: ITEM,
+          payment_plan_id: PLAN_A,
+          kind: "payment",
+          amount: "1000.00",
+          deleted_at: null,
+        },
+      ],
+    );
+
+    const result = await removePaymentPlan(client, {
+      ...base,
+      actor: ACTOR,
+      planId: PLAN_A,
+    });
+
+    expect(errorCodeOf(result)).toBe("FAILED");
+    if (result.ok) return;
+    // Текст отказа объясняет, что делать, а не только «нельзя».
+    expect(result.error.message).toContain("оплата");
+    expect(tables.spec_item_payment_plans[0].deleted_at).toBeNull();
+  });
+
+  it("отменённая оплата строку не держит", async () => {
+    const { client, tables } = fakeAdmin(
+      [planRow({ id: PLAN_A })],
+      [
+        {
+          id: "66666666-6666-4666-8666-666666666666",
+          org_id: ORG,
+          spec_item_id: ITEM,
+          payment_plan_id: PLAN_A,
+          kind: "payment",
+          amount: "1000.00",
+          deleted_at: "2026-10-06T10:00:00.000Z",
+        },
+      ],
+    );
+
+    const result = await removePaymentPlan(client, {
+      ...base,
+      actor: ACTOR,
+      planId: PLAN_A,
+    });
+
+    // Иначе после ошибки график нельзя было бы почистить, не удалив историю.
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.deleted).toBe(true);
+    expect(tables.spec_item_payment_plans[0].deleted_at).not.toBeNull();
   });
 });
 

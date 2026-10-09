@@ -96,6 +96,7 @@ export default async function ProjectSpecification({
           name: ctx.user.name ?? null,
           email: ctx.user.email ?? null,
         }}
+        role={ctx.role}
         projectId={id}
         project={project}
         initialItems={specItems}

@@ -71,15 +71,31 @@ const allSql = readdirSync(MIGRATIONS_DIR)
   .map((file) => readFileSync(path.join(MIGRATIONS_DIR, file), "utf8"))
   .join("\n");
 
-/** Значения из последнего CHECK-ограничения `spec_item_events_kind_check`. */
+/**
+ * Значения из последнего CHECK-ограничения `spec_item_events_kind_check`.
+ *
+ * Имя встречается и вне объявления ограничения — в комментариях и в
+ * `drop constraint if exists`. Поэтому ищется последнее ОБЪЯВЛЕНИЕ
+ * (`… constraint spec_item_events_kind_check`), а не последнее упоминание:
+ * иначе с появлением таблицы фактов (`20261010_001`) разбор уезжал в её
+ * собственные CHECK'и с чужой грамматикой.
+ */
 function kindsFromCheck(source: string): string[] {
-  const start = source.lastIndexOf("spec_item_events_kind_check");
+  const declared = source.lastIndexOf("constraint spec_item_events_kind_check");
+  // `add constraint <имя>` в трёх миграциях, расширяющих список, — с `add`.
+  const added = source.lastIndexOf("add constraint spec_item_events_kind_check");
+  const start = Math.max(declared, added);
   expect(start, "CHECK для kind не найден в миграции").toBeGreaterThan(-1);
 
-  // До `);`, закрывающей create table: внутри этого отрезка встречаются
-  // только литералы типов, поэтому посторонние строки в выборку не попадут.
-  const end = source.indexOf(");", start);
-  const block = source.slice(start, end);
+  // Тело — от `check (` до закрывающей `);`: внутри отрезка встречаются только
+  // литералы типов, поэтому посторонние строки в выборку не попадут.
+  const checkAt = source.indexOf("check (", start);
+  expect(checkAt, "тело CHECK для kind не найдено в миграции").toBeGreaterThan(
+    -1,
+  );
+
+  const end = source.indexOf(");", checkAt);
+  const block = source.slice(checkAt, end);
 
   return [...block.matchAll(/'([a-z_]+)'/g)].map((m) => m[1]);
 }

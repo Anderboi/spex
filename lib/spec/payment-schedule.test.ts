@@ -5,7 +5,9 @@ import {
   orderPaymentPlans,
   paymentPlanCoverage,
   paymentPlanRows,
+  roundMoney,
   summarisePaymentSchedule,
+  type PaidAmountLike,
   type PaymentPlanLike,
   type PaymentPlanOrderRow,
 } from "./payment-schedule";
@@ -36,6 +38,15 @@ function plan(over: Partial<PaymentPlanLike> = {}): PaymentPlanLike {
     deletedAt: null,
     ...over,
   };
+}
+
+/**
+ * Факт оплаты. `kind` и `deletedAt` по умолчанию не заданы намеренно: так
+ * вызывающий, у которого этих полей ещё нет, получает «оплата, активна» —
+ * ровно то поведение, которое было у функции до этой задачи.
+ */
+function paid(over: Partial<PaidAmountLike> = {}): PaidAmountLike {
+  return { paymentPlanId: null, amount: 100, ...over };
 }
 
 describe("paymentPlanRows", () => {
@@ -117,8 +128,10 @@ describe("summarisePaymentSchedule", () => {
     expect(summarisePaymentSchedule([])).toEqual({
       planned: 0,
       paid: 0,
+      refunded: 0,
       remaining: 0,
       overpaid: 0,
+      unplanned: 0,
       hasPlan: false,
     });
   });
@@ -192,6 +205,183 @@ describe("summarisePaymentSchedule", () => {
   });
 });
 
+/* ------------------------------------------------------------------ */
+/*  Факты: частичные оплаты, возвраты, удаление, округление            */
+/* ------------------------------------------------------------------ */
+
+describe("summarisePaymentSchedule: факты", () => {
+  it("частичные оплаты складываются в «оплачено» и уменьшают остаток", () => {
+    const summary = summarisePaymentSchedule(
+      [plan({ id: "a", amount: 10000 })],
+      [
+        paid({ paymentPlanId: "a", amount: 2500 }),
+        paid({ paymentPlanId: "a", amount: 1500.5 }),
+      ],
+    );
+
+    expect(summary.paid).toBe(4000.5);
+    expect(summary.remaining).toBe(5999.5);
+    expect(summary.overpaid).toBe(0);
+    expect(summary.unplanned).toBe(0);
+  });
+
+  it("оплата без плана попадает в «оплачено» и в «вне графика», но не в переплату", () => {
+    const summary = summarisePaymentSchedule(
+      [plan({ id: "a", amount: 10000 })],
+      [
+        paid({ paymentPlanId: "a", amount: 4000 }),
+        paid({ paymentPlanId: null, amount: 1500 }),
+      ],
+    );
+
+    expect(summary.paid).toBe(5500);
+    expect(summary.unplanned).toBe(1500);
+    expect(summary.planned).toBe(10000);
+    expect(summary.remaining).toBe(4500);
+    expect(summary.overpaid).toBe(0);
+  });
+
+  it("оплата без плана при пустом графике — не переплата, а «вне графика»", () => {
+    const summary = summarisePaymentSchedule(
+      [],
+      [paid({ paymentPlanId: null, amount: 700 })],
+    );
+
+    expect(summary.paid).toBe(700);
+    expect(summary.unplanned).toBe(700);
+    expect(summary.overpaid).toBe(0);
+    expect(summary.remaining).toBe(-700);
+    expect(summary.hasPlan).toBe(false);
+  });
+
+  it("возврат уменьшает оплаченное и виден отдельной величиной", () => {
+    const summary = summarisePaymentSchedule(
+      [plan({ id: "a", amount: 10000 })],
+      [
+        paid({ paymentPlanId: "a", amount: 6000 }),
+        paid({ paymentPlanId: "a", amount: 2000, kind: "refund" }),
+      ],
+    );
+
+    expect(summary.paid).toBe(4000);
+    expect(summary.refunded).toBe(2000);
+    expect(summary.remaining).toBe(6000);
+    expect(summary.unplanned).toBe(0);
+  });
+
+  it("возвратов больше, чем оплат: отрицательное оплаченное показывается как есть", () => {
+    // Решение Q11: БД такого не запрещает, и интерфейс показывает это явной
+    // пометкой, а не прячет. Считать «оплачено = 0» значило бы потерять факт
+    // переплаты клиенту.
+    const summary = summarisePaymentSchedule(
+      [plan({ id: "a", amount: 10000 })],
+      [
+        paid({ paymentPlanId: "a", amount: 3000 }),
+        paid({ paymentPlanId: "a", amount: 5000, kind: "refund" }),
+      ],
+    );
+
+    expect(summary.paid).toBe(-2000);
+    expect(summary.refunded).toBe(5000);
+    expect(summary.remaining).toBe(12000);
+    expect(summary.overpaid).toBe(0);
+  });
+
+  it("возврат без плана уменьшает «вне графика»", () => {
+    const summary = summarisePaymentSchedule(
+      [plan({ id: "a", amount: 10000 })],
+      [
+        paid({ paymentPlanId: null, amount: 4000 }),
+        paid({ paymentPlanId: null, amount: 1000, kind: "refund" }),
+      ],
+    );
+
+    expect(summary.unplanned).toBe(3000);
+    expect(summary.paid).toBe(3000);
+  });
+
+  it("мягко удалённый факт не считается ни в одной сумме", () => {
+    const summary = summarisePaymentSchedule(
+      [plan({ id: "a", amount: 10000 })],
+      [
+        paid({ paymentPlanId: "a", amount: 4000 }),
+        paid({
+          paymentPlanId: "a",
+          amount: 9999,
+          deletedAt: "2026-10-05T10:00:00.000Z",
+        }),
+        paid({
+          paymentPlanId: null,
+          amount: 9999,
+          kind: "refund",
+          deletedAt: "2026-10-05T10:00:00.000Z",
+        }),
+      ],
+    );
+
+    expect(summary.paid).toBe(4000);
+    expect(summary.refunded).toBe(0);
+    expect(summary.unplanned).toBe(0);
+  });
+
+  it("оплата по удалённой строке графика остаётся оплатой, но вне графика", () => {
+    const summary = summarisePaymentSchedule(
+      [plan({ id: "a", amount: 10000, deletedAt: "2026-10-05T10:00:00.000Z" })],
+      [paid({ paymentPlanId: "a", amount: 4000 })],
+    );
+
+    expect(summary.planned).toBe(0);
+    expect(summary.paid).toBe(4000);
+    expect(summary.overpaid).toBe(0);
+    expect(summary.hasPlan).toBe(false);
+    // Строка графика удалена — оплата по ней в покрытие не попадает, значит для
+    // интерфейса это деньги «мимо графика», а не покрытие живой строки.
+    expect(summary.unplanned).toBe(0);
+  });
+
+  it("округление: копейки не превращаются в хвост двоичной дроби", () => {
+    // 0.1 + 0.2 в двоичной плавающей точке даёт 0.30000000000000004. В БД сумма
+    // считается над numeric, поэтому расхождение могло появиться только здесь.
+    const summary = summarisePaymentSchedule(
+      [plan({ id: "a", amount: "0.10" }), plan({ id: "b", amount: "0.20" })],
+      [paid({ paymentPlanId: "a", amount: "0.10" })],
+    );
+
+    expect(summary.planned).toBe(0.3);
+    expect(summary.paid).toBe(0.1);
+    expect(summary.remaining).toBe(0.2);
+  });
+
+  it("округление на многих строках: итог — до копейки и не зависит от порядка", () => {
+    // Семь строк по 0.34 — тот самый случай, на котором расходятся `sumItems`
+    // и публичная страница (риск R5 отчёта): накопитель с округлением каждого
+    // шага дал бы 2.38, сырая сумма — 2.3799999999999994.
+    const rows = Array.from({ length: 7 }, (_, index) =>
+      plan({ id: `p${index}`, amount: 0.34 }),
+    );
+    const facts = [
+      paid({ paymentPlanId: "p0", amount: "0.34" }),
+      paid({ paymentPlanId: "p1", amount: 0.34 }),
+      paid({ paymentPlanId: "p2", amount: "0.34" }),
+    ];
+
+    const summary = summarisePaymentSchedule(rows, facts);
+
+    expect(summary.planned).toBe(2.38);
+    expect(summary.paid).toBe(1.02);
+    expect(summary.remaining).toBe(1.36);
+    // Тот же итог при обратном порядке — округление применяется к сумме, а не к
+    // накопителю, поэтому порядок слагаемых на результат не влияет.
+    expect(summarisePaymentSchedule([...rows].reverse(), facts).planned).toBe(2.38);
+  });
+
+  it("roundMoney округляет до копейки и переживает отрицательные значения", () => {
+    expect(roundMoney(0.1 + 0.2)).toBe(0.3);
+    expect(roundMoney(-0.1 - 0.2)).toBe(-0.3);
+    expect(roundMoney(1234.565)).toBe(1234.57);
+  });
+});
+
 describe("paymentPlanCoverage", () => {
   it("покрытие строки: оплата своей строки и остаток по ней", () => {
     const coverage = paymentPlanCoverage(
@@ -234,6 +424,61 @@ describe("paymentPlanCoverage", () => {
       paid: 14000,
       remaining: 0,
       overpaid: 4000,
+    });
+  });
+
+  it("возврат по строке уменьшает её покрытие", () => {
+    const coverage = paymentPlanCoverage(
+      [plan({ id: "a", amount: 10000 })],
+      [
+        paid({ paymentPlanId: "a", amount: 6000 }),
+        paid({ paymentPlanId: "a", amount: 2000, kind: "refund" }),
+      ],
+    );
+
+    expect(coverage.get("a")).toEqual({
+      paid: 4000,
+      remaining: 6000,
+      overpaid: 0,
+    });
+  });
+
+  it("возврат больше оплат по строке не уводит остаток в минус", () => {
+    const coverage = paymentPlanCoverage(
+      [plan({ id: "a", amount: 10000 })],
+      [
+        paid({ paymentPlanId: "a", amount: 1000 }),
+        paid({ paymentPlanId: "a", amount: 3000, kind: "refund" }),
+      ],
+    );
+
+    // Покрытие стало отрицательным (вернули больше, чем заплатили), поэтому
+    // остаток по строке БОЛЬШЕ её суммы: 10 000 − (−2 000) = 12 000. Это честная
+    // величина «сколько ещё должно быть закрыто», а не ошибка знака.
+    expect(coverage.get("a")).toEqual({
+      paid: -2000,
+      remaining: 12000,
+      overpaid: 0,
+    });
+  });
+
+  it("мягко удалённый факт в покрытии не участвует", () => {
+    const coverage = paymentPlanCoverage(
+      [plan({ id: "a", amount: 10000 })],
+      [
+        paid({ paymentPlanId: "a", amount: 4000 }),
+        paid({
+          paymentPlanId: "a",
+          amount: 6000,
+          deletedAt: "2026-10-05T10:00:00.000Z",
+        }),
+      ],
+    );
+
+    expect(coverage.get("a")).toEqual({
+      paid: 4000,
+      remaining: 6000,
+      overpaid: 0,
     });
   });
 });

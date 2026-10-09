@@ -9,6 +9,7 @@ import {
   type ServiceOperationType,
 } from "@/lib/constants";
 import { SpecItem, SpecItemPatch, SpecVariant } from "@/lib/types";
+import type { OrgRole } from "@/lib/permissions";
 import { type CompanyOption } from "@/components/layout/company-picker";
 import { ScrollArea } from "../../ui/scroll-area";
 import { CompanyDialog } from "@/components/contacts/company-dialog";
@@ -85,6 +86,7 @@ export function DetailModal({
   orgSlug,
   orgId,
   currentUser,
+  role,
   projectId,
   initialTab,
   onTabChange,
@@ -139,6 +141,11 @@ export function DetailModal({
    * Окончательный автор берётся из ответа сервера, а не отсюда.
    */
   currentUser: { id: string; name: string | null; email: string | null };
+  /**
+   * Роль в организации: гейт кнопок вкладки «Платежи». Сервер проверяет права
+   * сам — здесь только то, что видит пользователь.
+   */
+  role: OrgRole;
   projectId: string;
   /** Вкладка при открытии (например, «Состав» после возврата из ссылки). */
   initialTab?: DetailPanelTab;
@@ -395,6 +402,8 @@ export function DetailModal({
             <PaymentsTab
               orgSlug={orgSlug}
               specItemId={item.id}
+              role={role}
+              currentUserId={currentUser.id}
               itemCost={priceOf(item).total}
             />
           </ScrollableTab>

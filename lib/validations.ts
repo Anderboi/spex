@@ -651,3 +651,113 @@ export const paymentPlanSchema = z.object({
   }));
 
 export type PaymentPlanInput = z.infer<typeof paymentPlanSchema>;
+
+/* ------------------------------------------------------------------ */
+/*  Фактические оплаты позиции                                         */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Границы полей записи о деньгах.
+ *
+ * Сумма — та же вместимость `numeric(12,2)`, что у строки графика: предел БД
+ * один, и второй предел в валидации расходился бы с ним (решение O7).
+ *
+ * Комментарий — 1000 символов, как условие оплаты, а не 4000 заметок позиции:
+ * комментарий к проводке читают строкой в списке фактов, а не документом.
+ */
+export const PAYMENT_LIMITS = {
+  commentMax: 1000,
+  amountMax: 10_000_000_000,
+} as const;
+
+/**
+ * Поля записи о деньгах: вид, сумма, дата, необязательная строка графика и
+ * комментарий.
+ *
+ * ── Почему вид записи здесь обязателен ─────────────────────────────────────
+ *
+ * `kind` входит в тело запроса и участвует в ключе идемпотентности: повтор с
+ * другим видом — это другой платёж, а не тот же самый. Поэтому значение по
+ * умолчанию у схемы не «оплата», а отказ: `payment` и `refund` — разные
+ * документы, и подставлять один вместо другого валидация не имеет права.
+ *
+ * ── Почему дата необязательна ──────────────────────────────────────────────
+ *
+ * Пустая дата — это «сегодня»: `paid_at` в БД имеет `default current_date`, и
+ * сервер подставляет тот же день (`todayIso` в `lib/spec/payment-mutations.ts`).
+ * Формат проверяется регулярным выражением, а не `z.iso.date()`: значение
+ * приходит из `<input type="date">` строкой 'YYYY-MM-DD', и задача схемы —
+ * отсечь мусор, а не разбирать календарь. Существование такой даты подтверждает
+ * БД (`paid_at date`).
+ *
+ * ── Почему строка графика здесь `string | null` ────────────────────────────
+ *
+ * Идентификатор проверяется на принадлежность позиции в ядре, а не здесь: схема
+ * не знает ни о позиции, ни о правах. `null` и пустая строка — одно состояние
+ * «оплата вне графика».
+ */
+const paymentDataSchema = z.object({
+  // Словарь видов — те же два значения, что в CHECK таблицы. Своего текста
+  // отказа здесь нет намеренно: понятное объяснение даёт ядро
+  // (`validatePaymentData`), а схема отвечает только за форму.
+  kind: z.enum(["payment", "refund"]),
+  amount: z
+    .number()
+    .finite("Сумма должна быть числом")
+    .positive("Сумма должна быть больше нуля")
+    .max(PAYMENT_LIMITS.amountMax, "Слишком большая сумма"),
+  paidAt: z
+    .string()
+    .trim()
+    .optional()
+    .nullable()
+    .refine(
+      (value) => value == null || value.length === 0 || DATE_PATTERN.test(value),
+      { message: "Укажите дату в формате ГГГГ-ММ-ДД" },
+    ),
+  paymentPlanId: z.string().trim().optional().nullable(),
+  comment: z
+    .string()
+    .trim()
+    .max(PAYMENT_LIMITS.commentMax, "Комментарий слишком длинный")
+    .optional()
+    .nullable(),
+});
+
+/** Нормализация пустых значений: `""` и `null` — одно состояние «не заполнено». */
+const normalizePayment = <T extends { paidAt?: string | null; paymentPlanId?: string | null; comment?: string | null }>(
+  value: T,
+) => ({
+  ...value,
+  paidAt: value.paidAt && value.paidAt.length > 0 ? value.paidAt : null,
+  paymentPlanId:
+    value.paymentPlanId && value.paymentPlanId.length > 0
+      ? value.paymentPlanId
+      : null,
+  comment: value.comment && value.comment.length > 0 ? value.comment : null,
+});
+
+/** Внесение оплаты или возврата: поля записи плюс ключ идемпотентности формы. */
+export const createPaymentSchema = paymentDataSchema
+  .extend({
+    /**
+     * Ключ идемпотентности: генерируется на открытие формы и переживает повтор
+     * отправки. Формат uuid — потому что колонка `uuid`, и не-uuid значение
+     * отверг бы Postgres ошибкой 22P02 вместо понятного текста.
+     */
+    idempotencyKey: z.uuid("Ключ запроса повреждён: обновите форму"),
+  })
+  .transform(normalizePayment);
+
+export type CreatePaymentInput = z.infer<typeof createPaymentSchema>;
+
+/**
+ * Изменение записи: те же поля БЕЗ ключа идемпотентности.
+ *
+ * Ключ здесь не принимается намеренно: он описывает запрос на создание, а не
+ * запись. Правка существующей строки повтор не создаёт, и второй ключ ей не
+ * нужен.
+ */
+export const updatePaymentSchema = paymentDataSchema.transform(normalizePayment);
+
+export type UpdatePaymentInput = z.infer<typeof updatePaymentSchema>;

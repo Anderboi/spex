@@ -28,6 +28,7 @@ import type {
 import { ALL_CATEGORIES, TYPE_ORDER } from "@/lib/constants";
 import { fmt, plural, cn } from "@/lib/utils";
 import { SpecItem } from "@/lib/types";
+import type { OrgRole } from "@/lib/permissions";
 import BottomBar from "./layout/bottom-bar";
 import EmptyFilter from "./empty-filter";
 import EmptyProject from "./empty-project";
@@ -85,6 +86,7 @@ export default function SpecBuilder({
   orgSlug,
   orgId,
   currentUser,
+  role,
   projectId,
   project,
   initialItems,
@@ -97,6 +99,11 @@ export default function SpecBuilder({
   orgId: string;
   /** Текущий пользователь — автор для optimistic-предпросмотра. */
   currentUser: { id: string; name: string | null; email: string | null };
+  /**
+   * Роль в организации — гейт кнопок, которые сервер всё равно проверяет сам
+   * (вкладка «Платежи»: наблюдатель не вносит оплаты, чужие правит admin+).
+   */
+  role: OrgRole;
   projectId: string;
   project: {
     id: string;
@@ -493,6 +500,7 @@ export default function SpecBuilder({
           orgSlug={orgSlug}
           orgId={orgId}
           currentUser={currentUser}
+          role={role}
           projectId={projectId}
           item={ctx.current}
           childrenItems={currentChildren}

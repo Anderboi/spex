@@ -1221,6 +1221,7 @@ export type Database = {
           deleted_at: string | null
           id: string
           idempotency_key: string | null
+          kind: string
           name_snapshot: string | null
           org_id: string
           paid_at: string
@@ -1240,6 +1241,7 @@ export type Database = {
           deleted_at?: string | null
           id?: string
           idempotency_key?: string | null
+          kind?: string
           name_snapshot?: string | null
           org_id: string
           paid_at?: string
@@ -1259,6 +1261,7 @@ export type Database = {
           deleted_at?: string | null
           id?: string
           idempotency_key?: string | null
+          kind?: string
           name_snapshot?: string | null
           org_id?: string
           paid_at?: string

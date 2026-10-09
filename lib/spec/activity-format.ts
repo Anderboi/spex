@@ -43,6 +43,7 @@ import {
   type SpecItemFillOrigin,
 } from "./history";
 import { PAYMENT_PLAN_PATCH_FIELDS } from "./payment-plan-types";
+import { PAYMENT_PATCH_FIELDS } from "./payment-types";
 import type {
   HistoryCommentEntry,
   HistoryEventEntry,
@@ -190,6 +191,24 @@ const PAYMENT_PLAN_FIELD_LABEL: Record<string, string> = {
 const PAYMENT_PLAN_FIELD_ORDER: readonly string[] = PAYMENT_PLAN_PATCH_FIELDS;
 
 /**
+ * Подписи полей фактической оплаты: ключи — колонки таблицы (`snake_case`), как
+ * их кладёт в `changes` билдер истории (`./payment-events`).
+ *
+ * `payment_plan_id` назван «Строка графика», а не «План»: в интерфейсе вкладки
+ * это строка графика, и в ленте у неё должно быть то же имя — иначе одно и то же
+ * поле называлось бы в двух местах по-разному.
+ */
+const PAYMENT_FIELD_LABEL: Record<string, string> = {
+  amount: "Сумма",
+  paid_at: "Дата оплаты",
+  payment_plan_id: "Строка графика",
+  comment: "Комментарий",
+};
+
+/** Порядок полей оплаты: тот же, в котором они идут в форме. */
+const PAYMENT_FIELD_ORDER: readonly string[] = PAYMENT_PATCH_FIELDS;
+
+/**
  * Подпись поля: из словаря, иначе само имя — но не пустая строка.
  *
  * `field` приходит из `jsonb`, поэтому проверяется на строку: исторический
@@ -201,6 +220,7 @@ export function activityFieldLabel(field: unknown): string {
     DETAIL_FIELD_LABEL[field] ??
     VARIANT_FIELD_LABEL[field] ??
     PAYMENT_PLAN_FIELD_LABEL[field] ??
+    PAYMENT_FIELD_LABEL[field] ??
     field.replaceAll("_", " ")
   );
 }
@@ -704,17 +724,19 @@ function formatEvent(record: HistoryEventEntry): ActivityPresentation {
       };
 
     /*
-     * Фактические оплаты. Виды объявлены в БД и в домене (их пишет следующая
-     * задача), поэтому событие не должно исчезать из ленты — но и подробностей,
-     * которых ещё нет, форматтер не выдумывает: он показывает вид записи и
-     * сумму, а связь со строкой графика и таблицу изменений добавит та задача,
-     * где у оплаты появятся свои поля.
+     * Фактические оплаты. Вид записи («оплата» или «возврат») стоит и в
+     * заголовке, и в подписи: это первое, что нужно понять про запись — вернули
+     * деньги или заплатили. Связь со строкой графика и таблицу изменений
+     * показывает подпись и `changes`.
      */
     case "payment_added":
       return {
         batchSize,
         icon: "paymentAdd",
-        title: "Добавлена оплата",
+        title: paymentTitle(
+          { feminine: "Внесена", masculine: "Внесён" },
+          record.payload.paymentKind,
+        ),
         detail: paymentDetail(record.payload),
       };
 
@@ -722,15 +744,25 @@ function formatEvent(record: HistoryEventEntry): ActivityPresentation {
       return {
         batchSize,
         icon: "paymentEdit",
-        title: "Изменена оплата",
+        title: paymentTitle(
+          { feminine: "Изменена", masculine: "Изменён" },
+          record.payload.paymentKind,
+        ),
         detail: paymentDetail(record.payload),
+        changes: formatActivityChanges(
+          record.payload.changes,
+          PAYMENT_FIELD_ORDER,
+        ),
       };
 
     case "payment_removed":
       return {
         batchSize,
         icon: "paymentRemove",
-        title: "Удалена оплата",
+        title: paymentTitle(
+          { feminine: "Отменена", masculine: "Отменён" },
+          record.payload.paymentKind,
+        ),
         detail: paymentDetail(record.payload),
       };
   }
@@ -820,22 +852,52 @@ function paymentPlanDetail(payload: HistoryPaymentPlanPayload): {
 }
 
 /**
- * Фактическая оплата: сумма, если она есть в payload'е.
+ * Вид записи для заголовка события: причастие и существительное.
  *
- * Вид записи («оплата» или «возврат») в подпись не вынесен: до задачи про факты
- * у этих событий нет ни собственного словаря подписей, ни согласованного
- * формата, и придумывать его здесь значило бы зафиксировать контракт раньше
- * данных. Подпись — про сам факт: «оплата на 12 000 ₽».
+ * Русский язык не даёт одной формы на все три вида события: «внесена оплата», но
+ * «отменён возврат». Поэтому заголовок собирается из двух членов — причастия
+ * («внесён/внесена», «изменён/изменена», «отменён/отменена») и существительного
+ * («оплата» женского рода, «возврат» мужского): так фраза остаётся правильной без
+ * склейки строк в месте вызова.
+ *
+ * Незнакомый вид (запись из более новой версии приложения) читается как оплата:
+ * подставлять в заголовок пустоту значило бы потерять событие из ленты, а
+ * выдумывать третий вид — обещать то, чего нет.
+ */
+type PaymentKindPhrase = { feminine: boolean; noun: string };
+
+function paymentKindPhrase(kind: string | null): PaymentKindPhrase {
+  return kind === "refund"
+    ? { feminine: false, noun: "возврат" }
+    : { feminine: true, noun: "оплата" };
+}
+
+/** Заголовок события оплаты: «Внесена оплата», «Отменён возврат». */
+function paymentTitle(verb: { feminine: string; masculine: string }, kind: string | null) {
+  const phrase = paymentKindPhrase(kind);
+  return `${phrase.feminine ? verb.feminine : verb.masculine} ${phrase.noun}`;
+}
+
+/**
+ * Фактическая оплата: сумма и уточнения — вид записи и связь со строкой графика.
+ *
+ * Вид («возврат») дублируется в подписи намеренно: заголовок читают один раз, а
+ * строку ленты — как запись о деньгах, и «12 000 ₽ · возврат» невозможно
+ * прочитать как оплату. «Вне графика» — не отсутствие сведений, а величина:
+ * `plan_id: null` означает, что деньги прошли мимо обязательств.
  */
 function paymentDetail(payload: HistoryPaymentPayload): {
   name: string;
 } {
-  return {
-    name:
-      typeof payload.amount === "number" && Number.isFinite(payload.amount)
-        ? formatActivityValue("amount", payload.amount, EMPTY_VALUE)
-        : EMPTY_VALUE,
-  };
+  const parts: string[] = [];
+
+  if (typeof payload.amount === "number" && Number.isFinite(payload.amount)) {
+    parts.push(formatActivityValue("amount", payload.amount, EMPTY_VALUE));
+  }
+  if (payload.paymentKind === "refund") parts.push("возврат");
+  if (!payload.planId) parts.push("вне графика");
+
+  return { name: parts.length > 0 ? parts.join(" · ") : EMPTY_VALUE };
 }
 
 /**

@@ -335,31 +335,48 @@ describe("formatActivityEvent: все 27 видов события", () => {
       name: "Остаток · 3 000 ₽",
     },
     /*
-     * Фактические оплаты: виды объявлены в БД и в домене, событие не должно
-     * исчезать из ленты. Подробностей (вид записи, связь со строкой графика)
-     * здесь ещё нет — их добавит задача про факты.
+     * Фактические оплаты: вид записи стоит и в заголовке, и в подписи — «12 000 ₽
+     * · возврат» невозможно прочитать как оплату. `planId: null` — не
+     * отсутствие сведений, а величина: деньги прошли вне графика.
+     *
+     * Ключи ЗДЕСЬ уже доменные (camelCase), а не сырые из `jsonb`: форматтер
+     * получает payload после `history-mappers`, и сырые ключи у остальных событий
+     * совпадают с доменными только потому, что те поля однословные.
      */
     {
       kind: "payment_added",
       payload: {
-        payment_id: "pay-1",
-        payment_kind: "payment",
+        paymentId: "pay-1",
+        paymentKind: "payment",
         amount: 12000,
-        paid_at: "2026-11-05",
-        plan_id: "p-1",
+        paidAt: "2026-11-05",
+        planId: "p-1",
       },
       icon: "paymentAdd",
-      title: "Добавлена оплата",
+      title: "Внесена оплата",
       name: "12 000 ₽",
+    },
+    {
+      kind: "payment_added",
+      payload: {
+        paymentId: "pay-3",
+        paymentKind: "payment",
+        amount: 700,
+        paidAt: "2026-11-06",
+        planId: null,
+      },
+      icon: "paymentAdd",
+      title: "Внесена оплата",
+      name: "700 ₽ · вне графика",
     },
     {
       kind: "payment_changed",
       payload: {
-        payment_id: "pay-1",
-        payment_kind: "payment",
+        paymentId: "pay-1",
+        paymentKind: "payment",
         amount: 15000,
-        paid_at: "2026-11-05",
-        plan_id: "p-1",
+        paidAt: "2026-11-05",
+        planId: "p-1",
       },
       icon: "paymentEdit",
       title: "Изменена оплата",
@@ -368,23 +385,25 @@ describe("formatActivityEvent: все 27 видов события", () => {
     {
       kind: "payment_removed",
       payload: {
-        payment_id: "pay-2",
-        payment_kind: "refund",
+        paymentId: "pay-2",
+        paymentKind: "refund",
         amount: 3000,
-        paid_at: "2026-11-20",
-        plan_id: null,
+        paidAt: "2026-11-20",
+        planId: null,
       },
       icon: "paymentRemove",
-      title: "Удалена оплата",
-      name: "3 000 ₽",
+      title: "Отменён возврат",
+      name: "3 000 ₽ · возврат · вне графика",
     },
   ];
 
   it("покрывает ровно все виды из домена (27)", () => {
-    expect(cases.map((c) => c.kind).sort()).toEqual(
-      [...SPEC_ITEM_EVENT_KINDS].sort(),
+    // Кейсов больше, чем видов: у оплаты проверяются и «оплата», и «возврат», и
+    // связь «вне графика» — это разные ветки ОДНОГО вида события.
+    expect(new Set(cases.map((c) => c.kind))).toEqual(
+      new Set(SPEC_ITEM_EVENT_KINDS),
     );
-    expect(cases).toHaveLength(27);
+    expect(cases).toHaveLength(28);
   });
 
   for (const testCase of cases) {

@@ -1,0 +1,176 @@
+/**
+ * Контракт фактических оплат позиции: доменные типы, вход и результат операций.
+ *
+ * Отдельный модуль без зависимостей — по той же причине, по которой существуют
+ * `./payment-plan-types` и `./history-types`: ядро мутаций
+ * (`./payment-mutations`), арифметику (`./payment-schedule`) и вкладку
+ * «Платежи», и server action связывает один и тот же словарь. Если бы типы жили
+ * в модуле с клиентом БД, клиентский компонент тянул бы его в бандл.
+ *
+ * ── Оплата — это факт, а не план ───────────────────────────────────────────
+ *
+ * `PaymentEntry` описывает уже случившийся платёж: сумму, дату и (необязательно)
+ * строку графика, которую он покрывает. Стоимости позиции здесь нет и быть не
+ * может: сумма факта — самостоятельные данные, а не производная от
+ * `price × qty` (REPORT §6.2, ADR docs/adr/0003-grafik-platezhey-eto-samostoyatelnyy-fakt.md).
+ *
+ * ── Возврат — вид записи, а не знак суммы ─────────────────────────────────
+ *
+ * `kind` (`payment` | `refund`) при положительной сумме (решение O1): знак
+ * легко прочитать неверно, а «оплачено» превращается в сальдо неизвестного
+ * происхождения. Возврат уменьшает оплаченное и показывается отдельной строкой —
+ * `./payment-schedule` считает его в `paid` со знаком минус и отдельно в
+ * `refunded`.
+ */
+
+import type { PaymentRecordKind } from "./payment-schedule";
+
+/** Вид записи: `payment` — оплата, `refund` — возврат. */
+export type { PaymentRecordKind };
+
+/** Виды записи в порядке, в котором их показывает форма и список. */
+export const PAYMENT_KINDS: readonly PaymentRecordKind[] = [
+  "payment",
+  "refund",
+];
+
+/** Подпись вида записи: используется и в форме, и в списке, и в ленте. */
+export const PAYMENT_KIND_LABEL: Record<PaymentRecordKind, string> = {
+  payment: "Оплата",
+  refund: "Возврат",
+};
+
+/**
+ * Известен ли вид записи.
+ *
+ * Словарь живёт в БД (`check (kind in ('payment', 'refund'))`), а значение
+ * приходит из строки: незнакомый вид читается как оплата — та же граница, что у
+ * `toAmount` для испорченной суммы.
+ */
+export function isPaymentKind(value: unknown): value is PaymentRecordKind {
+  return value === "payment" || value === "refund";
+}
+
+/** Фактическая оплата или возврат в том виде, в каком его видит клиент. */
+export type PaymentEntry = {
+  id: string;
+  orgId: string;
+  projectId: string;
+  specItemId: string;
+  /** Вид записи: оплата или возврат. */
+  kind: PaymentRecordKind;
+  /** Сумма записи. Всегда положительна: знак выражает вид, а не сумма. */
+  amount: number;
+  /** Дата оплаты 'YYYY-MM-DD'. */
+  paidAt: string;
+  /** Строка графика, которую покрывает запись. `null` — оплата вне графика. */
+  paymentPlanId: string | null;
+  /** Комментарий свободным текстом. `null` — комментария нет. */
+  comment: string | null;
+  /** Автор записи. `null` — пользователь удалён (`on delete set null`). */
+  authorId: string | null;
+  /**
+   * Имя автора на момент создания записи.
+   *
+   * Снимок, а не текущий профиль: пользователя могли переименовать или удалить, а
+   * лента и список обязаны показывать то имя, под которым действие было
+   * совершено (то же правило, что у `actor_name_snapshot` журнала).
+   */
+  authorName: string | null;
+  /** Код позиции на момент создания записи. */
+  codeSnapshot: string | null;
+  /** Название позиции на момент создания записи. */
+  nameSnapshot: string | null;
+  /** Название проекта на момент создания записи. */
+  projectTitleSnapshot: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+/**
+ * Данные записи, которые приходят от пользователя.
+ *
+ * Организация, проект, автор и снимки сюда не входят: их определяет сервер (из
+ * сессии и из строки позиции). `idempotencyKey` — не «данные платежа», а ключ
+ * запроса: по нему повтор (двойное нажатие, ретрай) отличается от новой оплаты.
+ */
+export type PaymentData = {
+  kind: PaymentRecordKind;
+  amount: number;
+  /** Дата 'YYYY-MM-DD'. Пустое значение — «сегодня» (`paid_at default current_date`). */
+  paidAt: string | null;
+  /** Строка графика. `null` — оплата без плана. */
+  paymentPlanId: string | null;
+  comment: string | null;
+};
+
+/**
+ * Нормализованные данные записи: то, что реально уходит в БД.
+ *
+ * Отличается от `PaymentData` тем, что пустые строки уже стали `null`, а дата —
+ * конкретным днём (сегодняшним, если пользователь её не задал): `""` и `null` —
+ * одно состояние «не заполнено», и в БД оно должно лежать одним способом.
+ */
+export type PaymentValues = {
+  kind: PaymentRecordKind;
+  amount: number;
+  paidAt: string;
+  paymentPlanId: string | null;
+  comment: string | null;
+};
+
+/** Причина отказа, которую action превращает в `ActionResult`. */
+export type PaymentError = {
+  code:
+    | "NOT_FOUND"
+    | "INVALID_INPUT"
+    | "FORBIDDEN"
+    /**
+     * Тот же ключ идемпотентности, но другое тело запроса. Это не повтор
+     * (ответить найденной записью значило бы соврать о том, что записалось), и
+     * не новая оплата: ключ уже занят. Пользователь должен увидеть, что запрос
+     * отличается от предыдущего.
+     */
+    | "IDEMPOTENCY_CONFLICT"
+    /**
+     * Строку графика нельзя удалить: по ней есть неудалённые оплаты (решение Q9).
+     * Отдельный код нужен потому, что это не ошибка ввода и не «не найдено»:
+     * UI объясняет, что делать — сначала отвязать или отменить оплаты.
+     */
+    | "PLAN_HAS_PAYMENTS"
+    | "FAILED";
+  message: string;
+};
+
+/**
+ * Поля записи, изменение которых видит пользователь.
+ *
+ * `kind` здесь НЕТ: вид записи определяет, что это за документ, и смена
+ * «оплата → возврат» — это не правка суммы, а другая проводка. Правильное
+ * действие в этом случае — отменить ошибочную запись и внести верную; иначе в
+ * журнале появилось бы «изменена оплата», под которой лежит возврат.
+ */
+export const PAYMENT_PATCH_FIELDS = [
+  "amount",
+  "paid_at",
+  "payment_plan_id",
+  "comment",
+] as const;
+
+export type PaymentPatchField = (typeof PAYMENT_PATCH_FIELDS)[number];
+
+/** Изменение одного поля записи — в том же виде, что у остальных событий. */
+export type PaymentFieldChange = {
+  field: PaymentPatchField;
+  from: unknown;
+  to: unknown;
+};
+
+/** Снимок записи для события журнала. */
+export type PaymentEventSnapshot = {
+  paymentId: string;
+  kind: PaymentRecordKind;
+  amount: number;
+  paidAt: string;
+  paymentPlanId: string | null;
+};

@@ -11,10 +11,12 @@ import {
   addPaymentPlan as addPaymentPlanCore,
   listPaymentPlans as listPaymentPlansCore,
   movePaymentPlanPosition as movePaymentPlanPositionCore,
+  planHasPaymentsMessage,
   removePaymentPlan as removePaymentPlanCore,
   updatePaymentPlan as updatePaymentPlanCore,
   type PaymentPlansDb,
 } from "@/lib/spec/payment-plan-mutations";
+import { hasActivePayments } from "@/lib/spec/payment-mutations";
 import {
   paymentPlanSchema,
   type PaymentPlanInput,
@@ -234,7 +236,19 @@ export async function updatePaymentPlan(
 /*  delete                                                             */
 /* ------------------------------------------------------------------ */
 
-/** Мягко удалить строку графика. Повторный вызов идемпотентен. */
+/**
+ * Мягко удалить строку графика. Повторный вызов идемпотентен.
+ *
+ * ── Почему оплаты проверяются ЗДЕСЬ, а не только в ядре ────────────────────
+ *
+ * Ядро (`removePaymentPlan`) обязано отказать — иначе правило обходится вызовом
+ * ядра напрямую, — но его отказ приходит уже после того, как действие собрало
+ * событие об удалении. Записывать в журнал удаление, которого не было, нельзя,
+ * поэтому оплаты проверяются ДО операции, а событие собирается только на
+ * успешный исход. Проверка — тот же запрос, что внутри ядра
+ * (`hasActivePayments` из `lib/spec/payment-mutations.ts`): третьей формы
+ * «есть ли оплаты по строке» в проекте не появляется.
+ */
 export async function deletePaymentPlan(
   orgSlug: string,
   specItemId: string,
@@ -248,6 +262,17 @@ export async function deletePaymentPlan(
 
   if (failed) return fail("Не удалось удалить платёж");
   if (!item) return fail("Позиция не найдена", "NOT_FOUND");
+
+  const blocked = await hasActivePayments(supabase, {
+    orgId: ctx.orgId,
+    specItemId: item.id,
+    planId,
+  });
+
+  if (!blocked.ok) return toFailure(blocked.error);
+  if (blocked.count > 0) {
+    return fail(planHasPaymentsMessage(blocked.count));
+  }
 
   const result = await removePaymentPlanCore(supabase, {
     orgId: ctx.orgId,
