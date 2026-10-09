@@ -19,7 +19,13 @@ import { PAYMENT_LIMITS } from "@/lib/validations";
 import { fmtRub } from "@/lib/utils";
 import { todayIso } from "@/lib/spec/payment-date";
 import type { PaymentPlanEntry } from "@/lib/spec/payment-plan-types";
-import type { PaymentEntry, PaymentRecordKind } from "@/lib/spec/payment-types";
+import {
+  PAYMENT_KIND_ACTION_LABEL,
+  PAYMENT_KINDS,
+  PAYMENT_KIND_LABEL,
+  type PaymentEntry,
+  type PaymentRecordKind,
+} from "@/lib/spec/payment-types";
 
 /**
  * Форма фактической оплаты: внесение и правка одной и той же разметкой.
@@ -40,11 +46,14 @@ import type { PaymentEntry, PaymentRecordKind } from "@/lib/spec/payment-types";
  *
  * ── Вид записи ─────────────────────────────────────────────────────────────
  *
- * В этой задаче форма создаёт только оплату: выбор «оплата или возврат» —
- * следующая задача про возвраты (тикет 03). Значение вида всё равно уходит на
- * сервер ВСЕГДА и хранится в БД с первой записи: иначе возвраты потребовали бы
- * миграции данных, а идемпотентность «повтор с другим видом — другой платёж» не
- * проверялась бы вовсе.
+ * Форма создаёт и оплату, и возврат: вид выбирается селектом. Сумма в обоих
+ * случаях положительна — направление выражает вид, а не знак (решение O1), и
+ * на сервер вид уходит всегда, потому что участвует в ключе идемпотентности
+ * («повтор с другим видом — другой платёж»).
+ *
+ * При ПРАВКЕ селект заблокирован: смена вида — не правка суммы, а другая
+ * проводка, и сервер такой запрос отвергает. Правильный путь — отменить
+ * ошибочную запись и внести верную; форма не подменяет это правило догадкой.
  *
  * ── Ключ идемпотентности ───────────────────────────────────────────────────
  *
@@ -91,6 +100,14 @@ export default function PaymentForm({
    */
   onSubmit: (values: PaymentFormValues) => Promise<string | null>;
 }) {
+  /**
+   * Вид записи: у новой — оплата, у правки — вид самой записи.
+   *
+   * Своё состояние, а не только `payment?.kind`, потому что при СОЗДАНИИ вид
+   * выбирает пользователь. При правке значение то же, но селект заблокирован —
+   * смена вида здесь запрещена (см. заголовок модуля).
+   */
+  const [kind, setKind] = useState<PaymentRecordKind>(payment?.kind ?? "payment");
   /** Сумма — строкой: «12 000,5» и «12000.5» должны вводиться одинаково свободно. */
   const [amount, setAmount] = useState(payment ? String(payment.amount) : "");
   // Дата по умолчанию — сегодня. Считает её общий модуль
@@ -107,10 +124,6 @@ export default function PaymentForm({
 
   const submit = useCallback(async () => {
     setServerError(null);
-
-    // Вид записи при правке не меняется: сервер это запрещает, и форма не
-    // подменяет запрет своей догадкой.
-    const kind: PaymentRecordKind = payment?.kind ?? "payment";
 
     // Запятая как десятичный разделитель: так сумму вводят в русской раскладке,
     // и отвергать её значило бы заставлять пользователя переучиваться.
@@ -154,7 +167,7 @@ export default function PaymentForm({
     } finally {
       setSaving(false);
     }
-  }, [amount, comment, paidAt, payment, planId, onSubmit]);
+  }, [amount, comment, kind, paidAt, planId, onSubmit]);
 
   const error = clientError ?? serverError;
 
@@ -170,7 +183,9 @@ export default function PaymentForm({
       <DialogContent className="sm:max-w-115">
         <DialogHeader>
           <DialogTitle className="text-base font-semibold">
-            {payment ? "Оплата" : "Новая оплата"}
+            {payment
+              ? PAYMENT_KIND_LABEL[kind]
+              : `Новая запись · ${PAYMENT_KIND_LABEL[kind].toLowerCase()}`}
           </DialogTitle>
           <DialogDescription className="text-[13px] text-fg-secondary">
             {payment
@@ -180,6 +195,34 @@ export default function PaymentForm({
         </DialogHeader>
 
         <div className="flex flex-col gap-3">
+          <Field label="Вид записи">
+            {/*
+              Селект, а не переключатель: вариантов ровно два, и нативный
+              `select` уже используется соседним полем «Строка графика».
+
+              `aria-label` совпадает с видимой подписью: `Field` рисует `<label>`
+              без `htmlFor`, поэтому без этого доступного имени у селекта его не
+              было бы вовсе — и диктор, и тест искали бы поле безымянным.
+            */}
+            <select
+              aria-label="Вид записи"
+              value={kind}
+              onChange={(event) =>
+                setKind(event.target.value as PaymentRecordKind)
+              }
+              // Вид существующей записи не меняется: это другая проводка, а не
+              // правка (см. заголовок модуля).
+              disabled={saving || payment !== null}
+              className="h-9 w-full rounded-lg border border-border-muted bg-bg-white px-2 font-sans text-[13.5px] text-fg disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {PAYMENT_KINDS.map((value) => (
+                <option key={value} value={value}>
+                  {PAYMENT_KIND_LABEL[value]}
+                </option>
+              ))}
+            </select>
+          </Field>
+
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Field label="Сумма, ₽">
               <Input
@@ -252,7 +295,7 @@ export default function PaymentForm({
             disabled={saving}
           >
             {saving && <Loader2 className="mr-2 size-4 animate-spin" />}
-            {payment ? "Сохранить" : "Внести оплату"}
+            {payment ? "Сохранить" : PAYMENT_KIND_ACTION_LABEL[kind]}
           </Button>
         </DialogFooter>
       </DialogContent>

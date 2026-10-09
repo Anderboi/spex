@@ -128,10 +128,12 @@ describe("summarisePaymentSchedule", () => {
     expect(summarisePaymentSchedule([])).toEqual({
       planned: 0,
       paid: 0,
+      paidGross: 0,
       refunded: 0,
       remaining: 0,
       overpaid: 0,
       unplanned: 0,
+      refundsExceedPayments: false,
       hasPlan: false,
     });
   });
@@ -275,7 +277,7 @@ describe("summarisePaymentSchedule: факты", () => {
   });
 
   it("возвратов больше, чем оплат: отрицательное оплаченное показывается как есть", () => {
-    // Решение Q11: БД такого не запрещает, и интерфейс показывает это явной
+    // Решение Q13: БД такого не запрещает, и интерфейс показывает это явной
     // пометкой, а не прячет. Считать «оплачено = 0» значило бы потерять факт
     // переплаты клиенту.
     const summary = summarisePaymentSchedule(
@@ -293,6 +295,64 @@ describe("summarisePaymentSchedule: факты", () => {
     // честное «сколько ещё должно быть закрыто», а не ошибка знака.
     expect(summary.remaining).toBe(12000);
     expect(summary.overpaid).toBe(0);
+  });
+
+  it("пометка «возвратов больше, чем оплат» появляется только когда возвратов действительно больше", () => {
+    // Решение Q13: БД такого не запрещает, и причина возврата не требуется, но
+    // пользователь обязан увидеть, что вернули больше, чем заплатили, — иначе
+    // отрицательное «Оплачено» читалось бы как ошибка расчёта.
+    const more = summarisePaymentSchedule(
+      [plan({ id: "a", amount: 10000 })],
+      [
+        paid({ paymentPlanId: "a", amount: 3000 }),
+        paid({ paymentPlanId: "a", amount: 5000, kind: "refund" }),
+      ],
+    );
+
+    expect(more.paid).toBe(-2000);
+    expect(more.refundsExceedPayments).toBe(true);
+  });
+
+  it("равные возвраты и оплаты — не «больше»: пометки нет", () => {
+    const equal = summarisePaymentSchedule(
+      [plan({ id: "a", amount: 10000 })],
+      [
+        paid({ paymentPlanId: "a", amount: 5000 }),
+        paid({ paymentPlanId: "a", amount: 5000, kind: "refund" }),
+      ],
+    );
+
+    expect(equal.paid).toBe(0);
+    expect(equal.refunded).toBe(5000);
+    expect(equal.refundsExceedPayments).toBe(false);
+  });
+
+  it("пустой список фактов не даёт пометки: ноль возвратов — не «больше нуля оплат»", () => {
+    // Граница, на которой сравнение «возвраты > оплаты» врёт: без записанных
+    // фактов обе суммы нулевые, и 0 > 0 обязано остаться ложью, иначе пустая
+    // вкладка показывала бы предупреждение о возвратах, которых нет.
+    expect(summarisePaymentSchedule([]).refundsExceedPayments).toBe(false);
+    expect(
+      summarisePaymentSchedule(
+        [plan({ id: "a", amount: 10000 })],
+        [paid({ paymentPlanId: "a", amount: 3000 })],
+      ).refundsExceedPayments,
+    ).toBe(false);
+  });
+
+  it("возврат без оплат и без графика — НЕ «возвратов больше, чем оплат»", () => {
+    // Граница, на которой сравнение «возвраты > оплаты» врёт: оплат не было
+    // вовсе, поэтому «вернули больше, чем заплатили» — не наблюдение, а
+    // отсутствие данных. Деньги в этом случае показывает «вне графика»
+    // (REPORT §5.1(5)), а не пометка об аномалии.
+    const onlyRefund = summarisePaymentSchedule(
+      [],
+      [paid({ paymentPlanId: null, amount: 500, kind: "refund" })],
+    );
+
+    expect(onlyRefund.paid).toBe(-500);
+    expect(onlyRefund.unplanned).toBe(-500);
+    expect(onlyRefund.refundsExceedPayments).toBe(false);
   });
 
   it("возврат без плана уменьшает «вне графика»", () => {

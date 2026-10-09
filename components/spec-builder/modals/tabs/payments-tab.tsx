@@ -59,12 +59,12 @@ import PaymentForm, { type PaymentFormValues } from "./payment-form";
  *
  * ── Что здесь есть ─────────────────────────────────────────────────────────
  *
- * 1. сводка: план · оплачено · остаток · переплата · вне графика (возвраты —
- *    своей строкой, когда они появятся: тикет 03);
+ * 1. сводка: план · оплачено · остаток · переплата · вне графика · возвраты
+ *    (своей строкой) и пометка «возвратов больше, чем оплат»;
  * 2. график: строки с покрытием (`оплачено / осталось`), сроком и действиями;
- * 3. факты: дата, сумма, привязка к строке графика, комментарий, автор и
- *    действия по правам;
- * 4. две формы — строка графика и оплата.
+ * 3. факты: вид записи, дата, сумма, привязка к строке графика, комментарий,
+ *    автор и действия по правам;
+ * 4. две формы — строка графика и запись (оплата или возврат).
  *
  * ── Почему данные грузятся вкладкой, а не приходят пропсом ─────────────────
  *
@@ -228,13 +228,20 @@ export default function PaymentsTab({
     idempotencyKey: string;
   } | null>(null);
   /**
-   * Номер открытия формы графика: входит в её `key`.
+   * Номера открытий форм: входят в их `key`.
    *
-   * Без него повторное «Добавить платёж» после закрытия формы получило бы тот же
+   * Без них повторное «Добавить платёж» после закрытия формы получило бы тот же
    * key, что у прошлого открытия, — и React не пересоздал бы компонент, оставив
    * в полях значения прошлой строки.
+   *
+   * Счётчики РАЗНЫЕ у двух форм. Общий счётчик — не мелочь: обе формы
+   * смонтированы всегда (открыта из них одна), и одно «Добавить платёж» меняло
+   * бы key ещё и закрытой формы оплаты, сбрасывая введённое в ней. Больше того,
+   * при общем счётчике ключи двух форм совпадали (`<позиция>:new:<номер>`) —
+   * React предупреждал о дубле ключей у детей одного родителя.
    */
-  const [formVersion, setFormVersion] = useState(0);
+  const [planFormVersion, setPlanFormVersion] = useState(0);
+  const [paymentFormVersion, setPaymentFormVersion] = useState(0);
   /** Строка графика, для которой открыто подтверждение удаления. */
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
   /** Запись, для которой открыто подтверждение отмены. */
@@ -640,6 +647,29 @@ export default function PaymentsTab({
           </div>
 
           {/*
+            Возвратов больше, чем оплат (решение Q13): случай БД не запрещает и
+            причины не требует, поэтому это не ошибка ввода, а состояние. Но
+            `paid` в нём отрицателен, и без объяснения отрицательное «Оплачено»
+            читалось бы как сбой расчёта. Пометка стоит сразу под сводкой —
+            рядом с той величиной, которую она объясняет.
+          */}
+          {summary.refundsExceedPayments && (
+            <div
+              role="alert"
+              className="flex flex-col gap-0.5 rounded-xl border border-border-red bg-bg-red-light px-3.5 py-2.5"
+            >
+              <span className="text-[12.5px] font-medium text-fg-red">
+                Возвратов больше, чем оплачено
+              </span>
+              <span className="text-[12px] text-fg-muted">
+                Оплачено {fmtRub(summary.paidGross)}, вернули{" "}
+                {fmtRub(summary.refunded)} — то есть вернули больше, чем
+                получили. Запись сохранена: причина возврата не требуется.
+              </span>
+            </div>
+          )}
+
+          {/*
             Стоимость позиции — справка рядом с платежами, а не база остатка
             (решение Q1). Подпись называет источник: цена и количество позиции
             считаются отдельно и ни на график, ни на факты не влияют.
@@ -672,7 +702,7 @@ export default function PaymentsTab({
                 variant="outline"
                 className="shrink-0 gap-1.5"
                 onClick={() => {
-                  setFormVersion((current) => current + 1);
+                  setPaymentFormVersion((current) => current + 1);
                   setPaymentForm({
                     payment: null,
                     // Ключ живёт от открытия формы до её закрытия: повторное
@@ -774,7 +804,7 @@ export default function PaymentsTab({
                         title="Изменить"
                         disabled={rowBusy !== null}
                         onClick={() => {
-                          setFormVersion((current) => current + 1);
+                          setPaymentFormVersion((current) => current + 1);
                           setPaymentForm({
                             payment,
                             // Ключ правке не нужен: она не создаёт запись. Но
@@ -822,7 +852,7 @@ export default function PaymentsTab({
                 variant="outline"
                 className="shrink-0 gap-1.5"
                 onClick={() => {
-                  setFormVersion((current) => current + 1);
+                  setPlanFormVersion((current) => current + 1);
                   setPlanForm({ plan: null });
                 }}
               >
@@ -964,7 +994,7 @@ export default function PaymentsTab({
                         title="Изменить"
                         disabled={rowBusy !== null}
                         onClick={() => {
-                          setFormVersion((current) => current + 1);
+                          setPlanFormVersion((current) => current + 1);
                           setPlanForm({ plan });
                         }}
                       >
@@ -1002,7 +1032,7 @@ export default function PaymentsTab({
         чистый старт каждому открытию — приём тот же, что у диалога загрузки файла.
       */}
       <PaymentPlanForm
-        key={`${specItemId}:${planForm?.plan?.id ?? "new"}:${formVersion}`}
+        key={`${specItemId}:plan:${planForm?.plan?.id ?? "new"}:${planFormVersion}`}
         open={planForm !== null}
         plan={planForm?.plan ?? null}
         onClose={() => setPlanForm(null)}
@@ -1010,7 +1040,7 @@ export default function PaymentsTab({
       />
 
       <PaymentForm
-        key={`${specItemId}:${paymentForm?.payment?.id ?? "new"}:${formVersion}`}
+        key={`${specItemId}:payment:${paymentForm?.payment?.id ?? "new"}:${paymentFormVersion}`}
         open={paymentForm !== null}
         payment={paymentForm?.payment ?? null}
         plans={plans}
