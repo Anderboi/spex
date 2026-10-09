@@ -52,12 +52,12 @@ function commentRow(over: Partial<SpecItemCommentRow> = {}): SpecItemCommentRow 
 }
 
 /* ------------------------------------------------------------------ */
-/*  Все 24 kind                                                        */
+/*  Все 27 kind                                                        */
 /* ------------------------------------------------------------------ */
 
 /**
  * Реалистичный payload на каждый тип события. Тип `Record` по
- * `SpecItemEventKind` заставляет описать все 24: новый тип в списке без строки
+ * `SpecItemEventKind` заставляет описать все 27: новый тип в списке без строки
  * здесь не соберётся.
  */
 const RAW_PAYLOADS: Record<SpecItemEventKind, SpecItemEventRow["payload"]> = {
@@ -187,6 +187,28 @@ const RAW_PAYLOADS: Record<SpecItemEventKind, SpecItemEventRow["payload"]> = {
     condition: null,
     due_date: null,
     position: 1,
+  },
+  payment_added: {
+    payment_id: "pay-1",
+    payment_kind: "payment",
+    amount: 12000,
+    paid_at: "2026-11-05",
+    plan_id: "p-1",
+  },
+  payment_changed: {
+    payment_id: "pay-1",
+    payment_kind: "payment",
+    amount: 15000,
+    paid_at: "2026-11-05",
+    plan_id: "p-1",
+    changes: { amount: { from: 12000, to: 15000 } },
+  },
+  payment_removed: {
+    payment_id: "pay-2",
+    payment_kind: "refund",
+    amount: 3000,
+    paid_at: "2026-11-20",
+    plan_id: null,
   },
 };
 
@@ -352,11 +374,35 @@ const EXPECTED_PAYLOADS: {
     position: 1,
     changes: [],
   },
+  payment_added: {
+    paymentId: "pay-1",
+    paymentKind: "payment",
+    amount: 12000,
+    paidAt: "2026-11-05",
+    planId: "p-1",
+    changes: [],
+  },
+  payment_changed: {
+    paymentId: "pay-1",
+    paymentKind: "payment",
+    amount: 15000,
+    paidAt: "2026-11-05",
+    planId: "p-1",
+    changes: [{ field: "amount", from: 12000, to: 15000 }],
+  },
+  payment_removed: {
+    paymentId: "pay-2",
+    paymentKind: "refund",
+    amount: 3000,
+    paidAt: "2026-11-20",
+    planId: null,
+    changes: [],
+  },
 };
 
 describe("mapSpecItemEvent: покрытие типов", () => {
   it("список контракта совпадает со списком из БД", () => {
-    // Строки описаны для всех 24 kind; если состав списка изменится, тест
+    // Строки описаны для всех 27 kind; если состав списка изменится, тест
     // упадёт здесь, а не в рантайме на реальной ленте.
     expect(Object.keys(RAW_PAYLOADS).sort()).toEqual(
       [...SPEC_ITEM_EVENT_KINDS].sort(),

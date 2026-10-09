@@ -220,6 +220,31 @@ export type HistoryPaymentPlanPayload = {
   changes: HistoryFieldChange[];
 };
 
+/**
+ * Фактическая оплата — общий payload событий `payment_added`, `payment_changed`
+ * и `payment_removed`.
+ *
+ * Задача про график платежей эти события не пишет: их начинает писать следующая
+ * (вкладка фактов, «Фактические оплаты и остаток»). Контракт объявлен здесь
+ * потому, что словарь видов события живёт в БД целиком (`SPEC_ITEM_EVENT_KINDS`
+ * повторяет CHECK): вид, разрешённый схемой и неизвестный чтению, ронял бы
+ * событие из ленты молча, а рассинхрон ловит `history.test.ts`.
+ *
+ * Состав — минимум, по которому оплата опознаётся: `payment_id` как ключ,
+ * `amount` и `paid_at` как её величины. Связь со строкой графика — `plan_id`:
+ * `null` означает оплату вне графика, и это разные вещи, а не «неизвестно».
+ * `changes` заполняется только у `payment_changed`.
+ */
+export type HistoryPaymentPayload = {
+  paymentId: string | null;
+  /** `payment` | `refund` — вид записи; незнакомый даёт `null`. */
+  paymentKind: string | null;
+  amount: number | null;
+  paidAt: string | null;
+  planId: string | null;
+  changes: HistoryFieldChange[];
+};
+
 /* ------------------------------------------------------------------ */
 /*  Дискриминированный union по kind                                   */
 /* ------------------------------------------------------------------ */
@@ -254,6 +279,9 @@ export type HistoryEventPayloadMap = {
   payment_plan_added: HistoryPaymentPlanPayload;
   payment_plan_changed: HistoryPaymentPlanPayload;
   payment_plan_removed: HistoryPaymentPlanPayload;
+  payment_added: HistoryPaymentPayload;
+  payment_changed: HistoryPaymentPayload;
+  payment_removed: HistoryPaymentPayload;
 };
 
 /**

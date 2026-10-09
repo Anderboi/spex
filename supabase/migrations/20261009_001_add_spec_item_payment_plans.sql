@@ -8,6 +8,15 @@
 -- нигде не считается оплатой. Оплаченным делает платёж только факт, а факты —
 -- следующая задача (`.scratch/material-payments/REPORT.md`, раздел 5).
 --
+-- ── Идемпотентность ────────────────────────────────────────────────────────
+--
+-- Миграция рассчитана на повторный запуск: таблица, индексы, ограничения,
+-- политики и триггеры создаются только если их ещё нет, а ограничение списка
+-- видов событий переписывается лишь тогда, когда нужного значения в нём нет.
+-- Причина не в теории: объекты этого файла уже применены к живому проекту
+-- (проверено запросами к Data API), и `db push` по журналу миграций может
+-- выполнить файл повторно.
+--
 -- Контекст архитектуры, важный для решений ниже (тот же, что у
 -- spec_item_files и spec_item_events):
 --
@@ -27,7 +36,7 @@
 -- Продуктовые таблицы не меняются: расширяется только CHECK списка видов
 -- событий у `spec_item_events` — ровно как в 20260919–20260921.
 --
--- Применение: `npx supabase db push`. Миграция идемпотентна.
+-- Применение: `npx supabase db push`.
 
 begin;
 
@@ -70,10 +79,11 @@ create table if not exists public.spec_item_payment_plans (
 
   -- Денормализация для прав доступа и выборок уровня организации/проекта.
   -- Заполняется триггером, а не клиентом: значения из формы здесь не читаются.
-  org_id       uuid not null references public.organizations (id) on delete restrict,
-  project_id   uuid not null references public.projects (id)      on delete restrict,
-  -- Физическое удаление позиции с непустым графиком запрещено (ADR 0004).
-  spec_item_id uuid not null references public.spec_items (id)    on delete restrict,
+  -- Внешние ключи этих колонок добавляются ниже отдельным блоком — чтобы
+  -- повторный прогон файла не падал на уже существующем ограничении.
+  org_id       uuid not null,
+  project_id   uuid not null,
+  spec_item_id uuid not null,
 
   title        text          not null,            -- «название» из ТЗ
   amount       numeric(12,2) not null,            -- сумма плана, самостоятельная величина
@@ -81,7 +91,7 @@ create table if not exists public.spec_item_payment_plans (
   due_date     date,                              -- необязательный срок
   position     integer       not null default 0,  -- порядок отображения
 
-  created_by   uuid references public.users (id) on delete set null,
+  created_by   uuid,
   created_at   timestamptz not null default now(),
   updated_at   timestamptz not null default now(),
   -- Удаление мягкое (прецедент — spec_item_files, spec_item_comments): строка
@@ -103,6 +113,52 @@ create table if not exists public.spec_item_payment_plans (
   -- которую можно обойти гонкой.
   constraint spec_item_payment_plans_id_item_key unique (id, spec_item_id)
 );
+
+-- Внешние ключи добавляются отдельно и только если их ещё нет: таблица могла
+-- быть создана более ранним прогоном этого файла (так и есть в живом проекте),
+-- и повторный `add constraint` с тем же именем упал бы. Проверка идёт по
+-- колонке, а не по имени: имя ограничения в уже применённой версии могло быть
+-- любым.
+--
+-- `RESTRICT` у организации, проекта и позиции — сознательное отклонение от
+-- соседей (`spec_item_files` каскадится): финансовая история не удаляется
+-- каскадом (ADR 0004). `created_by` — `SET NULL`, как у автора события: запись
+-- переживает удаление пользователя.
+do $$
+declare
+  missing text;
+begin
+  foreach missing in array array['org_id', 'project_id', 'spec_item_id', 'created_by']
+  loop
+    if not exists (
+      select 1
+        from pg_constraint c
+        join pg_attribute a
+          on a.attrelid = c.conrelid
+         and a.attnum = any (c.conkey)
+       where c.conrelid = 'public.spec_item_payment_plans'::regclass
+         and c.contype = 'f'
+         and a.attname = missing
+    ) then
+      execute format(
+        'alter table public.spec_item_payment_plans
+           add constraint spec_item_payment_plans_%1$s_fkey
+           foreign key (%1$I) references %2$s (id) %3$s',
+        missing,
+        case missing
+          when 'org_id' then 'public.organizations'
+          when 'project_id' then 'public.projects'
+          when 'spec_item_id' then 'public.spec_items'
+          else 'public.users'
+        end,
+        case missing
+          when 'created_by' then 'on delete set null'
+          else 'on delete restrict'
+        end
+      );
+    end if;
+  end loop;
+end $$;
 
 -- Два плана не могут делить один номер порядка внутри позиции: иначе
 -- «переставить строку» и «переименовать порядок» — одно и то же действие с
@@ -157,43 +213,64 @@ comment on column public.spec_item_payment_plans.due_date is
 -- рассинхрон ловит тест lib/spec/history.test.ts, который берёт ПОСЛЕДНЕЕ
 -- определение ограничения по всем миграциям.
 --
--- Виды фактов (`payment_added`, `payment_changed`, `payment_removed`) сюда НЕ
--- входят: таблицы фактических оплат эта миграция не создаёт, а вид события без
--- своего действия в журнале был бы мёртвым значением.
-alter table public.spec_item_events
-  drop constraint if exists spec_item_events_kind_check;
+-- Переписывание УСЛОВНОЕ: если ограничение уже содержит `payment_plan_added`,
+-- оно оставлено как есть. Так повторный прогон файла ничего не ломает, а
+-- ограничение, расширенное вручную (в живом проекте список шире — в нём уже
+-- есть и виды фактов), не сужается обратно.
+--
+-- Виды фактов (`payment_added`, `payment_changed`, `payment_removed`) в списке
+-- есть, хотя эта задача их не пишет: ограничение описывает словарь видов
+-- событий целиком, а таблица фактов появляется следующей задачей. Сужение
+-- списка здесь запретило бы уже разрешённые значения.
+do $$
+begin
+  if not exists (
+    select 1
+      from pg_constraint
+     where conrelid = 'public.spec_item_events'::regclass
+       and conname = 'spec_item_events_kind_check'
+       and pg_get_constraintdef(oid) like '%''payment_plan_added''%'
+  ) then
+    alter table public.spec_item_events
+      drop constraint if exists spec_item_events_kind_check;
 
-alter table public.spec_item_events
-  add constraint spec_item_events_kind_check
-  check (
-    kind in (
-      'created',
-      'filled',
-      'cleared',
-      'removed',
-      'restored',
-      'code_changed',
-      'status_changed',
-      'price_changed',
-      'quantity_changed',
-      'supplier_changed',
-      'details_changed',
-      'parent_changed',
-      'variant_added',
-      'variant_switched',
-      'variant_updated',
-      'variant_removed',
-      'component_added',
-      'component_removed',
-      'service_added',
-      'service_completed',
-      'service_removed',
-      -- График платежей: добавление, изменение и удаление строки плана.
-      'payment_plan_added',
-      'payment_plan_changed',
-      'payment_plan_removed'
-    )
-  );
+    alter table public.spec_item_events
+      add constraint spec_item_events_kind_check
+      check (
+        kind in (
+          'created',
+          'filled',
+          'cleared',
+          'removed',
+          'restored',
+          'code_changed',
+          'status_changed',
+          'price_changed',
+          'quantity_changed',
+          'supplier_changed',
+          'details_changed',
+          'parent_changed',
+          'variant_added',
+          'variant_switched',
+          'variant_updated',
+          'variant_removed',
+          'component_added',
+          'component_removed',
+          'service_added',
+          'service_completed',
+          'service_removed',
+          -- График платежей: добавление, изменение и удаление строки плана.
+          'payment_plan_added',
+          'payment_plan_changed',
+          'payment_plan_removed',
+          -- Фактические оплаты: виды объявлены вместе с графиком (см. выше).
+          'payment_added',
+          'payment_changed',
+          'payment_removed'
+        )
+      );
+  end if;
+end $$;
 
 -- ---------------------------------------------------------------------------
 -- 4. RLS: второй контур защиты Data API

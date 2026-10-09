@@ -88,7 +88,7 @@ function comment(
   };
 }
 
-describe("formatActivityEvent: все 24 вида события", () => {
+describe("formatActivityEvent: все 27 видов события", () => {
   const cases: Array<{
     kind: SpecItemEventKind;
     payload: Record<string, unknown>;
@@ -334,13 +334,57 @@ describe("formatActivityEvent: все 24 вида события", () => {
       title: "Удалён платёж из графика",
       name: "Остаток · 3 000 ₽",
     },
+    /*
+     * Фактические оплаты: виды объявлены в БД и в домене, событие не должно
+     * исчезать из ленты. Подробностей (вид записи, связь со строкой графика)
+     * здесь ещё нет — их добавит задача про факты.
+     */
+    {
+      kind: "payment_added",
+      payload: {
+        payment_id: "pay-1",
+        payment_kind: "payment",
+        amount: 12000,
+        paid_at: "2026-11-05",
+        plan_id: "p-1",
+      },
+      icon: "paymentAdd",
+      title: "Добавлена оплата",
+      name: "12 000 ₽",
+    },
+    {
+      kind: "payment_changed",
+      payload: {
+        payment_id: "pay-1",
+        payment_kind: "payment",
+        amount: 15000,
+        paid_at: "2026-11-05",
+        plan_id: "p-1",
+      },
+      icon: "paymentEdit",
+      title: "Изменена оплата",
+      name: "15 000 ₽",
+    },
+    {
+      kind: "payment_removed",
+      payload: {
+        payment_id: "pay-2",
+        payment_kind: "refund",
+        amount: 3000,
+        paid_at: "2026-11-20",
+        plan_id: null,
+      },
+      icon: "paymentRemove",
+      title: "Удалена оплата",
+      name: "3 000 ₽",
+    },
   ];
 
-  it("покрывает ровно все виды из домена (24)", () => {
+  it("покрывает ровно все виды из домена (27)", () => {
     expect(cases.map((c) => c.kind).sort()).toEqual(
       [...SPEC_ITEM_EVENT_KINDS].sort(),
     );
-    expect(cases).toHaveLength(24);
+    expect(cases).toHaveLength(27);
   });
 
   for (const testCase of cases) {
@@ -364,7 +408,7 @@ describe("formatActivityEvent: все 24 вида события", () => {
 });
 
 describe("formatActivityEvent: устойчивость", () => {
-  it("подписи 24 вида описаны полностью, без пропусков в switch", () => {
+  it("подписи 27 видов описаны полностью, без пропусков в switch", () => {
     // Каждый вид из домена обязан дать представление: пропущенная ветка switch
     // вернула бы `null`, и событие молча исчезло бы из ленты.
     for (const kind of SPEC_ITEM_EVENT_KINDS) {

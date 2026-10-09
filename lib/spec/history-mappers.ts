@@ -37,6 +37,7 @@ import type {
   HistoryEntryBase,
   HistoryEventEntry,
   HistoryFieldChange,
+  HistoryPaymentPayload,
   HistoryPaymentPlanPayload,
   HistoryServicePayload,
 } from "./history-types";
@@ -206,6 +207,28 @@ function serviceOf(raw: RawPayload): HistoryServicePayload {
     name: text(raw.name),
     amount: num(raw.amount),
     ...batchOf(raw),
+  };
+}
+
+/**
+ * Общий payload фактической оплаты (`payment_added` / `_changed` / `_removed`).
+ *
+ * Следующая задача начинает эти события писать; чтение объявлено вместе с
+ * видами: незнакомый вид ронял бы запись из ленты молча, а рассинхрон списка
+ * видов с БД ловит `history.test.ts`.
+ *
+ * `changes` приводится тем же `fieldChangesOf`, что у остальных событий с
+ * таблицей изменений: порядок полей у оплаты задаст та же задача, а до тех пор
+ * незнакомые поля уходят в конец по алфавиту.
+ */
+function paymentOf(raw: RawPayload): HistoryPaymentPayload {
+  return {
+    paymentId: text(raw.payment_id),
+    paymentKind: text(raw.payment_kind),
+    amount: num(raw.amount),
+    paidAt: text(raw.paid_at),
+    planId: text(raw.plan_id),
+    changes: fieldChangesOf(raw.changes, []),
   };
 }
 
@@ -444,6 +467,12 @@ export function mapSpecItemEvent(row: SpecItemEventRow): HistoryEventEntry | nul
       return { ...base, source: "event", kind, payload: paymentPlanOf(raw) };
     case "payment_plan_removed":
       return { ...base, source: "event", kind, payload: paymentPlanOf(raw) };
+    case "payment_added":
+      return { ...base, source: "event", kind, payload: paymentOf(raw) };
+    case "payment_changed":
+      return { ...base, source: "event", kind, payload: paymentOf(raw) };
+    case "payment_removed":
+      return { ...base, source: "event", kind, payload: paymentOf(raw) };
   }
 }
 

@@ -3,6 +3,9 @@
 import {
   ArrowLeftRight,
   BadgeCheck,
+  Banknote,
+  BanknoteArrowUp,
+  BanknoteX,
   CalendarClock,
   CalendarPlus,
   CalendarX,
@@ -41,7 +44,7 @@ import type { HistoryEntry } from "@/lib/spec/history-types";
 /**
  * Иконка каждого вида события.
  *
- * Словарь явный и полный: `ActivityIcon` — закрытое объединение всех 24 видов,
+ * Словарь явный и полный: `ActivityIcon` — закрытое объединение всех 27 видов,
  * поэтому забытую иконку поймает компилятор, а не пользователь. Выбирать иконку
  * «по смыслу текста» здесь нечего — смысл уже определён в форматтере.
  */
@@ -76,6 +79,12 @@ const EVENT_ICON: Record<ActivityIcon, LucideIcon> = {
   paymentPlanAdd: CalendarPlus,
   paymentPlanEdit: CalendarClock,
   paymentPlanRemove: CalendarX,
+  // Фактические оплаты: отдельный набор — это другая сущность (деньги пришли),
+  // а не строка обязательства. Купюра со стрелкой вверх, купюра, купюра с
+  // крестом.
+  paymentAdd: BanknoteArrowUp,
+  paymentEdit: Banknote,
+  paymentRemove: BanknoteX,
 };
 
 type EventEntry = Extract<HistoryEntry, { source: "event" }>;

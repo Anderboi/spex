@@ -3,7 +3,7 @@
  * значения для отображения.
  *
  * Отдельный модуль без React и без клиента БД, потому что здесь живёт вся
- * "смысловая" часть рендерера: 24 вида системного события, словарь полей, даты,
+ * "смысловая" часть рендерера: 27 видов системного события, словарь полей, даты,
  * склонения и форматирование значений. UI-компоненты (`activity-*.tsx`) только
  * раскладывают результат по примитивам `Marker` / `Message`, поэтому больших
  * `switch` по `kind` в разметке нет.
@@ -27,7 +27,7 @@
  * `entry.payload` до конкретного типа. Карта функций потребовала бы утверждений
  * типов (`as`), то есть ослабила бы типы ради удобства — чего делать нельзя.
  * Вместо этого `switch` возвращает результат, а хвост функции возвращает `null`:
- * компилятор проверяет, что все 24 ветки обработаны, а неизвестный `kind`
+ * компилятор проверяет, что все 27 веток обработаны, а неизвестный `kind`
  * (появившийся в БД из более новой версии) не ломает ленту.
  */
 
@@ -47,6 +47,7 @@ import type {
   HistoryCommentEntry,
   HistoryEventEntry,
   HistoryFieldChange,
+  HistoryPaymentPayload,
   HistoryPaymentPlanPayload,
   HistoryServicePayload,
 } from "./history-types";
@@ -79,7 +80,10 @@ export type ActivityIcon =
   | "serviceRemove"
   | "paymentPlanAdd"
   | "paymentPlanEdit"
-  | "paymentPlanRemove";
+  | "paymentPlanRemove"
+  | "paymentAdd"
+  | "paymentEdit"
+  | "paymentRemove";
 
 /** Строка таблицы изменений: подпись поля уже переведена. */
 export type ActivityChange = {
@@ -460,7 +464,7 @@ export function formatActivityChanges(
 }
 
 /* ------------------------------------------------------------------ */
-/*  События: 24 вида                                                   */
+/*  События: 27 видов                                                   */
 /* ------------------------------------------------------------------ */
 
 /**
@@ -698,6 +702,37 @@ function formatEvent(record: HistoryEventEntry): ActivityPresentation {
         title: "Удалён платёж из графика",
         detail: paymentPlanDetail(record.payload),
       };
+
+    /*
+     * Фактические оплаты. Виды объявлены в БД и в домене (их пишет следующая
+     * задача), поэтому событие не должно исчезать из ленты — но и подробностей,
+     * которых ещё нет, форматтер не выдумывает: он показывает вид записи и
+     * сумму, а связь со строкой графика и таблицу изменений добавит та задача,
+     * где у оплаты появятся свои поля.
+     */
+    case "payment_added":
+      return {
+        batchSize,
+        icon: "paymentAdd",
+        title: "Добавлена оплата",
+        detail: paymentDetail(record.payload),
+      };
+
+    case "payment_changed":
+      return {
+        batchSize,
+        icon: "paymentEdit",
+        title: "Изменена оплата",
+        detail: paymentDetail(record.payload),
+      };
+
+    case "payment_removed":
+      return {
+        batchSize,
+        icon: "paymentRemove",
+        title: "Удалена оплата",
+        detail: paymentDetail(record.payload),
+      };
   }
 
   // Недостижимо для известных `kind`: сюда попадает только событие, которого
@@ -781,6 +816,25 @@ function paymentPlanDetail(payload: HistoryPaymentPlanPayload): {
       typeof payload.amount === "number" && Number.isFinite(payload.amount)
         ? `${title} · ${formatActivityValue("amount", payload.amount, EMPTY_VALUE)}`
         : title,
+  };
+}
+
+/**
+ * Фактическая оплата: сумма, если она есть в payload'е.
+ *
+ * Вид записи («оплата» или «возврат») в подпись не вынесен: до задачи про факты
+ * у этих событий нет ни собственного словаря подписей, ни согласованного
+ * формата, и придумывать его здесь значило бы зафиксировать контракт раньше
+ * данных. Подпись — про сам факт: «оплата на 12 000 ₽».
+ */
+function paymentDetail(payload: HistoryPaymentPayload): {
+  name: string;
+} {
+  return {
+    name:
+      typeof payload.amount === "number" && Number.isFinite(payload.amount)
+        ? formatActivityValue("amount", payload.amount, EMPTY_VALUE)
+        : EMPTY_VALUE,
   };
 }
 
