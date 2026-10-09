@@ -1,13 +1,41 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { SPEC_STATUS_CONFIG } from "@/lib/spec/status";
 import { PROCUREMENT_FLOW } from "@/lib/constants";
 import { priceOf } from "@/lib/spec/pricing";
+import {
+  getProjectPaymentsSummary,
+  type ProjectPaymentsSummary,
+} from "@/actions/project-payments";
 import type { SpecBuilderContext } from "@/hooks/use-spec-builder";
-import { fmt, fmtQty, cn } from "@/lib/utils";
+import { fmt, fmtQty, plural, cn } from "@/lib/utils";
 import { Drawer, DrawerContent, DrawerHeader } from "../../ui/drawer";
 import { useIsMobile } from "@/hooks/use-mobile";
 
+/**
+ * Модалка «Закупка и поставка».
+ *
+ * ── Строка оплат: почему она догружается здесь, а не приходит пропсом ───────
+ *
+ * Модалка монтируется на КАЖДОЕ открытие (`dynamic(..., { ssr: false })` в
+ * `spec-builder.tsx`), поэтому запрос из этого компонента всегда читает свежее
+ * состояние БД: после записи платежа в карточке синхронизировать нечего.
+ * Проп из страницы проекта дал бы свежесть только при открытии по URL и лишний
+ * запрос на каждый заход в проект, даже когда модалку не открывают
+ * (`research/06-procure-data-path.md`, вариант «б»).
+ *
+ * ── Границы ────────────────────────────────────────────────────────────────
+ *
+ * Только чтение: ни ввода, ни правки платежей — ведение остаётся во вкладке
+ * «Платежи» карточки (решение Q5). Считает всё серверное действие тем же
+ * модулем, что и вкладка (`lib/spec/payment-schedule`), поэтому второго рецепта
+ * остатка не появляется: цифра здесь и цифра в карточке совпадают по построению.
+ *
+ * Оплаты по позициям ВНЕ области воронки не растворяются в итоге — их число и
+ * сальдо приходят отдельно и показываются пометкой. Молча сложить их значило бы
+ * показать «оплачено по закупке» больше, чем есть на самом деле.
+ */
 export function ProcureModal({
   ctx,
   onClose,
@@ -27,6 +55,38 @@ export function ProcureModal({
   } = ctx.stats;
 
   const isMobile = useIsMobile();
+
+  /**
+   * Деньги проекта по области воронки.
+   *
+   * Три состояния, а не два: `null` — ещё не прочитано, `{ ok: true }` — цифры,
+   * `{ ok: false }` — отказ. Нули в отказе выглядели бы как «оплат нет», то есть
+   * как ответ, которым они не являются.
+   */
+  const [payments, setPayments] = useState<
+    | { ok: true; data: ProjectPaymentsSummary }
+    | { ok: false; message: string }
+    | null
+  >(null);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    void getProjectPaymentsSummary(ctx.orgSlug, ctx.projectId).then((result) => {
+      // Ответ на размонтированную модалку не применяется: следующее открытие
+      // читает заново, и «догоняющий» ответ прошлого открытия ему не указ.
+      if (cancelled) return;
+      setPayments(
+        result.success
+          ? { ok: true, data: result.data }
+          : { ok: false, message: result.error },
+      );
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [ctx.orgSlug, ctx.projectId]);
 
   if (scopeCount === 0) {
     return (
@@ -98,6 +158,99 @@ export function ProcureModal({
                 style={{ width: b.width, background: b.color }}
               />
             ))}
+          </div>
+
+          {/*
+            ── оплаты ───────────────────────────────────────────────────────
+            Только чтение (решение Q5): ведение платежей — во вкладке карточки.
+            Цифры приходят из серверного действия тем же модулем, что считает
+            вкладка, поэтому двух расходящихся остатков не бывает.
+          */}
+          <div
+            /*
+              `data-testid` — единственный в проекте, и это осознанно: карточка
+              это обычный `div` без роли и без единого текстового узла (подписи и
+              числа лежат в разных `span`), поэтому ни роль, ни текст не дают
+              тесту устойчивой точки опоры. Альтернатива — искать по подписи и
+              подниматься к родителю — ломалась бы от любой перестановки
+              разметки; на этом тест уже спотыкался несколько раз.
+            */
+            data-testid="procure-payments"
+            className="mt-5 rounded-xl border border-border-muted bg-bg-card2 px-4 py-3"
+          >
+            <span className="font-mono text-[10px] uppercase tracking-widest text-fg-dim">
+              Оплачено по позициям закупки
+            </span>
+
+            {payments === null && (
+              <p className="mt-1.5 text-[13px] text-fg-dim">Загружаем…</p>
+            )}
+
+            {payments?.ok === false && (
+              <p role="alert" className="mt-1.5 text-[13px] text-fg-red">
+                {payments.message}
+              </p>
+            )}
+
+            {payments?.ok === true && (
+              <>
+                <div className="mt-1.5 flex flex-wrap items-baseline gap-x-5 gap-y-1">
+                  <span className="text-[15px] font-bold tabular-nums">
+                    {fmt(payments.data.scope.paid)} ₽
+                  </span>
+                  <span className="text-[12.5px] text-fg-muted">
+                    план{" "}
+                    <span className="font-mono tabular-nums">
+                      {fmt(payments.data.scope.planned)} ₽
+                    </span>
+                  </span>
+                  {payments.data.scope.overpaid > 0 ? (
+                    <span className="text-[12.5px] text-fg-red">
+                      переплата{" "}
+                      <span className="font-mono tabular-nums">
+                        {fmt(payments.data.scope.overpaid)} ₽
+                      </span>
+                    </span>
+                  ) : (
+                    <span className="text-[12.5px] text-fg-muted">
+                      остаток{" "}
+                      <span className="font-mono tabular-nums">
+                        {fmt(payments.data.scope.remaining)} ₽
+                      </span>
+                    </span>
+                  )}
+                </div>
+
+                {/*
+                  Оплаты мимо области воронки — отдельной пометкой, а не в
+                  итоге: иначе строка показывала бы «оплачено по закупке»
+                  больше, чем по закупке есть.
+
+                  Счётчик и сумма отвечают на РАЗНЫЕ вопросы, поэтому и названы
+                  врозь: счётчик — «у скольких позиций есть график или оплаты»
+                  (план без оплат тоже повод сказать, что за строкой что-то
+                  есть), сумма — сальдо по ним. Знак сальдо сохраняется:
+                  возвратов вне воронки может быть больше, чем оплат, и
+                  «оплатами 3 500 ₽» вместо «−3 500 ₽» было бы неправдой.
+                */}
+                {payments.data.outOfScopeCount > 0 && (
+                  <p className="mt-1.5 text-[11.5px] text-fg-dim">
+                    Мимо области воронки: ещё {payments.data.outOfScopeCount}{" "}
+                    {plural(
+                      payments.data.outOfScopeCount,
+                      "позиция",
+                      "позиции",
+                      "позиций",
+                    )}{" "}
+                    с графиком или оплатами, сальдо{" "}
+                    <span className="font-mono tabular-nums">
+                      {fmt(payments.data.outOfScopeNet)} ₽
+                    </span>{" "}
+                    — в строку выше не входит
+                  </p>
+                )}
+              </>
+            )}
           </div>
 
           {/* стадии */}

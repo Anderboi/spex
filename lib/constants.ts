@@ -239,6 +239,27 @@ export const PROCUREMENT_FLOW: SpecStatus[] = [
 ];
 export const PICKING_FLOW: SpecStatus[] = ["draft", "picked"];
 
+/**
+ * Позиция входит в воронку закупки и поставки.
+ *
+ * Одно правило на двух читателей: `stats` конструктора строит из этих позиций
+ * «Сумму в закупке» (`hooks/use-spec-builder.ts`), а строка оплат в той же
+ * модалке — свои план и факт (тикет 04). Требование тикета звучит буквально как
+ * «по тем же позициям», поэтому правило живёт здесь, а не двумя похожими
+ * фильтрами: разойдись они — и «Сумма в закупке» считала бы одну область, а
+ * оплаты другую, молча.
+ *
+ * Заглушка не входит никогда: у неё нет ни цены, ни обязательства (её нельзя
+ * двигать дальше «подобрано», `lib/spec/status.ts`), и в `scopeSum` она не
+ * попадает — значит и в оплатах ей не место.
+ */
+export function isInProcurementScope(item: {
+  isPlaceholder: boolean;
+  status: SpecStatus;
+}): boolean {
+  return !item.isPlaceholder && PROCUREMENT_FLOW.includes(item.status);
+}
+
 export type SpecType = Enums<"spec_types">;
 type _TypesMatch =
   Enums<"spec_types"> extends SpecType

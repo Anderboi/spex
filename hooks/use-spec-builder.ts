@@ -1485,6 +1485,16 @@ export function useSpecBuilder({
   );
 
   const stats = useMemo(() => {
+    // Заглушки не входят в деньги: у них нет ни цены, ни обязательства. Стадии
+    // воронки — `approved/ordered/delivered` (`PROCUREMENT_FLOW`); то же правило
+    // отдельно живёт как `isInProcurementScope`, по нему строка оплат в модалке
+    // закупки считает свой план по ТЕМ ЖЕ позициям (тикет 04).
+    //
+    // Здесь `real` фильтруется только по заглушке, а не правилом целиком: он
+    // идёт ещё в `picking` и `replace`, и заглушка в `replace` обязана в этом
+    // списке остаться. На воронку это не влияет — заглушку нельзя перевести в
+    // `approved`/`ordered`/`delivered` (`allowedStatuses` в `lib/spec/status.ts`),
+    // поэтому обе записи правила дают для неё один и тот же набор.
     const real = items.filter((i) => !i.isPlaceholder);
     const money = sumItems(items);
     // const replaceItems = items.filter((i) => i.status === "replace");

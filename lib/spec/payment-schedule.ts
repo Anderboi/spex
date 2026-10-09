@@ -194,9 +194,12 @@ export function toAmount(value: number | string): number {
  * Активные строки графика: без мягко удалённых.
  *
  * Отдельная функция, потому что «строка удалена» — одно правило, а читателей у
- * него три: сумма, порядок и покрытие.
+ * него четыре: сводка (и через неё проектный агрегат), порядок и покрытие.
+ * Требуется только `deletedAt`: удалённость — свойство строки, а не её места в
+ * списке, поэтому тип шире `PaymentPlanLike` намеренно (см.
+ * `PaymentPlanAmountLike`).
  */
-export function paymentPlanRows<T extends PaymentPlanLike>(
+export function paymentPlanRows<T extends { deletedAt: string | null }>(
   plans: readonly T[],
 ): T[] {
   return plans.filter((plan) => plan.deletedAt === null);
@@ -277,7 +280,7 @@ function activeMoneyRows<
  * `paidRows` по умолчанию пуст — у вызывающего может не быть фактов вовсе.
  */
 export function summarisePaymentSchedule(
-  plans: readonly PaymentPlanLike[],
+  plans: readonly PaymentPlanAmountLike[],
   paidRows: readonly PaidAmountLike[] = [],
 ): PaymentScheduleSummary {
   const active = paymentPlanRows(plans);
@@ -323,6 +326,108 @@ export function summarisePaymentSchedule(
     unplanned,
     refundsExceedPayments: paidGross > 0 && refunded > paidGross,
     hasPlan: active.length > 0,
+  };
+}
+
+/**
+ * Строка графика для агрегата по позициям.
+ *
+ * Нужны сумма и признак удаления — ровно то, чем живёт сводка. `id` и `position`
+ * сюда не входят: агрегат складывает планы позиций, а не строит покрытие по
+ * каждой строке (`paymentPlanCoverage` — отдельная функция, и ей `id` строки
+ * действительно нужен). Требовать полный `PaymentPlanLike` значило бы заставлять
+ * вызывающего придумывать значения, которых никто не прочитает.
+ *
+ * `deletedAt` здесь ОБЯЗАТЕЛЕН и это не формальность: `summarisePaymentSchedule`
+ * исключает мягко удалённые строки сам, и проектный агрегат обязан получить то
+ * же правило, а не своё. Поле есть в обеих таблицах, поэтому его чтение ничего
+ * не стоит.
+ */
+export type PaymentPlanAmountLike = {
+  amount: number | string;
+  deletedAt: string | null;
+};
+
+/**
+ * Позиция для проектного агрегата: её график и её факты.
+ *
+ * Отдельный тип, а не два массива рядом, потому что связь «эти строки графика и
+ * эти факты — одна позиция» и есть то, что нельзя потерять: сложи всё в один
+ * котёл, и остаток по одной позиции погасится переплатой по другой.
+ */
+export type PaymentScheduleItemInput = {
+  plans: readonly PaymentPlanAmountLike[];
+  paidRows: readonly PaidAmountLike[];
+};
+
+/** Пустой агрегат: ноль позиций — нули, а не отсутствие значений. */
+function emptySummary(): PaymentScheduleSummary {
+  return {
+    planned: 0,
+    paid: 0,
+    paidGross: 0,
+    refunded: 0,
+    remaining: 0,
+    overpaid: 0,
+    unplanned: 0,
+    refundsExceedPayments: false,
+    hasPlan: false,
+  };
+}
+
+/**
+ * Агрегат по нескольким позициям: то, что показывает строка оплат в воронке
+ * закупки (тикет 04).
+ *
+ * ── Почему каждая позиция считается отдельно ───────────────────────────────
+ *
+ * Ровно так считает вкладка «Платежи» — она вызывает
+ * `summarisePaymentSchedule` на одну позицию. Проектный уровень обязан
+ * повторить это, иначе цифра в воронке разойдётся с цифрой в карточке, а
+ * пользователь видит обе. Расходятся они по-настоящему: «остаток» не уходит в
+ * минус, а «переплата» показывается только при непустом графике, поэтому
+ * `Σ max(план − оплачено, 0)` и `max(Σплан − Σоплачено, 0)` — разные величины
+ * (переплата по одной позиции не должна гасить остаток по другой).
+ *
+ * ── Что складывается, а что «или» ──────────────────────────────────────────
+ *
+ * Суммы — складываются. `hasPlan` и `refundsExceedPayments` — состояния: они
+ * истинны, если истинны хоть у одной позиции. Сложить их значило бы получить
+ * «две переплаты» там, где переплата одна.
+ *
+ * Итог округляется на границе (`roundMoney`) — как и суммы внутри позиции:
+ * складываются уже округлённые до копейки величины, и хвост двоичной дроби не
+ * должен доехать до подписи.
+ */
+export function summarisePaymentScheduleByItem(
+  items: readonly PaymentScheduleItemInput[],
+): PaymentScheduleSummary {
+  const totals = items.reduce<PaymentScheduleSummary>((total, item) => {
+    const summary = summarisePaymentSchedule(item.plans, item.paidRows);
+
+    return {
+      planned: total.planned + summary.planned,
+      paid: total.paid + summary.paid,
+      paidGross: total.paidGross + summary.paidGross,
+      refunded: total.refunded + summary.refunded,
+      remaining: total.remaining + summary.remaining,
+      overpaid: total.overpaid + summary.overpaid,
+      unplanned: total.unplanned + summary.unplanned,
+      refundsExceedPayments:
+        total.refundsExceedPayments || summary.refundsExceedPayments,
+      hasPlan: total.hasPlan || summary.hasPlan,
+    };
+  }, emptySummary());
+
+  return {
+    ...totals,
+    planned: roundMoney(totals.planned),
+    paid: roundMoney(totals.paid),
+    paidGross: roundMoney(totals.paidGross),
+    refunded: roundMoney(totals.refunded),
+    remaining: roundMoney(totals.remaining),
+    overpaid: roundMoney(totals.overpaid),
+    unplanned: roundMoney(totals.unplanned),
   };
 }
 

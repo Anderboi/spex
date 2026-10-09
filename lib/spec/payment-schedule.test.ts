@@ -7,6 +7,7 @@ import {
   paymentPlanRows,
   roundMoney,
   summarisePaymentSchedule,
+  summarisePaymentScheduleByItem,
   type PaidAmountLike,
   type PaymentPlanLike,
   type PaymentPlanOrderRow,
@@ -447,6 +448,213 @@ describe("summarisePaymentSchedule: факты", () => {
     expect(roundMoney(0.1 + 0.2)).toBe(0.3);
     expect(roundMoney(-0.1 - 0.2)).toBe(-0.3);
     expect(roundMoney(1234.565)).toBe(1234.57);
+  });
+});
+
+/**
+ * Агрегат по НЕСКОЛЬКИМ позициям — база строки оплат в воронке закупки
+ * (тикет 04).
+ *
+ * ── Почему правило считает каждая позиция, а не одна большая сумма ─────────
+ *
+ * Так же считает вкладка «Платежи»: она складывает `summarisePaymentSchedule`
+ * по одной позиции. Проектный уровень обязан повторить это, иначе цифра в
+ * воронке разойдётся с цифрой в карточке — а пользователь видит обе и решит,
+ * что одна из них врёт. На этом расходятся по-настоящему: «остаток» не уходит в
+ * минус, а «переплата» показывается только при непустом графике, поэтому
+ * `Σ max(план − оплачено, 0)` и `max(Σплан − Σоплачено, 0)` — РАЗНЫЕ величины
+ * (см. кейс с переплатой по одной позиции ниже).
+ *
+ * ── Пустой список ──────────────────────────────────────────────────────────
+ *
+ * Ноль позиций — нули, а не отсутствие значений: строка воронки показывает «0 ₽»
+ * и при пустом проекте, и этот ноль обязан быть числом.
+ */
+describe("summarisePaymentScheduleByItem", () => {
+  it("складывает позиции и повторяет формулу вкладки по каждой из них", () => {
+    const summary = summarisePaymentScheduleByItem([
+      {
+        plans: [plan({ id: "p1", amount: 10000 })],
+        paidRows: [paid({ paymentPlanId: "p1", amount: 4000 })],
+      },
+      {
+        plans: [plan({ id: "p2", amount: 5000 })],
+        paidRows: [],
+      },
+    ]);
+
+    expect(summary.planned).toBe(15000);
+    expect(summary.paid).toBe(4000);
+    expect(summary.remaining).toBe(11000);
+    expect(summary.overpaid).toBe(0);
+  });
+
+  it("пустой список позиций — нули, а не отсутствие значений", () => {
+    expect(summarisePaymentScheduleByItem([])).toEqual({
+      planned: 0,
+      paid: 0,
+      paidGross: 0,
+      refunded: 0,
+      remaining: 0,
+      overpaid: 0,
+      unplanned: 0,
+      refundsExceedPayments: false,
+      hasPlan: false,
+    });
+  });
+
+  it("переплата по одной позиции не гасит остаток по другой", () => {
+    // Первая позиция: план 10 000, оплачено 12 000 — переплата 2 000, остатка нет.
+    // Вторая: план 10 000, оплачено 3 000 — остаток 7 000.
+    // «Одним котлом» получилось бы planned − paid = 20 000 − 15 000 = 5 000, то
+    // есть остаток, уменьшённый чужой переплатой. Вкладка так не считает.
+    const summary = summarisePaymentScheduleByItem([
+      {
+        plans: [plan({ id: "a", amount: 10000 })],
+        paidRows: [paid({ paymentPlanId: "a", amount: 12000 })],
+      },
+      {
+        plans: [plan({ id: "b", amount: 10000 })],
+        paidRows: [paid({ paymentPlanId: "b", amount: 3000 })],
+      },
+    ]);
+
+    expect(summary.remaining).toBe(7000);
+    expect(summary.overpaid).toBe(2000);
+  });
+
+  it("позиция без графика не даёт переплаты: её факт — «вне графика»", () => {
+    // Правило границы (REPORT §5.1(5)): при пустом графике факт — оплата вне
+    // графика, а не переплата на 100 %. Проектный агрегат обязан его сохранить.
+    const summary = summarisePaymentScheduleByItem([
+      { plans: [], paidRows: [paid({ paymentPlanId: null, amount: 3000 })] },
+    ]);
+
+    expect(summary.planned).toBe(0);
+    expect(summary.overpaid).toBe(0);
+    expect(summary.remaining).toBe(0);
+    expect(summary.unplanned).toBe(3000);
+    expect(summary.paid).toBe(3000);
+  });
+
+  it("возвраты уменьшают оплаченное и виден признак превышения", () => {
+    const summary = summarisePaymentScheduleByItem([
+      {
+        plans: [plan({ id: "a", amount: 10000 })],
+        paidRows: [
+          paid({ paymentPlanId: "a", amount: 3000 }),
+          paid({ paymentPlanId: "a", amount: 5000, kind: "refund" }),
+        ],
+      },
+    ]);
+
+    expect(summary.paid).toBe(-2000);
+    expect(summary.paidGross).toBe(3000);
+    expect(summary.refunded).toBe(5000);
+    expect(summary.remaining).toBe(12000);
+    expect(summary.refundsExceedPayments).toBe(true);
+  });
+
+  it("признак превышения складывается по «или»: он есть, если есть хоть где-то", () => {
+    // Признак — не сумма, а состояние: одна позиция с перебором возвратов
+    // означает, что показывать его надо, даже если по остальным всё в порядке.
+    const summary = summarisePaymentScheduleByItem([
+      {
+        plans: [plan({ id: "a", amount: 10000 })],
+        paidRows: [
+          paid({ paymentPlanId: "a", amount: 1000 }),
+          paid({ paymentPlanId: "a", amount: 9000, kind: "refund" }),
+        ],
+      },
+      {
+        plans: [plan({ id: "b", amount: 10000 })],
+        paidRows: [paid({ paymentPlanId: "b", amount: 10000 })],
+      },
+    ]);
+
+    expect(summary.refundsExceedPayments).toBe(true);
+  });
+
+  it("признак превышения не появляется, когда его нет ни у одной позиции", () => {
+    const summary = summarisePaymentScheduleByItem([
+      {
+        plans: [plan({ id: "a", amount: 10000 })],
+        paidRows: [paid({ paymentPlanId: "a", amount: 1000 })],
+      },
+      {
+        plans: [plan({ id: "b", amount: 10000 })],
+        paidRows: [
+          paid({ paymentPlanId: "b", amount: 5000 }),
+          paid({ paymentPlanId: "b", amount: 5000, kind: "refund" }),
+        ],
+      },
+    ]);
+
+    expect(summary.refunded).toBe(5000);
+    expect(summary.refundsExceedPayments).toBe(false);
+  });
+
+  it("план считается по позициям: у одной строки графика, у другой пусто", () => {
+    const summary = summarisePaymentScheduleByItem([
+      {
+        plans: [
+          plan({ id: "a1", amount: 1000 }),
+          plan({ id: "a2", amount: 2000 }),
+        ],
+        paidRows: [],
+      },
+      { plans: [], paidRows: [] },
+    ]);
+
+    expect(summary.planned).toBe(3000);
+    expect(summary.hasPlan).toBe(true);
+  });
+
+  it("hasPlan — «есть хоть где-то»: пустой график всего проекта даёт false", () => {
+    const withPlan = summarisePaymentScheduleByItem([
+      { plans: [], paidRows: [] },
+      { plans: [plan({ id: "a", amount: 100 })], paidRows: [] },
+    ]);
+    const withoutPlan = summarisePaymentScheduleByItem([
+      { plans: [], paidRows: [paid({ amount: 500 })] },
+    ]);
+
+    expect(withPlan.hasPlan).toBe(true);
+    expect(withoutPlan.hasPlan).toBe(false);
+  });
+
+  it("итог равен сумме итогов по позициям — третий рецепт формулы не заводится", () => {
+    // Тождество, которое обязано держаться: воронка складывает РОВНО то, что
+    // показывает карточка. Проверяется на неудобных числах (возврат, пустой
+    // график, внеплановый факт), где «одним котлом» уже разошлось бы.
+    const items = [
+      {
+        plans: [plan({ id: "a", amount: "0.34" })],
+        paidRows: [paid({ paymentPlanId: "a", amount: "0.10" })],
+      },
+      {
+        plans: [plan({ id: "b", amount: "12.25" })],
+        paidRows: [
+          paid({ paymentPlanId: "b", amount: "20.00" }),
+          paid({ paymentPlanId: "b", amount: "1.05", kind: "refund" }),
+        ],
+      },
+      { plans: [], paidRows: [paid({ paymentPlanId: null, amount: "7.77" })] },
+    ];
+
+    const total = summarisePaymentScheduleByItem(items);
+    const each = items.map((item) =>
+      summarisePaymentSchedule(item.plans, item.paidRows),
+    );
+    const sumOf = (pick: (summary: (typeof each)[number]) => number) =>
+      roundMoney(each.reduce((sum, summary) => sum + pick(summary), 0));
+
+    expect(total.planned).toBe(sumOf((s) => s.planned));
+    expect(total.paid).toBe(sumOf((s) => s.paid));
+    expect(total.remaining).toBe(sumOf((s) => s.remaining));
+    expect(total.overpaid).toBe(sumOf((s) => s.overpaid));
+    expect(total.unplanned).toBe(sumOf((s) => s.unplanned));
+    expect(total.refunded).toBe(sumOf((s) => s.refunded));
   });
 });
 
