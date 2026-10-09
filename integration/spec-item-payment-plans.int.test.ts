@@ -1,7 +1,7 @@
 import { existsSync } from "node:fs";
 import { resolve } from "node:path";
 import { createClient } from "@supabase/supabase-js";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 import {
   addPaymentPlan,
@@ -10,6 +10,7 @@ import {
   removePaymentPlan,
   updatePaymentPlan,
 } from "../lib/spec/payment-plan-mutations";
+import { recordSpecItemEvents } from "../lib/spec/history";
 
 /**
  * Интеграционный тест графика платежей: ЖИВАЯ БД linked-проекта.
@@ -92,9 +93,13 @@ const baseArgs = { orgId: TARGET.orgId, specItemId: TARGET.specItemId };
 /** Автор строк: реальный пользователь организации, иначе FK не пройдёт. */
 const actor = { id: "", name: "Проверка графика (тест)", email: null };
 
-/** Идентификаторы и события, созданные прогоном: убираются в `afterAll`. */
+/**
+ * Идентификаторы строк, созданных прогоном.
+ *
+ * Уборка идёт по метке в названии (`cleanupRun`), а список нужен только там, где
+ * тесту важно знать, что именно он создал.
+ */
 const createdPlanIds: string[] = [];
-const createdEventIds: string[] = [];
 
 beforeAll(async () => {
   if (!SUPABASE_URL || !SERVICE_KEY) {
@@ -117,24 +122,48 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  // 1. События журнала: append-only в продукте, но мусор от прогона в живой БД
-  //    не нужен — удаляем ровно те, что создали.
-  if (createdEventIds.length > 0) {
-    const { error } = await admin
-      .from("spec_item_events")
-      .delete()
-      .in("id", createdEventIds);
-    if (error) console.error("[integration] cleanup events", error.message);
-  }
+  await cleanupRun();
+});
 
-  // 2. Строки графика: физически (soft-delete уже проверен тестом).
-  if (createdPlanIds.length > 0) {
-    const { error } = await admin
-      .from("spec_item_payment_plans")
-      .delete()
-      .in("id", createdPlanIds);
-    if (error) console.error("[integration] cleanup plans", error.message);
-  }
+/**
+ * Уборка строк и событий, созданных прогоном.
+ *
+ * Вызывается и в `beforeAll`, и в `afterAll`, и перед каждым тестом: тесты
+ * этого файла пишут в ОДНУ позицию живой БД, а нумерация порядка внутри позиции
+ * уникальна — строки, оставшиеся от предыдущего кейса, смещали бы номера и
+ * делали бы `moved` бессмысленным. Поэтому каждый кейс начинает с чистого
+ * графика, но не пустой БД: чужие строки (в том числе созданные вручную через
+ * интерфейс) не трогаются.
+ *
+ * Метка прогона — суффикс «(тест)» в названии: по нему строки и находятся.
+ * События убираются по `spec_item_id` и перечисленным видам — их тест пишет сам.
+ */
+async function cleanupRun() {
+  const { error: planError } = await admin
+    .from("spec_item_payment_plans")
+    .delete()
+    .eq("spec_item_id", TARGET.specItemId)
+    .like("title", "%(тест)%");
+
+  if (planError) console.error("[integration] cleanup plans", planError.message);
+
+  const { error: eventError } = await admin
+    .from("spec_item_events")
+    .delete()
+    .eq("spec_item_id", TARGET.specItemId)
+    .in("kind", [
+      "payment_plan_added",
+      "payment_plan_changed",
+      "payment_plan_removed",
+    ]);
+
+  if (eventError) console.error("[integration] cleanup events", eventError.message);
+
+  createdPlanIds.length = 0;
+}
+
+beforeEach(async () => {
+  await cleanupRun();
 });
 
 /** Прочитать строку графика напрямую: тест проверяет то, что лежит в БД. */
@@ -316,17 +345,38 @@ describe("ядро: список, правка, порядок", () => {
     }
   });
 
-  it("add ставит строку в конец и пишет событие в журнал", async () => {
+  it("add ставит строку в конец, а событие принимает живой CHECK", async () => {
     const before = await activePlans();
-    const plan = await addPlan({ title: "СОБЫТИЕ (тест)", amount: 2500 });
-    const after = await activePlans();
+    const result = await addPaymentPlan(admin, {
+      ...baseArgs,
+      actor,
+      data: {
+        title: "СОБЫТИЕ (тест)",
+        amount: 2500,
+        condition: null,
+        dueDate: null,
+      },
+    });
 
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const plan = result.plan;
+    createdPlanIds.push(plan.id);
+
+    const after = await activePlans();
     expect(after).toHaveLength(before.length + 1);
     expect(after.at(-1)!.id).toBe(plan.id);
 
+    // Ядро события НЕ пишет — их пишет server action (там это единая точка для
+    // всех операций). Тест делает тот же шаг тем же способом: запись события
+    // проверяется против ЖИВОГО CHECK, который и есть предмет этого файла.
+    expect(result.events).toHaveLength(1);
+    expect(result.events[0].kind).toBe("payment_plan_added");
+    await recordSpecItemEvents(admin, result.events);
+
     const { data, error } = await admin
       .from("spec_item_events")
-      .select("id, kind, payload")
+      .select("id, payload")
       .eq("spec_item_id", TARGET.specItemId)
       .eq("kind", "payment_plan_added")
       .order("created_at", { ascending: false })
@@ -334,10 +384,9 @@ describe("ядро: список, правка, порядок", () => {
 
     expect(error).toBeNull();
     expect(data).toHaveLength(1);
-    createdEventIds.push((data as { id: string }[])[0].id);
     expect(
       (data as { payload: Record<string, unknown> }[])[0].payload,
-    ).toMatchObject({ title: "СОБЫТИЕ (тест)", amount: 2500 });
+    ).toMatchObject({ title: "СОБЫТИЕ (тест)", amount: 2500, plan_id: plan.id });
   });
 
   it("update меняет поля и пишет таблицу изменений", async () => {
@@ -361,9 +410,13 @@ describe("ядро: список, правка, порядок", () => {
     expect(result.plan.condition).toBe("До поставки");
 
     const row = await planRow(plan.id);
-    expect(row!.amount).toBe("1750.00");
+    // `numeric` через PostgREST приходит числом: строка "1750.00" — это `psql`,
+    // а не Data API, и ждать её здесь значило бы проверять формат ответа, а не
+    // записанное значение.
+    expect(row!.amount).toBe(1750);
     expect(row!.due_date).toBe("2026-12-01");
 
+    await recordSpecItemEvents(admin, result.events);
     const { data } = await admin
       .from("spec_item_events")
       .select("id, payload")
@@ -372,7 +425,6 @@ describe("ядро: список, правка, порядок", () => {
       .order("created_at", { ascending: false })
       .limit(1);
 
-    createdEventIds.push((data as { id: string }[])[0].id);
     expect(
       (data as { payload: { changes: unknown } }[])[0].payload.changes,
     ).toEqual(
@@ -383,34 +435,44 @@ describe("ядро: список, правка, порядок", () => {
     );
   });
 
-  it("перестановка не оставляет дублей и дыр в порядке", async () => {
+  it("перестановка обменивает номера и не оставляет дублей", async () => {
     const first = await addPlan({ title: "ПОРЯДОК A (тест)" });
     const second = await addPlan({ title: "ПОРЯДОК B (тест)" });
     const third = await addPlan({ title: "ПОРЯДОК C (тест)" });
 
     const result = await movePaymentPlanPosition(admin, {
       ...baseArgs,
-      actor,
       planId: third.id,
       direction: "up",
     });
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.moved).toBe(true);
+    expect(result.outcome.moved).toBe(true);
+    // Обмен номерами произошёл ровно между C и его соседом B: обмен возвращает
+    // номера обеих строк, и они должны совпасть с тем, что лежит в БД.
+    expect(result.outcome.position).toEqual({
+      from: second.position,
+      to: third.position,
+    });
 
     const rows = await activePlans();
     const positions = rows.map((row) => row.position);
-    // Плотная нумерация: уникальный индекс не даёт дублей, а нормирующий UPDATE
-    // ядра — дыр.
+    // Уникальный индекс не даёт двум строкам делить номер — это и есть гарантия
+    // «перестановка не оставляет дублей». Проверяется и построчно, потому что
+    // индекс индексирует лишь АКТИВНЫЕ строки.
     expect(new Set(positions).size).toBe(positions.length);
-    expect([...positions].sort((a, b) => a - b)).toEqual(
-      positions.map((_, index) => index),
-    );
 
     const ordered = rows.map((row) => row.id);
+    // C встал ПЕРЕД B, A не двигался.
     expect(ordered.indexOf(third.id)).toBe(ordered.indexOf(second.id) - 1);
     expect(ordered).toContain(first.id);
+    expect(rows.find((row) => row.id === third.id)!.position).toBe(
+      second.position,
+    );
+    expect(rows.find((row) => row.id === second.id)!.position).toBe(
+      third.position,
+    );
   });
 
   it("первую строку вверх не поднять: moved = false, состояние не изменилось", async () => {
@@ -419,14 +481,14 @@ describe("ядро: список, правка, порядок", () => {
 
     const result = await movePaymentPlanPosition(admin, {
       ...baseArgs,
-      actor,
       planId: first.id,
       direction: "up",
     });
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.moved).toBe(false);
+    expect(result.outcome.moved).toBe(false);
+    expect(result.outcome.position).toBeNull();
 
     const after = await activePlans();
     expect(after.map((row) => row.id)).toEqual(plans.map((row) => row.id));
@@ -453,6 +515,11 @@ describe("ядро: список, правка, порядок", () => {
     if (!listed.ok) return;
     expect(listed.plans.map((entry) => entry.id)).not.toContain(plan.id);
 
+    // Снимок снят ДО мягкого удаления: после него строку в списках не прочитать,
+    // и подпись для ленты брать было бы неоткуда.
+    expect(result.events).toHaveLength(1);
+    await recordSpecItemEvents(admin, result.events);
+
     const { data } = await admin
       .from("spec_item_events")
       .select("id, payload")
@@ -461,7 +528,6 @@ describe("ядро: список, правка, порядок", () => {
       .order("created_at", { ascending: false })
       .limit(1);
 
-    createdEventIds.push((data as { id: string }[])[0].id);
     expect((data as { payload: { title: string } }[])[0].payload.title).toBe(
       "УДАЛЕНИЕ (тест)",
     );

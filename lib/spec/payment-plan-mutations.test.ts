@@ -91,6 +91,28 @@ function fakeAdmin(seed: Row[] = [planRow()]) {
   /** Строки, изменённые UPDATE'ом: по ним видно, сколько строк тронула операция. */
   const updated: { id: string; patch: Row }[] = [];
 
+  /** Вызовы функций БД: по ним видно, с какими аргументами позвали перестановку. */
+  const rpcCalls: { name: string; args: Record<string, unknown> }[] = [];
+
+  type RpcResult = {
+    data: Row[] | null;
+    error: { message: string } | null;
+  };
+
+  /** Ответ функции БД по умолчанию: «переставлять нечего». */
+  let rpcResult: RpcResult = {
+    data: [
+      {
+        result: "unchanged",
+        target_id: null,
+        target_position: null,
+        neighbour_id: null,
+        neighbour_position: null,
+      },
+    ],
+    error: null,
+  };
+
   function from(table: string) {
     const eqs: [string, unknown][] = [];
     const isNull: string[] = [];
@@ -207,9 +229,28 @@ function fakeAdmin(seed: Row[] = [planRow()]) {
   }
 
   return {
-    client: { from } as unknown as PaymentPlansDb,
+    client: {
+      from,
+      /**
+       * RPC вместо сети: перестановка (`move_spec_item_payment_plan`) — это вызов
+       * функции БД, и здесь проверяется разбор её ответа, а не сам обмен
+       * номерами (его проверяет интеграционный тест на живой БД).
+       */
+      rpc: async (name: string, args: Record<string, unknown>) => {
+        rpcCalls.push({ name, args });
+        return rpcResult;
+      },
+    } as unknown as PaymentPlansDb,
     tables,
     updated,
+    rpcCalls,
+    /** Ответ функции БД: тест подставляет нужный исход перед вызовом. */
+    get rpcResult() {
+      return rpcResult;
+    },
+    set rpcResult(value: RpcResult) {
+      rpcResult = value;
+    },
   };
 }
 
@@ -651,111 +692,146 @@ describe("removePaymentPlan", () => {
 /*  move                                                               */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Перестановка в ядре — это вызов `move_spec_item_payment_plan` и разбор его
+ * ответа.
+ *
+ * Сам обмен номерами живёт в БД: частичный уникальный индекс порядка
+ * проверяется построчно, поэтому серия UPDATE'ов из приложения обменять две
+ * строки не может (выяснилось на живой БД — покрыто интеграционным тестом).
+ * Здесь проверяется то, что осталось в коде: аргументы вызова, разбор трёх
+ * исходов (`moved` / `unchanged` / `not_found`), чтение применённой строки и
+ * снимок события.
+ */
 describe("movePaymentPlanPosition", () => {
+  const moved = (over: Partial<Record<string, unknown>> = {}) => ({
+    result: "moved",
+    target_id: PLAN_B,
+    target_position: 0,
+    neighbour_id: PLAN_A,
+    neighbour_position: 1,
+    ...over,
+  });
+
   const seeded = () =>
     fakeAdmin([
-      planRow({ id: PLAN_A, position: 0, title: "Аванс" }),
-      planRow({ id: PLAN_B, position: 1, title: "Поставка" }),
+      planRow({ id: PLAN_A, position: 1, title: "Аванс" }),
+      planRow({ id: PLAN_B, position: 0, title: "Поставка" }),
       planRow({ id: PLAN_C, position: 2, title: "Остаток" }),
     ]);
 
-  it("меняет порядок соседей местами", async () => {
-    const { client, tables } = seeded();
+  it("вызывает RPC с организацией, позицией, строкой и направлением", async () => {
+    const admin = seeded();
+    admin.rpcResult = { data: [moved()], error: null };
 
-    const result = await movePaymentPlanPosition(client, {
+    await movePaymentPlanPosition(admin.client, {
       ...base,
-      actor: ACTOR,
+      planId: PLAN_B,
+      direction: "up",
+    });
+
+    expect(admin.rpcCalls).toEqual([
+      {
+        name: "move_spec_item_payment_plan",
+        // Имена аргументов — как у функции БД: они намеренно не совпадают с
+        // именами колонок, иначе условие `spec_item_id = p_spec_item_id` в
+        // plpgsql разобралось бы как сравнение колонки с собой.
+        args: {
+          p_org: ORG,
+          p_item: ITEM,
+          p_plan: PLAN_B,
+          p_dir: "up",
+        },
+      },
+    ]);
+  });
+
+  it("успешный исход: строка читается из БД, а не собирается из ответа", async () => {
+    const admin = seeded();
+    admin.rpcResult = { data: [moved()], error: null };
+
+    const result = await movePaymentPlanPosition(admin.client, {
+      ...base,
       planId: PLAN_B,
       direction: "up",
     });
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.moved).toBe(true);
-
-    const positions = Object.fromEntries(
-      tables.spec_item_payment_plans.map((row) => [row.id, row.position]),
-    );
-    expect(positions).toEqual({ [PLAN_B]: 0, [PLAN_A]: 1, [PLAN_C]: 2 });
+    expect(result.outcome.moved).toBe(true);
+    // Поля берутся из прочитанной строки: ответ функции номера знает, а
+    // `updated_at`, название и сумму — нет.
+    expect(result.outcome.plan).toMatchObject({
+      id: PLAN_B,
+      title: "Поставка",
+      position: 0,
+    });
   });
 
-  it("порядок после перестановки — плотная нумерация без дублей", async () => {
-    const { client, tables } = seeded();
+  it("исход содержит номера для таблицы изменений", async () => {
+    const admin = seeded();
+    admin.rpcResult = { data: [moved()], error: null };
 
-    await movePaymentPlanPosition(client, {
+    const result = await movePaymentPlanPosition(admin.client, {
       ...base,
-      actor: ACTOR,
-      planId: PLAN_A,
-      direction: "down",
+      planId: PLAN_B,
+      direction: "up",
     });
 
-    const positions = tables.spec_item_payment_plans
-      .map((row) => row.position as number)
-      .sort((a, b) => a - b);
-    // Частичный уникальный индекс не даёт двум строкам делить номер, поэтому
-    // дубли здесь означали бы отказ БД, а не «странный порядок».
-    expect(positions).toEqual([0, 1, 2]);
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    // Событие собирает action (актора знает только он), поэтому ядро отдаёт
+    // именно данные изменения: «было у соседа» → «стало у строки».
+    expect(result.outcome.position).toEqual({ from: 1, to: 0 });
   });
 
-  it("перестановка переписывает только участвующие строки", async () => {
-    const { client, updated } = seeded();
+  it("«переставлять некуда» — успех без изменения порядка", async () => {
+    const admin = seeded();
+    admin.rpcResult = {
+      data: [
+        {
+          result: "unchanged",
+          target_id: PLAN_A,
+          target_position: null,
+          neighbour_id: null,
+          neighbour_position: null,
+        },
+      ],
+      error: null,
+    };
 
-    await movePaymentPlanPosition(client, {
+    const result = await movePaymentPlanPosition(admin.client, {
       ...base,
-      actor: ACTOR,
-      planId: PLAN_A,
-      direction: "down",
-    });
-
-    // Шаг «увести в недостижимый диапазон» трогает РОВНО меняющиеся строки, а не
-    // весь график: у каждой свой отрицательный номер, поэтому уникальный индекс
-    // не нарушается, а третья строка не получает ни записи, ни нового
-    // `updated_at` от триггера.
-    const stashed = updated.filter((row) => row.patch.position === -1);
-    expect(stashed.map((row) => row.id).sort()).toEqual([PLAN_A, PLAN_B]);
-
-    // И только у них появился финальный номер.
-    const finalWrites = updated.filter((row) => row.patch.position !== -1);
-    expect(finalWrites.map((row) => row.id).sort()).toEqual([PLAN_A, PLAN_B]);
-  });
-
-  it("первую строку вверх не поднять: изменения не пишутся", async () => {
-    const { client, updated } = seeded();
-
-    const result = await movePaymentPlanPosition(client, {
-      ...base,
-      actor: ACTOR,
       planId: PLAN_A,
       direction: "up",
     });
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.moved).toBe(false);
-    expect(updated).toHaveLength(0);
-  });
-
-  it("последнюю строку вниз не опустить", async () => {
-    const { client } = seeded();
-
-    const result = await movePaymentPlanPosition(client, {
-      ...base,
-      actor: ACTOR,
-      planId: PLAN_C,
-      direction: "down",
-    });
-
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-    expect(result.moved).toBe(false);
+    expect(result.outcome.moved).toBe(false);
+    expect(result.outcome.plan.id).toBe(PLAN_A);
+    // Изменения нет — значит и события не будет: тем же правилом живёт
+    // сохранение без изменений.
+    expect(result.outcome.position).toBeNull();
   });
 
   it("незнакомая строка — NOT_FOUND, а не молчаливое «не двинулось»", async () => {
-    const { client } = seeded();
+    const admin = seeded();
+    admin.rpcResult = {
+      data: [
+        {
+          result: "not_found",
+          target_id: null,
+          target_position: null,
+          neighbour_id: null,
+          neighbour_position: null,
+        },
+      ],
+      error: null,
+    };
 
-    const result = await movePaymentPlanPosition(client, {
+    const result = await movePaymentPlanPosition(admin.client, {
       ...base,
-      actor: ACTOR,
       planId: PLAN_OTHER_ITEM,
       direction: "up",
     });
@@ -763,57 +839,46 @@ describe("movePaymentPlanPosition", () => {
     expect(errorCodeOf(result)).toBe("NOT_FOUND");
   });
 
-  it("перестановка пишет событие изменения порядка", async () => {
-    const { client } = seeded();
+  it("пустой ответ функции — тоже NOT_FOUND, а не падение", async () => {
+    const admin = seeded();
+    admin.rpcResult = { data: [], error: null };
 
-    const result = await movePaymentPlanPosition(client, {
+    const result = await movePaymentPlanPosition(admin.client, {
       ...base,
-      actor: ACTOR,
-      planId: PLAN_C,
-      direction: "up",
-    });
-
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-
-    const event = eventOf(result.events);
-    expect(event.kind).toBe("payment_plan_changed");
-    // В payload — та же таблица изменений, что у правки полей: второго формата
-    // события у одного вида быть не должно.
-    expect(event.payload).toMatchObject({
-      plan_id: PLAN_C,
-      changes: [{ field: "position", from: 2, to: 1 }],
-    });
-  });
-
-  it("удалённые строки в перестановке не участвуют", async () => {
-    const { client, tables } = fakeAdmin([
-      planRow({ id: PLAN_A, position: 0 }),
-      planRow({
-        id: PLAN_DELETED,
-        position: 1,
-        deleted_at: "2026-10-05T10:00:00.000Z",
-      }),
-      planRow({ id: PLAN_B, position: 2 }),
-    ]);
-
-    const result = await movePaymentPlanPosition(client, {
-      ...base,
-      actor: ACTOR,
       planId: PLAN_B,
       direction: "up",
     });
 
-    expect(result.ok).toBe(true);
-    if (!result.ok) return;
-    expect(result.moved).toBe(true);
+    expect(errorCodeOf(result)).toBe("NOT_FOUND");
+  });
 
-    const positions = Object.fromEntries(
-      tables.spec_item_payment_plans.map((row) => [row.id, row.position]),
-    );
-    // Строка переставляется с ближайшим АКТИВНЫМ соседом: удалённая строка не
-    // оставляет после себя дыру в порядке.
-    expect(positions[PLAN_B]).toBe(0);
-    expect(positions[PLAN_A]).toBe(1);
+  it("отказ функции уходит понятной ошибкой", async () => {
+    const admin = seeded();
+    admin.rpcResult = { data: null, error: { message: "deadlock detected" } };
+
+    const result = await movePaymentPlanPosition(admin.client, {
+      ...base,
+      planId: PLAN_B,
+      direction: "up",
+    });
+
+    expect(errorCodeOf(result)).toBe("FAILED");
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.message).toBe("Не удалось переставить платёж");
+  });
+
+  it("чужая организация до вызова функции не доходит", async () => {
+    const admin = seeded();
+
+    const result = await movePaymentPlanPosition(admin.client, {
+      orgId: OTHER_ORG,
+      specItemId: ITEM,
+      planId: PLAN_B,
+      direction: "up",
+    });
+
+    expect(errorCodeOf(result)).toBe("NOT_FOUND");
+    expect(admin.rpcCalls).toHaveLength(0);
   });
 });

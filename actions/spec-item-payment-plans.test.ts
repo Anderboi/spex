@@ -211,7 +211,60 @@ function fakeAdmin(seed: Row[] = [planRow()]) {
     return chain;
   }
 
-  return { client: { from }, tables };
+  /**
+   * RPC вместо сети: перестановка строки графика — это вызов функции БД
+   * (`move_spec_item_payment_plan`), потому что частичный уникальный индекс
+   * порядка проверяется построчно и обменять две строки серией UPDATE'ов нельзя.
+   * Подставной клиент отвечает так, как ответила бы функция: применяет обмен к
+   * своей таблице и возвращает исход.
+   */
+  async function rpc(name: string, args: Record<string, unknown>) {
+    if (name !== "move_spec_item_payment_plan") {
+      throw new Error(`неожиданный вызов функции: ${name}`);
+    }
+
+    const active = (tables.spec_item_payment_plans ?? [])
+      .filter((row) => row.deleted_at === null)
+      .sort((a, b) => Number(a.position) - Number(b.position));
+    const at = active.findIndex((row) => row.id === args.p_plan);
+    if (at === -1) {
+      return {
+        data: [{ result: "not_found", target_id: null, target_position: null, neighbour_id: null, neighbour_position: null }],
+        error: null,
+      };
+    }
+
+    const to = args.p_dir === "up" ? at - 1 : at + 1;
+    if (to < 0 || to >= active.length) {
+      return {
+        data: [{ result: "unchanged", target_id: args.p_plan, target_position: null, neighbour_id: null, neighbour_position: null }],
+        error: null,
+      };
+    }
+
+    const target = active[at];
+    const neighbour = active[to];
+    const targetPosition = target.position;
+    target.position = neighbour.position;
+    neighbour.position = targetPosition;
+
+    // В ответе — те же номера, что теперь лежат в таблице: клиент берёт из них
+    // таблицу изменений для журнала.
+    return {
+      data: [
+        {
+          result: "moved",
+          target_id: target.id,
+          target_position: target.position,
+          neighbour_id: neighbour.id,
+          neighbour_position: neighbour.position,
+        },
+      ],
+      error: null,
+    };
+  }
+
+  return { client: { from, rpc }, tables };
 }
 
 let admin: ReturnType<typeof fakeAdmin>;
@@ -440,7 +493,7 @@ describe("журнал событий", () => {
     expect(events()).toHaveLength(0);
   });
 
-  it("перестановка пишет payment_plan_changed с изменением порядка", async () => {
+  it("в графике из одной строки переставлять нечего", async () => {
     const result = await movePaymentPlan(ORG, ITEM, PLAN_A, "down");
 
     // В графике всего одна строка: переставлять некуда.

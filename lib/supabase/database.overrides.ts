@@ -68,4 +68,28 @@ export type CustomFunctions = {
     };
     Returns: { id: string }[];
   };
+  /**
+   * Перестановка строки графика платежей на одну позицию (миграция
+   * 20261009_001). Существует как RPC, а не как два `update` из приложения:
+   * частичный уникальный индекс порядка проверяется построчно, поэтому обмен
+   * номерами двух строк невозможен серией запросов — нужна одна транзакция.
+   *
+   * Возвращает строку на любой исход: `moved`, `unchanged` (переставлять некуда)
+   * или `not_found` (строки нет в графике). Исключений нет намеренно.
+   */
+  move_spec_item_payment_plan: {
+    Args: {
+      p_org: string;
+      p_item: string;
+      p_plan: string;
+      p_dir: "up" | "down";
+    };
+    Returns: {
+      result: "moved" | "unchanged" | "not_found";
+      target_id: string | null;
+      target_position: number | null;
+      neighbour_id: string | null;
+      neighbour_position: number | null;
+    }[];
+  };
 };

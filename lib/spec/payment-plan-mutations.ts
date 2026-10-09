@@ -44,12 +44,13 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../types";
 import type { SpecItemEventActor, SpecItemEventInput } from "./history";
+import { callRpc } from "../supabase/rpc";
 import {
   buildPaymentPlanAddedEvents,
   buildPaymentPlanChangedEvents,
   buildPaymentPlanRemovedEvents,
 } from "./payment-plan-events";
-import { movePaymentPlan, toAmount } from "./payment-schedule";
+import { toAmount } from "./payment-schedule";
 import type {
   PaymentPlanData,
   PaymentPlanEntry,
@@ -106,9 +107,10 @@ export type RemovePaymentPlanResult =
   | { ok: true; plan: PaymentPlanEntry; deleted: boolean; events: SpecItemEventInput[] }
   | { ok: false; error: PaymentPlanError };
 
-export type MovePaymentPlanPositionResult =
-  | { ok: true; plan: PaymentPlanEntry; moved: boolean; events: SpecItemEventInput[] }
-  | { ok: false; error: PaymentPlanError };
+/*
+ * Результат перестановки объявлен ниже, рядом с самой операцией: её исход —
+ * описание изменения порядка, а не готовое событие (актора знает только action).
+ */
 
 /* ------------------------------------------------------------------ */
 /*  Преобразования                                                     */
@@ -643,39 +645,51 @@ export async function removePaymentPlan(
 /* ------------------------------------------------------------------ */
 
 /**
+ * Разбор ответа функции БД: что изменилось в порядке строки.
+ *
+ * Возвращается описанием, а не готовым событием: актора знает только server
+ * action (`ctx.user`), а ядро его не получает — иначе пришлось бы тащить сессию
+ * в слой, который её намеренно не знает.
+ */
+export type PaymentPlanMoveOutcome = {
+  plan: PaymentPlanEntry;
+  /** `true` — порядок изменён; `false` — переставлять было некуда. */
+  moved: boolean;
+  /** Номера для таблицы изменений; `null` — перестановки не было. */
+  position: { from: number | null; to: number | null } | null;
+};
+
+export type MovePaymentPlanPositionResult =
+  | { ok: true; outcome: PaymentPlanMoveOutcome }
+  | { ok: false; error: PaymentPlanError };
+
+/**
  * Переставить строку графика на одну позицию вверх или вниз.
  *
- * Порядок считает `movePaymentPlan` из `./payment-schedule` — та же функция, что
- * покрыта unit-тестами по краям списка. Здесь только чтение строк, запись новых
- * номеров и снимок события.
- *
- * ── Почему перестановка — ровно два UPDATE ────────────────────────────────
+ * ── Почему перестановка — RPC, а не серия UPDATE из приложения ─────────────
  *
  * Частичный уникальный индекс `(spec_item_id, position) where deleted_at is null`
- * не даёт двум строкам делить номер, а ограничение проверяется после КАЖДОЙ
- * изменённой строки, а не в конце statement'а. Поэтому обмен (0, 1) → (1, 0)
- * невозможен ни одним statement'ом: первой же строке некуда встать.
+ * проверяется ПОСТРОЧНО, а не в конце statement'а. Это выяснилось на живой БД
+ * (интеграционный тест): обмен `(0, 1) → (1, 0)` не проходит ни одним UPDATE —
+ * строка, которой первым назначают занятый номер, упирается в индекс, — ни
+ * серией из двух-трёх: любой промежуточный шаг «увести обе строки в −1» падает
+ * на второй строке по той же причине.
  *
- * Отсюда порядок записи:
+ * Поэтому единственная транзакционная точка обмена живёт в БД:
+ * `move_spec_item_payment_plan` (миграция 20261009_001, прецедент —
+ * `set_spec_item_code`). Функция блокирует строки позиции, уводит две
+ * участвующие строки в отрицательные номера поочерёдно и записывает обмен — всё
+ * в одной транзакции, поэтому промежуточное состояние наружу не видно, а
+ * неудачная перестановка не оставляет график в испорченном виде.
  *
- *   1. участвующие строки уходят в диапазон, которого не может достичь ни одна
- *      живая строка (`-1`, `-2`, …) — по одному УНИКАЛЬНОМУ отрицательному
- *      номеру на строку, чтобы не нарушить тот же индекс внутри statement'а;
- *   2. одним UPDATE каждая строка получает финальный номер по списку.
- *
- * Второй statement — единственная точка отказа, и она атомарна: либо все
- * финальные номера записаны, либо ни один (тогда строки остаются в
- * отрицательном диапазоне — по-прежнему БЕЗ дублей, то есть список читается, а
- * порядок остаётся прежним). Поэтому повторный вызов перестановки безопасен и
- * доводит операцию до конца, а пользователь видит понятный отказ, а не
- * испорченный график.
+ * Здесь остаётся только вызов и чтение применённой строки: снимок для журнала из
+ * ответа функции не собрать — она возвращает номера, но не саму строку.
  */
 export async function movePaymentPlanPosition(
   db: PaymentPlansDb,
   input: {
     orgId: string;
     specItemId: string;
-    actor: SpecItemEventActor;
     planId: string;
     direction: "up" | "down";
   },
@@ -683,95 +697,56 @@ export async function movePaymentPlanPosition(
   const item = await resolveSpecItem(db, input);
   if (!item.ok) return { ok: false, error: item.error };
 
-  const { data, error } = await db
-    .from("spec_item_payment_plans")
-    .select(PLAN_COLUMNS)
-    .eq("org_id", input.orgId)
-    .eq("spec_item_id", input.specItemId)
-    .is("deleted_at", null)
-    .order("position", { ascending: true })
-    .order("id", { ascending: true });
+  const { data, error } = await callRpc(db, "move_spec_item_payment_plan", {
+    p_org: input.orgId,
+    p_item: input.specItemId,
+    p_plan: input.planId,
+    p_dir: input.direction,
+  });
 
   if (error) {
-    console.error("[movePaymentPlanPosition] read", error.message);
+    console.error("[movePaymentPlanPosition]", error.message);
     return failed("Не удалось переставить платёж");
   }
 
-  const rows = (data ?? []) as PlanRow[];
-  const ordered = movePaymentPlan(
-    rows.map((row) => ({ id: row.id, position: row.position })),
-    input.planId,
-    input.direction,
-  );
+  const outcome = data?.[0];
+  if (!outcome || outcome.result === "not_found") return notFound();
 
-  // Строки нет среди активных: она чужая, удалена или её вовсе нет. Отдельно от
-  // «переставлять некуда»: первая строка вверх — не ошибка, а отсутствие
-  // действия, и UI на это не показывает отказ.
-  if (ordered === null) {
-    if (!rows.some((row) => row.id === input.planId)) return notFound();
-
-    const current = rows.find((row) => row.id === input.planId)!;
-    return { ok: true, plan: toEntry(current), moved: false, events: [] };
-  }
-
-  const byId = new Map(rows.map((row) => [row.id, row]));
-  const target = byId.get(input.planId)!;
-  const from = target.position;
-  const to = ordered.indexOf(input.planId);
-
-  // Новый номер получают только те строки, у которых он ДЕЙСТВИТЕЛЬНО меняется:
-  // перестановка двух соседей трогает две строки, а не весь график. Строка,
-  // оставшаяся на своём месте, не получает ни записи, ни нового `updated_at`.
-  const moves = ordered
-    .map((id, index) => ({ id, position: index, current: byId.get(id)!.position }))
-    .filter((move) => move.current !== move.position);
-
-  const ids = moves.map((move) => move.id);
-
-  // Шаг 1: увести участвующие строки в недостижимый диапазон. Номера разные
-  // (`-1`, `-2`, …), иначе два обновления внутри одного statement'а нарушили бы
-  // уникальный индекс.
-  const { error: stashError } = await db
+  // Строку читаем и при «переставлять некуда»: ответ нужен в обоих случаях —
+  // вкладка показывает строку как есть, а не как отказ.
+  const { data: row, error: readError } = await db
     .from("spec_item_payment_plans")
-    .update({ position: -1 })
-    .in("id", ids);
+    .select(PLAN_COLUMNS)
+    .eq("id", input.planId)
+    .eq("org_id", input.orgId)
+    .eq("spec_item_id", input.specItemId)
+    .maybeSingle<PlanRow>();
 
-  if (stashError) {
-    console.error("[movePaymentPlanPosition] stash", stashError.message);
+  if (readError) {
+    console.error("[movePaymentPlanPosition] read", readError.message);
     return failed("Не удалось переставить платёж");
   }
 
-  // Шаг 2: финальные номера. Каждый — отдельным UPDATE: PostgREST не умеет
-  // задать каждой строке своё значение одним запросом, а промежуточные
-  // состояния внутри одного statement'а проверку индекса всё равно не пройдут.
-  // Отказ здесь оставляет строки в отрицательном диапазоне (без дублей) —
-  // повторный вызов перестановки доводит операцию до конца.
-  for (const move of moves) {
-    const { error: writeError } = await db
-      .from("spec_item_payment_plans")
-      .update({ position: move.position })
-      .eq("id", move.id);
+  if (!row) return notFound();
 
-    if (writeError) {
-      console.error("[movePaymentPlanPosition] write", writeError.message);
-      return failed("Не удалось переставить платёж");
-    }
+  // Переставлять некуда — не ошибка, а отсутствие действия: UI на это не
+  // показывает отказ, и события в журнале тоже нет.
+  if (outcome.result === "unchanged") {
+    return {
+      ok: true,
+      outcome: { plan: toEntry(row), moved: false, position: null },
+    };
   }
-
-  const moved = rows.find((row) => row.id === input.planId)!;
 
   return {
     ok: true,
-    plan: toEntry({ ...moved, position: to }),
-    moved: true,
-    events: buildPaymentPlanChangedEvents({
-      orgId: input.orgId,
-      specItemId: item.item.id,
-      actor: input.actor,
-      snapshot: toSnapshot({ ...moved, position: to }),
-      // Изменение одно и то же по форме, что у правки полей: второго формата
-      // «что изменилось» в проекте не появляется.
-      changes: [{ field: "position", from, to }],
-    }),
+    outcome: {
+      plan: toEntry(row),
+      moved: true,
+      position: {
+        from: outcome.neighbour_position,
+        to: outcome.target_position,
+      },
+    },
   };
 }

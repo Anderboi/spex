@@ -6,6 +6,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { can } from "@/lib/permissions";
 import { fail, ok, type ActionErrorCode, type ActionResult } from "@/lib/action-result";
 import { eventActorOf, recordSpecItemEvents } from "@/lib/spec/history";
+import { buildPaymentPlanChangedEvents } from "@/lib/spec/payment-plan-events";
 import {
   addPaymentPlan as addPaymentPlanCore,
   listPaymentPlans as listPaymentPlansCore,
@@ -291,14 +292,38 @@ export async function movePaymentPlan(
   const result = await movePaymentPlanPositionCore(supabase, {
     orgId: ctx.orgId,
     specItemId: item.id,
-    actor: eventActorOf(ctx),
     planId,
     direction,
   });
 
   if (!result.ok) return toFailure(result.error);
 
-  await writeEvents(supabase, result.events);
+  const { plan, moved, position } = result.outcome;
+
+  // Событие собирает action: актора знает только он (`ctx.user`), а ядро
+  // перестановки его намеренно не получает — обмен номерами живёт в БД.
+  if (moved && position) {
+    await writeEvents(
+      supabase,
+      buildPaymentPlanChangedEvents({
+        orgId: ctx.orgId,
+        specItemId: item.id,
+        actor: eventActorOf(ctx),
+        snapshot: {
+          planId: plan.id,
+          title: plan.title,
+          amount: plan.amount,
+          condition: plan.condition,
+          dueDate: plan.dueDate,
+          position: plan.position,
+        },
+        // Формат «что изменилось» тот же, что у правки полей: второго формата
+        // события у одного вида быть не должно.
+        changes: [{ field: "position", from: position.from, to: position.to }],
+      }),
+    );
+  }
+
   revalidatePath(`/${orgSlug}/projects/${item.project_id}`);
-  return ok({ moved: result.moved });
+  return ok({ moved });
 }

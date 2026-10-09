@@ -383,6 +383,136 @@ grant select, insert, update, delete
   on public.spec_item_payment_plans to authenticated;
 revoke all on public.spec_item_payment_plans from anon;
 
+-- ---------------------------------------------------------------------------
+-- 5. Перестановка строки графика: одна транзакция вместо серии UPDATE'ов
+-- ---------------------------------------------------------------------------
+-- Зачем функция, а не два `update` из приложения (проверено на живой БД):
+-- частичный уникальный индекс `(spec_item_id, position) where deleted_at is null`
+-- проверяется ПОСТРОЧНО — внутри одного statement'а тоже. Поэтому обмен номерами
+-- `(0, 1) → (1, 0)` не проходит ни одним statement'ом (строка, которой первым
+-- назначают занятый номер, упирается в индекс), ни двумя-тремя: любой
+-- промежуточный шаг «увести обе строки в −1» падает на второй строке.
+--
+-- Прецедент — `set_spec_item_code`: транзакционная операция, затрагивающая
+-- несколько строк с уникальными значениями, живёт в `security definer` функции.
+--
+-- Что делает функция:
+--   1. блокирует строки позиции (`for update`), чтобы параллельные перестановки
+--      не перемешали порядок;
+--   2. уводит две участвующие строки в отрицательные номера ПООЧЕРЁДНО — там
+--      конфликта нет, отрицательных номеров у живых строк не бывает;
+--   3. записывает обмен: каждая строка получает номер соседа.
+--
+-- Возвращает строку-ответ на любой исход: `moved`, `unchanged` (переставлять
+-- некуда) и `not_found` (строки нет в графике). Исключения не бросаются, потому
+-- что «некуда переставлять» — не ошибка, а отсутствие действия.
+--
+-- Имена аргументов намеренно НЕ совпадают с именами колонок (`p_item`, `p_plan`,
+-- `p_org`, `p_dir`): с `p_spec_item_id` условие `p.spec_item_id = p_spec_item_id`
+-- разбиралось бы как сравнение колонки с собой — то есть как тождество, и
+-- перестановка трогала бы строки ВСЕХ позиций. Это не придирка: такое условие
+-- молча проходит проверку типов и портит данные.
+create or replace function public.move_spec_item_payment_plan(
+  p_org  uuid,
+  p_item uuid,
+  p_plan uuid,
+  p_dir  text
+)
+returns table (
+  result             text,
+  target_id          uuid,
+  target_position    integer,
+  neighbour_id       uuid,
+  neighbour_position integer
+)
+language plpgsql
+security definer
+set search_path = public
+as $function$
+declare
+  v_rows      uuid[];
+  v_at        integer;
+  v_nb        integer;
+  v_target    public.spec_item_payment_plans;
+  v_neighbour public.spec_item_payment_plans;
+begin
+  if p_dir not in ('up', 'down') then
+    raise exception 'INVALID_DIRECTION: %', p_dir;
+  end if;
+
+  select array_agg(p.id order by p.position, p.id)
+    into v_rows
+    from public.spec_item_payment_plans p
+   where p.spec_item_id = p_item
+     and p.org_id = p_org
+     and p.deleted_at is null;
+
+  v_at := coalesce(array_position(v_rows, p_plan), -1);
+
+  if v_at = -1 then
+    return query
+      select 'not_found'::text, null::uuid, null::integer, null::uuid, null::integer;
+    return;
+  end if;
+
+  v_nb := case when p_dir = 'up' then v_at - 1 else v_at + 1 end;
+
+  if v_nb < 1 or v_nb > cardinality(v_rows) then
+    return query
+      select 'unchanged'::text, p_plan, null::integer, null::uuid, null::integer;
+    return;
+  end if;
+
+  -- Блокировка строк позиции: две параллельные перестановки одного графика идут
+  -- строго одна за другой, поэтому порядок не может «перемешаться».
+  perform 1
+    from public.spec_item_payment_plans
+   where spec_item_id = p_item
+     and org_id = p_org
+     and deleted_at is null
+     for update;
+
+  select * into v_target
+    from public.spec_item_payment_plans
+   where id = v_rows[v_at];
+
+  select * into v_neighbour
+    from public.spec_item_payment_plans
+   where id = v_rows[v_nb];
+
+  if v_target.position = v_neighbour.position then
+    raise exception 'SAME_POSITION';
+  end if;
+
+  update public.spec_item_payment_plans
+     set position = -1
+   where id = v_target.id;
+
+  update public.spec_item_payment_plans
+     set position = -2
+   where id = v_neighbour.id;
+
+  update public.spec_item_payment_plans
+     set position = v_neighbour.position
+   where id = v_target.id;
+
+  update public.spec_item_payment_plans
+     set position = v_target.position
+   where id = v_neighbour.id;
+
+  return query
+    select 'moved'::text, v_target.id, v_neighbour.position, v_neighbour.id, v_target.position;
+end
+$function$;
+
+comment on function public.move_spec_item_payment_plan(uuid, uuid, uuid, text) is
+  'Перестановка строки графика на одну позицию. Единственная транзакционная точка: серия update из приложения невозможна из-за построчной проверки уникального индекса порядка.';
+
+revoke all on function public.move_spec_item_payment_plan(uuid, uuid, uuid, text) from public;
+revoke all on function public.move_spec_item_payment_plan(uuid, uuid, uuid, text) from anon;
+grant execute on function public.move_spec_item_payment_plan(uuid, uuid, uuid, text) to authenticated;
+grant execute on function public.move_spec_item_payment_plan(uuid, uuid, uuid, text) to service_role;
+
 -- Представлений над графиком не создавать: `spec_items_priced` принадлежит
 -- postgres и обходит RLS базовой таблицы (риск R1 отчёта).
 
