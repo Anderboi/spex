@@ -1201,6 +1201,116 @@ export type Database = {
             referencedRelation: "spec_items"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "spec_item_payment_plans_spec_item_id_fkey"
+            columns: ["spec_item_id"]
+            isOneToOne: false
+            referencedRelation: "spec_items_priced"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      spec_item_payments: {
+        Row: {
+          amount: number
+          author_name_snapshot: string | null
+          code_snapshot: string | null
+          comment: string | null
+          created_at: string
+          created_by: string | null
+          deleted_at: string | null
+          id: string
+          idempotency_key: string | null
+          name_snapshot: string | null
+          org_id: string
+          paid_at: string
+          payment_plan_id: string | null
+          project_id: string
+          project_title_snapshot: string | null
+          spec_item_id: string
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          author_name_snapshot?: string | null
+          code_snapshot?: string | null
+          comment?: string | null
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          id?: string
+          idempotency_key?: string | null
+          name_snapshot?: string | null
+          org_id: string
+          paid_at?: string
+          payment_plan_id?: string | null
+          project_id: string
+          project_title_snapshot?: string | null
+          spec_item_id: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          author_name_snapshot?: string | null
+          code_snapshot?: string | null
+          comment?: string | null
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          id?: string
+          idempotency_key?: string | null
+          name_snapshot?: string | null
+          org_id?: string
+          paid_at?: string
+          payment_plan_id?: string | null
+          project_id?: string
+          project_title_snapshot?: string | null
+          spec_item_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "spec_item_payments_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "spec_item_payments_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "spec_item_payments_plan_same_item_fkey"
+            columns: ["payment_plan_id", "spec_item_id"]
+            isOneToOne: false
+            referencedRelation: "spec_item_payment_plans"
+            referencedColumns: ["id", "spec_item_id"]
+          },
+          {
+            foreignKeyName: "spec_item_payments_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "spec_item_payments_spec_item_id_fkey"
+            columns: ["spec_item_id"]
+            isOneToOne: false
+            referencedRelation: "spec_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "spec_item_payments_spec_item_id_fkey"
+            columns: ["spec_item_id"]
+            isOneToOne: false
+            referencedRelation: "spec_items_priced"
+            referencedColumns: ["id"]
+          },
         ]
       }
       spec_item_variants: {
