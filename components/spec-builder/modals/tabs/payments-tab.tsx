@@ -106,14 +106,6 @@ import PaymentForm, { type PaymentFormValues } from "./payment-form";
 /** Сколько строк-заготовок показывать при загрузке. */
 const SKELETON_ROWS = 3;
 
-/** Сегодняшний день 'YYYY-MM-DD' по ЛОКАЛЬНОМУ календарю экрана. */
-function todayIso(): string {
-  const now = new Date();
-  const month = String(now.getMonth() + 1).padStart(2, "0");
-  const day = String(now.getDate()).padStart(2, "0");
-  return `${now.getFullYear()}-${month}-${day}`;
-}
-
 /**
  * Ключ идемпотентности новой оплаты.
  *
@@ -1022,7 +1014,6 @@ export default function PaymentsTab({
         open={paymentForm !== null}
         payment={paymentForm?.payment ?? null}
         plans={plans}
-        defaultPaidAt={todayIso()}
         onClose={() => setPaymentForm(null)}
         onSubmit={submitPayment}
       />

@@ -4,11 +4,12 @@ import {
   hasActivePayments,
   listPayments,
   removePayment,
-  todayIso,
   updatePayment,
   validatePaymentData,
   type PaymentsDb,
 } from "./payment-mutations";
+import { todayIso } from "./payment-date";
+import { PAYMENT_AMOUNT_MAX } from "./payment-types";
 import type { PaymentData, PaymentError } from "./payment-types";
 import type { SpecItemEventInput } from "./history";
 
@@ -827,6 +828,23 @@ describe("validatePaymentData", () => {
       }
       expect(result.ok, JSON.stringify(invalid)).toBe(false);
     }
+  });
+
+  it("отвергает сумму на границе вместимости numeric(12,2)", () => {
+    // Предел БД — 9 999 999 999.99. Сумма «на границе» прежде доходила бы до
+    // Postgres и падала ошибкой 22003 с общим «не удалось записать оплату»:
+    // пользователю нужен внятный отказ и до запроса.
+    const atLimit = validatePaymentData(
+      data({ amount: PAYMENT_AMOUNT_MAX }),
+      NOW,
+    );
+    const justBelow = validatePaymentData(
+      data({ amount: PAYMENT_AMOUNT_MAX - 0.01 }),
+      NOW,
+    );
+
+    expect(atLimit.ok).toBe(false);
+    expect(justBelow.ok).toBe(true);
   });
 });
 

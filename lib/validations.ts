@@ -6,6 +6,7 @@ import {
   TYPE_ORDER,
   UNIT_OPTIONS,
 } from "./constants";
+import { PAYMENT_AMOUNT_MAX } from "./spec/payment-types";
 
 // --- AUTH ---
 export const loginSchema = z.object({
@@ -659,15 +660,17 @@ export type PaymentPlanInput = z.infer<typeof paymentPlanSchema>;
 /**
  * Границы полей записи о деньгах.
  *
- * Сумма — та же вместимость `numeric(12,2)`, что у строки графика: предел БД
- * один, и второй предел в валидации расходился бы с ним (решение O7).
+ * Сумма берётся из домена (`PAYMENT_AMOUNT_MAX` в `lib/spec/payment-types.ts`) —
+ * это вместимость `numeric(12,2)`, и её же проверяет ядро: второе число в схеме
+ * разошлось бы с первым, и сумма «на границе» доходила бы до БД, падая ошибкой
+ * 22003 вместо понятного отказа.
  *
  * Комментарий — 1000 символов, как условие оплаты, а не 4000 заметок позиции:
  * комментарий к проводке читают строкой в списке фактов, а не документом.
  */
 export const PAYMENT_LIMITS = {
   commentMax: 1000,
-  amountMax: 10_000_000_000,
+  amountMax: PAYMENT_AMOUNT_MAX,
 } as const;
 
 /**

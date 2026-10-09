@@ -62,6 +62,7 @@ import {
 import { toAmount } from "./payment-schedule";
 import {
   isPaymentKind,
+  PAYMENT_AMOUNT_MAX,
   type PaymentData,
   type PaymentEntry,
   type PaymentError,
@@ -69,6 +70,7 @@ import {
   type PaymentFieldChange,
   type PaymentValues,
 } from "./payment-types";
+import { todayIso } from "./payment-date";
 
 /** Клиент БД: как у остальных слоёв, приходит аргументом. */
 export type PaymentsDb = PaymentPlansDb;
@@ -191,30 +193,15 @@ function failed(message: string): { ok: false; error: PaymentError } {
 }
 
 /**
- * Сегодняшний день 'YYYY-MM-DD' в ЛОКАЛЬНОМ времени.
+ * Значение из строки — или `null`.
  *
- * `toISOString()` не годится: он отдаёт UTC, и для Москвы вечером 1 ноября
- * вернул бы 31 октября — платежи «уезжали» бы на день назад относительно
- * календаря пользователя. Явная сборка из локальных частей совпадает с тем, что
- * показывает `<input type="date">`.
+ * Так приводятся оба необязательных строковых поля записи: дата (`""` из
+ * `<input type="date">`) и ссылка на строку графика (пустой `<option>`).
+ * `id` в имени нет намеренно: функция не проверяет, идентификатор ли это, — она
+ * только превращает «не заполнено» в `null`, а форму значения проверяет схема
+ * (`lib/validations.ts`) и БД.
  */
-export function todayIso(now: Date = new Date()): string {
-  const year = String(now.getFullYear()).padStart(4, "0");
-  const month = String(now.getMonth() + 1).padStart(2, "0");
-  const day = String(now.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-}
-
-/**
- * Идентификатор из строки — или `null`.
- *
- * Значение приходит из формы (`<input type="date">` отдаёт пустую строку) и от
- * пользователя, поэтому проверяется форма, а не «похоже на uuid»: сравнивать
- * `uuid`-колонку со строкой вида `item-1` бессмысленно, а Postgres отвергнет её
- * ошибкой 22P02 — то есть отказом БД вместо понятного «строка графика не
- * найдена».
- */
-function normalizeId(value: unknown): string | null {
+function emptyToNull(value: unknown): string | null {
   if (typeof value !== "string") return null;
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : null;
@@ -245,13 +232,19 @@ export function validatePaymentData(
   if (!Number.isFinite(amount) || amount <= 0) {
     return invalidInput("Сумма должна быть больше нуля");
   }
+  // Верхняя граница — вместимость `numeric(12,2)` (10^10 ₽, решение O7).
+  // Без неё сумма «на границе» доходила бы до БД и падала ошибкой 22003 с общим
+  // «не удалось записать»: пользователю нужен внятный отказ и до запроса.
+  if (amount >= PAYMENT_AMOUNT_MAX) {
+    return invalidInput("Слишком большая сумма");
+  }
 
   const comment =
     typeof data.comment === "string" && data.comment.trim().length > 0
       ? data.comment.trim()
       : null;
 
-  const paidAt = normalizeId(data.paidAt) ?? todayIso(now);
+  const paidAt = emptyToNull(data.paidAt) ?? todayIso(now);
 
   return {
     ok: true,
@@ -259,7 +252,7 @@ export function validatePaymentData(
       kind: data.kind,
       amount,
       paidAt,
-      paymentPlanId: normalizeId(data.paymentPlanId),
+      paymentPlanId: emptyToNull(data.paymentPlanId),
       comment,
     },
   };

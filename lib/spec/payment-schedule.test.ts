@@ -139,15 +139,18 @@ describe("summarisePaymentSchedule", () => {
   it("оплаты при пустом графике — оплата вне графика, а не переплата", () => {
     // Правило границы из отчёта (§5.1): при `planned = 0` переплата не
     // показывается вовсе — иначе внеплановая оплата выглядела бы как
-    // стопроцентная переплата.
+    // стопроцентная переплата. Остаток в этом случае тоже ноль, а не «−700 ₽»:
+    // отрицательная величина рядом с нулевой переплатой читалась бы как
+    // переплата, то есть ровно как то, чего правило не допускает.
     const summary = summarisePaymentSchedule([], [
       { paymentPlanId: null, amount: 700 },
     ]);
 
     expect(summary.planned).toBe(0);
     expect(summary.paid).toBe(700);
-    expect(summary.remaining).toBe(-700);
+    expect(summary.remaining).toBe(0);
     expect(summary.overpaid).toBe(0);
+    expect(summary.unplanned).toBe(700);
     expect(summary.hasPlan).toBe(false);
   });
 
@@ -173,7 +176,9 @@ describe("summarisePaymentSchedule", () => {
       [{ paymentPlanId: "a", amount: 12000 }],
     );
 
-    expect(summary.remaining).toBe(-2000);
+    // Переплата — своя величина, а «остаток» в минус не уходит: две строки
+    // одного места не должны противоречить друг другу.
+    expect(summary.remaining).toBe(0);
     expect(summary.overpaid).toBe(2000);
     expect(summary.hasPlan).toBe(true);
   });
@@ -250,7 +255,7 @@ describe("summarisePaymentSchedule: факты", () => {
     expect(summary.paid).toBe(700);
     expect(summary.unplanned).toBe(700);
     expect(summary.overpaid).toBe(0);
-    expect(summary.remaining).toBe(-700);
+    expect(summary.remaining).toBe(0);
     expect(summary.hasPlan).toBe(false);
   });
 
@@ -283,6 +288,9 @@ describe("summarisePaymentSchedule: факты", () => {
 
     expect(summary.paid).toBe(-2000);
     expect(summary.refunded).toBe(5000);
+    // По строке вернули больше, чем заплатили: обязательство выросло до полной
+    // суммы строки плюс переплата клиенту — 10 000 − (−2 000) = 12 000. Это
+    // честное «сколько ещё должно быть закрыто», а не ошибка знака.
     expect(summary.remaining).toBe(12000);
     expect(summary.overpaid).toBe(0);
   });

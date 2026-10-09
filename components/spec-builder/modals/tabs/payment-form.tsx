@@ -17,6 +17,7 @@ import { Textarea } from "@/components/ui/textarea";
 import Field from "@/components/layout/modal-field";
 import { PAYMENT_LIMITS } from "@/lib/validations";
 import { fmtRub } from "@/lib/utils";
+import { todayIso } from "@/lib/spec/payment-date";
 import type { PaymentPlanEntry } from "@/lib/spec/payment-plan-types";
 import type { PaymentEntry, PaymentRecordKind } from "@/lib/spec/payment-types";
 
@@ -73,8 +74,6 @@ export default function PaymentForm({
   open,
   payment,
   plans,
-  /** Дата по умолчанию для новой записи: 'YYYY-MM-DD'. */
-  defaultPaidAt,
   onClose,
   onSubmit,
 }: {
@@ -83,8 +82,6 @@ export default function PaymentForm({
   payment: PaymentEntry | null;
   /** График позиции: варианты привязки. Пустой список — плана ещё нет. */
   plans: PaymentPlanEntry[];
-  /** Дата новой записи. Приходит от родителя: он один знает «сегодня» экрана. */
-  defaultPaidAt: string;
   /** Закрыть без сохранения: отмена, крестик, успех. */
   onClose: () => void;
   /**
@@ -96,10 +93,10 @@ export default function PaymentForm({
 }) {
   /** Сумма — строкой: «12 000,5» и «12000.5» должны вводиться одинаково свободно. */
   const [amount, setAmount] = useState(payment ? String(payment.amount) : "");
-  // Дата по умолчанию — сегодня. Считает её родитель и передаёт пропсом: модуль
-  // с арифметикой дат (`lib/spec/payment-mutations`) тянет типы Supabase, и
-  // импортировать его ради одной строки в клиентский компонент не нужно.
-  const [paidAt, setPaidAt] = useState(payment?.paidAt ?? defaultPaidAt);
+  // Дата по умолчанию — сегодня. Считает её общий модуль
+  // (`lib/spec/payment-date`), тот же, которым пользуется ядро: иначе форма и
+  // запись в БД расходились бы на границе суток и в разных часовых поясах.
+  const [paidAt, setPaidAt] = useState(payment?.paidAt ?? todayIso());
   /** Пустая строка — «без плана»: у селекта это значение, а не отсутствие выбора. */
   const [planId, setPlanId] = useState(payment?.paymentPlanId ?? "");
   const [comment, setComment] = useState(payment?.comment ?? "");

@@ -3,7 +3,10 @@
 import { revalidatePath } from "next/cache";
 import { requireOrgBySlug } from "@/lib/auth/session";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { can, canMutateRecord } from "@/lib/permissions";
+import {
+  canMutatePayment,
+  canRecordPayment,
+} from "@/lib/spec/payment-permissions";
 import { fail, ok, type ActionErrorCode, type ActionResult } from "@/lib/action-result";
 import { eventActorOf, recordSpecItemEvents } from "@/lib/spec/history";
 import {
@@ -35,12 +38,13 @@ import type {
  * ── Кто что может (решения Q3, O9, RLS-политики миграции) ──────────────────
  *
  * * чтение — любому члену организации, включая `viewer`: суммы видны всем;
- * * внести — любой член, кроме `viewer` (`can(role, "record:create")`), и только
- *   от своего имени: `created_by` берётся из сессии, а не из формы;
- * * изменить и отменить СВОЮ запись может автор, ЧУЖУЮ — только `owner`/`admin`
- *   (`canMutateRecord`). Порядок тот же, что у остальных записей организации, и
- *   тот же, что в RLS-политиках
- *   `spec_item_payments_update_author_or_manager` / `_delete_author_or_manager`.
+ * * внести — любой член, кроме `viewer`, и только от своего имени: `created_by`
+ *   берётся из сессии, а не из формы;
+ * * изменить и отменить СВОЮ запись может автор, ЧУЖУЮ — только `owner`/`admin`.
+ *
+ * Правило читается из `lib/spec/payment-permissions` — того же модуля, которым
+ * пользуется вкладка. Две копии «кто что может» (в UI и здесь) разошлись бы
+ * молча, а проверка на сервере — единственная рабочая (см. ниже).
  *
  * ── Почему права проверяются в TS, а не в БД ───────────────────────────────
  *
@@ -52,8 +56,9 @@ import type {
  *
  * Он не используется намеренно: его `OwnedTable` (`lib/db/guard.ts`) знает
  * только «projects | materials | companies | contacts», а не таблицы позиции.
- * Поэтому проверка собрана из тех же двух функций, что у остальных записей:
- * `can` (роль) и `canMutateRecord` (автор или администратор).
+ * Поэтому проверка собрана из тех же двух правил, что у остальных записей:
+ * право роли на запись (`canRecordPayment`) и «автор или администратор»
+ * (`canMutatePayment`).
  *
  * ── Почему события пишутся здесь ───────────────────────────────────────────
  *
@@ -72,7 +77,6 @@ import type {
 const ERROR_CODES: Record<PaymentError["code"], ActionErrorCode> = {
   NOT_FOUND: "NOT_FOUND",
   INVALID_INPUT: "INVALID_INPUT",
-  FORBIDDEN: "FORBIDDEN",
   // Конфликт ключа идемпотентности — не ошибка формата: текст корректен, но
   // запрос отличается от уже записанного. `FAILED` честнее `INVALID_INPUT`:
   // подсвечивать поле ввода нечего.
@@ -171,7 +175,7 @@ export async function createPayment(
 ): Promise<ActionResult<PaymentEntry>> {
   const { ctx, supabase, item, failed } = await resolveItem(orgSlug, specItemId);
 
-  if (!can(ctx.role, "record:create")) {
+  if (!canRecordPayment({ role: ctx.role })) {
     return fail("Недостаточно прав для внесения оплат", "FORBIDDEN");
   }
 
@@ -224,7 +228,7 @@ export async function updatePayment(
 ): Promise<ActionResult<PaymentEntry>> {
   const { ctx, supabase, item, failed } = await resolveItem(orgSlug, specItemId);
 
-  if (!can(ctx.role, "record:create")) {
+  if (!canRecordPayment({ role: ctx.role })) {
     return fail("Недостаточно прав для правки оплат", "FORBIDDEN");
   }
 
@@ -253,7 +257,7 @@ export async function updatePayment(
   if (!current) return fail("Оплата не найдена", "NOT_FOUND");
 
   if (
-    !canMutateRecord({
+    !canMutatePayment({
       role: ctx.role,
       userId: ctx.userId,
       createdBy: current.created_by,
@@ -296,7 +300,7 @@ export async function deletePayment(
 ): Promise<ActionResult<{ deleted: boolean }>> {
   const { ctx, supabase, item, failed } = await resolveItem(orgSlug, specItemId);
 
-  if (!can(ctx.role, "record:create")) {
+  if (!canRecordPayment({ role: ctx.role })) {
     return fail("Недостаточно прав для отмены оплат", "FORBIDDEN");
   }
 
@@ -320,7 +324,7 @@ export async function deletePayment(
   if (!current) return fail("Оплата не найдена", "NOT_FOUND");
 
   if (
-    !canMutateRecord({
+    !canMutatePayment({
       role: ctx.role,
       userId: ctx.userId,
       createdBy: current.created_by,
