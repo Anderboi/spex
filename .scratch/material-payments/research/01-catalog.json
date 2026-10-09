@@ -1,0 +1,5056 @@
+{
+  "generated_at": "2026-10-09T10:24:33.275076+00:00",
+  "columns": [
+    {
+      "table": "accounts",
+      "column": "id",
+      "ordinal": 1,
+      "data_type": "uuid",
+      "udt": "uuid",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": "gen_random_uuid()"
+    },
+    {
+      "table": "accounts",
+      "column": "user_id",
+      "ordinal": 2,
+      "data_type": "uuid",
+      "udt": "uuid",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": null
+    },
+    {
+      "table": "accounts",
+      "column": "type",
+      "ordinal": 3,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": null
+    },
+    {
+      "table": "accounts",
+      "column": "provider",
+      "ordinal": 4,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": null
+    },
+    {
+      "table": "accounts",
+      "column": "provider_account_id",
+      "ordinal": 5,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": null
+    },
+    {
+      "table": "accounts",
+      "column": "refresh_token",
+      "ordinal": 6,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "accounts",
+      "column": "access_token",
+      "ordinal": 7,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "accounts",
+      "column": "expires_at",
+      "ordinal": 8,
+      "data_type": "bigint",
+      "udt": "int8",
+      "numeric_precision": 64,
+      "numeric_scale": 0,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "accounts",
+      "column": "token_type",
+      "ordinal": 9,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "accounts",
+      "column": "scope",
+      "ordinal": 10,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "accounts",
+      "column": "id_token",
+      "ordinal": 11,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "accounts",
+      "column": "session_state",
+      "ordinal": 12,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "companies",
+      "column": "id",
+      "ordinal": 1,
+      "data_type": "uuid",
+      "udt": "uuid",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": "gen_random_uuid()"
+    },
+    {
+      "table": "companies",
+      "column": "created_by",
+      "ordinal": 2,
+      "data_type": "uuid",
+      "udt": "uuid",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": "auth.uid()"
+    },
+    {
+      "table": "companies",
+      "column": "name",
+      "ordinal": 3,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": null
+    },
+    {
+      "table": "companies",
+      "column": "category",
+      "ordinal": 4,
+      "data_type": "ARRAY",
+      "udt": "_text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": null
+    },
+    {
+      "table": "companies",
+      "column": "website",
+      "ordinal": 5,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "companies",
+      "column": "email",
+      "ordinal": 6,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "companies",
+      "column": "phone",
+      "ordinal": 7,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "companies",
+      "column": "address",
+      "ordinal": 8,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "companies",
+      "column": "note",
+      "ordinal": 9,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "companies",
+      "column": "created_at",
+      "ordinal": 10,
+      "data_type": "timestamp with time zone",
+      "udt": "timestamptz",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": "timezone('utc'::text, now())"
+    },
+    {
+      "table": "companies",
+      "column": "org_id",
+      "ordinal": 11,
+      "data_type": "uuid",
+      "udt": "uuid",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": null
+    },
+    {
+      "table": "companies",
+      "column": "logo_url",
+      "ordinal": 12,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "contacts",
+      "column": "id",
+      "ordinal": 1,
+      "data_type": "uuid",
+      "udt": "uuid",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": "gen_random_uuid()"
+    },
+    {
+      "table": "contacts",
+      "column": "created_by",
+      "ordinal": 2,
+      "data_type": "uuid",
+      "udt": "uuid",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": "auth.uid()"
+    },
+    {
+      "table": "contacts",
+      "column": "company_id",
+      "ordinal": 3,
+      "data_type": "uuid",
+      "udt": "uuid",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "contacts",
+      "column": "name",
+      "ordinal": 4,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": null
+    },
+    {
+      "table": "contacts",
+      "column": "title",
+      "ordinal": 5,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "contacts",
+      "column": "email",
+      "ordinal": 6,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "contacts",
+      "column": "phone",
+      "ordinal": 7,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "contacts",
+      "column": "note",
+      "ordinal": 8,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "contacts",
+      "column": "created_at",
+      "ordinal": 9,
+      "data_type": "timestamp with time zone",
+      "udt": "timestamptz",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": "timezone('utc'::text, now())"
+    },
+    {
+      "table": "contacts",
+      "column": "category",
+      "ordinal": 10,
+      "data_type": "ARRAY",
+      "udt": "_text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": null
+    },
+    {
+      "table": "contacts",
+      "column": "org_id",
+      "ordinal": 11,
+      "data_type": "uuid",
+      "udt": "uuid",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": null
+    },
+    {
+      "table": "contacts",
+      "column": "avatar_url",
+      "ordinal": 12,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "materials",
+      "column": "id",
+      "ordinal": 1,
+      "data_type": "uuid",
+      "udt": "uuid",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": "extensions.uuid_generate_v4()"
+    },
+    {
+      "table": "materials",
+      "column": "created_by",
+      "ordinal": 2,
+      "data_type": "uuid",
+      "udt": "uuid",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "materials",
+      "column": "company_id",
+      "ordinal": 3,
+      "data_type": "uuid",
+      "udt": "uuid",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "materials",
+      "column": "name",
+      "ordinal": 4,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": null
+    },
+    {
+      "table": "materials",
+      "column": "brand",
+      "ordinal": 5,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "materials",
+      "column": "category",
+      "ordinal": 6,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": "'Прочее'::text"
+    },
+    {
+      "table": "materials",
+      "column": "article",
+      "ordinal": 7,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "materials",
+      "column": "unit",
+      "ordinal": 8,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": "'шт'::text"
+    },
+    {
+      "table": "materials",
+      "column": "price",
+      "ordinal": 9,
+      "data_type": "numeric",
+      "udt": "numeric",
+      "numeric_precision": 12,
+      "numeric_scale": 2,
+      "nullable": "NO",
+      "default": "0.00"
+    },
+    {
+      "table": "materials",
+      "column": "image_url",
+      "ordinal": 10,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "materials",
+      "column": "tags",
+      "ordinal": 11,
+      "data_type": "ARRAY",
+      "udt": "_text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "materials",
+      "column": "created_at",
+      "ordinal": 13,
+      "data_type": "timestamp with time zone",
+      "udt": "timestamptz",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": "timezone('utc'::text, now())"
+    },
+    {
+      "table": "materials",
+      "column": "updated_at",
+      "ordinal": 14,
+      "data_type": "timestamp with time zone",
+      "udt": "timestamptz",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": "timezone('utc'::text, now())"
+    },
+    {
+      "table": "materials",
+      "column": "contact_id",
+      "ordinal": 15,
+      "data_type": "uuid",
+      "udt": "uuid",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "materials",
+      "column": "org_id",
+      "ordinal": 16,
+      "data_type": "uuid",
+      "udt": "uuid",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": null
+    },
+    {
+      "table": "materials",
+      "column": "deleted_at",
+      "ordinal": 17,
+      "data_type": "timestamp with time zone",
+      "udt": "timestamptz",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "materials",
+      "column": "product_url",
+      "ordinal": 18,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "materials",
+      "column": "lead_time",
+      "ordinal": 19,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "materials",
+      "column": "product_description",
+      "ordinal": 20,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "materials",
+      "column": "notes",
+      "ordinal": 21,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "materials",
+      "column": "attachments",
+      "ordinal": 22,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "materials",
+      "column": "product_type",
+      "ordinal": 23,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "materials",
+      "column": "attrs",
+      "ordinal": 24,
+      "data_type": "jsonb",
+      "udt": "jsonb",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": "'{}'::jsonb"
+    },
+    {
+      "table": "organization_invites",
+      "column": "id",
+      "ordinal": 1,
+      "data_type": "uuid",
+      "udt": "uuid",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": "gen_random_uuid()"
+    },
+    {
+      "table": "organization_invites",
+      "column": "org_id",
+      "ordinal": 2,
+      "data_type": "uuid",
+      "udt": "uuid",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": null
+    },
+    {
+      "table": "organization_invites",
+      "column": "email",
+      "ordinal": 3,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": null
+    },
+    {
+      "table": "organization_invites",
+      "column": "role",
+      "ordinal": 4,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": "'member'::text"
+    },
+    {
+      "table": "organization_invites",
+      "column": "token",
+      "ordinal": 5,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": "encode(extensions.gen_random_bytes(16), 'hex'::text)"
+    },
+    {
+      "table": "organization_invites",
+      "column": "invited_by",
+      "ordinal": 6,
+      "data_type": "uuid",
+      "udt": "uuid",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": null
+    },
+    {
+      "table": "organization_invites",
+      "column": "expires_at",
+      "ordinal": 7,
+      "data_type": "timestamp with time zone",
+      "udt": "timestamptz",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": "(now() + '7 days'::interval)"
+    },
+    {
+      "table": "organization_invites",
+      "column": "created_at",
+      "ordinal": 8,
+      "data_type": "timestamp with time zone",
+      "udt": "timestamptz",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": "now()"
+    },
+    {
+      "table": "organization_members",
+      "column": "org_id",
+      "ordinal": 2,
+      "data_type": "uuid",
+      "udt": "uuid",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": null
+    },
+    {
+      "table": "organization_members",
+      "column": "user_id",
+      "ordinal": 3,
+      "data_type": "uuid",
+      "udt": "uuid",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": null
+    },
+    {
+      "table": "organization_members",
+      "column": "role",
+      "ordinal": 4,
+      "data_type": "USER-DEFINED",
+      "udt": "org_role",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": "'member'::org_role"
+    },
+    {
+      "table": "organization_members",
+      "column": "created_at",
+      "ordinal": 5,
+      "data_type": "timestamp with time zone",
+      "udt": "timestamptz",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": "now()"
+    },
+    {
+      "table": "organizations",
+      "column": "id",
+      "ordinal": 1,
+      "data_type": "uuid",
+      "udt": "uuid",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": "gen_random_uuid()"
+    },
+    {
+      "table": "organizations",
+      "column": "name",
+      "ordinal": 2,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": null
+    },
+    {
+      "table": "organizations",
+      "column": "slug",
+      "ordinal": 3,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": null
+    },
+    {
+      "table": "organizations",
+      "column": "created_at",
+      "ordinal": 4,
+      "data_type": "timestamp with time zone",
+      "udt": "timestamptz",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": "now()"
+    },
+    {
+      "table": "organizations",
+      "column": "updated_at",
+      "ordinal": 5,
+      "data_type": "timestamp with time zone",
+      "udt": "timestamptz",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": "now()"
+    },
+    {
+      "table": "organizations",
+      "column": "created_by",
+      "ordinal": 6,
+      "data_type": "uuid",
+      "udt": "uuid",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "password_reset_tokens",
+      "column": "id",
+      "ordinal": 1,
+      "data_type": "uuid",
+      "udt": "uuid",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": "gen_random_uuid()"
+    },
+    {
+      "table": "password_reset_tokens",
+      "column": "email",
+      "ordinal": 2,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": null
+    },
+    {
+      "table": "password_reset_tokens",
+      "column": "token",
+      "ordinal": 3,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": null
+    },
+    {
+      "table": "password_reset_tokens",
+      "column": "expires",
+      "ordinal": 4,
+      "data_type": "timestamp with time zone",
+      "udt": "timestamptz",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": null
+    },
+    {
+      "table": "password_reset_tokens",
+      "column": "created_at",
+      "ordinal": 5,
+      "data_type": "timestamp with time zone",
+      "udt": "timestamptz",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": "now()"
+    },
+    {
+      "table": "project_service_items",
+      "column": "service_id",
+      "ordinal": 1,
+      "data_type": "uuid",
+      "udt": "uuid",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": null
+    },
+    {
+      "table": "project_service_items",
+      "column": "item_id",
+      "ordinal": 2,
+      "data_type": "uuid",
+      "udt": "uuid",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": null
+    },
+    {
+      "table": "project_services",
+      "column": "id",
+      "ordinal": 1,
+      "data_type": "uuid",
+      "udt": "uuid",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": "gen_random_uuid()"
+    },
+    {
+      "table": "project_services",
+      "column": "project_id",
+      "ordinal": 2,
+      "data_type": "uuid",
+      "udt": "uuid",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": null
+    },
+    {
+      "table": "project_services",
+      "column": "type",
+      "ordinal": 3,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": null
+    },
+    {
+      "table": "project_services",
+      "column": "title",
+      "ordinal": 4,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": null
+    },
+    {
+      "table": "project_services",
+      "column": "amount",
+      "ordinal": 5,
+      "data_type": "numeric",
+      "udt": "numeric",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": null
+    },
+    {
+      "table": "project_services",
+      "column": "status",
+      "ordinal": 6,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": null
+    },
+    {
+      "table": "project_services",
+      "column": "supplier_id",
+      "ordinal": 7,
+      "data_type": "uuid",
+      "udt": "uuid",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "project_services",
+      "column": "supplier_snapshot",
+      "ordinal": 8,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "project_services",
+      "column": "notes",
+      "ordinal": 9,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "project_services",
+      "column": "created_at",
+      "ordinal": 10,
+      "data_type": "timestamp with time zone",
+      "udt": "timestamptz",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": "now()"
+    },
+    {
+      "table": "projects",
+      "column": "id",
+      "ordinal": 1,
+      "data_type": "uuid",
+      "udt": "uuid",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": "extensions.uuid_generate_v4()"
+    },
+    {
+      "table": "projects",
+      "column": "created_by",
+      "ordinal": 2,
+      "data_type": "uuid",
+      "udt": "uuid",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "projects",
+      "column": "title",
+      "ordinal": 3,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": null
+    },
+    {
+      "table": "projects",
+      "column": "client_name",
+      "ordinal": 4,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "projects",
+      "column": "accent_color",
+      "ordinal": 5,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": "'#000000'::text"
+    },
+    {
+      "table": "projects",
+      "column": "status",
+      "ordinal": 6,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": "'active'::text"
+    },
+    {
+      "table": "projects",
+      "column": "created_at",
+      "ordinal": 7,
+      "data_type": "timestamp with time zone",
+      "udt": "timestamptz",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": "timezone('utc'::text, now())"
+    },
+    {
+      "table": "projects",
+      "column": "updated_at",
+      "ordinal": 8,
+      "data_type": "timestamp with time zone",
+      "udt": "timestamptz",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": "timezone('utc'::text, now())"
+    },
+    {
+      "table": "projects",
+      "column": "org_id",
+      "ordinal": 9,
+      "data_type": "uuid",
+      "udt": "uuid",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": null
+    },
+    {
+      "table": "projects",
+      "column": "cover_url",
+      "ordinal": 10,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "projects",
+      "column": "budget",
+      "ordinal": 11,
+      "data_type": "integer",
+      "udt": "int4",
+      "numeric_precision": 32,
+      "numeric_scale": 0,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "projects",
+      "column": "address",
+      "ordinal": 12,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "projects",
+      "column": "type",
+      "ordinal": 13,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": "'''''Интерьер''''::text'::text"
+    },
+    {
+      "table": "projects",
+      "column": "deleted_at",
+      "ordinal": 14,
+      "data_type": "timestamp with time zone",
+      "udt": "timestamptz",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "projects",
+      "column": "rooms",
+      "ordinal": 15,
+      "data_type": "ARRAY",
+      "udt": "_text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": "'{}'::text[]"
+    },
+    {
+      "table": "public_links",
+      "column": "token",
+      "ordinal": 1,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": null
+    },
+    {
+      "table": "public_links",
+      "column": "org_id",
+      "ordinal": 2,
+      "data_type": "uuid",
+      "udt": "uuid",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": null
+    },
+    {
+      "table": "public_links",
+      "column": "project_id",
+      "ordinal": 3,
+      "data_type": "uuid",
+      "udt": "uuid",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": null
+    },
+    {
+      "table": "public_links",
+      "column": "type",
+      "ordinal": 4,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": null
+    },
+    {
+      "table": "public_links",
+      "column": "expires_at",
+      "ordinal": 5,
+      "data_type": "timestamp with time zone",
+      "udt": "timestamptz",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": null
+    },
+    {
+      "table": "public_links",
+      "column": "created_at",
+      "ordinal": 6,
+      "data_type": "timestamp with time zone",
+      "udt": "timestamptz",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": "now()"
+    },
+    {
+      "table": "public_links",
+      "column": "client_view",
+      "ordinal": 7,
+      "data_type": "boolean",
+      "udt": "bool",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": "false"
+    },
+    {
+      "table": "reserved_slugs",
+      "column": "slug",
+      "ordinal": 1,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": null
+    },
+    {
+      "table": "service_operation_items",
+      "column": "operation_id",
+      "ordinal": 1,
+      "data_type": "uuid",
+      "udt": "uuid",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": null
+    },
+    {
+      "table": "service_operation_items",
+      "column": "spec_item_id",
+      "ordinal": 2,
+      "data_type": "uuid",
+      "udt": "uuid",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": null
+    },
+    {
+      "table": "service_operations",
+      "column": "id",
+      "ordinal": 1,
+      "data_type": "uuid",
+      "udt": "uuid",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": "gen_random_uuid()"
+    },
+    {
+      "table": "service_operations",
+      "column": "org_id",
+      "ordinal": 2,
+      "data_type": "uuid",
+      "udt": "uuid",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": null
+    },
+    {
+      "table": "service_operations",
+      "column": "project_id",
+      "ordinal": 3,
+      "data_type": "uuid",
+      "udt": "uuid",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": null
+    },
+    {
+      "table": "service_operations",
+      "column": "type",
+      "ordinal": 4,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": null
+    },
+    {
+      "table": "service_operations",
+      "column": "amount",
+      "ordinal": 5,
+      "data_type": "numeric",
+      "udt": "numeric",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": null
+    },
+    {
+      "table": "service_operations",
+      "column": "deadline",
+      "ordinal": 6,
+      "data_type": "date",
+      "udt": "date",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "service_operations",
+      "column": "contractor_company_id",
+      "ordinal": 7,
+      "data_type": "uuid",
+      "udt": "uuid",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "service_operations",
+      "column": "notes",
+      "ordinal": 8,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "service_operations",
+      "column": "created_at",
+      "ordinal": 9,
+      "data_type": "timestamp with time zone",
+      "udt": "timestamptz",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": "now()"
+    },
+    {
+      "table": "service_operations",
+      "column": "updated_at",
+      "ordinal": 10,
+      "data_type": "timestamp with time zone",
+      "udt": "timestamptz",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": "now()"
+    },
+    {
+      "table": "service_operations",
+      "column": "completed",
+      "ordinal": 11,
+      "data_type": "boolean",
+      "udt": "bool",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": "false"
+    },
+    {
+      "table": "service_operations",
+      "column": "name",
+      "ordinal": 12,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "sessions",
+      "column": "id",
+      "ordinal": 1,
+      "data_type": "uuid",
+      "udt": "uuid",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": "gen_random_uuid()"
+    },
+    {
+      "table": "sessions",
+      "column": "user_id",
+      "ordinal": 2,
+      "data_type": "uuid",
+      "udt": "uuid",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": null
+    },
+    {
+      "table": "sessions",
+      "column": "expires",
+      "ordinal": 3,
+      "data_type": "timestamp with time zone",
+      "udt": "timestamptz",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": null
+    },
+    {
+      "table": "sessions",
+      "column": "session_token",
+      "ordinal": 4,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": null
+    },
+    {
+      "table": "spec_item_comments",
+      "column": "id",
+      "ordinal": 1,
+      "data_type": "uuid",
+      "udt": "uuid",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": "gen_random_uuid()"
+    },
+    {
+      "table": "spec_item_comments",
+      "column": "org_id",
+      "ordinal": 2,
+      "data_type": "uuid",
+      "udt": "uuid",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": null
+    },
+    {
+      "table": "spec_item_comments",
+      "column": "spec_item_id",
+      "ordinal": 3,
+      "data_type": "uuid",
+      "udt": "uuid",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": null
+    },
+    {
+      "table": "spec_item_comments",
+      "column": "parent_id",
+      "ordinal": 4,
+      "data_type": "uuid",
+      "udt": "uuid",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "spec_item_comments",
+      "column": "root_id",
+      "ordinal": 5,
+      "data_type": "uuid",
+      "udt": "uuid",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "spec_item_comments",
+      "column": "author_id",
+      "ordinal": 6,
+      "data_type": "uuid",
+      "udt": "uuid",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "spec_item_comments",
+      "column": "author_name_snapshot",
+      "ordinal": 7,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "spec_item_comments",
+      "column": "body",
+      "ordinal": 8,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": null
+    },
+    {
+      "table": "spec_item_comments",
+      "column": "created_at",
+      "ordinal": 9,
+      "data_type": "timestamp with time zone",
+      "udt": "timestamptz",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": "now()"
+    },
+    {
+      "table": "spec_item_comments",
+      "column": "edited_at",
+      "ordinal": 10,
+      "data_type": "timestamp with time zone",
+      "udt": "timestamptz",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "spec_item_comments",
+      "column": "deleted_at",
+      "ordinal": 11,
+      "data_type": "timestamp with time zone",
+      "udt": "timestamptz",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "spec_item_components",
+      "column": "id",
+      "ordinal": 1,
+      "data_type": "uuid",
+      "udt": "uuid",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": "gen_random_uuid()"
+    },
+    {
+      "table": "spec_item_components",
+      "column": "org_id",
+      "ordinal": 2,
+      "data_type": "uuid",
+      "udt": "uuid",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": null
+    },
+    {
+      "table": "spec_item_components",
+      "column": "spec_item_id",
+      "ordinal": 3,
+      "data_type": "uuid",
+      "udt": "uuid",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": null
+    },
+    {
+      "table": "spec_item_components",
+      "column": "parent_component_id",
+      "ordinal": 4,
+      "data_type": "uuid",
+      "udt": "uuid",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "spec_item_components",
+      "column": "kind",
+      "ordinal": 5,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": null
+    },
+    {
+      "table": "spec_item_components",
+      "column": "name",
+      "ordinal": 6,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": null
+    },
+    {
+      "table": "spec_item_components",
+      "column": "ref_spec_item_id",
+      "ordinal": 7,
+      "data_type": "uuid",
+      "udt": "uuid",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "spec_item_components",
+      "column": "company_id",
+      "ordinal": 8,
+      "data_type": "uuid",
+      "udt": "uuid",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "spec_item_components",
+      "column": "contact_id",
+      "ordinal": 9,
+      "data_type": "uuid",
+      "udt": "uuid",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "spec_item_components",
+      "column": "cost",
+      "ordinal": 10,
+      "data_type": "numeric",
+      "udt": "numeric",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "spec_item_components",
+      "column": "notes",
+      "ordinal": 11,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "spec_item_components",
+      "column": "position",
+      "ordinal": 12,
+      "data_type": "integer",
+      "udt": "int4",
+      "numeric_precision": 32,
+      "numeric_scale": 0,
+      "nullable": "NO",
+      "default": "0"
+    },
+    {
+      "table": "spec_item_components",
+      "column": "created_at",
+      "ordinal": 13,
+      "data_type": "timestamp with time zone",
+      "udt": "timestamptz",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": "now()"
+    },
+    {
+      "table": "spec_item_components",
+      "column": "updated_at",
+      "ordinal": 14,
+      "data_type": "timestamp with time zone",
+      "udt": "timestamptz",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": "now()"
+    },
+    {
+      "table": "spec_item_components",
+      "column": "additional_cost",
+      "ordinal": 15,
+      "data_type": "numeric",
+      "udt": "numeric",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "spec_item_events",
+      "column": "id",
+      "ordinal": 1,
+      "data_type": "uuid",
+      "udt": "uuid",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": "gen_random_uuid()"
+    },
+    {
+      "table": "spec_item_events",
+      "column": "org_id",
+      "ordinal": 2,
+      "data_type": "uuid",
+      "udt": "uuid",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": null
+    },
+    {
+      "table": "spec_item_events",
+      "column": "spec_item_id",
+      "ordinal": 3,
+      "data_type": "uuid",
+      "udt": "uuid",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": null
+    },
+    {
+      "table": "spec_item_events",
+      "column": "kind",
+      "ordinal": 4,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": null
+    },
+    {
+      "table": "spec_item_events",
+      "column": "actor_id",
+      "ordinal": 5,
+      "data_type": "uuid",
+      "udt": "uuid",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "spec_item_events",
+      "column": "actor_name_snapshot",
+      "ordinal": 6,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "spec_item_events",
+      "column": "payload",
+      "ordinal": 7,
+      "data_type": "jsonb",
+      "udt": "jsonb",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": "'{}'::jsonb"
+    },
+    {
+      "table": "spec_item_events",
+      "column": "created_at",
+      "ordinal": 8,
+      "data_type": "timestamp with time zone",
+      "udt": "timestamptz",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": "now()"
+    },
+    {
+      "table": "spec_item_files",
+      "column": "id",
+      "ordinal": 1,
+      "data_type": "uuid",
+      "udt": "uuid",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": "gen_random_uuid()"
+    },
+    {
+      "table": "spec_item_files",
+      "column": "org_id",
+      "ordinal": 2,
+      "data_type": "uuid",
+      "udt": "uuid",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": null
+    },
+    {
+      "table": "spec_item_files",
+      "column": "project_id",
+      "ordinal": 3,
+      "data_type": "uuid",
+      "udt": "uuid",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": null
+    },
+    {
+      "table": "spec_item_files",
+      "column": "spec_item_id",
+      "ordinal": 4,
+      "data_type": "uuid",
+      "udt": "uuid",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": null
+    },
+    {
+      "table": "spec_item_files",
+      "column": "storage_path",
+      "ordinal": 5,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": null
+    },
+    {
+      "table": "spec_item_files",
+      "column": "file_name",
+      "ordinal": 6,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": null
+    },
+    {
+      "table": "spec_item_files",
+      "column": "mime_type",
+      "ordinal": 7,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": null
+    },
+    {
+      "table": "spec_item_files",
+      "column": "size_bytes",
+      "ordinal": 8,
+      "data_type": "bigint",
+      "udt": "int8",
+      "numeric_precision": 64,
+      "numeric_scale": 0,
+      "nullable": "NO",
+      "default": null
+    },
+    {
+      "table": "spec_item_files",
+      "column": "category",
+      "ordinal": 9,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": null
+    },
+    {
+      "table": "spec_item_files",
+      "column": "uploaded_by",
+      "ordinal": 10,
+      "data_type": "uuid",
+      "udt": "uuid",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "spec_item_files",
+      "column": "created_at",
+      "ordinal": 11,
+      "data_type": "timestamp with time zone",
+      "udt": "timestamptz",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": "now()"
+    },
+    {
+      "table": "spec_item_files",
+      "column": "deleted_at",
+      "ordinal": 12,
+      "data_type": "timestamp with time zone",
+      "udt": "timestamptz",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "spec_item_variants",
+      "column": "id",
+      "ordinal": 1,
+      "data_type": "uuid",
+      "udt": "uuid",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": "gen_random_uuid()"
+    },
+    {
+      "table": "spec_item_variants",
+      "column": "spec_item_id",
+      "ordinal": 2,
+      "data_type": "uuid",
+      "udt": "uuid",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": null
+    },
+    {
+      "table": "spec_item_variants",
+      "column": "org_id",
+      "ordinal": 3,
+      "data_type": "uuid",
+      "udt": "uuid",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": null
+    },
+    {
+      "table": "spec_item_variants",
+      "column": "name",
+      "ordinal": 4,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": "''::text"
+    },
+    {
+      "table": "spec_item_variants",
+      "column": "brand",
+      "ordinal": 5,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": "''::text"
+    },
+    {
+      "table": "spec_item_variants",
+      "column": "article",
+      "ordinal": 6,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": "''::text"
+    },
+    {
+      "table": "spec_item_variants",
+      "column": "spec",
+      "ordinal": 7,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": "''::text"
+    },
+    {
+      "table": "spec_item_variants",
+      "column": "price",
+      "ordinal": 8,
+      "data_type": "numeric",
+      "udt": "numeric",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": "0"
+    },
+    {
+      "table": "spec_item_variants",
+      "column": "product_url",
+      "ordinal": 9,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": "''::text"
+    },
+    {
+      "table": "spec_item_variants",
+      "column": "image_url",
+      "ordinal": 10,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "spec_item_variants",
+      "column": "lead_time",
+      "ordinal": 11,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": "''::text"
+    },
+    {
+      "table": "spec_item_variants",
+      "column": "company_id",
+      "ordinal": 12,
+      "data_type": "uuid",
+      "udt": "uuid",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "spec_item_variants",
+      "column": "contact_id",
+      "ordinal": 13,
+      "data_type": "uuid",
+      "udt": "uuid",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "spec_item_variants",
+      "column": "company_name_snapshot",
+      "ordinal": 14,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": "''::text"
+    },
+    {
+      "table": "spec_item_variants",
+      "column": "label",
+      "ordinal": 15,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": "''::text"
+    },
+    {
+      "table": "spec_item_variants",
+      "column": "is_active",
+      "ordinal": 16,
+      "data_type": "boolean",
+      "udt": "bool",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": "false"
+    },
+    {
+      "table": "spec_item_variants",
+      "column": "position",
+      "ordinal": 17,
+      "data_type": "integer",
+      "udt": "int4",
+      "numeric_precision": 32,
+      "numeric_scale": 0,
+      "nullable": "NO",
+      "default": "0"
+    },
+    {
+      "table": "spec_item_variants",
+      "column": "created_at",
+      "ordinal": 18,
+      "data_type": "timestamp with time zone",
+      "udt": "timestamptz",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": "now()"
+    },
+    {
+      "table": "spec_item_variants",
+      "column": "updated_at",
+      "ordinal": 19,
+      "data_type": "timestamp with time zone",
+      "udt": "timestamptz",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": "now()"
+    },
+    {
+      "table": "spec_items",
+      "column": "id",
+      "ordinal": 1,
+      "data_type": "uuid",
+      "udt": "uuid",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": "extensions.uuid_generate_v4()"
+    },
+    {
+      "table": "spec_items",
+      "column": "project_id",
+      "ordinal": 2,
+      "data_type": "uuid",
+      "udt": "uuid",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": null
+    },
+    {
+      "table": "spec_items",
+      "column": "material_id",
+      "ordinal": 3,
+      "data_type": "uuid",
+      "udt": "uuid",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "spec_items",
+      "column": "code",
+      "ordinal": 5,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "spec_items",
+      "column": "name",
+      "ordinal": 6,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": null
+    },
+    {
+      "table": "spec_items",
+      "column": "brand",
+      "ordinal": 7,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "spec_items",
+      "column": "spec",
+      "ordinal": 8,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "spec_items",
+      "column": "qty",
+      "ordinal": 9,
+      "data_type": "numeric",
+      "udt": "numeric",
+      "numeric_precision": 10,
+      "numeric_scale": 2,
+      "nullable": "NO",
+      "default": "1.00"
+    },
+    {
+      "table": "spec_items",
+      "column": "unit",
+      "ordinal": 10,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": "'шт'::text"
+    },
+    {
+      "table": "spec_items",
+      "column": "price",
+      "ordinal": 11,
+      "data_type": "numeric",
+      "udt": "numeric",
+      "numeric_precision": 12,
+      "numeric_scale": 2,
+      "nullable": "NO",
+      "default": "0.00"
+    },
+    {
+      "table": "spec_items",
+      "column": "status",
+      "ordinal": 12,
+      "data_type": "USER-DEFINED",
+      "udt": "spec_status",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": "'draft'::spec_status"
+    },
+    {
+      "table": "spec_items",
+      "column": "is_placeholder",
+      "ordinal": 13,
+      "data_type": "boolean",
+      "udt": "bool",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": "false"
+    },
+    {
+      "table": "spec_items",
+      "column": "position",
+      "ordinal": 14,
+      "data_type": "integer",
+      "udt": "int4",
+      "numeric_precision": 32,
+      "numeric_scale": 0,
+      "nullable": "NO",
+      "default": "0"
+    },
+    {
+      "table": "spec_items",
+      "column": "created_at",
+      "ordinal": 15,
+      "data_type": "timestamp with time zone",
+      "udt": "timestamptz",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": "timezone('utc'::text, now())"
+    },
+    {
+      "table": "spec_items",
+      "column": "updated_at",
+      "ordinal": 16,
+      "data_type": "timestamp with time zone",
+      "udt": "timestamptz",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": "timezone('utc'::text, now())"
+    },
+    {
+      "table": "spec_items",
+      "column": "company_id",
+      "ordinal": 17,
+      "data_type": "uuid",
+      "udt": "uuid",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "spec_items",
+      "column": "contact_id",
+      "ordinal": 18,
+      "data_type": "uuid",
+      "udt": "uuid",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "spec_items",
+      "column": "org_id",
+      "ordinal": 19,
+      "data_type": "uuid",
+      "udt": "uuid",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": null
+    },
+    {
+      "table": "spec_items",
+      "column": "company_name_snapshot",
+      "ordinal": 20,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "spec_items",
+      "column": "contact_name_snapshot",
+      "ordinal": 21,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "spec_items",
+      "column": "article",
+      "ordinal": 22,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "spec_items",
+      "column": "rooms",
+      "ordinal": 23,
+      "data_type": "ARRAY",
+      "udt": "_text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": "'{}'::text[]"
+    },
+    {
+      "table": "spec_items",
+      "column": "notes",
+      "ordinal": 24,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "spec_items",
+      "column": "lead_time",
+      "ordinal": 25,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "spec_items",
+      "column": "avail",
+      "ordinal": 26,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "spec_items",
+      "column": "attrs",
+      "ordinal": 27,
+      "data_type": "jsonb",
+      "udt": "jsonb",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": "'{}'::jsonb"
+    },
+    {
+      "table": "spec_items",
+      "column": "type",
+      "ordinal": 28,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": "'Прочее'::text"
+    },
+    {
+      "table": "spec_items",
+      "column": "deleted_at",
+      "ordinal": 29,
+      "data_type": "timestamp with time zone",
+      "udt": "timestamptz",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "spec_items",
+      "column": "base_price",
+      "ordinal": 30,
+      "data_type": "numeric",
+      "udt": "numeric",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": "0"
+    },
+    {
+      "table": "spec_items",
+      "column": "supplier_discount",
+      "ordinal": 31,
+      "data_type": "numeric",
+      "udt": "numeric",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": "0"
+    },
+    {
+      "table": "spec_items",
+      "column": "client_discount",
+      "ordinal": 32,
+      "data_type": "numeric",
+      "udt": "numeric",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": "0"
+    },
+    {
+      "table": "spec_items",
+      "column": "cutting_stock",
+      "ordinal": 33,
+      "data_type": "numeric",
+      "udt": "numeric",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": "0"
+    },
+    {
+      "table": "spec_items",
+      "column": "stock_pct",
+      "ordinal": 34,
+      "data_type": "numeric",
+      "udt": "numeric",
+      "numeric_precision": 5,
+      "numeric_scale": 2,
+      "nullable": "NO",
+      "default": "0"
+    },
+    {
+      "table": "spec_items",
+      "column": "client_discount_pct",
+      "ordinal": 35,
+      "data_type": "numeric",
+      "udt": "numeric",
+      "numeric_precision": 5,
+      "numeric_scale": 2,
+      "nullable": "NO",
+      "default": "0"
+    },
+    {
+      "table": "spec_items",
+      "column": "supplier_discount_pct",
+      "ordinal": 36,
+      "data_type": "numeric",
+      "udt": "numeric",
+      "numeric_precision": 5,
+      "numeric_scale": 2,
+      "nullable": "NO",
+      "default": "0"
+    },
+    {
+      "table": "spec_items",
+      "column": "attachments",
+      "ordinal": 37,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "spec_items",
+      "column": "product_type",
+      "ordinal": 38,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "spec_items",
+      "column": "product_url",
+      "ordinal": 39,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "spec_items",
+      "column": "image_url",
+      "ordinal": 40,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "spec_items",
+      "column": "parent_id",
+      "ordinal": 41,
+      "data_type": "uuid",
+      "udt": "uuid",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "spec_items_priced",
+      "column": "id",
+      "ordinal": 1,
+      "data_type": "uuid",
+      "udt": "uuid",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "spec_items_priced",
+      "column": "project_id",
+      "ordinal": 2,
+      "data_type": "uuid",
+      "udt": "uuid",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "spec_items_priced",
+      "column": "material_id",
+      "ordinal": 3,
+      "data_type": "uuid",
+      "udt": "uuid",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "spec_items_priced",
+      "column": "code",
+      "ordinal": 4,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "spec_items_priced",
+      "column": "name",
+      "ordinal": 5,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "spec_items_priced",
+      "column": "brand",
+      "ordinal": 6,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "spec_items_priced",
+      "column": "spec",
+      "ordinal": 7,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "spec_items_priced",
+      "column": "qty",
+      "ordinal": 8,
+      "data_type": "numeric",
+      "udt": "numeric",
+      "numeric_precision": 10,
+      "numeric_scale": 2,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "spec_items_priced",
+      "column": "unit",
+      "ordinal": 9,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "spec_items_priced",
+      "column": "price",
+      "ordinal": 10,
+      "data_type": "numeric",
+      "udt": "numeric",
+      "numeric_precision": 12,
+      "numeric_scale": 2,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "spec_items_priced",
+      "column": "status",
+      "ordinal": 11,
+      "data_type": "USER-DEFINED",
+      "udt": "spec_status",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "spec_items_priced",
+      "column": "is_placeholder",
+      "ordinal": 12,
+      "data_type": "boolean",
+      "udt": "bool",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "spec_items_priced",
+      "column": "position",
+      "ordinal": 13,
+      "data_type": "integer",
+      "udt": "int4",
+      "numeric_precision": 32,
+      "numeric_scale": 0,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "spec_items_priced",
+      "column": "created_at",
+      "ordinal": 14,
+      "data_type": "timestamp with time zone",
+      "udt": "timestamptz",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "spec_items_priced",
+      "column": "updated_at",
+      "ordinal": 15,
+      "data_type": "timestamp with time zone",
+      "udt": "timestamptz",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "spec_items_priced",
+      "column": "company_id",
+      "ordinal": 16,
+      "data_type": "uuid",
+      "udt": "uuid",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "spec_items_priced",
+      "column": "contact_id",
+      "ordinal": 17,
+      "data_type": "uuid",
+      "udt": "uuid",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "spec_items_priced",
+      "column": "org_id",
+      "ordinal": 18,
+      "data_type": "uuid",
+      "udt": "uuid",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "spec_items_priced",
+      "column": "company_name_snapshot",
+      "ordinal": 19,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "spec_items_priced",
+      "column": "contact_name_snapshot",
+      "ordinal": 20,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "spec_items_priced",
+      "column": "article",
+      "ordinal": 21,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "spec_items_priced",
+      "column": "rooms",
+      "ordinal": 22,
+      "data_type": "ARRAY",
+      "udt": "_text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "spec_items_priced",
+      "column": "notes",
+      "ordinal": 23,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "spec_items_priced",
+      "column": "lead_time",
+      "ordinal": 24,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "spec_items_priced",
+      "column": "avail",
+      "ordinal": 25,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "spec_items_priced",
+      "column": "attrs",
+      "ordinal": 26,
+      "data_type": "jsonb",
+      "udt": "jsonb",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "spec_items_priced",
+      "column": "type",
+      "ordinal": 27,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "spec_items_priced",
+      "column": "deleted_at",
+      "ordinal": 28,
+      "data_type": "timestamp with time zone",
+      "udt": "timestamptz",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "spec_items_priced",
+      "column": "base_price",
+      "ordinal": 29,
+      "data_type": "numeric",
+      "udt": "numeric",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "spec_items_priced",
+      "column": "supplier_discount",
+      "ordinal": 30,
+      "data_type": "numeric",
+      "udt": "numeric",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "spec_items_priced",
+      "column": "client_discount",
+      "ordinal": 31,
+      "data_type": "numeric",
+      "udt": "numeric",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "spec_items_priced",
+      "column": "cutting_stock",
+      "ordinal": 32,
+      "data_type": "numeric",
+      "udt": "numeric",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "spec_items_priced",
+      "column": "stock_pct",
+      "ordinal": 33,
+      "data_type": "numeric",
+      "udt": "numeric",
+      "numeric_precision": 5,
+      "numeric_scale": 2,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "spec_items_priced",
+      "column": "client_discount_pct",
+      "ordinal": 34,
+      "data_type": "numeric",
+      "udt": "numeric",
+      "numeric_precision": 5,
+      "numeric_scale": 2,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "spec_items_priced",
+      "column": "supplier_discount_pct",
+      "ordinal": 35,
+      "data_type": "numeric",
+      "udt": "numeric",
+      "numeric_precision": 5,
+      "numeric_scale": 2,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "spec_items_priced",
+      "column": "qty_final",
+      "ordinal": 36,
+      "data_type": "numeric",
+      "udt": "numeric",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "spec_items_priced",
+      "column": "price_final",
+      "ordinal": 37,
+      "data_type": "numeric",
+      "udt": "numeric",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "users",
+      "column": "id",
+      "ordinal": 1,
+      "data_type": "uuid",
+      "udt": "uuid",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": "gen_random_uuid()"
+    },
+    {
+      "table": "users",
+      "column": "name",
+      "ordinal": 2,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "users",
+      "column": "email",
+      "ordinal": 3,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "users",
+      "column": "email_verified",
+      "ordinal": 4,
+      "data_type": "timestamp with time zone",
+      "udt": "timestamptz",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "users",
+      "column": "image",
+      "ordinal": 5,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "users",
+      "column": "created_at",
+      "ordinal": 6,
+      "data_type": "timestamp with time zone",
+      "udt": "timestamptz",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": "now()"
+    },
+    {
+      "table": "users",
+      "column": "password",
+      "ordinal": 7,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "users",
+      "column": "active_org_id",
+      "ordinal": 8,
+      "data_type": "uuid",
+      "udt": "uuid",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "YES",
+      "default": null
+    },
+    {
+      "table": "verification_tokens",
+      "column": "identifier",
+      "ordinal": 1,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": null
+    },
+    {
+      "table": "verification_tokens",
+      "column": "token",
+      "ordinal": 2,
+      "data_type": "text",
+      "udt": "text",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": null
+    },
+    {
+      "table": "verification_tokens",
+      "column": "expires",
+      "ordinal": 3,
+      "data_type": "timestamp with time zone",
+      "udt": "timestamptz",
+      "numeric_precision": null,
+      "numeric_scale": null,
+      "nullable": "NO",
+      "default": null
+    }
+  ],
+  "constraints": [
+    {
+      "table": "accounts",
+      "name": "accounts_user_id_fkey",
+      "type": "f",
+      "definition": "FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE",
+      "references": "users"
+    },
+    {
+      "table": "accounts",
+      "name": "accounts_pkey",
+      "type": "p",
+      "definition": "PRIMARY KEY (id)",
+      "references": null
+    },
+    {
+      "table": "accounts",
+      "name": "accounts_provider_provider_account_id_key",
+      "type": "u",
+      "definition": "UNIQUE (provider, provider_account_id)",
+      "references": null
+    },
+    {
+      "table": "companies",
+      "name": "companies_created_by_fkey",
+      "type": "f",
+      "definition": "FOREIGN KEY (created_by) REFERENCES users(id) ON UPDATE CASCADE ON DELETE SET NULL",
+      "references": "users"
+    },
+    {
+      "table": "companies",
+      "name": "companies_org_id_fkey",
+      "type": "f",
+      "definition": "FOREIGN KEY (org_id) REFERENCES organizations(id) ON DELETE CASCADE",
+      "references": "organizations"
+    },
+    {
+      "table": "companies",
+      "name": "companies_pkey",
+      "type": "p",
+      "definition": "PRIMARY KEY (id)",
+      "references": null
+    },
+    {
+      "table": "contacts",
+      "name": "contacts_company_id_fkey",
+      "type": "f",
+      "definition": "FOREIGN KEY (company_id) REFERENCES companies(id) ON UPDATE CASCADE ON DELETE SET NULL",
+      "references": "companies"
+    },
+    {
+      "table": "contacts",
+      "name": "contacts_created_by_fkey",
+      "type": "f",
+      "definition": "FOREIGN KEY (created_by) REFERENCES users(id) ON UPDATE CASCADE ON DELETE SET NULL",
+      "references": "users"
+    },
+    {
+      "table": "contacts",
+      "name": "contacts_org_id_fkey",
+      "type": "f",
+      "definition": "FOREIGN KEY (org_id) REFERENCES organizations(id) ON DELETE CASCADE",
+      "references": "organizations"
+    },
+    {
+      "table": "contacts",
+      "name": "contacts_pkey",
+      "type": "p",
+      "definition": "PRIMARY KEY (id)",
+      "references": null
+    },
+    {
+      "table": "materials",
+      "name": "materials_company_id_fkey",
+      "type": "f",
+      "definition": "FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE SET NULL",
+      "references": "companies"
+    },
+    {
+      "table": "materials",
+      "name": "materials_contact_id_fkey",
+      "type": "f",
+      "definition": "FOREIGN KEY (contact_id) REFERENCES contacts(id) ON DELETE SET NULL",
+      "references": "contacts"
+    },
+    {
+      "table": "materials",
+      "name": "materials_created_by_fkey",
+      "type": "f",
+      "definition": "FOREIGN KEY (created_by) REFERENCES users(id) ON UPDATE CASCADE ON DELETE SET NULL",
+      "references": "users"
+    },
+    {
+      "table": "materials",
+      "name": "materials_org_id_fkey",
+      "type": "f",
+      "definition": "FOREIGN KEY (org_id) REFERENCES organizations(id) ON DELETE CASCADE",
+      "references": "organizations"
+    },
+    {
+      "table": "materials",
+      "name": "materials_pkey",
+      "type": "p",
+      "definition": "PRIMARY KEY (id)",
+      "references": null
+    },
+    {
+      "table": "organization_invites",
+      "name": "organization_invites_role_check",
+      "type": "c",
+      "definition": "CHECK ((role = ANY (ARRAY['admin'::text, 'member'::text])))",
+      "references": null
+    },
+    {
+      "table": "organization_invites",
+      "name": "organization_invites_invited_by_fkey",
+      "type": "f",
+      "definition": "FOREIGN KEY (invited_by) REFERENCES users(id) ON DELETE SET NULL",
+      "references": "users"
+    },
+    {
+      "table": "organization_invites",
+      "name": "organization_invites_org_id_fkey",
+      "type": "f",
+      "definition": "FOREIGN KEY (org_id) REFERENCES organizations(id) ON DELETE CASCADE",
+      "references": "organizations"
+    },
+    {
+      "table": "organization_invites",
+      "name": "organization_invites_pkey",
+      "type": "p",
+      "definition": "PRIMARY KEY (id)",
+      "references": null
+    },
+    {
+      "table": "organization_invites",
+      "name": "organization_invites_org_email_key",
+      "type": "u",
+      "definition": "UNIQUE (org_id, email)",
+      "references": null
+    },
+    {
+      "table": "organization_invites",
+      "name": "organization_invites_org_id_email_key",
+      "type": "u",
+      "definition": "UNIQUE (org_id, email)",
+      "references": null
+    },
+    {
+      "table": "organization_invites",
+      "name": "organization_invites_token_key",
+      "type": "u",
+      "definition": "UNIQUE (token)",
+      "references": null
+    },
+    {
+      "table": "organization_members",
+      "name": "organization_members_org_id_fkey",
+      "type": "f",
+      "definition": "FOREIGN KEY (org_id) REFERENCES organizations(id) ON DELETE CASCADE",
+      "references": "organizations"
+    },
+    {
+      "table": "organization_members",
+      "name": "organization_members_user_id_fkey",
+      "type": "f",
+      "definition": "FOREIGN KEY (user_id) REFERENCES users(id) ON UPDATE CASCADE ON DELETE CASCADE",
+      "references": "users"
+    },
+    {
+      "table": "organization_members",
+      "name": "organization_members_pkey",
+      "type": "p",
+      "definition": "PRIMARY KEY (org_id, user_id)",
+      "references": null
+    },
+    {
+      "table": "organizations",
+      "name": "organizations_name_length",
+      "type": "c",
+      "definition": "CHECK ((length(TRIM(BOTH FROM name)) >= 2))",
+      "references": null
+    },
+    {
+      "table": "organizations",
+      "name": "organizations_slug_format",
+      "type": "c",
+      "definition": "CHECK ((slug ~ '^[a-z0-9][a-z0-9-]{1,49}$'::text))",
+      "references": null
+    },
+    {
+      "table": "organizations",
+      "name": "organizations_created_by_fkey",
+      "type": "f",
+      "definition": "FOREIGN KEY (created_by) REFERENCES users(id) ON UPDATE CASCADE ON DELETE SET NULL",
+      "references": "users"
+    },
+    {
+      "table": "organizations",
+      "name": "organizations_pkey",
+      "type": "p",
+      "definition": "PRIMARY KEY (id)",
+      "references": null
+    },
+    {
+      "table": "organizations",
+      "name": "organizations_slug_key",
+      "type": "u",
+      "definition": "UNIQUE (slug)",
+      "references": null
+    },
+    {
+      "table": "password_reset_tokens",
+      "name": "password_reset_tokens_pkey",
+      "type": "p",
+      "definition": "PRIMARY KEY (id)",
+      "references": null
+    },
+    {
+      "table": "password_reset_tokens",
+      "name": "password_reset_tokens_token_key",
+      "type": "u",
+      "definition": "UNIQUE (token)",
+      "references": null
+    },
+    {
+      "table": "project_service_items",
+      "name": "project_service_items_item_id_fkey",
+      "type": "f",
+      "definition": "FOREIGN KEY (item_id) REFERENCES spec_items(id)",
+      "references": "spec_items"
+    },
+    {
+      "table": "project_service_items",
+      "name": "project_service_items_service_id_fkey",
+      "type": "f",
+      "definition": "FOREIGN KEY (service_id) REFERENCES project_services(id)",
+      "references": "project_services"
+    },
+    {
+      "table": "project_service_items",
+      "name": "project_service_items_pkey",
+      "type": "p",
+      "definition": "PRIMARY KEY (service_id, item_id)",
+      "references": null
+    },
+    {
+      "table": "project_services",
+      "name": "project_services_type_check",
+      "type": "c",
+      "definition": "CHECK ((type = ANY (ARRAY['delivery'::text, 'installation'::text, 'other'::text])))",
+      "references": null
+    },
+    {
+      "table": "project_services",
+      "name": "project_services_project_id_fkey",
+      "type": "f",
+      "definition": "FOREIGN KEY (project_id) REFERENCES projects(id)",
+      "references": "projects"
+    },
+    {
+      "table": "project_services",
+      "name": "project_services_supplier_id_fkey",
+      "type": "f",
+      "definition": "FOREIGN KEY (supplier_id) REFERENCES companies(id)",
+      "references": "companies"
+    },
+    {
+      "table": "project_services",
+      "name": "project_services_pkey",
+      "type": "p",
+      "definition": "PRIMARY KEY (id)",
+      "references": null
+    },
+    {
+      "table": "projects",
+      "name": "projects_status_check",
+      "type": "c",
+      "definition": "CHECK ((status = ANY (ARRAY['draft'::text, 'active'::text, 'on_hold'::text, 'completed'::text, 'archived'::text])))",
+      "references": null
+    },
+    {
+      "table": "projects",
+      "name": "projects_created_by_fkey",
+      "type": "f",
+      "definition": "FOREIGN KEY (created_by) REFERENCES users(id) ON UPDATE CASCADE ON DELETE SET NULL",
+      "references": "users"
+    },
+    {
+      "table": "projects",
+      "name": "projects_org_id_fkey",
+      "type": "f",
+      "definition": "FOREIGN KEY (org_id) REFERENCES organizations(id) ON DELETE CASCADE",
+      "references": "organizations"
+    },
+    {
+      "table": "projects",
+      "name": "projects_pkey",
+      "type": "p",
+      "definition": "PRIMARY KEY (id)",
+      "references": null
+    },
+    {
+      "table": "public_links",
+      "name": "public_links_type_check",
+      "type": "c",
+      "definition": "CHECK ((type = ANY (ARRAY['spec'::text, 'pdf'::text])))",
+      "references": null
+    },
+    {
+      "table": "public_links",
+      "name": "public_links_org_id_fkey",
+      "type": "f",
+      "definition": "FOREIGN KEY (org_id) REFERENCES organizations(id)",
+      "references": "organizations"
+    },
+    {
+      "table": "public_links",
+      "name": "public_links_project_id_fkey",
+      "type": "f",
+      "definition": "FOREIGN KEY (project_id) REFERENCES projects(id)",
+      "references": "projects"
+    },
+    {
+      "table": "public_links",
+      "name": "public_links_pkey",
+      "type": "p",
+      "definition": "PRIMARY KEY (token)",
+      "references": null
+    },
+    {
+      "table": "reserved_slugs",
+      "name": "reserved_slugs_pkey",
+      "type": "p",
+      "definition": "PRIMARY KEY (slug)",
+      "references": null
+    },
+    {
+      "table": "service_operation_items",
+      "name": "service_operation_items_operation_id_fkey",
+      "type": "f",
+      "definition": "FOREIGN KEY (operation_id) REFERENCES service_operations(id) ON DELETE CASCADE",
+      "references": "service_operations"
+    },
+    {
+      "table": "service_operation_items",
+      "name": "service_operation_items_spec_item_id_fkey",
+      "type": "f",
+      "definition": "FOREIGN KEY (spec_item_id) REFERENCES spec_items(id) ON DELETE CASCADE",
+      "references": "spec_items"
+    },
+    {
+      "table": "service_operation_items",
+      "name": "service_operation_items_pkey",
+      "type": "p",
+      "definition": "PRIMARY KEY (operation_id, spec_item_id)",
+      "references": null
+    },
+    {
+      "table": "service_operations",
+      "name": "service_operations_amount_check",
+      "type": "c",
+      "definition": "CHECK ((amount >= (0)::numeric))",
+      "references": null
+    },
+    {
+      "table": "service_operations",
+      "name": "service_operations_name_check",
+      "type": "c",
+      "definition": "CHECK ((((type = 'service'::text) AND (name IS NOT NULL) AND (btrim(name) <> ''::text)) OR ((type <> 'service'::text) AND (name IS NULL))))",
+      "references": null
+    },
+    {
+      "table": "service_operations",
+      "name": "service_operations_type_check",
+      "type": "c",
+      "definition": "CHECK ((type = ANY (ARRAY['delivery'::text, 'installation'::text, 'service'::text])))",
+      "references": null
+    },
+    {
+      "table": "service_operations",
+      "name": "service_operations_contractor_company_id_fkey",
+      "type": "f",
+      "definition": "FOREIGN KEY (contractor_company_id) REFERENCES companies(id) ON DELETE SET NULL",
+      "references": "companies"
+    },
+    {
+      "table": "service_operations",
+      "name": "service_operations_org_id_fkey",
+      "type": "f",
+      "definition": "FOREIGN KEY (org_id) REFERENCES organizations(id)",
+      "references": "organizations"
+    },
+    {
+      "table": "service_operations",
+      "name": "service_operations_project_id_fkey",
+      "type": "f",
+      "definition": "FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE",
+      "references": "projects"
+    },
+    {
+      "table": "service_operations",
+      "name": "service_operations_pkey",
+      "type": "p",
+      "definition": "PRIMARY KEY (id)",
+      "references": null
+    },
+    {
+      "table": "sessions",
+      "name": "sessions_user_id_fkey",
+      "type": "f",
+      "definition": "FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE",
+      "references": "users"
+    },
+    {
+      "table": "sessions",
+      "name": "sessions_pkey",
+      "type": "p",
+      "definition": "PRIMARY KEY (id)",
+      "references": null
+    },
+    {
+      "table": "sessions",
+      "name": "sessions_session_token_key",
+      "type": "u",
+      "definition": "UNIQUE (session_token)",
+      "references": null
+    },
+    {
+      "table": "spec_item_comments",
+      "name": "spec_item_comments_body_check",
+      "type": "c",
+      "definition": "CHECK ((char_length(btrim(body)) > 0))",
+      "references": null
+    },
+    {
+      "table": "spec_item_comments",
+      "name": "spec_item_comments_author_id_fkey",
+      "type": "f",
+      "definition": "FOREIGN KEY (author_id) REFERENCES users(id) ON DELETE SET NULL",
+      "references": "users"
+    },
+    {
+      "table": "spec_item_comments",
+      "name": "spec_item_comments_org_id_fkey",
+      "type": "f",
+      "definition": "FOREIGN KEY (org_id) REFERENCES organizations(id)",
+      "references": "organizations"
+    },
+    {
+      "table": "spec_item_comments",
+      "name": "spec_item_comments_parent_id_fkey",
+      "type": "f",
+      "definition": "FOREIGN KEY (parent_id) REFERENCES spec_item_comments(id) ON DELETE CASCADE",
+      "references": "spec_item_comments"
+    },
+    {
+      "table": "spec_item_comments",
+      "name": "spec_item_comments_spec_item_id_fkey",
+      "type": "f",
+      "definition": "FOREIGN KEY (spec_item_id) REFERENCES spec_items(id) ON DELETE CASCADE",
+      "references": "spec_items"
+    },
+    {
+      "table": "spec_item_comments",
+      "name": "spec_item_comments_pkey",
+      "type": "p",
+      "definition": "PRIMARY KEY (id)",
+      "references": null
+    },
+    {
+      "table": "spec_item_components",
+      "name": "spec_item_components_additional_cost_check",
+      "type": "c",
+      "definition": "CHECK (((additional_cost IS NULL) OR (additional_cost >= (0)::numeric)))",
+      "references": null
+    },
+    {
+      "table": "spec_item_components",
+      "name": "spec_item_components_kind_check",
+      "type": "c",
+      "definition": "CHECK ((kind = ANY (ARRAY['group'::text, 'component'::text, 'spec_ref'::text])))",
+      "references": null
+    },
+    {
+      "table": "spec_item_components",
+      "name": "spec_item_components_ref_spec_item_id_check",
+      "type": "c",
+      "definition": "CHECK ((((kind = ANY (ARRAY['group'::text, 'component'::text])) AND (ref_spec_item_id IS NULL)) OR ((kind = 'spec_ref'::text) AND (ref_spec_item_id IS NOT NULL))))",
+      "references": null
+    },
+    {
+      "table": "spec_item_components",
+      "name": "spec_item_components_company_id_fkey",
+      "type": "f",
+      "definition": "FOREIGN KEY (company_id) REFERENCES companies(id)",
+      "references": "companies"
+    },
+    {
+      "table": "spec_item_components",
+      "name": "spec_item_components_contact_id_fkey",
+      "type": "f",
+      "definition": "FOREIGN KEY (contact_id) REFERENCES contacts(id)",
+      "references": "contacts"
+    },
+    {
+      "table": "spec_item_components",
+      "name": "spec_item_components_org_id_fkey",
+      "type": "f",
+      "definition": "FOREIGN KEY (org_id) REFERENCES organizations(id)",
+      "references": "organizations"
+    },
+    {
+      "table": "spec_item_components",
+      "name": "spec_item_components_parent_component_id_fkey",
+      "type": "f",
+      "definition": "FOREIGN KEY (parent_component_id) REFERENCES spec_item_components(id) ON DELETE CASCADE",
+      "references": "spec_item_components"
+    },
+    {
+      "table": "spec_item_components",
+      "name": "spec_item_components_ref_spec_item_id_fkey",
+      "type": "f",
+      "definition": "FOREIGN KEY (ref_spec_item_id) REFERENCES spec_items(id) ON DELETE RESTRICT",
+      "references": "spec_items"
+    },
+    {
+      "table": "spec_item_components",
+      "name": "spec_item_components_spec_item_id_fkey",
+      "type": "f",
+      "definition": "FOREIGN KEY (spec_item_id) REFERENCES spec_items(id) ON DELETE CASCADE",
+      "references": "spec_items"
+    },
+    {
+      "table": "spec_item_components",
+      "name": "spec_item_components_pkey",
+      "type": "p",
+      "definition": "PRIMARY KEY (id)",
+      "references": null
+    },
+    {
+      "table": "spec_item_events",
+      "name": "spec_item_events_kind_check",
+      "type": "c",
+      "definition": "CHECK ((kind = ANY (ARRAY['created'::text, 'filled'::text, 'cleared'::text, 'removed'::text, 'restored'::text, 'code_changed'::text, 'status_changed'::text, 'price_changed'::text, 'quantity_changed'::text, 'supplier_changed'::text, 'details_changed'::text, 'parent_changed'::text, 'variant_added'::text, 'variant_switched'::text, 'variant_updated'::text, 'variant_removed'::text, 'component_added'::text, 'component_removed'::text, 'service_added'::text, 'service_completed'::text, 'service_removed'::text])))",
+      "references": null
+    },
+    {
+      "table": "spec_item_events",
+      "name": "spec_item_events_actor_id_fkey",
+      "type": "f",
+      "definition": "FOREIGN KEY (actor_id) REFERENCES users(id) ON DELETE SET NULL",
+      "references": "users"
+    },
+    {
+      "table": "spec_item_events",
+      "name": "spec_item_events_org_id_fkey",
+      "type": "f",
+      "definition": "FOREIGN KEY (org_id) REFERENCES organizations(id)",
+      "references": "organizations"
+    },
+    {
+      "table": "spec_item_events",
+      "name": "spec_item_events_spec_item_id_fkey",
+      "type": "f",
+      "definition": "FOREIGN KEY (spec_item_id) REFERENCES spec_items(id) ON DELETE CASCADE",
+      "references": "spec_items"
+    },
+    {
+      "table": "spec_item_events",
+      "name": "spec_item_events_pkey",
+      "type": "p",
+      "definition": "PRIMARY KEY (id)",
+      "references": null
+    },
+    {
+      "table": "spec_item_files",
+      "name": "spec_item_files_category_check",
+      "type": "c",
+      "definition": "CHECK ((category = ANY (ARRAY['document'::text, 'texture'::text, 'other'::text])))",
+      "references": null
+    },
+    {
+      "table": "spec_item_files",
+      "name": "spec_item_files_file_name_check",
+      "type": "c",
+      "definition": "CHECK ((char_length(btrim(file_name)) > 0))",
+      "references": null
+    },
+    {
+      "table": "spec_item_files",
+      "name": "spec_item_files_mime_type_check",
+      "type": "c",
+      "definition": "CHECK ((char_length(btrim(mime_type)) > 0))",
+      "references": null
+    },
+    {
+      "table": "spec_item_files",
+      "name": "spec_item_files_size_bytes_check",
+      "type": "c",
+      "definition": "CHECK ((size_bytes > 0))",
+      "references": null
+    },
+    {
+      "table": "spec_item_files",
+      "name": "spec_item_files_storage_path_check",
+      "type": "c",
+      "definition": "CHECK ((char_length(btrim(storage_path)) > 0))",
+      "references": null
+    },
+    {
+      "table": "spec_item_files",
+      "name": "spec_item_files_org_id_fkey",
+      "type": "f",
+      "definition": "FOREIGN KEY (org_id) REFERENCES organizations(id)",
+      "references": "organizations"
+    },
+    {
+      "table": "spec_item_files",
+      "name": "spec_item_files_project_id_fkey",
+      "type": "f",
+      "definition": "FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE",
+      "references": "projects"
+    },
+    {
+      "table": "spec_item_files",
+      "name": "spec_item_files_spec_item_id_fkey",
+      "type": "f",
+      "definition": "FOREIGN KEY (spec_item_id) REFERENCES spec_items(id) ON DELETE CASCADE",
+      "references": "spec_items"
+    },
+    {
+      "table": "spec_item_files",
+      "name": "spec_item_files_uploaded_by_fkey",
+      "type": "f",
+      "definition": "FOREIGN KEY (uploaded_by) REFERENCES users(id) ON DELETE SET NULL",
+      "references": "users"
+    },
+    {
+      "table": "spec_item_files",
+      "name": "spec_item_files_pkey",
+      "type": "p",
+      "definition": "PRIMARY KEY (id)",
+      "references": null
+    },
+    {
+      "table": "spec_item_variants",
+      "name": "spec_item_variants_company_id_fkey",
+      "type": "f",
+      "definition": "FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE SET NULL",
+      "references": "companies"
+    },
+    {
+      "table": "spec_item_variants",
+      "name": "spec_item_variants_contact_id_fkey",
+      "type": "f",
+      "definition": "FOREIGN KEY (contact_id) REFERENCES contacts(id) ON DELETE SET NULL",
+      "references": "contacts"
+    },
+    {
+      "table": "spec_item_variants",
+      "name": "spec_item_variants_org_id_fkey",
+      "type": "f",
+      "definition": "FOREIGN KEY (org_id) REFERENCES organizations(id) ON DELETE CASCADE",
+      "references": "organizations"
+    },
+    {
+      "table": "spec_item_variants",
+      "name": "spec_item_variants_spec_item_id_fkey",
+      "type": "f",
+      "definition": "FOREIGN KEY (spec_item_id) REFERENCES spec_items(id) ON DELETE CASCADE",
+      "references": "spec_items"
+    },
+    {
+      "table": "spec_item_variants",
+      "name": "spec_item_variants_pkey",
+      "type": "p",
+      "definition": "PRIMARY KEY (id)",
+      "references": null
+    },
+    {
+      "table": "spec_items",
+      "name": "spec_items_client_discount_check",
+      "type": "c",
+      "definition": "CHECK (((client_discount_pct >= (0)::numeric) AND (client_discount_pct <= (100)::numeric)))",
+      "references": null
+    },
+    {
+      "table": "spec_items",
+      "name": "spec_items_stock_pct_check",
+      "type": "c",
+      "definition": "CHECK (((stock_pct >= (0)::numeric) AND (stock_pct <= (100)::numeric)))",
+      "references": null
+    },
+    {
+      "table": "spec_items",
+      "name": "spec_items_supplier_discount_check",
+      "type": "c",
+      "definition": "CHECK (((supplier_discount_pct >= (0)::numeric) AND (supplier_discount_pct <= (100)::numeric)))",
+      "references": null
+    },
+    {
+      "table": "spec_items",
+      "name": "spec_items_type_check",
+      "type": "c",
+      "definition": "CHECK ((type = ANY (ARRAY['Отделка'::text, 'Мебель'::text, 'Оборудование'::text, 'Сантехника'::text, 'Освещение'::text, 'Текстиль'::text, 'Инженерное оборудование'::text, 'Декор'::text, 'Двери'::text, 'Электрика'::text, 'Прочее'::text])))",
+      "references": null
+    },
+    {
+      "table": "spec_items",
+      "name": "spec_items_company_id_fkey",
+      "type": "f",
+      "definition": "FOREIGN KEY (company_id) REFERENCES companies(id) ON DELETE SET NULL",
+      "references": "companies"
+    },
+    {
+      "table": "spec_items",
+      "name": "spec_items_contact_id_fkey",
+      "type": "f",
+      "definition": "FOREIGN KEY (contact_id) REFERENCES contacts(id) ON DELETE SET NULL",
+      "references": "contacts"
+    },
+    {
+      "table": "spec_items",
+      "name": "spec_items_material_id_fkey",
+      "type": "f",
+      "definition": "FOREIGN KEY (material_id) REFERENCES materials(id) ON DELETE SET NULL",
+      "references": "materials"
+    },
+    {
+      "table": "spec_items",
+      "name": "spec_items_org_id_fkey",
+      "type": "f",
+      "definition": "FOREIGN KEY (org_id) REFERENCES organizations(id) ON DELETE CASCADE",
+      "references": "organizations"
+    },
+    {
+      "table": "spec_items",
+      "name": "spec_items_parent_id_fkey",
+      "type": "f",
+      "definition": "FOREIGN KEY (parent_id) REFERENCES spec_items(id) ON DELETE RESTRICT",
+      "references": "spec_items"
+    },
+    {
+      "table": "spec_items",
+      "name": "spec_items_project_id_fkey",
+      "type": "f",
+      "definition": "FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE",
+      "references": "projects"
+    },
+    {
+      "table": "spec_items",
+      "name": "spec_items_pkey",
+      "type": "p",
+      "definition": "PRIMARY KEY (id)",
+      "references": null
+    },
+    {
+      "table": "users",
+      "name": "users_active_org_id_fkey",
+      "type": "f",
+      "definition": "FOREIGN KEY (active_org_id) REFERENCES organizations(id) ON DELETE SET NULL",
+      "references": "organizations"
+    },
+    {
+      "table": "users",
+      "name": "users_pkey",
+      "type": "p",
+      "definition": "PRIMARY KEY (id)",
+      "references": null
+    },
+    {
+      "table": "verification_tokens",
+      "name": "verification_tokens_pkey",
+      "type": "p",
+      "definition": "PRIMARY KEY (identifier, token)",
+      "references": null
+    },
+    {
+      "table": "verification_tokens",
+      "name": "verification_tokens_token_key",
+      "type": "u",
+      "definition": "UNIQUE (token)",
+      "references": null
+    }
+  ],
+  "indexes": [
+    {
+      "table": "accounts",
+      "name": "accounts_pkey",
+      "definition": "CREATE UNIQUE INDEX accounts_pkey ON public.accounts USING btree (id)"
+    },
+    {
+      "table": "accounts",
+      "name": "accounts_provider_provider_account_id_key",
+      "definition": "CREATE UNIQUE INDEX accounts_provider_provider_account_id_key ON public.accounts USING btree (provider, provider_account_id)"
+    },
+    {
+      "table": "companies",
+      "name": "companies_pkey",
+      "definition": "CREATE UNIQUE INDEX companies_pkey ON public.companies USING btree (id)"
+    },
+    {
+      "table": "companies",
+      "name": "idx_companies_org",
+      "definition": "CREATE INDEX idx_companies_org ON public.companies USING btree (org_id)"
+    },
+    {
+      "table": "contacts",
+      "name": "contacts_company_idx",
+      "definition": "CREATE INDEX contacts_company_idx ON public.contacts USING btree (company_id)"
+    },
+    {
+      "table": "contacts",
+      "name": "contacts_org_idx",
+      "definition": "CREATE INDEX contacts_org_idx ON public.contacts USING btree (org_id)"
+    },
+    {
+      "table": "contacts",
+      "name": "contacts_pkey",
+      "definition": "CREATE UNIQUE INDEX contacts_pkey ON public.contacts USING btree (id)"
+    },
+    {
+      "table": "materials",
+      "name": "idx_materials_org",
+      "definition": "CREATE INDEX idx_materials_org ON public.materials USING btree (org_id)"
+    },
+    {
+      "table": "materials",
+      "name": "idx_materials_supplier",
+      "definition": "CREATE INDEX idx_materials_supplier ON public.materials USING btree (company_id)"
+    },
+    {
+      "table": "materials",
+      "name": "materials_org_created_idx",
+      "definition": "CREATE INDEX materials_org_created_idx ON public.materials USING btree (org_id, created_at DESC) WHERE (deleted_at IS NULL)"
+    },
+    {
+      "table": "materials",
+      "name": "materials_pkey",
+      "definition": "CREATE UNIQUE INDEX materials_pkey ON public.materials USING btree (id)"
+    },
+    {
+      "table": "organization_invites",
+      "name": "idx_org_invites_token",
+      "definition": "CREATE INDEX idx_org_invites_token ON public.organization_invites USING btree (token)"
+    },
+    {
+      "table": "organization_invites",
+      "name": "organization_invites_org_email_key",
+      "definition": "CREATE UNIQUE INDEX organization_invites_org_email_key ON public.organization_invites USING btree (org_id, email)"
+    },
+    {
+      "table": "organization_invites",
+      "name": "organization_invites_org_id_email_key",
+      "definition": "CREATE UNIQUE INDEX organization_invites_org_id_email_key ON public.organization_invites USING btree (org_id, email)"
+    },
+    {
+      "table": "organization_invites",
+      "name": "organization_invites_pkey",
+      "definition": "CREATE UNIQUE INDEX organization_invites_pkey ON public.organization_invites USING btree (id)"
+    },
+    {
+      "table": "organization_invites",
+      "name": "organization_invites_token_key",
+      "definition": "CREATE UNIQUE INDEX organization_invites_token_key ON public.organization_invites USING btree (token)"
+    },
+    {
+      "table": "organization_members",
+      "name": "organization_members_pkey",
+      "definition": "CREATE UNIQUE INDEX organization_members_pkey ON public.organization_members USING btree (org_id, user_id)"
+    },
+    {
+      "table": "organization_members",
+      "name": "organization_members_single_owner_idx",
+      "definition": "CREATE UNIQUE INDEX organization_members_single_owner_idx ON public.organization_members USING btree (org_id) WHERE (role = 'owner'::org_role)"
+    },
+    {
+      "table": "organization_members",
+      "name": "organization_members_user_idx",
+      "definition": "CREATE INDEX organization_members_user_idx ON public.organization_members USING btree (user_id)"
+    },
+    {
+      "table": "organizations",
+      "name": "organizations_pkey",
+      "definition": "CREATE UNIQUE INDEX organizations_pkey ON public.organizations USING btree (id)"
+    },
+    {
+      "table": "organizations",
+      "name": "organizations_slug_key",
+      "definition": "CREATE UNIQUE INDEX organizations_slug_key ON public.organizations USING btree (slug)"
+    },
+    {
+      "table": "password_reset_tokens",
+      "name": "password_reset_tokens_email_idx",
+      "definition": "CREATE INDEX password_reset_tokens_email_idx ON public.password_reset_tokens USING btree (email)"
+    },
+    {
+      "table": "password_reset_tokens",
+      "name": "password_reset_tokens_pkey",
+      "definition": "CREATE UNIQUE INDEX password_reset_tokens_pkey ON public.password_reset_tokens USING btree (id)"
+    },
+    {
+      "table": "password_reset_tokens",
+      "name": "password_reset_tokens_token_key",
+      "definition": "CREATE UNIQUE INDEX password_reset_tokens_token_key ON public.password_reset_tokens USING btree (token)"
+    },
+    {
+      "table": "project_service_items",
+      "name": "project_service_items_pkey",
+      "definition": "CREATE UNIQUE INDEX project_service_items_pkey ON public.project_service_items USING btree (service_id, item_id)"
+    },
+    {
+      "table": "project_services",
+      "name": "project_services_pkey",
+      "definition": "CREATE UNIQUE INDEX project_services_pkey ON public.project_services USING btree (id)"
+    },
+    {
+      "table": "projects",
+      "name": "idx_projects_org",
+      "definition": "CREATE INDEX idx_projects_org ON public.projects USING btree (org_id)"
+    },
+    {
+      "table": "projects",
+      "name": "projects_org_updated_idx",
+      "definition": "CREATE INDEX projects_org_updated_idx ON public.projects USING btree (org_id, updated_at DESC) WHERE (deleted_at IS NULL)"
+    },
+    {
+      "table": "projects",
+      "name": "projects_pkey",
+      "definition": "CREATE UNIQUE INDEX projects_pkey ON public.projects USING btree (id)"
+    },
+    {
+      "table": "public_links",
+      "name": "public_links_expires_at_idx",
+      "definition": "CREATE INDEX public_links_expires_at_idx ON public.public_links USING btree (expires_at)"
+    },
+    {
+      "table": "public_links",
+      "name": "public_links_pkey",
+      "definition": "CREATE UNIQUE INDEX public_links_pkey ON public.public_links USING btree (token)"
+    },
+    {
+      "table": "public_links",
+      "name": "public_links_project_id_idx",
+      "definition": "CREATE INDEX public_links_project_id_idx ON public.public_links USING btree (project_id)"
+    },
+    {
+      "table": "reserved_slugs",
+      "name": "reserved_slugs_pkey",
+      "definition": "CREATE UNIQUE INDEX reserved_slugs_pkey ON public.reserved_slugs USING btree (slug)"
+    },
+    {
+      "table": "service_operation_items",
+      "name": "service_operation_items_pkey",
+      "definition": "CREATE UNIQUE INDEX service_operation_items_pkey ON public.service_operation_items USING btree (operation_id, spec_item_id)"
+    },
+    {
+      "table": "service_operation_items",
+      "name": "service_operation_items_spec_item_id_idx",
+      "definition": "CREATE INDEX service_operation_items_spec_item_id_idx ON public.service_operation_items USING btree (spec_item_id)"
+    },
+    {
+      "table": "service_operations",
+      "name": "service_operations_org_id_idx",
+      "definition": "CREATE INDEX service_operations_org_id_idx ON public.service_operations USING btree (org_id)"
+    },
+    {
+      "table": "service_operations",
+      "name": "service_operations_pkey",
+      "definition": "CREATE UNIQUE INDEX service_operations_pkey ON public.service_operations USING btree (id)"
+    },
+    {
+      "table": "service_operations",
+      "name": "service_operations_project_id_idx",
+      "definition": "CREATE INDEX service_operations_project_id_idx ON public.service_operations USING btree (project_id)"
+    },
+    {
+      "table": "sessions",
+      "name": "sessions_pkey",
+      "definition": "CREATE UNIQUE INDEX sessions_pkey ON public.sessions USING btree (id)"
+    },
+    {
+      "table": "sessions",
+      "name": "sessions_session_token_key",
+      "definition": "CREATE UNIQUE INDEX sessions_session_token_key ON public.sessions USING btree (session_token)"
+    },
+    {
+      "table": "spec_item_comments",
+      "name": "spec_item_comments_parent_id_created_at_idx",
+      "definition": "CREATE INDEX spec_item_comments_parent_id_created_at_idx ON public.spec_item_comments USING btree (parent_id, created_at)"
+    },
+    {
+      "table": "spec_item_comments",
+      "name": "spec_item_comments_pkey",
+      "definition": "CREATE UNIQUE INDEX spec_item_comments_pkey ON public.spec_item_comments USING btree (id)"
+    },
+    {
+      "table": "spec_item_comments",
+      "name": "spec_item_comments_spec_item_id_created_at_idx",
+      "definition": "CREATE INDEX spec_item_comments_spec_item_id_created_at_idx ON public.spec_item_comments USING btree (spec_item_id, created_at DESC)"
+    },
+    {
+      "table": "spec_item_comments",
+      "name": "spec_item_comments_spec_item_id_root_id_created_at_idx",
+      "definition": "CREATE INDEX spec_item_comments_spec_item_id_root_id_created_at_idx ON public.spec_item_comments USING btree (spec_item_id, root_id, created_at)"
+    },
+    {
+      "table": "spec_item_components",
+      "name": "spec_item_components_parent_component_id_position_idx",
+      "definition": "CREATE INDEX spec_item_components_parent_component_id_position_idx ON public.spec_item_components USING btree (parent_component_id, \"position\")"
+    },
+    {
+      "table": "spec_item_components",
+      "name": "spec_item_components_pkey",
+      "definition": "CREATE UNIQUE INDEX spec_item_components_pkey ON public.spec_item_components USING btree (id)"
+    },
+    {
+      "table": "spec_item_components",
+      "name": "spec_item_components_ref_spec_item_id_idx",
+      "definition": "CREATE INDEX spec_item_components_ref_spec_item_id_idx ON public.spec_item_components USING btree (ref_spec_item_id) WHERE (ref_spec_item_id IS NOT NULL)"
+    },
+    {
+      "table": "spec_item_components",
+      "name": "spec_item_components_spec_item_id_position_idx",
+      "definition": "CREATE INDEX spec_item_components_spec_item_id_position_idx ON public.spec_item_components USING btree (spec_item_id, \"position\")"
+    },
+    {
+      "table": "spec_item_events",
+      "name": "spec_item_events_org_id_idx",
+      "definition": "CREATE INDEX spec_item_events_org_id_idx ON public.spec_item_events USING btree (org_id)"
+    },
+    {
+      "table": "spec_item_events",
+      "name": "spec_item_events_pkey",
+      "definition": "CREATE UNIQUE INDEX spec_item_events_pkey ON public.spec_item_events USING btree (id)"
+    },
+    {
+      "table": "spec_item_events",
+      "name": "spec_item_events_spec_item_id_created_at_idx",
+      "definition": "CREATE INDEX spec_item_events_spec_item_id_created_at_idx ON public.spec_item_events USING btree (spec_item_id, created_at DESC)"
+    },
+    {
+      "table": "spec_item_files",
+      "name": "spec_item_files_org_id_idx",
+      "definition": "CREATE INDEX spec_item_files_org_id_idx ON public.spec_item_files USING btree (org_id)"
+    },
+    {
+      "table": "spec_item_files",
+      "name": "spec_item_files_pkey",
+      "definition": "CREATE UNIQUE INDEX spec_item_files_pkey ON public.spec_item_files USING btree (id)"
+    },
+    {
+      "table": "spec_item_files",
+      "name": "spec_item_files_project_id_idx",
+      "definition": "CREATE INDEX spec_item_files_project_id_idx ON public.spec_item_files USING btree (project_id)"
+    },
+    {
+      "table": "spec_item_files",
+      "name": "spec_item_files_spec_item_id_active_idx",
+      "definition": "CREATE INDEX spec_item_files_spec_item_id_active_idx ON public.spec_item_files USING btree (spec_item_id, created_at DESC, id DESC) WHERE (deleted_at IS NULL)"
+    },
+    {
+      "table": "spec_item_variants",
+      "name": "idx_variants_item",
+      "definition": "CREATE INDEX idx_variants_item ON public.spec_item_variants USING btree (spec_item_id)"
+    },
+    {
+      "table": "spec_item_variants",
+      "name": "idx_variants_org",
+      "definition": "CREATE INDEX idx_variants_org ON public.spec_item_variants USING btree (org_id)"
+    },
+    {
+      "table": "spec_item_variants",
+      "name": "spec_item_variants_pkey",
+      "definition": "CREATE UNIQUE INDEX spec_item_variants_pkey ON public.spec_item_variants USING btree (id)"
+    },
+    {
+      "table": "spec_item_variants",
+      "name": "uniq_active_variant",
+      "definition": "CREATE UNIQUE INDEX uniq_active_variant ON public.spec_item_variants USING btree (spec_item_id) WHERE is_active"
+    },
+    {
+      "table": "spec_items",
+      "name": "idx_spec_items_project",
+      "definition": "CREATE INDEX idx_spec_items_project ON public.spec_items USING btree (project_id)"
+    },
+    {
+      "table": "spec_items",
+      "name": "spec_items_org_project_idx",
+      "definition": "CREATE INDEX spec_items_org_project_idx ON public.spec_items USING btree (org_id, project_id, \"position\")"
+    },
+    {
+      "table": "spec_items",
+      "name": "spec_items_parent_id_idx",
+      "definition": "CREATE INDEX spec_items_parent_id_idx ON public.spec_items USING btree (parent_id)"
+    },
+    {
+      "table": "spec_items",
+      "name": "spec_items_pkey",
+      "definition": "CREATE UNIQUE INDEX spec_items_pkey ON public.spec_items USING btree (id)"
+    },
+    {
+      "table": "spec_items",
+      "name": "spec_items_project_alive_idx",
+      "definition": "CREATE INDEX spec_items_project_alive_idx ON public.spec_items USING btree (project_id, \"position\") WHERE (deleted_at IS NULL)"
+    },
+    {
+      "table": "spec_items",
+      "name": "spec_items_project_code_uidx",
+      "definition": "CREATE UNIQUE INDEX spec_items_project_code_uidx ON public.spec_items USING btree (project_id, code) WHERE ((deleted_at IS NULL) AND (code IS NOT NULL))"
+    },
+    {
+      "table": "spec_items",
+      "name": "spec_items_project_type_idx",
+      "definition": "CREATE INDEX spec_items_project_type_idx ON public.spec_items USING btree (project_id, type) WHERE (deleted_at IS NULL)"
+    },
+    {
+      "table": "spec_items",
+      "name": "spec_items_type_idx",
+      "definition": "CREATE INDEX spec_items_type_idx ON public.spec_items USING btree (project_id, type)"
+    },
+    {
+      "table": "users",
+      "name": "users_email_lower_uidx",
+      "definition": "CREATE UNIQUE INDEX users_email_lower_uidx ON public.users USING btree (lower(email))"
+    },
+    {
+      "table": "users",
+      "name": "users_pkey",
+      "definition": "CREATE UNIQUE INDEX users_pkey ON public.users USING btree (id)"
+    },
+    {
+      "table": "verification_tokens",
+      "name": "verification_tokens_pkey",
+      "definition": "CREATE UNIQUE INDEX verification_tokens_pkey ON public.verification_tokens USING btree (identifier, token)"
+    },
+    {
+      "table": "verification_tokens",
+      "name": "verification_tokens_token_key",
+      "definition": "CREATE UNIQUE INDEX verification_tokens_token_key ON public.verification_tokens USING btree (token)"
+    }
+  ],
+  "rls_tables": [
+    {
+      "table": "accounts",
+      "rls_enabled": true,
+      "force_rls": false
+    },
+    {
+      "table": "companies",
+      "rls_enabled": true,
+      "force_rls": false
+    },
+    {
+      "table": "contacts",
+      "rls_enabled": true,
+      "force_rls": false
+    },
+    {
+      "table": "materials",
+      "rls_enabled": true,
+      "force_rls": false
+    },
+    {
+      "table": "organization_invites",
+      "rls_enabled": true,
+      "force_rls": false
+    },
+    {
+      "table": "organization_members",
+      "rls_enabled": true,
+      "force_rls": false
+    },
+    {
+      "table": "organizations",
+      "rls_enabled": true,
+      "force_rls": false
+    },
+    {
+      "table": "password_reset_tokens",
+      "rls_enabled": true,
+      "force_rls": false
+    },
+    {
+      "table": "project_service_items",
+      "rls_enabled": false,
+      "force_rls": false
+    },
+    {
+      "table": "project_services",
+      "rls_enabled": false,
+      "force_rls": false
+    },
+    {
+      "table": "projects",
+      "rls_enabled": true,
+      "force_rls": false
+    },
+    {
+      "table": "public_links",
+      "rls_enabled": false,
+      "force_rls": false
+    },
+    {
+      "table": "reserved_slugs",
+      "rls_enabled": false,
+      "force_rls": false
+    },
+    {
+      "table": "service_operation_items",
+      "rls_enabled": true,
+      "force_rls": false
+    },
+    {
+      "table": "service_operations",
+      "rls_enabled": true,
+      "force_rls": false
+    },
+    {
+      "table": "sessions",
+      "rls_enabled": true,
+      "force_rls": false
+    },
+    {
+      "table": "spec_item_comments",
+      "rls_enabled": true,
+      "force_rls": false
+    },
+    {
+      "table": "spec_item_components",
+      "rls_enabled": true,
+      "force_rls": false
+    },
+    {
+      "table": "spec_item_events",
+      "rls_enabled": true,
+      "force_rls": false
+    },
+    {
+      "table": "spec_item_files",
+      "rls_enabled": true,
+      "force_rls": false
+    },
+    {
+      "table": "spec_item_variants",
+      "rls_enabled": true,
+      "force_rls": false
+    },
+    {
+      "table": "spec_items",
+      "rls_enabled": true,
+      "force_rls": false
+    },
+    {
+      "table": "users",
+      "rls_enabled": true,
+      "force_rls": false
+    },
+    {
+      "table": "verification_tokens",
+      "rls_enabled": true,
+      "force_rls": false
+    }
+  ],
+  "policies": [
+    {
+      "schema": "public",
+      "table": "accounts",
+      "name": "Service role access for accounts",
+      "permissive": "PERMISSIVE",
+      "roles": [
+        "public"
+      ],
+      "cmd": "ALL",
+      "qual": "true",
+      "with_check": null
+    },
+    {
+      "schema": "public",
+      "table": "organization_invites",
+      "name": "organization_invites_delete_manager",
+      "permissive": "PERMISSIVE",
+      "roles": [
+        "authenticated"
+      ],
+      "cmd": "DELETE",
+      "qual": "(EXISTS ( SELECT 1\n   FROM organization_members m\n  WHERE ((m.org_id = organization_invites.org_id) AND (m.user_id = auth.uid()) AND (m.role = ANY (ARRAY['owner'::org_role, 'admin'::org_role])))))",
+      "with_check": null
+    },
+    {
+      "schema": "public",
+      "table": "organization_invites",
+      "name": "organization_invites_insert_manager",
+      "permissive": "PERMISSIVE",
+      "roles": [
+        "authenticated"
+      ],
+      "cmd": "INSERT",
+      "qual": null,
+      "with_check": "(EXISTS ( SELECT 1\n   FROM organization_members m\n  WHERE ((m.org_id = organization_invites.org_id) AND (m.user_id = auth.uid()) AND (m.role = ANY (ARRAY['owner'::org_role, 'admin'::org_role])))))"
+    },
+    {
+      "schema": "public",
+      "table": "organization_invites",
+      "name": "organization_invites_select_manager",
+      "permissive": "PERMISSIVE",
+      "roles": [
+        "authenticated"
+      ],
+      "cmd": "SELECT",
+      "qual": "(EXISTS ( SELECT 1\n   FROM organization_members m\n  WHERE ((m.org_id = organization_invites.org_id) AND (m.user_id = auth.uid()) AND (m.role = ANY (ARRAY['owner'::org_role, 'admin'::org_role])))))",
+      "with_check": null
+    },
+    {
+      "schema": "public",
+      "table": "organization_members",
+      "name": "organization_members_delete_manager",
+      "permissive": "PERMISSIVE",
+      "roles": [
+        "authenticated"
+      ],
+      "cmd": "DELETE",
+      "qual": "((user_id <> auth.uid()) AND (EXISTS ( SELECT 1\n   FROM organization_members m\n  WHERE ((m.org_id = organization_members.org_id) AND (m.user_id = auth.uid()) AND ((m.role = 'owner'::org_role) OR ((m.role = 'admin'::org_role) AND (organization_members.role = 'member'::org_role)))))))",
+      "with_check": null
+    },
+    {
+      "schema": "public",
+      "table": "organization_members",
+      "name": "organization_members_insert_manager",
+      "permissive": "PERMISSIVE",
+      "roles": [
+        "authenticated"
+      ],
+      "cmd": "INSERT",
+      "qual": null,
+      "with_check": "(EXISTS ( SELECT 1\n   FROM organization_members m\n  WHERE ((m.org_id = organization_members.org_id) AND (m.user_id = auth.uid()) AND (m.role = ANY (ARRAY['owner'::org_role, 'admin'::org_role])))))"
+    },
+    {
+      "schema": "public",
+      "table": "organization_members",
+      "name": "organization_members_select_own_org",
+      "permissive": "PERMISSIVE",
+      "roles": [
+        "authenticated"
+      ],
+      "cmd": "SELECT",
+      "qual": "is_org_member(org_id)",
+      "with_check": null
+    },
+    {
+      "schema": "public",
+      "table": "organizations",
+      "name": "organizations_select_own",
+      "permissive": "PERMISSIVE",
+      "roles": [
+        "authenticated"
+      ],
+      "cmd": "SELECT",
+      "qual": "is_org_member(id)",
+      "with_check": null
+    },
+    {
+      "schema": "public",
+      "table": "organizations",
+      "name": "organizations_update_owner",
+      "permissive": "PERMISSIVE",
+      "roles": [
+        "authenticated"
+      ],
+      "cmd": "UPDATE",
+      "qual": "(EXISTS ( SELECT 1\n   FROM organization_members m\n  WHERE ((m.org_id = organizations.id) AND (m.user_id = auth.uid()) AND (m.role = 'owner'::org_role))))",
+      "with_check": "(EXISTS ( SELECT 1\n   FROM organization_members m\n  WHERE ((m.org_id = organizations.id) AND (m.user_id = auth.uid()) AND (m.role = 'owner'::org_role))))"
+    },
+    {
+      "schema": "public",
+      "table": "password_reset_tokens",
+      "name": "Service role access for password_reset_tokens",
+      "permissive": "PERMISSIVE",
+      "roles": [
+        "public"
+      ],
+      "cmd": "ALL",
+      "qual": "true",
+      "with_check": null
+    },
+    {
+      "schema": "public",
+      "table": "projects",
+      "name": "Участники организации могут обнов",
+      "permissive": "PERMISSIVE",
+      "roles": [
+        "public"
+      ],
+      "cmd": "UPDATE",
+      "qual": "is_org_member(org_id)",
+      "with_check": null
+    },
+    {
+      "schema": "public",
+      "table": "projects",
+      "name": "Участники организации могут просм",
+      "permissive": "PERMISSIVE",
+      "roles": [
+        "public"
+      ],
+      "cmd": "SELECT",
+      "qual": "is_org_member(org_id)",
+      "with_check": null
+    },
+    {
+      "schema": "public",
+      "table": "projects",
+      "name": "Участники организации могут созда",
+      "permissive": "PERMISSIVE",
+      "roles": [
+        "public"
+      ],
+      "cmd": "INSERT",
+      "qual": null,
+      "with_check": "is_org_member(org_id)"
+    },
+    {
+      "schema": "public",
+      "table": "projects",
+      "name": "Участники организации могут удаля",
+      "permissive": "PERMISSIVE",
+      "roles": [
+        "public"
+      ],
+      "cmd": "DELETE",
+      "qual": "is_org_member(org_id)",
+      "with_check": null
+    },
+    {
+      "schema": "public",
+      "table": "service_operation_items",
+      "name": "service_operation_items_delete_own_org",
+      "permissive": "PERMISSIVE",
+      "roles": [
+        "authenticated"
+      ],
+      "cmd": "DELETE",
+      "qual": "(EXISTS ( SELECT 1\n   FROM (organization_members m\n     JOIN service_operations so ON ((so.id = service_operation_items.operation_id)))\n  WHERE ((m.user_id = auth.uid()) AND (m.org_id = so.org_id))))",
+      "with_check": null
+    },
+    {
+      "schema": "public",
+      "table": "service_operation_items",
+      "name": "service_operation_items_insert_own_org",
+      "permissive": "PERMISSIVE",
+      "roles": [
+        "authenticated"
+      ],
+      "cmd": "INSERT",
+      "qual": null,
+      "with_check": "(EXISTS ( SELECT 1\n   FROM ((organization_members m\n     JOIN service_operations so ON ((so.id = service_operation_items.operation_id)))\n     JOIN spec_items si ON ((si.id = service_operation_items.spec_item_id)))\n  WHERE ((m.user_id = auth.uid()) AND (m.org_id = so.org_id) AND (si.org_id = so.org_id) AND (si.project_id = so.project_id))))"
+    },
+    {
+      "schema": "public",
+      "table": "service_operation_items",
+      "name": "service_operation_items_select_own_org",
+      "permissive": "PERMISSIVE",
+      "roles": [
+        "authenticated"
+      ],
+      "cmd": "SELECT",
+      "qual": "(EXISTS ( SELECT 1\n   FROM (organization_members m\n     JOIN service_operations so ON ((so.id = service_operation_items.operation_id)))\n  WHERE ((m.user_id = auth.uid()) AND (m.org_id = so.org_id))))",
+      "with_check": null
+    },
+    {
+      "schema": "public",
+      "table": "service_operation_items",
+      "name": "service_operation_items_update_own_org",
+      "permissive": "PERMISSIVE",
+      "roles": [
+        "authenticated"
+      ],
+      "cmd": "UPDATE",
+      "qual": "(EXISTS ( SELECT 1\n   FROM (organization_members m\n     JOIN service_operations so ON ((so.id = service_operation_items.operation_id)))\n  WHERE ((m.user_id = auth.uid()) AND (m.org_id = so.org_id))))",
+      "with_check": "(EXISTS ( SELECT 1\n   FROM ((organization_members m\n     JOIN service_operations so ON ((so.id = service_operation_items.operation_id)))\n     JOIN spec_items si ON ((si.id = service_operation_items.spec_item_id)))\n  WHERE ((m.user_id = auth.uid()) AND (m.org_id = so.org_id) AND (si.org_id = so.org_id) AND (si.project_id = so.project_id))))"
+    },
+    {
+      "schema": "public",
+      "table": "service_operations",
+      "name": "service_operations_delete_own_org",
+      "permissive": "PERMISSIVE",
+      "roles": [
+        "authenticated"
+      ],
+      "cmd": "DELETE",
+      "qual": "(EXISTS ( SELECT 1\n   FROM organization_members m\n  WHERE ((m.user_id = auth.uid()) AND (m.org_id = service_operations.org_id))))",
+      "with_check": null
+    },
+    {
+      "schema": "public",
+      "table": "service_operations",
+      "name": "service_operations_insert_own_org",
+      "permissive": "PERMISSIVE",
+      "roles": [
+        "authenticated"
+      ],
+      "cmd": "INSERT",
+      "qual": null,
+      "with_check": "(EXISTS ( SELECT 1\n   FROM (organization_members m\n     JOIN projects p ON ((p.id = service_operations.project_id)))\n  WHERE ((m.user_id = auth.uid()) AND (m.org_id = service_operations.org_id) AND (p.org_id = service_operations.org_id))))"
+    },
+    {
+      "schema": "public",
+      "table": "service_operations",
+      "name": "service_operations_select_own_org",
+      "permissive": "PERMISSIVE",
+      "roles": [
+        "authenticated"
+      ],
+      "cmd": "SELECT",
+      "qual": "(EXISTS ( SELECT 1\n   FROM organization_members m\n  WHERE ((m.user_id = auth.uid()) AND (m.org_id = service_operations.org_id))))",
+      "with_check": null
+    },
+    {
+      "schema": "public",
+      "table": "service_operations",
+      "name": "service_operations_update_own_org",
+      "permissive": "PERMISSIVE",
+      "roles": [
+        "authenticated"
+      ],
+      "cmd": "UPDATE",
+      "qual": "(EXISTS ( SELECT 1\n   FROM organization_members m\n  WHERE ((m.user_id = auth.uid()) AND (m.org_id = service_operations.org_id))))",
+      "with_check": "(EXISTS ( SELECT 1\n   FROM (organization_members m\n     JOIN projects p ON ((p.id = service_operations.project_id)))\n  WHERE ((m.user_id = auth.uid()) AND (m.org_id = service_operations.org_id) AND (p.org_id = service_operations.org_id))))"
+    },
+    {
+      "schema": "public",
+      "table": "sessions",
+      "name": "Service role access for sessions",
+      "permissive": "PERMISSIVE",
+      "roles": [
+        "public"
+      ],
+      "cmd": "ALL",
+      "qual": "true",
+      "with_check": null
+    },
+    {
+      "schema": "public",
+      "table": "spec_item_comments",
+      "name": "spec_item_comments_delete_author",
+      "permissive": "PERMISSIVE",
+      "roles": [
+        "authenticated"
+      ],
+      "cmd": "DELETE",
+      "qual": "((author_id = auth.uid()) AND (EXISTS ( SELECT 1\n   FROM (organization_members m\n     JOIN spec_items s ON ((s.id = spec_item_comments.spec_item_id)))\n  WHERE ((m.user_id = auth.uid()) AND (m.org_id = spec_item_comments.org_id) AND (s.org_id = spec_item_comments.org_id)))))",
+      "with_check": null
+    },
+    {
+      "schema": "public",
+      "table": "spec_item_comments",
+      "name": "spec_item_comments_insert_member",
+      "permissive": "PERMISSIVE",
+      "roles": [
+        "authenticated"
+      ],
+      "cmd": "INSERT",
+      "qual": null,
+      "with_check": "((author_id = auth.uid()) AND (EXISTS ( SELECT 1\n   FROM (organization_members m\n     JOIN spec_items s ON ((s.id = spec_item_comments.spec_item_id)))\n  WHERE ((m.user_id = auth.uid()) AND (m.role <> 'viewer'::org_role) AND (m.org_id = spec_item_comments.org_id) AND (s.org_id = spec_item_comments.org_id)))))"
+    },
+    {
+      "schema": "public",
+      "table": "spec_item_comments",
+      "name": "spec_item_comments_select_own_org",
+      "permissive": "PERMISSIVE",
+      "roles": [
+        "authenticated"
+      ],
+      "cmd": "SELECT",
+      "qual": "(EXISTS ( SELECT 1\n   FROM (organization_members m\n     JOIN spec_items s ON ((s.id = spec_item_comments.spec_item_id)))\n  WHERE ((m.user_id = auth.uid()) AND (m.org_id = spec_item_comments.org_id) AND (s.org_id = spec_item_comments.org_id))))",
+      "with_check": null
+    },
+    {
+      "schema": "public",
+      "table": "spec_item_comments",
+      "name": "spec_item_comments_update_author",
+      "permissive": "PERMISSIVE",
+      "roles": [
+        "authenticated"
+      ],
+      "cmd": "UPDATE",
+      "qual": "((author_id = auth.uid()) AND (EXISTS ( SELECT 1\n   FROM (organization_members m\n     JOIN spec_items s ON ((s.id = spec_item_comments.spec_item_id)))\n  WHERE ((m.user_id = auth.uid()) AND (m.org_id = spec_item_comments.org_id) AND (s.org_id = spec_item_comments.org_id)))))",
+      "with_check": "((author_id = auth.uid()) AND (EXISTS ( SELECT 1\n   FROM (organization_members m\n     JOIN spec_items s ON ((s.id = spec_item_comments.spec_item_id)))\n  WHERE ((m.user_id = auth.uid()) AND (m.org_id = spec_item_comments.org_id) AND (s.org_id = spec_item_comments.org_id)))))"
+    },
+    {
+      "schema": "public",
+      "table": "spec_item_components",
+      "name": "spec_item_components_delete_own_org",
+      "permissive": "PERMISSIVE",
+      "roles": [
+        "authenticated"
+      ],
+      "cmd": "DELETE",
+      "qual": "(EXISTS ( SELECT 1\n   FROM (organization_members m\n     JOIN spec_items s ON ((s.id = spec_item_components.spec_item_id)))\n  WHERE ((m.user_id = auth.uid()) AND (m.org_id = spec_item_components.org_id) AND (s.org_id = spec_item_components.org_id))))",
+      "with_check": null
+    },
+    {
+      "schema": "public",
+      "table": "spec_item_components",
+      "name": "spec_item_components_insert_own_org",
+      "permissive": "PERMISSIVE",
+      "roles": [
+        "authenticated"
+      ],
+      "cmd": "INSERT",
+      "qual": null,
+      "with_check": "(EXISTS ( SELECT 1\n   FROM (organization_members m\n     JOIN spec_items s ON ((s.id = spec_item_components.spec_item_id)))\n  WHERE ((m.user_id = auth.uid()) AND (m.org_id = spec_item_components.org_id) AND (s.org_id = spec_item_components.org_id))))"
+    },
+    {
+      "schema": "public",
+      "table": "spec_item_components",
+      "name": "spec_item_components_select_own_org",
+      "permissive": "PERMISSIVE",
+      "roles": [
+        "authenticated"
+      ],
+      "cmd": "SELECT",
+      "qual": "(EXISTS ( SELECT 1\n   FROM (organization_members m\n     JOIN spec_items s ON ((s.id = spec_item_components.spec_item_id)))\n  WHERE ((m.user_id = auth.uid()) AND (m.org_id = spec_item_components.org_id) AND (s.org_id = spec_item_components.org_id))))",
+      "with_check": null
+    },
+    {
+      "schema": "public",
+      "table": "spec_item_components",
+      "name": "spec_item_components_update_own_org",
+      "permissive": "PERMISSIVE",
+      "roles": [
+        "authenticated"
+      ],
+      "cmd": "UPDATE",
+      "qual": "(EXISTS ( SELECT 1\n   FROM (organization_members m\n     JOIN spec_items s ON ((s.id = spec_item_components.spec_item_id)))\n  WHERE ((m.user_id = auth.uid()) AND (m.org_id = spec_item_components.org_id) AND (s.org_id = spec_item_components.org_id))))",
+      "with_check": "(EXISTS ( SELECT 1\n   FROM (organization_members m\n     JOIN spec_items s ON ((s.id = spec_item_components.spec_item_id)))\n  WHERE ((m.user_id = auth.uid()) AND (m.org_id = spec_item_components.org_id) AND (s.org_id = spec_item_components.org_id))))"
+    },
+    {
+      "schema": "public",
+      "table": "spec_item_events",
+      "name": "spec_item_events_select_own_org",
+      "permissive": "PERMISSIVE",
+      "roles": [
+        "authenticated"
+      ],
+      "cmd": "SELECT",
+      "qual": "(EXISTS ( SELECT 1\n   FROM (organization_members m\n     JOIN spec_items s ON ((s.id = spec_item_events.spec_item_id)))\n  WHERE ((m.user_id = auth.uid()) AND (m.org_id = spec_item_events.org_id) AND (s.org_id = spec_item_events.org_id))))",
+      "with_check": null
+    },
+    {
+      "schema": "public",
+      "table": "spec_item_files",
+      "name": "spec_item_files_select_own_org",
+      "permissive": "PERMISSIVE",
+      "roles": [
+        "authenticated"
+      ],
+      "cmd": "SELECT",
+      "qual": "(EXISTS ( SELECT 1\n   FROM (organization_members m\n     JOIN spec_items s ON ((s.id = spec_item_files.spec_item_id)))\n  WHERE ((m.user_id = auth.uid()) AND (m.org_id = spec_item_files.org_id) AND (s.org_id = spec_item_files.org_id))))",
+      "with_check": null
+    },
+    {
+      "schema": "public",
+      "table": "users",
+      "name": "users_service_role_all",
+      "permissive": "PERMISSIVE",
+      "roles": [
+        "service_role"
+      ],
+      "cmd": "ALL",
+      "qual": "true",
+      "with_check": "true"
+    },
+    {
+      "schema": "public",
+      "table": "verification_tokens",
+      "name": "Service role access for verification_tokens",
+      "permissive": "PERMISSIVE",
+      "roles": [
+        "public"
+      ],
+      "cmd": "ALL",
+      "qual": "true",
+      "with_check": null
+    },
+    {
+      "schema": "storage",
+      "table": "objects",
+      "name": "spec_item_files_objects_delete_own_org",
+      "permissive": "PERMISSIVE",
+      "roles": [
+        "authenticated"
+      ],
+      "cmd": "DELETE",
+      "qual": "((bucket_id = 'spec-item-files'::text) AND (EXISTS ( SELECT 1\n   FROM organization_members m\n  WHERE ((m.user_id = auth.uid()) AND ((m.org_id)::text = (storage.foldername(objects.name))[1]) AND (m.role <> 'viewer'::org_role)))))",
+      "with_check": null
+    },
+    {
+      "schema": "storage",
+      "table": "objects",
+      "name": "spec_item_files_objects_insert_own_org",
+      "permissive": "PERMISSIVE",
+      "roles": [
+        "authenticated"
+      ],
+      "cmd": "INSERT",
+      "qual": null,
+      "with_check": "((bucket_id = 'spec-item-files'::text) AND (EXISTS ( SELECT 1\n   FROM organization_members m\n  WHERE ((m.user_id = auth.uid()) AND ((m.org_id)::text = (storage.foldername(objects.name))[1]) AND (m.role <> 'viewer'::org_role)))))"
+    },
+    {
+      "schema": "storage",
+      "table": "objects",
+      "name": "spec_item_files_objects_select_own_org",
+      "permissive": "PERMISSIVE",
+      "roles": [
+        "authenticated"
+      ],
+      "cmd": "SELECT",
+      "qual": "((bucket_id = 'spec-item-files'::text) AND (EXISTS ( SELECT 1\n   FROM organization_members m\n  WHERE ((m.user_id = auth.uid()) AND ((m.org_id)::text = (storage.foldername(objects.name))[1])))))",
+      "with_check": null
+    }
+  ],
+  "views": [
+    {
+      "view": "spec_items_priced",
+      "owner": "postgres",
+      "definition": " SELECT id,\n    project_id,\n    material_id,\n    code,\n    name,\n    brand,\n    spec,\n    qty,\n    unit,\n    price,\n    status,\n    is_placeholder,\n    \"position\",\n    created_at,\n    updated_at,\n    company_id,\n    contact_id,\n    org_id,\n    company_name_snapshot,\n    contact_name_snapshot,\n    article,\n    rooms,\n    notes,\n    lead_time,\n    avail,\n    attrs,\n    type,\n    deleted_at,\n    base_price,\n    supplier_discount,\n    client_discount,\n    cutting_stock,\n    stock_pct,\n    client_discount_pct,\n    supplier_discount_pct,\n        CASE\n            WHEN (unit = ANY (ARRAY['шт'::text, 'компл.'::text, 'пара'::text, 'короб'::text, 'рулон'::text, 'лист'::text])) THEN ceil((qty * ((1)::numeric + (stock_pct / (100)::numeric))))\n            ELSE round((qty * ((1)::numeric + (stock_pct / (100)::numeric))), 2)\n        END AS qty_final,\n    round((price * ((1)::numeric - (client_discount_pct / (100)::numeric))), 2) AS price_final\n   FROM spec_items i\n  WHERE (deleted_at IS NULL);"
+    }
+  ],
+  "functions": [
+    {
+      "name": "accept_invite",
+      "args": "p_token text, p_user_id uuid, p_email text",
+      "returns": "TABLE(org_id uuid, org_slug text, org_name text)",
+      "security_definer": true,
+      "volatility": "v",
+      "definition": "CREATE OR REPLACE FUNCTION public.accept_invite(p_token text, p_user_id uuid, p_email text)\n RETURNS TABLE(org_id uuid, org_slug text, org_name text)\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\ndeclare\r\n  v_invite record;\r\nbegin\r\n  select i.* into v_invite\r\n  from organization_invites i\r\n  where i.token = p_token\r\n  for update;                                    -- блокируем: второй вызов подождёт\r\n\r\n  if not found then raise exception 'INVITE_NOT_FOUND'; end if;\r\n  if v_invite.expires_at < now() then raise exception 'INVITE_EXPIRED'; end if;\r\n  if lower(v_invite.email) <> lower(p_email) then raise exception 'INVITE_EMAIL_MISMATCH:%', v_invite.email; end if;\r\n\r\n  if exists (select 1 from organization_members\r\n             where org_id = v_invite.org_id and user_id = p_user_id) then\r\n    delete from organization_invites where id = v_invite.id;\r\n    raise exception 'ALREADY_MEMBER';\r\n  end if;\r\n\r\n  insert into organization_members (org_id, user_id, role)\r\n  values (v_invite.org_id, p_user_id, v_invite.role);\r\n\r\n  update users set active_org_id = v_invite.org_id where id = p_user_id;\r\n  delete from organization_invites where id = v_invite.id;\r\n\r\n  return query\r\n    select o.id, o.slug, o.name from organizations o where o.id = v_invite.org_id;\r\nend $function$\n"
+    },
+    {
+      "name": "create_manual_spec_item",
+      "args": "p_org_id uuid, p_project_id uuid, p_item_id uuid, p_material_id uuid, p_company_id uuid, p_company_name text, p_created_by uuid, p_code text, p_type text, p_name text, p_brand text, p_spec text, p_article text, p_qty numeric, p_unit text, p_price numeric, p_stock_pct numeric, p_client_discount_pct numeric, p_supplier_discount_pct numeric, p_save_to_library boolean, p_image_url text",
+      "returns": "TABLE(id uuid)",
+      "security_definer": true,
+      "volatility": "v",
+      "definition": "CREATE OR REPLACE FUNCTION public.create_manual_spec_item(p_org_id uuid, p_project_id uuid, p_item_id uuid, p_material_id uuid, p_company_id uuid, p_company_name text, p_created_by uuid, p_code text, p_type text, p_name text, p_brand text, p_spec text, p_article text, p_qty numeric, p_unit text, p_price numeric, p_stock_pct numeric, p_client_discount_pct numeric, p_supplier_discount_pct numeric, p_save_to_library boolean, p_image_url text)\n RETURNS TABLE(id uuid)\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\ndeclare\r\n  v_status public.spec_status;\r\nbegin\r\n  -- защита: проект принадлежит организации и не удалён\r\n  if not exists (\r\n    select 1 from public.projects p\r\n    where p.id = p_project_id and p.org_id = p_org_id and p.deleted_at is null\r\n  ) then\r\n    raise exception 'PROJECT_NOT_FOUND';\r\n  end if;\r\n\r\n  v_status := case\r\n    when p_price > 0 then 'picked'::public.spec_status\r\n    else 'draft'::public.spec_status\r\n  end;\r\n\r\n  -- 1. библиотека материалов (только если попросили)\r\n  if p_save_to_library then\r\n    insert into public.materials (\r\n      id, org_id, created_by, name, brand, category, article, unit, price, company_id, image_url\r\n    ) values (\r\n      p_material_id, p_org_id, p_created_by, p_name, p_brand, p_type,\r\n      p_article, p_unit, p_price, p_company_id, p_image_url\r\n    );\r\n  end if;\r\n\r\n  -- 2. позиция спецификации\r\n  insert into public.spec_items (\r\n    id, project_id, org_id, material_id, company_id, company_name_snapshot,\r\n    code, type, name, brand, spec, article, qty, unit, price,\r\n    stock_pct, client_discount_pct, supplier_discount_pct, status, is_placeholder, position, image_url\r\n  ) values (\r\n    p_item_id, p_project_id, p_org_id, p_material_id, p_company_id, p_company_name,\r\n    p_code, p_type, p_name, p_brand, p_spec, p_article, p_qty, p_unit, p_price,\r\n    p_stock_pct, p_client_discount_pct, p_supplier_discount_pct, v_status, false,\r\n    (select coalesce(max(position), -1) + 1\r\n     from public.spec_items\r\n     where project_id = p_project_id and deleted_at is null),\r\n    p_image_url\r\n  );\r\n\r\n  return query select p_item_id as id;\r\n\r\nexception\r\n  when unique_violation then\r\n    -- любой дубль (марка уже занята) — откат обеих вставок и понятная ошибка\r\n    raise exception 'CODE_TAKEN';\r\nend;\r\n$function$\n"
+    },
+    {
+      "name": "create_manual_spec_item",
+      "args": "p_org_id uuid, p_project_id uuid, p_item_id uuid, p_material_id uuid, p_company_id uuid, p_company_name text, p_created_by uuid, p_image_url text, p_code text, p_type text, p_name text, p_brand text, p_spec text, p_article text, p_qty numeric, p_unit text, p_price numeric, p_stock_pct numeric, p_client_discount_pct numeric, p_supplier_discount_pct numeric, p_save_to_library boolean, p_parent_id uuid DEFAULT NULL::uuid, p_product_type text DEFAULT NULL::text, p_product_url text DEFAULT NULL::text, p_lead_time text DEFAULT NULL::text, p_attrs jsonb DEFAULT '{}'::jsonb",
+      "returns": "TABLE(id uuid)",
+      "security_definer": true,
+      "volatility": "v",
+      "definition": "CREATE OR REPLACE FUNCTION public.create_manual_spec_item(p_org_id uuid, p_project_id uuid, p_item_id uuid, p_material_id uuid, p_company_id uuid, p_company_name text, p_created_by uuid, p_image_url text, p_code text, p_type text, p_name text, p_brand text, p_spec text, p_article text, p_qty numeric, p_unit text, p_price numeric, p_stock_pct numeric, p_client_discount_pct numeric, p_supplier_discount_pct numeric, p_save_to_library boolean, p_parent_id uuid DEFAULT NULL::uuid, p_product_type text DEFAULT NULL::text, p_product_url text DEFAULT NULL::text, p_lead_time text DEFAULT NULL::text, p_attrs jsonb DEFAULT '{}'::jsonb)\n RETURNS TABLE(id uuid)\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\ndeclare\r\n  v_status public.spec_status;\r\n  v_attrs jsonb := coalesce(p_attrs, '{}'::jsonb);\r\n  v_lead_time text := nullif(p_lead_time, '');\r\nbegin\r\n  -- защита: проект принадлежит организации и не удалён\r\n  if not exists (\r\n    select 1 from public.projects p\r\n    where p.id = p_project_id and p.org_id = p_org_id and p.deleted_at is null\r\n  ) then\r\n    raise exception 'PROJECT_NOT_FOUND';\r\n  end if;\r\n\r\n  v_status := case\r\n    when p_price > 0 then 'picked'::public.spec_status\r\n    else 'draft'::public.spec_status\r\n  end;\r\n\r\n  -- 1. библиотека материалов (только если попросили).\r\n  --    p_type — это КАТЕГОРИЯ позиции, она же `materials.category`.\r\n  if p_save_to_library then\r\n    insert into public.materials (\r\n      id, org_id, created_by, name, brand, category, article, unit, price,\r\n      company_id, image_url, product_type, product_url, lead_time, attrs\r\n    ) values (\r\n      p_material_id, p_org_id, p_created_by, p_name, p_brand, p_type,\r\n      p_article, p_unit, p_price, p_company_id,\r\n      p_image_url, nullif(p_product_type, ''), nullif(p_product_url, ''),\r\n      v_lead_time, v_attrs\r\n    );\r\n  end if;\r\n\r\n  -- 2. позиция спецификации\r\n  insert into public.spec_items (\r\n    id, project_id, org_id, material_id, company_id, company_name_snapshot,\r\n    image_url, parent_id, code, type, name, brand, spec, article,\r\n    qty, unit, price, stock_pct, client_discount_pct, supplier_discount_pct,\r\n    status, is_placeholder, position, product_type, product_url, lead_time, attrs\r\n  ) values (\r\n    p_item_id, p_project_id, p_org_id, p_material_id, p_company_id, p_company_name,\r\n    p_image_url, p_parent_id, p_code, p_type, p_name, p_brand, p_spec, p_article,\r\n    p_qty, p_unit, p_price, p_stock_pct, p_client_discount_pct, p_supplier_discount_pct,\r\n    v_status, false,\r\n    (select coalesce(max(position), -1) + 1\r\n     from public.spec_items\r\n     where project_id = p_project_id and deleted_at is null),\r\n    nullif(p_product_type, ''), nullif(p_product_url, ''), v_lead_time, v_attrs\r\n  );\r\n\r\n  return query select p_item_id as id;\r\n\r\nexception\r\n  when unique_violation then\r\n    -- любой дубль (марка уже занята) — откат обеих вставок и понятная ошибка\r\n    raise exception 'CODE_TAKEN';\r\nend;\r\n$function$\n"
+    },
+    {
+      "name": "create_organization",
+      "args": "p_user_id uuid, p_name text, p_slug_base text DEFAULT NULL::text",
+      "returns": "TABLE(org_id uuid, org_slug text)",
+      "security_definer": true,
+      "volatility": "v",
+      "definition": "CREATE OR REPLACE FUNCTION public.create_organization(p_user_id uuid, p_name text, p_slug_base text DEFAULT NULL::text)\n RETURNS TABLE(org_id uuid, org_slug text)\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\ndeclare\r\n  v_org_id uuid;\r\n  v_slug   text;\r\n  v_name   text := nullif(btrim(p_name), '');\r\nbegin\r\n  if v_name is null then\r\n    raise exception 'EMPTY_NAME' using errcode = '22023';\r\n  end if;\r\n  if length(v_name) > 80 then\r\n    raise exception 'NAME_TOO_LONG' using errcode = '22023';\r\n  end if;\r\n  if not exists (select 1 from users where id = p_user_id) then\r\n    raise exception 'USER_NOT_FOUND' using errcode = '23503';\r\n  end if;\r\n\r\n  -- slug: из явной базы (имя пользователя) либо из названия студии\r\n  v_slug := public.unique_org_slug(coalesce(nullif(btrim(p_slug_base), ''), v_name));\r\n\r\n  insert into organizations (name, slug, created_by)\r\n  values (v_name, v_slug, p_user_id)\r\n  returning id into v_org_id;\r\n\r\n  insert into organization_members (org_id, user_id, role)\r\n  values (v_org_id, p_user_id, 'owner');\r\n\r\n  update users set active_org_id = v_org_id where id = p_user_id;\r\n\r\n  return query select v_org_id, v_slug;\r\nend $function$\n"
+    },
+    {
+      "name": "create_organization",
+      "args": "p_name text",
+      "returns": "uuid",
+      "security_definer": true,
+      "volatility": "v",
+      "definition": "CREATE OR REPLACE FUNCTION public.create_organization(p_name text)\n RETURNS uuid\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\ndeclare\r\n  v_user uuid := auth.uid();\r\n  v_org  uuid;\r\nbegin\r\n  if v_user is null then\r\n    raise exception 'unauthenticated' using errcode = '28000';\r\n  end if;\r\n\r\n  -- идемпотентность: защита от двойного submit и от повторного онбординга\r\n  select organization_id into v_org\r\n  from organization_members\r\n  where user_id = v_user\r\n  limit 1;\r\n\r\n  if v_org is not null then\r\n    return v_org;\r\n  end if;\r\n\r\n  insert into organizations (name, created_by)\r\n  values (btrim(p_name), v_user)\r\n  returning id into v_org;\r\n\r\n  insert into organization_members (organization_id, user_id, role)\r\n  values (v_org, v_user, 'owner');\r\n\r\n  return v_org;\r\nend;\r\n$function$\n"
+    },
+    {
+      "name": "ensure_personal_org",
+      "args": "p_user_id uuid",
+      "returns": "uuid",
+      "security_definer": true,
+      "volatility": "v",
+      "definition": "CREATE OR REPLACE FUNCTION public.ensure_personal_org(p_user_id uuid)\n RETURNS uuid\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\ndeclare\r\n  v_existing uuid;\r\n  v_user     record;\r\n  v_result   record;\r\nbegin\r\n  -- уже состоит хоть где-то — ничего не делаем\r\n  select m.org_id into v_existing\r\n  from organization_members m where m.user_id = p_user_id limit 1;\r\n\r\n  if v_existing is not null then\r\n    update users set active_org_id = coalesce(active_org_id, v_existing) where id = p_user_id;\r\n    return v_existing;\r\n  end if;\r\n\r\n  select name, email into v_user from users where id = p_user_id;\r\n  if not found then\r\n    raise exception 'USER_NOT_FOUND' using errcode = '23503';\r\n  end if;\r\n\r\n  select * into v_result from public.create_organization(\r\n    p_user_id,\r\n    'Моя студия',\r\n    coalesce(nullif(btrim(v_user.name), ''), split_part(v_user.email, '@', 1))\r\n  );\r\n\r\n  return v_result.org_id;\r\nend $function$\n"
+    },
+    {
+      "name": "handle_updated_at",
+      "args": "",
+      "returns": "trigger",
+      "security_definer": false,
+      "volatility": "v",
+      "definition": "CREATE OR REPLACE FUNCTION public.handle_updated_at()\n RETURNS trigger\n LANGUAGE plpgsql\nAS $function$\r\nbegin\r\n  new.updated_at = now();\r\n  return new;\r\nend;\r\n$function$\n"
+    },
+    {
+      "name": "is_org_member",
+      "args": "_org_id uuid",
+      "returns": "boolean",
+      "security_definer": true,
+      "volatility": "v",
+      "definition": "CREATE OR REPLACE FUNCTION public.is_org_member(_org_id uuid)\n RETURNS boolean\n LANGUAGE plpgsql\n SECURITY DEFINER\nAS $function$\r\nbegin\r\n  return exists (\r\n    select 1\r\n    from public.organization_members\r\n    where org_id = _org_id\r\n      and user_id = auth.uid()\r\n  );\r\nend;\r\n$function$\n"
+    },
+    {
+      "name": "set_spec_item_code",
+      "args": "p_org_id uuid, p_project_id uuid, p_item_id uuid, p_code text, p_allow_swap boolean DEFAULT false",
+      "returns": "TABLE(result text, swapped_id uuid, swapped_name text)",
+      "security_definer": true,
+      "volatility": "v",
+      "definition": "CREATE OR REPLACE FUNCTION public.set_spec_item_code(p_org_id uuid, p_project_id uuid, p_item_id uuid, p_code text, p_allow_swap boolean DEFAULT false)\n RETURNS TABLE(result text, swapped_id uuid, swapped_name text)\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\ndeclare\r\n  v_code     text := upper(btrim(p_code));\r\n  v_occupant record;\r\n  v_old_code text;\r\nbegin\r\n  perform 1 from projects where id = p_project_id and org_id = p_org_id for update;\r\n  if not found then raise exception 'PROJECT_NOT_FOUND'; end if;\r\n\r\n  if v_code = '' or v_code !~ '^[A-ZА-Я]{1,3}-[0-9]{1,3}$' then\r\n    raise exception 'CODE_INVALID';\r\n  end if;\r\n\r\n  select code into v_old_code from spec_items\r\n  where id = p_item_id and project_id = p_project_id;\r\n  if not found then raise exception 'ITEM_NOT_FOUND'; end if;\r\n  if v_old_code = v_code then\r\n    return query select 'unchanged'::text, null::uuid, null::text;\r\n  end if;\r\n\r\n  select id, name into v_occupant from spec_items\r\n  where project_id = p_project_id and code = v_code;\r\n\r\n  if v_occupant.id is not null then\r\n    if not p_allow_swap then\r\n      raise exception 'CODE_TAKEN:%', coalesce(v_occupant.name, '');\r\n    end if;\r\n    -- обмен: обе строки в одном statement, дубль допустим до конца транзакции\r\n    update spec_items set code = case id when p_item_id then v_code else v_old_code end,\r\n                          updated_at = now()\r\n    where id in (p_item_id, v_occupant.id);\r\n\r\n    return query select 'swapped'::text, v_occupant.id, v_occupant.name;\r\n  end if;\r\n\r\n  update spec_items set code = v_code, updated_at = now() where id = p_item_id;\r\n  return query select 'ok'::text, null::uuid, null::text;\r\nend $function$\n"
+    },
+    {
+      "name": "spec_items_sync_org",
+      "args": "",
+      "returns": "trigger",
+      "security_definer": false,
+      "volatility": "v",
+      "definition": "CREATE OR REPLACE FUNCTION public.spec_items_sync_org()\n RETURNS trigger\n LANGUAGE plpgsql\nAS $function$\r\nbegin\r\n  select org_id into new.org_id from public.projects where id = new.project_id;\r\n  if new.org_id is null then\r\n    raise exception 'PROJECT_NOT_FOUND';\r\n  end if;\r\n  return new;\r\nend $function$\n"
+    },
+    {
+      "name": "sync_material_company_id",
+      "args": "",
+      "returns": "trigger",
+      "security_definer": false,
+      "volatility": "v",
+      "definition": "CREATE OR REPLACE FUNCTION public.sync_material_company_id()\n RETURNS trigger\n LANGUAGE plpgsql\nAS $function$\r\nBEGIN\r\n  -- Если указан contact_id, но не указан company_id — берём компанию из контакта\r\n  IF NEW.contact_id IS NOT NULL AND NEW.company_id IS NULL THEN\r\n    SELECT company_id INTO NEW.company_id \r\n    FROM public.contacts \r\n    WHERE id = NEW.contact_id;\r\n  END IF;\r\n  RETURN NEW;\r\nEND;\r\n$function$\n"
+    },
+    {
+      "name": "touch_updated_at",
+      "args": "",
+      "returns": "trigger",
+      "security_definer": false,
+      "volatility": "v",
+      "definition": "CREATE OR REPLACE FUNCTION public.touch_updated_at()\n RETURNS trigger\n LANGUAGE plpgsql\nAS $function$\r\nbegin new.updated_at := now(); return new; end $function$\n"
+    },
+    {
+      "name": "transfer_organization_ownership",
+      "args": "p_org_id uuid, p_actor_id uuid, p_target_name text",
+      "returns": "void",
+      "security_definer": true,
+      "volatility": "v",
+      "definition": "CREATE OR REPLACE FUNCTION public.transfer_organization_ownership(p_org_id uuid, p_actor_id uuid, p_target_name text)\n RETURNS void\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\ndeclare\r\n  v_actor_role  text;\r\n  v_target_id   uuid;\r\n  v_target_cnt  int := 0;\r\n  v_target_name text;\r\n  v_target_role text;\r\n  v_candidate   record;\r\nbegin\r\n  if p_actor_id is null then\r\n    raise exception 'UNAUTHENTICATED' using errcode = '28000';\r\n  end if;\r\n\r\n  if auth.uid() is not null and auth.uid() <> p_actor_id then\r\n    raise exception 'ACTOR_MISMATCH' using errcode = '42501';\r\n  end if;\r\n\r\n  v_target_name := nullif(btrim(coalesce(p_target_name, '')), '');\r\n  if v_target_name is null then\r\n    raise exception 'TARGET_REQUIRED' using errcode = '22023';\r\n  end if;\r\n\r\n  -- Блокируем состав организации: до коммита конкурентная передача владения\r\n  -- (или обычная смена роли) не сможет изменить эти строки.\r\n  perform 1\r\n     from public.organization_members m\r\n    where m.org_id = p_org_id\r\n    for update;\r\n\r\n  select m.role::text into v_actor_role\r\n    from public.organization_members m\r\n   where m.org_id = p_org_id and m.user_id = p_actor_id;\r\n\r\n  if v_actor_role is null then\r\n    raise exception 'NOT_A_MEMBER' using errcode = '42501';\r\n  end if;\r\n  if v_actor_role <> 'owner' then\r\n    raise exception 'FORBIDDEN' using errcode = '42501';\r\n  end if;\r\n\r\n  -- Получателя ищем по имени среди участников организации (кроме актора).\r\n  -- Сравнение с именем, а не только с id, — вторая линия: клиент не может\r\n  -- подсунуть произвольный user_id в обход выбранного в UI участника.\r\n  for v_candidate in\r\n    select m.user_id, u.name, u.email, m.role::text as role\r\n      from public.organization_members m\r\n      join public.users u on u.id = m.user_id\r\n     where m.org_id = p_org_id\r\n       and m.user_id <> p_actor_id\r\n       and (u.name = v_target_name or (u.name is null and u.email = v_target_name))\r\n  loop\r\n    v_target_cnt := v_target_cnt + 1;\r\n    v_target_id := v_candidate.user_id;\r\n    v_target_role := v_candidate.role;\r\n  end loop;\r\n\r\n  if v_target_cnt = 0 then\r\n    raise exception 'TARGET_NOT_FOUND' using errcode = 'P0002';\r\n  end if;\r\n  if v_target_cnt > 1 then\r\n    raise exception 'TARGET_AMBIGUOUS' using errcode = '22023';\r\n  end if;\r\n\r\n  if v_target_role = 'owner' then\r\n    raise exception 'ALREADY_OWNER' using errcode = '22023';\r\n  end if;\r\n\r\n  -- Владельца в организации ровно один (это гарантирует частичный уникальный\r\n  -- индекс), поэтому место освобождается до назначения нового.\r\n  -- Старый owner становится АДМИНИСТРАТОРОМ.\r\n  update public.organization_members\r\n     set role = 'admin'\r\n   where org_id = p_org_id and user_id = p_actor_id;\r\n\r\n  update public.organization_members\r\n     set role = 'owner'\r\n   where org_id = p_org_id and user_id = v_target_id;\r\n\r\n  update public.organizations\r\n     set updated_at = now()\r\n   where id = p_org_id;\r\nend;\r\n$function$\n"
+    },
+    {
+      "name": "update_organization_name",
+      "args": "p_org_id uuid, p_actor_id uuid, p_name text",
+      "returns": "text",
+      "security_definer": true,
+      "volatility": "v",
+      "definition": "CREATE OR REPLACE FUNCTION public.update_organization_name(p_org_id uuid, p_actor_id uuid, p_name text)\n RETURNS text\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO 'public'\nAS $function$\r\ndeclare\r\n  v_name text := nullif(btrim(coalesce(p_name, '')), '');\r\n  v_role text;\r\nbegin\r\n  -- актор обязателен: анонимный вызов серверной операции невозможен\r\n  if p_actor_id is null then\r\n    raise exception 'UNAUTHENTICATED' using errcode = '28000';\r\n  end if;\r\n\r\n  -- если функция вызвана под настоящей Supabase-сессией, подменять актора нельзя\r\n  if auth.uid() is not null and auth.uid() <> p_actor_id then\r\n    raise exception 'ACTOR_MISMATCH' using errcode = '42501';\r\n  end if;\r\n\r\n  if v_name is null or length(v_name) < 2 then\r\n    raise exception 'EMPTY_NAME' using errcode = '22023';\r\n  end if;\r\n  if length(v_name) > 80 then\r\n    raise exception 'NAME_TOO_LONG' using errcode = '22023';\r\n  end if;\r\n\r\n  select m.role::text into v_role\r\n    from public.organization_members m\r\n   where m.org_id = p_org_id and m.user_id = p_actor_id;\r\n\r\n  if v_role is null then\r\n    raise exception 'NOT_A_MEMBER' using errcode = '42501';\r\n  end if;\r\n  if v_role <> 'owner' then\r\n    raise exception 'FORBIDDEN' using errcode = '42501';\r\n  end if;\r\n\r\n  update public.organizations\r\n     set name = v_name,\r\n         updated_at = now()\r\n   where id = p_org_id;\r\n\r\n  if not found then\r\n    raise exception 'ORG_NOT_FOUND' using errcode = 'P0002';\r\n  end if;\r\n\r\n  return v_name;\r\nend;\r\n$function$\n"
+    }
+  ],
+  "triggers": null,
+  "enums": [
+    {
+      "name": "org_role",
+      "values": [
+        "owner",
+        "admin",
+        "member",
+        "viewer"
+      ]
+    },
+    {
+      "name": "spec_status",
+      "values": [
+        "draft",
+        "picked",
+        "approved",
+        "ordered",
+        "delivered",
+        "replace"
+      ]
+    },
+    {
+      "name": "spec_types",
+      "values": [
+        "Отделка",
+        "Мебель",
+        "Оборудование",
+        "Сантехника",
+        "Освещение",
+        "Текстиль",
+        "Инженерное оборудование",
+        "Декор",
+        "Двери",
+        "Электрика",
+        "Прочее"
+      ]
+    }
+  ]
+}

@@ -103,6 +103,15 @@ const baseArgs = { orgId: TARGET.orgId, specItemId: TARGET.specItemId };
 /** Автор записей: реальный пользователь организации, иначе FK не пройдёт. */
 const actor = { id: "", name: "Проверка оплат (тест)", email: null };
 
+/**
+ * Настоящее имя автора из `users`.
+ *
+ * Нужно для проверки снимка: триггер `payment_sync_scope` берёт имя из `users`,
+ * а не из аргументов вызова, поэтому тест сверяет снимок с БД, а не с
+ * `actor.name` (иначе он проходил бы и с выключенным триггером).
+ */
+let actorName = "";
+
 /** Метка прогона: по ней находятся и убираются только свои строки. */
 const MARK = "(тест-оплата)";
 
@@ -124,6 +133,14 @@ beforeAll(async () => {
 
   if (error) console.error("[integration] member", error.message);
   actor.id = member?.user_id ?? "";
+
+  const { data: profile } = await admin
+    .from("users")
+    .select("name")
+    .eq("id", actor.id)
+    .maybeSingle();
+
+  actorName = profile?.name ?? "";
 });
 
 afterAll(async () => {
@@ -500,8 +517,17 @@ describe("ядро: запись, список, правка, отмена", () 
       kind: "payment",
       amount: 4000,
       paymentPlanId: plan.id,
-      authorName: "Проверка оплат (тест)",
     });
+
+    // Имя автора — СНИМОК из `users`, а не то, что передал вызывающий: подпись
+    // для списка и ленты собирает триггер `payment_sync_scope`. Сверяется с БД,
+    // а не с `actor.name`: так тест падает, если триггер перестанет заполнять
+    // снимок, вместо того чтобы подтверждать заглушку.
+    expect(entry!.authorName).toBe(actorName || null);
+    expect(entry!.authorId).toBe(actor.id);
+
+    // Код и название позиции тоже из снимка: они читаются из строки позиции.
+    expect(entry!.nameSnapshot).not.toBeNull();
 
     // Ядро события НЕ пишет — их пишет server action. Тест делает тот же шаг:
     // запись события проверяется против ЖИВОГО CHECK, который и есть предмет.

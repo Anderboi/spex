@@ -1,0 +1,339 @@
+﻿status 200
+
+== accounts ==
+  id: uuid, NOT NULL, // Note: This is a Primary Key.<pk/>
+  user_id: uuid, NOT NULL, // Note: This is a Foreign Key to `users.id`.<fk table='users' column='id'/>
+  type: text, NOT NULL
+  provider: text, NOT NULL
+  provider_account_id: text, NOT NULL
+  refresh_token: text, nullable
+  access_token: text, nullable
+  expires_at: bigint, nullable
+  token_type: text, nullable
+  scope: text, nullable
+  id_token: text, nullable
+  session_state: text, nullable
+
+== companies ==
+  id: uuid, NOT NULL, // Note: This is a Primary Key.<pk/>
+  created_by: uuid, nullable, // Note: This is a Foreign Key to `users.id`.<fk table='users' column='id'/>
+  name: text, NOT NULL
+  category: text[], NOT NULL
+  website: text, nullable
+  email: text, nullable
+  phone: text, nullable
+  address: text, nullable
+  note: text, nullable
+  created_at: timestamp with time zone, NOT NULL
+  org_id: uuid, NOT NULL, // Note: This is a Foreign Key to `organizations.id`.<fk table='organizations' column='id'/>
+  logo_url: text, nullable, // Публичный URL логотипа компании (bucket company-images). NULL — показываем инициалы.
+
+== contacts ==
+  id: uuid, NOT NULL, // Note: This is a Primary Key.<pk/>
+  created_by: uuid, nullable, // Note: This is a Foreign Key to `users.id`.<fk table='users' column='id'/>
+  company_id: uuid, nullable, // Note: This is a Foreign Key to `companies.id`.<fk table='companies' column='id'/>
+  name: text, NOT NULL
+  title: text, nullable
+  email: text, nullable
+  phone: text, nullable
+  note: text, nullable
+  created_at: timestamp with time zone, NOT NULL
+  category: text[], NOT NULL
+  org_id: uuid, NOT NULL, // Note: This is a Foreign Key to `organizations.id`.<fk table='organizations' column='id'/>
+  avatar_url: text, nullable, // Публичный URL фото контакта/независимого специалиста (bucket company-images). NULL — показываем инициалы.
+
+== materials ==
+  id: uuid, NOT NULL, // Note: This is a Primary Key.<pk/>
+  created_by: uuid, nullable, // Note: This is a Foreign Key to `users.id`.<fk table='users' column='id'/>
+  company_id: uuid, nullable, // Note: This is a Foreign Key to `companies.id`.<fk table='companies' column='id'/>
+  name: text, NOT NULL
+  brand: text, nullable
+  category: text, NOT NULL, // Категория — раздел спецификации (Отделка, Мебель, …), словарь spec_types
+  article: text, nullable
+  unit: text, NOT NULL
+  price: numeric, NOT NULL
+  image_url: text, nullable
+  tags: text[], nullable
+  created_at: timestamp with time zone, NOT NULL
+  updated_at: timestamp with time zone, NOT NULL
+  contact_id: uuid, nullable, // Note: This is a Foreign Key to `contacts.id`.<fk table='contacts' column='id'/>
+  org_id: uuid, NOT NULL, // Note: This is a Foreign Key to `organizations.id`.<fk table='organizations' column='id'/>
+  deleted_at: timestamp with time zone, nullable
+  product_url: text, nullable
+  lead_time: text, nullable
+  product_description: text, nullable
+  notes: text, nullable
+  attachments: text, nullable
+  product_type: text, nullable, // Тип материала внутри категории: керамогранит, ламинат, обои, …
+  attrs: jsonb, NOT NULL, // Характеристики материала (ключ → значение), шаблон для новых позиций спецификации
+
+== organization_invites ==
+  id: uuid, NOT NULL, // Note: This is a Primary Key.<pk/>
+  org_id: uuid, NOT NULL, // Note: This is a Foreign Key to `organizations.id`.<fk table='organizations' column='id'/>
+  email: text, NOT NULL
+  role: text, NOT NULL
+  token: text, NOT NULL
+  invited_by: uuid, NOT NULL, // Note: This is a Foreign Key to `users.id`.<fk table='users' column='id'/>
+  expires_at: timestamp with time zone, NOT NULL
+  created_at: timestamp with time zone, NOT NULL
+
+== organization_members ==
+  org_id: uuid, NOT NULL, // Note: This is a Primary Key.<pk/> This is a Foreign Key to `organizations.id`.<fk table='organizations' column='id'/>
+  user_id: uuid, NOT NULL, // Note: This is a Primary Key.<pk/> This is a Foreign Key to `users.id`.<fk table='users' column='id'/>
+  role: public.org_role, NOT NULL, enum:owner|admin|member|viewer
+  created_at: timestamp with time zone, NOT NULL
+
+== organizations ==
+  id: uuid, NOT NULL, // Note: This is a Primary Key.<pk/>
+  name: text, NOT NULL
+  slug: text, NOT NULL
+  created_at: timestamp with time zone, NOT NULL
+  updated_at: timestamp with time zone, NOT NULL
+  created_by: uuid, nullable, // Note: This is a Foreign Key to `users.id`.<fk table='users' column='id'/>
+
+== password_reset_tokens ==
+  id: uuid, NOT NULL, // Note: This is a Primary Key.<pk/>
+  email: text, NOT NULL
+  token: text, NOT NULL
+  expires: timestamp with time zone, NOT NULL
+  created_at: timestamp with time zone, nullable
+
+== project_service_items ==
+  service_id: uuid, NOT NULL, // Note: This is a Primary Key.<pk/> This is a Foreign Key to `project_services.id`.<fk table='project_services' column='id'/>
+  item_id: uuid, NOT NULL, // Note: This is a Primary Key.<pk/> This is a Foreign Key to `spec_items.id`.<fk table='spec_items' column='id'/>
+
+== project_services ==
+  id: uuid, NOT NULL, // Note: This is a Primary Key.<pk/>
+  project_id: uuid, NOT NULL, // Note: This is a Foreign Key to `projects.id`.<fk table='projects' column='id'/>
+  type: text, NOT NULL
+  title: text, NOT NULL
+  amount: numeric, NOT NULL
+  status: text, NOT NULL
+  supplier_id: uuid, nullable, // Note: This is a Foreign Key to `companies.id`.<fk table='companies' column='id'/>
+  supplier_snapshot: text, nullable
+  notes: text, nullable
+  created_at: timestamp with time zone, NOT NULL
+
+== projects ==
+  id: uuid, NOT NULL, // Note: This is a Primary Key.<pk/>
+  created_by: uuid, nullable, // Note: This is a Foreign Key to `users.id`.<fk table='users' column='id'/>
+  title: text, NOT NULL
+  client_name: text, nullable
+  accent_color: text, nullable
+  status: text, NOT NULL
+  created_at: timestamp with time zone, NOT NULL
+  updated_at: timestamp with time zone, NOT NULL
+  org_id: uuid, NOT NULL, // Note: This is a Foreign Key to `organizations.id`.<fk table='organizations' column='id'/>
+  cover_url: text, nullable
+  budget: integer, nullable
+  address: text, nullable
+  type: text, nullable
+  deleted_at: timestamp with time zone, nullable
+  rooms: text[], NOT NULL
+
+== public_links ==
+  token: text, NOT NULL, // Note: This is a Primary Key.<pk/>
+  org_id: uuid, NOT NULL, // Note: This is a Foreign Key to `organizations.id`.<fk table='organizations' column='id'/>
+  project_id: uuid, NOT NULL, // Note: This is a Foreign Key to `projects.id`.<fk table='projects' column='id'/>
+  type: text, NOT NULL
+  expires_at: timestamp with time zone, NOT NULL
+  created_at: timestamp with time zone, NOT NULL
+  client_view: boolean, NOT NULL
+
+== reserved_slugs ==
+  slug: text, NOT NULL, // Note: This is a Primary Key.<pk/>
+
+== service_operation_items ==
+  operation_id: uuid, NOT NULL, // Note: This is a Primary Key.<pk/> This is a Foreign Key to `service_operations.id`.<fk table='service_operations' column='id'/>
+  spec_item_id: uuid, NOT NULL, // Note: This is a Primary Key.<pk/> This is a Foreign Key to `spec_items.id`.<fk table='spec_items' column='id'/>
+
+== service_operations ==
+  id: uuid, NOT NULL, // Note: This is a Primary Key.<pk/>
+  org_id: uuid, NOT NULL, // Note: This is a Foreign Key to `organizations.id`.<fk table='organizations' column='id'/>
+  project_id: uuid, NOT NULL, // Note: This is a Foreign Key to `projects.id`.<fk table='projects' column='id'/>
+  type: text, NOT NULL
+  amount: numeric, NOT NULL
+  deadline: date, nullable
+  contractor_company_id: uuid, nullable, // Подрядчик операции (компания организации). Необязательный. Note: This is a Foreign Key to `companies.id`.<fk table='companies' column='id'/>
+  notes: text, nullable
+  created_at: timestamp with time zone, NOT NULL
+  updated_at: timestamp with time zone, NOT NULL
+  completed: boolean, NOT NULL
+  name: text, nullable, // Название своей услуги (type = 'service'). У delivery/installation — null: подпись берётся из SERVICE_OPERATION_CONFIG.
+
+== sessions ==
+  id: uuid, NOT NULL, // Note: This is a Primary Key.<pk/>
+  user_id: uuid, NOT NULL, // Note: This is a Foreign Key to `users.id`.<fk table='users' column='id'/>
+  expires: timestamp with time zone, NOT NULL
+  session_token: text, NOT NULL
+
+== spec_item_comments ==
+  id: uuid, NOT NULL, // Note: This is a Primary Key.<pk/>
+  org_id: uuid, NOT NULL, // Note: This is a Foreign Key to `organizations.id`.<fk table='organizations' column='id'/>
+  spec_item_id: uuid, NOT NULL, // Note: This is a Foreign Key to `spec_items.id`.<fk table='spec_items' column='id'/>
+  parent_id: uuid, nullable, // Note: This is a Foreign Key to `spec_item_comments.id`.<fk table='spec_item_comments' column='id'/>
+  root_id: uuid, nullable, // Корень ветки. FK намеренно не задан: связь логическая, а не структурная (значение проставляет server action).
+  author_id: uuid, nullable, // Note: This is a Foreign Key to `users.id`.<fk table='users' column='id'/>
+  author_name_snapshot: text, nullable, // Имя автора на момент написания: см. spec_item_events.actor_name_snapshot.
+  body: text, NOT NULL
+  created_at: timestamp with time zone, NOT NULL
+  edited_at: timestamp with time zone, nullable
+  deleted_at: timestamp with time zone, nullable
+
+== spec_item_components ==
+  id: uuid, NOT NULL, // Note: This is a Primary Key.<pk/>
+  org_id: uuid, NOT NULL, // Note: This is a Foreign Key to `organizations.id`.<fk table='organizations' column='id'/>
+  spec_item_id: uuid, NOT NULL, // Note: This is a Foreign Key to `spec_items.id`.<fk table='spec_items' column='id'/>
+  parent_component_id: uuid, nullable, // Note: This is a Foreign Key to `spec_item_components.id`.<fk table='spec_item_components' column='id'/>
+  kind: text, NOT NULL
+  name: text, NOT NULL
+  ref_spec_item_id: uuid, nullable, // Note: This is a Foreign Key to `spec_items.id`.<fk table='spec_items' column='id'/>
+  company_id: uuid, nullable, // Note: This is a Foreign Key to `companies.id`.<fk table='companies' column='id'/>
+  contact_id: uuid, nullable, // Note: This is a Foreign Key to `contacts.id`.<fk table='contacts' column='id'/>
+  cost: numeric, nullable
+  notes: text, nullable
+  position: integer, NOT NULL
+  created_at: timestamp with time zone, NOT NULL
+  updated_at: timestamp with time zone, NOT NULL
+  additional_cost: numeric, nullable, // Дополнительная сумма для kind = 'spec_ref' (ручная). Для component/group не используется.
+
+== spec_item_events ==
+  id: uuid, NOT NULL, // Note: This is a Primary Key.<pk/>
+  org_id: uuid, NOT NULL, // Note: This is a Foreign Key to `organizations.id`.<fk table='organizations' column='id'/>
+  spec_item_id: uuid, NOT NULL, // Note: This is a Foreign Key to `spec_items.id`.<fk table='spec_items' column='id'/>
+  kind: text, NOT NULL, // Тип события. CHECK-список синхронизирован с SPEC_ITEM_EVENT_KINDS (lib/spec/history.ts).
+  actor_id: uuid, nullable, // Note: This is a Foreign Key to `users.id`.<fk table='users' column='id'/>
+  actor_name_snapshot: text, nullable, // Имя автора на момент события: пользователя могут переименовать, а членство — удалить.
+  payload: jsonb, NOT NULL, // Данные события («что изменилось»): состав зависит от kind. Позволяет построить текст без чтения прежнего состояния.
+  created_at: timestamp with time zone, NOT NULL
+
+== spec_item_files ==
+  id: uuid, NOT NULL, // Note: This is a Primary Key.<pk/>
+  org_id: uuid, NOT NULL, // Note: This is a Foreign Key to `organizations.id`.<fk table='organizations' column='id'/>
+  project_id: uuid, NOT NULL, // Note: This is a Foreign Key to `projects.id`.<fk table='projects' column='id'/>
+  spec_item_id: uuid, NOT NULL, // Note: This is a Foreign Key to `spec_items.id`.<fk table='spec_items' column='id'/>
+  storage_path: text, NOT NULL, // Путь объекта внутри приватного bucket'а spec-item-files: <orgId>/spec-items/<specItemId>/<uuid>.<ext>. Формируется только сервером.
+  file_name: text, NOT NULL, // Оригинальное имя файла для показа и скачивания. В путь объекта не попадает: там UUID.
+  mime_type: text, NOT NULL
+  size_bytes: bigint, NOT NULL
+  category: text, NOT NULL, // Категория файла. CHECK-список синхронизирован с SPEC_ITEM_FILE_CATEGORIES (lib/spec/file-content.ts).
+  uploaded_by: uuid, nullable, // Note: This is a Foreign Key to `users.id`.<fk table='users' column='id'/>
+  created_at: timestamp with time zone, NOT NULL
+  deleted_at: timestamp with time zone, nullable
+
+== spec_item_variants ==
+  id: uuid, NOT NULL, // Note: This is a Primary Key.<pk/>
+  spec_item_id: uuid, NOT NULL, // Note: This is a Foreign Key to `spec_items.id`.<fk table='spec_items' column='id'/>
+  org_id: uuid, NOT NULL, // Note: This is a Foreign Key to `organizations.id`.<fk table='organizations' column='id'/>
+  name: text, NOT NULL
+  brand: text, NOT NULL
+  article: text, nullable
+  spec: text, NOT NULL
+  price: numeric, NOT NULL
+  product_url: text, NOT NULL
+  image_url: text, nullable
+  lead_time: text, NOT NULL
+  company_id: uuid, nullable, // Note: This is a Foreign Key to `companies.id`.<fk table='companies' column='id'/>
+  contact_id: uuid, nullable, // Note: This is a Foreign Key to `contacts.id`.<fk table='contacts' column='id'/>
+  company_name_snapshot: text, NOT NULL
+  label: text, NOT NULL
+  is_active: boolean, NOT NULL
+  position: integer, NOT NULL
+  created_at: timestamp with time zone, NOT NULL
+  updated_at: timestamp with time zone, NOT NULL
+
+== spec_items ==
+  id: uuid, NOT NULL, // Note: This is a Primary Key.<pk/>
+  project_id: uuid, NOT NULL, // Note: This is a Foreign Key to `projects.id`.<fk table='projects' column='id'/>
+  material_id: uuid, nullable, // Note: This is a Foreign Key to `materials.id`.<fk table='materials' column='id'/>
+  code: text, nullable
+  name: text, NOT NULL
+  brand: text, nullable
+  spec: text, nullable
+  qty: numeric, NOT NULL, // Плановая потребность без запаса. Закупочное количество = qty * (1 + stock_pct/100).
+  unit: text, NOT NULL
+  price: numeric, NOT NULL, // Базовая цена за единицу до скидок.
+  status: public.spec_status, NOT NULL, enum:draft|picked|approved|ordered|delivered|replace
+  is_placeholder: boolean, NOT NULL
+  position: integer, NOT NULL
+  created_at: timestamp with time zone, NOT NULL
+  updated_at: timestamp with time zone, NOT NULL
+  company_id: uuid, nullable, // Note: This is a Foreign Key to `companies.id`.<fk table='companies' column='id'/>
+  contact_id: uuid, nullable, // Note: This is a Foreign Key to `contacts.id`.<fk table='contacts' column='id'/>
+  org_id: uuid, NOT NULL, // Note: This is a Foreign Key to `organizations.id`.<fk table='organizations' column='id'/>
+  company_name_snapshot: text, nullable
+  contact_name_snapshot: text, nullable
+  article: text, nullable
+  rooms: text[], NOT NULL
+  notes: text, nullable
+  lead_time: text, nullable
+  avail: text, nullable
+  attrs: jsonb, NOT NULL
+  type: text, NOT NULL
+  deleted_at: timestamp with time zone, nullable
+  base_price: numeric, NOT NULL
+  supplier_discount: numeric, NOT NULL
+  client_discount: numeric, NOT NULL
+  cutting_stock: numeric, NOT NULL
+  stock_pct: numeric, NOT NULL
+  client_discount_pct: numeric, NOT NULL
+  supplier_discount_pct: numeric, NOT NULL
+  attachments: text, nullable
+  product_type: text, nullable
+  product_url: text, nullable
+  image_url: text, nullable
+  parent_id: uuid, nullable, // Note: This is a Foreign Key to `spec_items.id`.<fk table='spec_items' column='id'/>
+
+== spec_items_priced ==
+  id: uuid, nullable, // Note: This is a Primary Key.<pk/>
+  project_id: uuid, nullable, // Note: This is a Foreign Key to `projects.id`.<fk table='projects' column='id'/>
+  material_id: uuid, nullable, // Note: This is a Foreign Key to `materials.id`.<fk table='materials' column='id'/>
+  code: text, nullable
+  name: text, nullable
+  brand: text, nullable
+  spec: text, nullable
+  qty: numeric, nullable
+  unit: text, nullable
+  price: numeric, nullable
+  status: public.spec_status, nullable, enum:draft|picked|approved|ordered|delivered|replace
+  is_placeholder: boolean, nullable
+  position: integer, nullable
+  created_at: timestamp with time zone, nullable
+  updated_at: timestamp with time zone, nullable
+  company_id: uuid, nullable, // Note: This is a Foreign Key to `companies.id`.<fk table='companies' column='id'/>
+  contact_id: uuid, nullable, // Note: This is a Foreign Key to `contacts.id`.<fk table='contacts' column='id'/>
+  org_id: uuid, nullable, // Note: This is a Foreign Key to `organizations.id`.<fk table='organizations' column='id'/>
+  company_name_snapshot: text, nullable
+  contact_name_snapshot: text, nullable
+  article: text, nullable
+  rooms: text[], nullable
+  notes: text, nullable
+  lead_time: text, nullable
+  avail: text, nullable
+  attrs: jsonb, nullable
+  type: text, nullable
+  deleted_at: timestamp with time zone, nullable
+  base_price: numeric, nullable
+  supplier_discount: numeric, nullable
+  client_discount: numeric, nullable
+  cutting_stock: numeric, nullable
+  stock_pct: numeric, nullable
+  client_discount_pct: numeric, nullable
+  supplier_discount_pct: numeric, nullable
+  qty_final: numeric, nullable
+  price_final: numeric, nullable
+
+== users ==
+  id: uuid, NOT NULL, // Note: This is a Primary Key.<pk/>
+  name: text, nullable
+  email: text, nullable
+  email_verified: timestamp with time zone, nullable
+  image: text, nullable
+  created_at: timestamp with time zone, nullable
+  password: text, nullable
+  active_org_id: uuid, nullable, // Note: This is a Foreign Key to `organizations.id`.<fk table='organizations' column='id'/>
+
+== verification_tokens ==
+  identifier: text, NOT NULL, // Note: This is a Primary Key.<pk/>
+  token: text, NOT NULL, // Note: This is a Primary Key.<pk/>
+  expires: timestamp with time zone, NOT NULL
