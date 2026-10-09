@@ -82,6 +82,7 @@ const MaterialCard = memo(
                 fill
                 sizes="(min-width: 1280px) 25vw, (min-width: 1024px) 33vw, (min-width: 768px) 50vw, 100vw"
                 className="object-cover"
+                loading='eager'
               />
             ) : (
               <div
@@ -321,10 +322,11 @@ function MobileMaterialRow({
           {mat.imageUrl ? (
             <Image
               src={mat.imageUrl}
-              alt=""
+              alt="material cover"
               fill
               sizes="88px"
               className="object-cover"
+              loading='eager'
             />
           ) : (
             <div

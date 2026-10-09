@@ -1,9 +1,8 @@
 import type { Metadata } from "next";
 import "./globals.css";
-import { Geist, JetBrains_Mono, Unbounded } from "next/font/google";
+import { Geist, JetBrains_Mono } from "next/font/google";
 import { cn } from "@/lib/utils";
 import { ThemeProvider } from "@/components/theme-provider";
-import { SessionProvider } from "next-auth/react";
 import { Toaster } from 'sonner';
 
 export const metadata: Metadata = {
@@ -22,12 +21,6 @@ const geist = Geist({
   variable: "--font-sans",
 });
 
-const unbounded = Unbounded({
-  subsets: ["latin", "cyrillic"],
-  variable: "--font-unbounded",
-  display: "swap",
-});
-
 const jetbrainsMono = JetBrains_Mono({
   subsets: ["latin", "cyrillic"],
   variable: "--font-mono",
@@ -44,7 +37,6 @@ export default async function RootLayout({
       lang="ru"
       className={cn(
         geist.variable,
-        unbounded.variable,
         jetbrainsMono.variable,
         "font-sans",
       )}
@@ -54,17 +46,15 @@ export default async function RootLayout({
         suppressHydrationWarning
         className="antialiased min-h-screen bg-bg text-fg"
       >
-        <SessionProvider>
-          <ThemeProvider
-            attribute="class"
-            defaultTheme="light"
-            enableSystem={false}
-            disableTransitionOnChange
-          >
-            {children}
-            <Toaster position="bottom-center" richColors closeButton />
-          </ThemeProvider>
-        </SessionProvider>
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="light"
+          enableSystem={false}
+          disableTransitionOnChange
+        >
+          {children}
+          <Toaster position="bottom-center" richColors closeButton />
+        </ThemeProvider>
       </body>
     </html>
   );
