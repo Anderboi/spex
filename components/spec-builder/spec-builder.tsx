@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import { Search, ArrowUpDown, AlertCircle, X } from "lucide-react";
 import { useSpecBuilder } from "@/hooks/use-spec-builder";
 import { useMediaQuery } from "@/hooks/use-media-query";
@@ -16,8 +17,6 @@ import {
 import { DensitySwitcher } from "./layout/density-switcher";
 import { SpecFilterSheet } from "./spec-filter-sheet";
 import { ActiveFilterChips } from "./layout/active-filter-chips";
-import { DetailModal } from "./modals/spec-mat-detail-modal";
-import { CodeConflictDialog } from "./modals/code-conflict-dialog";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { isLocked } from "@/lib/spec/status";
 import type { SpecRowHandlers } from "./spec-row";
@@ -30,16 +29,57 @@ import { ALL_CATEGORIES, TYPE_ORDER } from "@/lib/constants";
 import { fmt, plural, cn } from "@/lib/utils";
 import { SpecItem } from "@/lib/types";
 import BottomBar from "./layout/bottom-bar";
-import AddModalForm from "./modals/add-spec-mat-modal-form";
-import { ProcureModal } from "./modals/procure-modal";
-import { SpecSummary } from "./summary/spec-summary";
 import EmptyFilter from "./empty-filter";
 import EmptyProject from "./empty-project";
 import TypeChip from "../layout/type-chip";
 import SaveIndicator from "../layout/save-indicator";
 import AddSectionPicker from "./layout/add-section-picker";
 import { ProjectExpenses } from "./project-expenses";
-import { ServiceOperationModal } from "./modals/service-operation-modal";
+
+/**
+ * Модалки грузим лениво, отдельными чанками.
+ *
+ * Все они отрисовываются только по действию пользователя (`?dialog=…` или
+ * открытая позиция), а вместе весят больше четверти мегабайта в сжатом виде:
+ * в стартовом бандле они не нужны. Импорт остаётся клиентским — модули и так
+ * помечены `"use client"`, поэтому `ssr: false` здесь про другое: без него
+ * Next успел бы отрисовать их на сервере, а рендерить их нечего — состояния
+ * «открыто» на сервере не существует.
+ *
+ * Карточку позиции (`DetailModal`) дополнительно предзагружаем на простое:
+ * это самая частая модалка, и при первом клике чанк уже должен быть на месте
+ * (см. эффект ниже).
+ */
+/**
+ * Загрузчик карточки позиции вынесен в отдельную функцию и переиспользуется:
+ * `next/dynamic` в этой версии не даёт типизированного `preload`, поэтому
+ * предзагрузка идёт тем же импортом — модуль кешируется, второго запроса нет.
+ */
+const loadDetailModal = () => import("./modals/spec-mat-detail-modal");
+
+const DetailModal = dynamic(
+  () => loadDetailModal().then((m) => m.DetailModal),
+  { ssr: false },
+);
+const CodeConflictDialog = dynamic(
+  () => import("./modals/code-conflict-dialog").then((m) => m.CodeConflictDialog),
+  { ssr: false },
+);
+const AddModalForm = dynamic(() => import("./modals/add-spec-mat-modal-form"), {
+  ssr: false,
+});
+const ProcureModal = dynamic(
+  () => import("./modals/procure-modal").then((m) => m.ProcureModal),
+  { ssr: false },
+);
+const SpecSummary = dynamic(
+  () => import("./summary/spec-summary").then((m) => m.SpecSummary),
+  { ssr: false },
+);
+const ServiceOperationModal = dynamic(
+  () => import("./modals/service-operation-modal").then((m) => m.ServiceOperationModal),
+  { ssr: false },
+);
 
 export default function SpecBuilder({
   orgSlug,
@@ -221,6 +261,36 @@ export default function SpecBuilder({
 
   const overBudget =
     project.budget !== null && ctx.stats.totalSum > project.budget;
+
+  /**
+   * Предзагрузка карточки позиции.
+   *
+   * Чанк `DetailModal` грузится лениво, но открывают её чаще всего — по клику на
+   * строку. Поэтому после загрузки страницы, когда браузер свободен, просим чанк
+   * заранее: к первому клику он уже в кеше, и ленивость не видна как задержка.
+   * Если карточку открыли раньше, чем сработал idle, запрос просто дублируется —
+   * второй раз его берёт кеш модулей.
+   */
+  useEffect(() => {
+    const prefetch = () => {
+      void loadDetailModal();
+    };
+    const idle = (
+      window as Window & {
+        requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;
+      }
+    ).requestIdleCallback;
+    if (idle) {
+      const handle = idle(prefetch, { timeout: 3000 });
+      return () => {
+        (
+          window as Window & { cancelIdleCallback?: (h: number) => void }
+        ).cancelIdleCallback?.(handle);
+      };
+    }
+    const timer = window.setTimeout(prefetch, 1200);
+    return () => window.clearTimeout(timer);
+  }, []);
 
   return (
     <div

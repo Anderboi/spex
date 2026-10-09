@@ -1,13 +1,24 @@
 "use client";
 
 import { useRef, useState } from "react";
+import dynamic from "next/dynamic";
 import Image from "next/image";
 import { CloudUpload, Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { uploadMaterialImage } from "@/actions/materials";
 import { cn } from "@/lib/utils";
-import { ImageCropModal } from './image-crop-modal';
 import IconButtonBlock from './icon-button-block';
+
+/**
+ * Кроп открывается только после выбора файла, но тянет за собой
+ * `react-image-crop` и его CSS. Ленивый импорт убирает и то, и другое из
+ * стартового бандла карточки; `ssr: false` — потому что окно всё равно
+ * открывается лишь по действию пользователя в браузере.
+ */
+const ImageCropModal = dynamic(
+  () => import("./image-crop-modal").then((m) => m.ImageCropModal),
+  { ssr: false },
+);
 
 const MAX_SIZE = 5 * 1024 * 1024;
 const ACCEPTED_TYPES = ["image/jpeg", "image/jpg", "image/png", "image/webp"];
