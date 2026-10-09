@@ -3,7 +3,7 @@
  * значения для отображения.
  *
  * Отдельный модуль без React и без клиента БД, потому что здесь живёт вся
- * "смысловая" часть рендерера: 21 вид системного события, словарь полей, даты,
+ * "смысловая" часть рендерера: 24 вида системного события, словарь полей, даты,
  * склонения и форматирование значений. UI-компоненты (`activity-*.tsx`) только
  * раскладывают результат по примитивам `Marker` / `Message`, поэтому больших
  * `switch` по `kind` в разметке нет.
@@ -27,7 +27,7 @@
  * `entry.payload` до конкретного типа. Карта функций потребовала бы утверждений
  * типов (`as`), то есть ослабила бы типы ради удобства — чего делать нельзя.
  * Вместо этого `switch` возвращает результат, а хвост функции возвращает `null`:
- * компилятор проверяет, что все 21 ветка обработаны, а неизвестный `kind`
+ * компилятор проверяет, что все 24 ветки обработаны, а неизвестный `kind`
  * (появившийся в БД из более новой версии) не ломает ленту.
  */
 
@@ -42,10 +42,12 @@ import {
   type SpecItemCreateOrigin,
   type SpecItemFillOrigin,
 } from "./history";
+import { PAYMENT_PLAN_PATCH_FIELDS } from "./payment-plan-types";
 import type {
   HistoryCommentEntry,
   HistoryEventEntry,
   HistoryFieldChange,
+  HistoryPaymentPlanPayload,
   HistoryServicePayload,
 } from "./history-types";
 
@@ -74,7 +76,10 @@ export type ActivityIcon =
   | "componentRemove"
   | "serviceAdd"
   | "serviceDone"
-  | "serviceRemove";
+  | "serviceRemove"
+  | "paymentPlanAdd"
+  | "paymentPlanEdit"
+  | "paymentPlanRemove";
 
 /** Строка таблицы изменений: подпись поля уже переведена. */
 export type ActivityChange = {
@@ -158,6 +163,29 @@ const DETAIL_FIELD_ORDER: readonly string[] = SPEC_ITEM_DETAIL_FIELDS;
 const VARIANT_FIELD_ORDER: readonly string[] = SPEC_VARIANT_PATCH_FIELDS;
 
 /**
+ * Подписи полей строки графика платежей: ключи — колонки БД (`snake_case`),
+ * как их кладёт в `changes` билдер истории (`./payment-plan-events`).
+ *
+ * `position` здесь тоже есть: перестановка строки — то же событие
+ * `payment_plan_changed` с одним изменением, и подпись ей нужна та же, что у
+ * остальных полей строки.
+ */
+const PAYMENT_PLAN_FIELD_LABEL: Record<string, string> = {
+  title: "Название",
+  amount: "Сумма",
+  condition: "Условие оплаты",
+  due_date: "Срок",
+  position: "Порядок",
+};
+
+/**
+ * Канонический порядок полей строки графика: тот же, в котором поля идут в
+ * форме, а порядок строки — последним. Порядок ключей из `jsonb` брать нельзя:
+ * он не сохраняется.
+ */
+const PAYMENT_PLAN_FIELD_ORDER: readonly string[] = PAYMENT_PLAN_PATCH_FIELDS;
+
+/**
  * Подпись поля: из словаря, иначе само имя — но не пустая строка.
  *
  * `field` приходит из `jsonb`, поэтому проверяется на строку: исторический
@@ -168,6 +196,7 @@ export function activityFieldLabel(field: unknown): string {
   return (
     DETAIL_FIELD_LABEL[field] ??
     VARIANT_FIELD_LABEL[field] ??
+    PAYMENT_PLAN_FIELD_LABEL[field] ??
     field.replaceAll("_", " ")
   );
 }
@@ -342,6 +371,9 @@ export function formatActivityValue(
     if (percentScale === "percent") return formatPercentPoints(value);
     if (percentScale === "ratio") return formatPercent(value);
     if (field === "price") return `${formatNumber(value)} ₽`;
+    // Сумма строки графика платежей: та же запись, что и у цены, — иначе одна
+    // и та же величина в ленте выглядела бы по-разному.
+    if (field === "amount") return `${formatNumber(value)} ₽`;
     if (field === "lead_time") return formatMillimetres(value);
     return formatNumber(value);
   }
@@ -428,7 +460,7 @@ export function formatActivityChanges(
 }
 
 /* ------------------------------------------------------------------ */
-/*  События: 21 вид                                                    */
+/*  События: 24 вида                                                   */
 /* ------------------------------------------------------------------ */
 
 /**
@@ -635,6 +667,37 @@ function formatEvent(record: HistoryEventEntry): ActivityPresentation {
         title: "Удалена услуга",
         detail: serviceDetail(record.payload),
       };
+
+    case "payment_plan_added":
+      return {
+        batchSize,
+        icon: "paymentPlanAdd",
+        title: "Добавлен платёж в график",
+        detail: paymentPlanDetail(record.payload),
+      };
+
+    case "payment_plan_changed":
+      return {
+        batchSize,
+        icon: "paymentPlanEdit",
+        // Заголовок общий для правки полей и перестановки: конкретика — в
+        // таблице изменений, а второй заголовок для «переставлено» дублировал бы
+        // то же событие другим текстом.
+        title: "Изменён платёж в графике",
+        detail: paymentPlanDetail(record.payload),
+        changes: formatActivityChanges(
+          record.payload.changes,
+          PAYMENT_PLAN_FIELD_ORDER,
+        ),
+      };
+
+    case "payment_plan_removed":
+      return {
+        batchSize,
+        icon: "paymentPlanRemove",
+        title: "Удалён платёж из графика",
+        detail: paymentPlanDetail(record.payload),
+      };
   }
 
   // Недостижимо для известных `kind`: сюда попадает только событие, которого
@@ -680,7 +743,12 @@ function compositionDetail(payload: {
   return { detail: { name: payload.name?.trim() || EMPTY_VALUE } };
 }
 
-/** Сервисная операция: подпись и сумма, если она есть в payload'е. */
+/**
+ * Сервисная операция: подпись и сумма, если она есть в payload'е.
+ *
+ * Знак рубля добавляет `formatActivityValue` (поле `amount` — денежное): здесь он
+ * не повторяется, иначе в ленте было бы «Доставка · 5 000 ₽ ₽».
+ */
 function serviceDetail(payload: HistoryServicePayload): {
   name: string;
 } {
@@ -688,8 +756,31 @@ function serviceDetail(payload: HistoryServicePayload): {
   return {
     name:
       typeof payload.amount === "number" && Number.isFinite(payload.amount)
-        ? `${label} · ${formatActivityValue("amount", payload.amount, EMPTY_VALUE)} ₽`
+        ? `${label} · ${formatActivityValue("amount", payload.amount, EMPTY_VALUE)}`
         : label,
+  };
+}
+
+/**
+ * Строка графика платежей: название и сумма.
+ *
+ * Сумма снимком из payload'а, а не из текущего графика: событие описывает то,
+ * что было на момент действия (главное правило ленты). Условие оплаты и срок в
+ * подписи не дублируются — они видны в самой строке графика, а в ленте важны
+ * название и величина обязательства.
+ *
+ * Знак рубля добавляет `formatActivityValue` (поле `amount` — денежное), здесь
+ * он не повторяется: иначе в ленте было бы «12 000 ₽ ₽».
+ */
+function paymentPlanDetail(payload: HistoryPaymentPlanPayload): {
+  name: string;
+} {
+  const title = payload.title?.trim() || EMPTY_VALUE;
+  return {
+    name:
+      typeof payload.amount === "number" && Number.isFinite(payload.amount)
+        ? `${title} · ${formatActivityValue("amount", payload.amount, EMPTY_VALUE)}`
+        : title,
   };
 }
 

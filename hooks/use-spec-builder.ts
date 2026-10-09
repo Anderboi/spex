@@ -88,6 +88,7 @@ export const DETAIL_PANEL_TABS = [
   "rooms",
   "supplier",
   "files",
+  "payments",
 ] as const;
 export type DetailPanelTab = (typeof DETAIL_PANEL_TABS)[number];
 

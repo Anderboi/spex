@@ -52,12 +52,12 @@ function commentRow(over: Partial<SpecItemCommentRow> = {}): SpecItemCommentRow 
 }
 
 /* ------------------------------------------------------------------ */
-/*  Все 21 kind                                                        */
+/*  Все 24 kind                                                        */
 /* ------------------------------------------------------------------ */
 
 /**
  * Реалистичный payload на каждый тип события. Тип `Record` по
- * `SpecItemEventKind` заставляет описать все 21: новый тип в списке без строки
+ * `SpecItemEventKind` заставляет описать все 24: новый тип в списке без строки
  * здесь не соберётся.
  */
 const RAW_PAYLOADS: Record<SpecItemEventKind, SpecItemEventRow["payload"]> = {
@@ -162,6 +162,31 @@ const RAW_PAYLOADS: Record<SpecItemEventKind, SpecItemEventRow["payload"]> = {
     type: "service",
     name: "Подъём на этаж",
     amount: 2500,
+  },
+  payment_plan_added: {
+    plan_id: "p-1",
+    title: "Аванс",
+    amount: 12000,
+    condition: "После подписания договора",
+    due_date: "2026-11-01",
+    position: 0,
+  },
+  payment_plan_changed: {
+    plan_id: "p-1",
+    title: "Аванс",
+    amount: 15000,
+    condition: null,
+    due_date: "2026-11-01",
+    position: 0,
+    changes: { amount: { from: 12000, to: 15000 } },
+  },
+  payment_plan_removed: {
+    plan_id: "p-2",
+    title: "Остаток",
+    amount: 3000,
+    condition: null,
+    due_date: null,
+    position: 1,
   },
 };
 
@@ -300,11 +325,38 @@ const EXPECTED_PAYLOADS: {
     batch: false,
     batchSize: null,
   },
+  payment_plan_added: {
+    planId: "p-1",
+    title: "Аванс",
+    amount: 12000,
+    condition: "После подписания договора",
+    dueDate: "2026-11-01",
+    position: 0,
+    changes: [],
+  },
+  payment_plan_changed: {
+    planId: "p-1",
+    title: "Аванс",
+    amount: 15000,
+    condition: null,
+    dueDate: "2026-11-01",
+    position: 0,
+    changes: [{ field: "amount", from: 12000, to: 15000 }],
+  },
+  payment_plan_removed: {
+    planId: "p-2",
+    title: "Остаток",
+    amount: 3000,
+    condition: null,
+    dueDate: null,
+    position: 1,
+    changes: [],
+  },
 };
 
 describe("mapSpecItemEvent: покрытие типов", () => {
   it("список контракта совпадает со списком из БД", () => {
-    // Строки описаны для всех 21 kind; если состав списка изменится, тест
+    // Строки описаны для всех 24 kind; если состав списка изменится, тест
     // упадёт здесь, а не в рантайме на реальной ленте.
     expect(Object.keys(RAW_PAYLOADS).sort()).toEqual(
       [...SPEC_ITEM_EVENT_KINDS].sort(),

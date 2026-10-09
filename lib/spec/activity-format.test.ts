@@ -19,6 +19,7 @@ import {
   formatActivityTime,
   formatActivityValue,
 } from "./activity-format";
+import { PAYMENT_PLAN_PATCH_FIELDS } from "./payment-plan-types";
 import type {
   HistoryCommentEntry,
   HistoryEventEntry,
@@ -87,7 +88,7 @@ function comment(
   };
 }
 
-describe("formatActivityEvent: все 21 вид события", () => {
+describe("formatActivityEvent: все 24 вида события", () => {
   const cases: Array<{
     kind: SpecItemEventKind;
     payload: Record<string, unknown>;
@@ -289,13 +290,57 @@ describe("formatActivityEvent: все 21 вид события", () => {
       title: "Удалена услуга",
       name: "Подъём на этаж",
     },
+    {
+      kind: "payment_plan_added",
+      payload: {
+        plan_id: "p-1",
+        title: "Аванс",
+        amount: 12000,
+        condition: "После подписания",
+        due_date: "2026-11-01",
+        position: 0,
+      },
+      icon: "paymentPlanAdd",
+      title: "Добавлен платёж в график",
+      // Сумма — тем же форматом, что цена и услуга: «12 000 ₽», а не «12000».
+      name: "Аванс · 12 000 ₽",
+    },
+    {
+      kind: "payment_plan_changed",
+      payload: {
+        plan_id: "p-1",
+        title: "Аванс",
+        amount: 15000,
+        condition: null,
+        due_date: null,
+        position: 0,
+        changes: { amount: { from: 12000, to: 15000 } },
+      },
+      icon: "paymentPlanEdit",
+      title: "Изменён платёж в графике",
+      name: "Аванс · 15 000 ₽",
+    },
+    {
+      kind: "payment_plan_removed",
+      payload: {
+        plan_id: "p-2",
+        title: "Остаток",
+        amount: 3000,
+        condition: null,
+        due_date: null,
+        position: 1,
+      },
+      icon: "paymentPlanRemove",
+      title: "Удалён платёж из графика",
+      name: "Остаток · 3 000 ₽",
+    },
   ];
 
-  it("покрывает ровно все виды из домена (21)", () => {
+  it("покрывает ровно все виды из домена (24)", () => {
     expect(cases.map((c) => c.kind).sort()).toEqual(
       [...SPEC_ITEM_EVENT_KINDS].sort(),
     );
-    expect(cases).toHaveLength(21);
+    expect(cases).toHaveLength(24);
   });
 
   for (const testCase of cases) {
@@ -319,7 +364,7 @@ describe("formatActivityEvent: все 21 вид события", () => {
 });
 
 describe("formatActivityEvent: устойчивость", () => {
-  it("подписи 21 вида описаны полностью, без пропусков в switch", () => {
+  it("подписи 24 вида описаны полностью, без пропусков в switch", () => {
     // Каждый вид из домена обязан дать представление: пропущенная ветка switch
     // вернула бы `null`, и событие молча исчезло бы из ленты.
     for (const kind of SPEC_ITEM_EVENT_KINDS) {
@@ -345,12 +390,20 @@ describe("formatActivityEvent: устойчивость", () => {
     expect(icons.get("details_changed")).toBe("details");
     expect(icons.get("component_added")).toBe("componentAdd");
     expect(icons.get("service_completed")).toBe("serviceDone");
+    expect(icons.get("payment_plan_added")).toBe("paymentPlanAdd");
 
     // Разные действия — разные иконки там, где их легко перепутать.
     expect(icons.get("service_completed")).not.toBe(icons.get("status_changed"));
     expect(icons.get("component_added")).not.toBe(icons.get("component_removed"));
     expect(icons.get("variant_added")).not.toBe(icons.get("variant_removed"));
     expect(icons.get("code_changed")).not.toBe(icons.get("details_changed"));
+    // Добавление, правка и удаление строки графика — три разных жеста.
+    expect(icons.get("payment_plan_added")).not.toBe(
+      icons.get("payment_plan_changed"),
+    );
+    expect(icons.get("payment_plan_changed")).not.toBe(
+      icons.get("payment_plan_removed"),
+    );
   });
 
   it("незнакомый kind (из будущей версии приложения) не ломает ленту", () => {
@@ -516,6 +569,61 @@ describe("details_changed и variant_updated: таблица изменений"
     expect(formatActivityValue("name", null)).toBe("не заполнено");
     expect(formatActivityValue("name", "")).toBe("не заполнено");
     expect(formatActivityValue("name", null, "—")).toBe("—");
+  });
+});
+
+/**
+ * Таблица изменений строки графика платежей.
+ *
+ * Тот же формат `changes`, что у `details_changed` и `variant_updated`, поэтому
+ * проверяется именно то, что здесь своё: словарь подписей полей графика
+ * (включая `position`, которой у других событий нет) и сумма как деньги.
+ */
+describe("payment_plan_changed: таблица изменений", () => {
+  it("порядок полей — порядок формы, а не порядок ключей JSON", () => {
+    const presentation = formatActivityEvent(
+      event("payment_plan_changed", {
+        plan_id: "p-1",
+        title: "Аванс",
+        amount: 12000,
+        changes: [
+          { field: "position", from: 2, to: 1 },
+          { field: "due_date", from: "2026-11-01", to: "2026-12-01" },
+          { field: "title", from: "Аванс", to: "Аванс 50 %" },
+        ],
+      }),
+    );
+
+    expect(presentation!.changes!.map((c) => c.field)).toEqual([
+      "title",
+      "due_date",
+      "position",
+    ]);
+    expect(presentation!.changes!.map((c) => c.label)).toEqual([
+      "Название",
+      "Срок",
+      "Порядок",
+    ]);
+  });
+
+  it("сумма показывается деньгами, как цена и услуга", () => {
+    const presentation = formatActivityEvent(
+      event("payment_plan_changed", {
+        plan_id: "p-1",
+        changes: [{ field: "amount", from: 12000, to: 15000 }],
+      }),
+    );
+
+    const amount = presentation!.changes!.find((c) => c.field === "amount")!;
+    expect(plain(amount.from)).toBe("12 000 ₽");
+    expect(plain(amount.to)).toBe("15 000 ₽");
+  });
+
+  it("словарь подписей покрывает все отслеживаемые поля графика", () => {
+    for (const field of PAYMENT_PLAN_PATCH_FIELDS) {
+      // Подпись не должна оставаться «сырым» snake_case.
+      expect(activityFieldLabel(field), field).not.toContain("_");
+    }
   });
 });
 

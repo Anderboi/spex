@@ -20,12 +20,19 @@ export function plural(
   return many;
 }
 
-export const fmtRub = (n?: number | null) => {
+/**
+ * Рубли с разделителем разрядов: `12 000 ₽`.
+ *
+ * Возвращает `"0 ₽"` на отсутствующем или нечисловом значении: вызывающий код
+ * (сводки, воронка, карточка позиции) ждёт строку и подставляет её прямо в
+ * разметку, поэтому `undefined` отсюда протёк бы в интерфейс текстом.
+ */
+export const fmtRub = (n?: number | null): string => {
   if (n === undefined || n === null || isNaN(n)) {
     return "0 ₽";
   }
 
-  n.toLocaleString("ru-RU").replace(/,/g, "\u2009") + " ₽";
+  return n.toLocaleString("ru-RU").replace(/,/g, "\u2009") + " ₽";
 };
 
 /**

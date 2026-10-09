@@ -53,9 +53,45 @@ export function serviceOperationDeadline(
   // ни «просрочено» не считаются и текущая дата на результат не влияет.
   if (op.completed) return null;
 
+  return deadlineNoteFor(op.deadline, now);
+}
+
+/**
+ * Строка графика платежей, от которой зависит срок.
+ *
+ * Структурный минимум — как у `DeadlineOperation`: модуль не зависит от server
+ * action и принимает и полную строку графика, и урезанный объект в тестах.
+ * `completed` здесь нет: у планового платежа нет терминального состояния — он
+ * обязательство, а не работа, которую можно закрыть (закрывает его факт оплаты,
+ * и это состояние считает не этот модуль).
+ */
+export type PaymentPlanDeadlineRow = {
+  /** Плановая дата, 'YYYY-MM-DD'. null — срока нет. */
+  dueDate: string | null;
+};
+
+/**
+ * Срок планового платежа — ТЕМ ЖЕ правилом, что срок операции (решение O6):
+ * «сегодня», «просрочено N дн.», «через N дн.» и тот же признак `overdue`.
+ *
+ * Отдельная функция, а не второй расчёт: два правила просрочки в одном
+ * интерфейсе разошлись бы на первой же правке формулировки. Разница только в
+ * терминальном состоянии — у платежа его нет, — поэтому сравнение с текущей
+ * датой выполняется всегда, когда дата задана.
+ */
+export function paymentPlanDeadline(
+  row: PaymentPlanDeadlineRow,
+  now: Date = new Date(),
+): DeadlineNote | null {
+  if (!row.dueDate) return null;
+  return deadlineNoteFor(row.dueDate, now);
+}
+
+/** Общее правило сравнения даты с текущей: текст и признак просрочки. */
+function deadlineNoteFor(deadline: string, now: Date): DeadlineNote {
   const today = new Date(now);
   today.setHours(0, 0, 0, 0);
-  const due = new Date(`${op.deadline}T00:00:00`);
+  const due = new Date(`${deadline}T00:00:00`);
   const days = Math.round((due.getTime() - today.getTime()) / 86_400_000);
 
   if (days === 0) return { text: "сегодня", overdue: false };

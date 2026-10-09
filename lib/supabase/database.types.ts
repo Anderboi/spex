@@ -1126,6 +1126,83 @@ export type Database = {
           },
         ]
       }
+      spec_item_payment_plans: {
+        Row: {
+          amount: number
+          condition: string | null
+          created_at: string
+          created_by: string | null
+          deleted_at: string | null
+          due_date: string | null
+          id: string
+          org_id: string
+          position: number
+          project_id: string
+          spec_item_id: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          amount: number
+          condition?: string | null
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          due_date?: string | null
+          id?: string
+          org_id: string
+          position?: number
+          project_id: string
+          spec_item_id: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          amount?: number
+          condition?: string | null
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          due_date?: string | null
+          id?: string
+          org_id?: string
+          position?: number
+          project_id?: string
+          spec_item_id?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "spec_item_payment_plans_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "spec_item_payment_plans_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "spec_item_payment_plans_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "spec_item_payment_plans_spec_item_id_fkey"
+            columns: ["spec_item_id"]
+            isOneToOne: false
+            referencedRelation: "spec_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       spec_item_variants: {
         Row: {
           article: string | null

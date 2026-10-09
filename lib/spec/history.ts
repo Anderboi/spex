@@ -59,6 +59,12 @@ export const SPEC_ITEM_EVENT_KINDS = [
   "service_added",
   "service_completed",
   "service_removed",
+  // График платежей позиции. Виды фактов (`payment_added`, `payment_changed`,
+  // `payment_removed`) появятся вместе с таблицей фактических оплат: вид
+  // события без своего действия в журнале был бы мёртвым значением.
+  "payment_plan_added",
+  "payment_plan_changed",
+  "payment_plan_removed",
 ] as const;
 
 export type SpecItemEventKind = (typeof SPEC_ITEM_EVENT_KINDS)[number];

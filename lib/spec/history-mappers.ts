@@ -37,8 +37,10 @@ import type {
   HistoryEntryBase,
   HistoryEventEntry,
   HistoryFieldChange,
+  HistoryPaymentPlanPayload,
   HistoryServicePayload,
 } from "./history-types";
+import { PAYMENT_PLAN_PATCH_FIELDS } from "./payment-plan-types";
 import type {
   SpecItemComponentRefSnapshot,
   SpecItemParentRef,
@@ -204,6 +206,26 @@ function serviceOf(raw: RawPayload): HistoryServicePayload {
     name: text(raw.name),
     amount: num(raw.amount),
     ...batchOf(raw),
+  };
+}
+
+/**
+ * Общий payload строки графика платежей (`payment_plan_added` / `_changed` /
+ * `_removed`).
+ *
+ * Отсутствующий `changes` даёт пустой массив, а не `undefined`: таблица
+ * изменений у события этого вида есть всегда, просто у добавления и удаления она
+ * пустая. Так отображению не нужно знать, у какого из трёх видов она заполнена.
+ */
+function paymentPlanOf(raw: RawPayload): HistoryPaymentPlanPayload {
+  return {
+    planId: text(raw.plan_id),
+    title: text(raw.title),
+    amount: num(raw.amount),
+    condition: text(raw.condition),
+    dueDate: text(raw.due_date),
+    position: num(raw.position),
+    changes: fieldChangesOf(raw.changes, PAYMENT_PLAN_PATCH_FIELDS),
   };
 }
 
@@ -416,6 +438,12 @@ export function mapSpecItemEvent(row: SpecItemEventRow): HistoryEventEntry | nul
       return { ...base, source: "event", kind, payload: serviceOf(raw) };
     case "service_removed":
       return { ...base, source: "event", kind, payload: serviceOf(raw) };
+    case "payment_plan_added":
+      return { ...base, source: "event", kind, payload: paymentPlanOf(raw) };
+    case "payment_plan_changed":
+      return { ...base, source: "event", kind, payload: paymentPlanOf(raw) };
+    case "payment_plan_removed":
+      return { ...base, source: "event", kind, payload: paymentPlanOf(raw) };
   }
 }
 

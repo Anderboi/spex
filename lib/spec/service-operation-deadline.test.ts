@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  paymentPlanDeadline,
   serviceOperationDeadline,
   type DeadlineOperation,
 } from "./service-operation-deadline";
@@ -109,5 +110,38 @@ describe("serviceOperationDeadline", () => {
     expect(
       serviceOperationDeadline({ ...installation, completed: false }, NOW),
     ).toEqual({ text: "просрочено 11 дн.", overdue: true });
+  });
+});
+
+/**
+ * Срок планового платежа — тем же правилом, что у операции (решение O6).
+ *
+ * Проверяется главное: формулировки и признак просрочки совпадают с услугой
+ * символ в символ, а терминального состояния у платежа нет.
+ */
+describe("paymentPlanDeadline", () => {
+  it("прошедшая дата — «просрочено N дн.» с тем же признаком", () => {
+    expect(paymentPlanDeadline({ dueDate: PAST }, NOW)).toEqual(
+      serviceOperationDeadline(op({ deadline: PAST }), NOW),
+    );
+  });
+
+  it("будущая и сегодняшняя даты подписаны так же, как у операции", () => {
+    expect(paymentPlanDeadline({ dueDate: FUTURE }, NOW)).toEqual(
+      serviceOperationDeadline(op({ deadline: FUTURE }), NOW),
+    );
+    expect(paymentPlanDeadline({ dueDate: TODAY }, NOW)).toEqual(
+      serviceOperationDeadline(op({ deadline: TODAY }), NOW),
+    );
+  });
+
+  it("без срока состояния нет", () => {
+    expect(paymentPlanDeadline({ dueDate: null }, NOW)).toBeNull();
+  });
+
+  it("срок не переписывается: дата остаётся историческими данными", () => {
+    const row = { dueDate: PAST };
+    paymentPlanDeadline(row, NOW);
+    expect(row.dueDate).toBe(PAST);
   });
 });

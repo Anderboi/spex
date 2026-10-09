@@ -198,6 +198,28 @@ export type HistoryServicePayload = {
   amount: number | null;
 } & HistoryBatchFields;
 
+/**
+ * Строка графика платежей — общий payload событий `payment_plan_*`.
+ *
+ * Это СНИМОК строки на момент события: название, сумма, условие и срок. Текущая
+ * строка графика для восстановления исторических значений не читается — иначе
+ * «сумма 12 000 ₽» со временем превращалась бы в сегодняшнюю сумму (то же
+ * правило, что у всей ленты).
+ *
+ * `changes` есть только у `payment_plan_changed`: перестановка строки приходит
+ * туда же одним изменением поля `position`, поэтому второго формата события нет.
+ */
+export type HistoryPaymentPlanPayload = {
+  planId: string | null;
+  title: string | null;
+  amount: number | null;
+  condition: string | null;
+  dueDate: string | null;
+  /** Порядок строки: в событии добавления — куда она встала. */
+  position: number | null;
+  changes: HistoryFieldChange[];
+};
+
 /* ------------------------------------------------------------------ */
 /*  Дискриминированный union по kind                                   */
 /* ------------------------------------------------------------------ */
@@ -229,6 +251,9 @@ export type HistoryEventPayloadMap = {
   service_added: HistoryServicePayload;
   service_completed: HistoryServicePayload;
   service_removed: HistoryServicePayload;
+  payment_plan_added: HistoryPaymentPlanPayload;
+  payment_plan_changed: HistoryPaymentPlanPayload;
+  payment_plan_removed: HistoryPaymentPlanPayload;
 };
 
 /**

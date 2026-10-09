@@ -20,6 +20,8 @@ import OverviewTab from "./tabs/overview-tab";
 import CommentsTab from "./tabs/comments-tab";
 import DetailsHeader from "./details-header";
 import FilesTab from "./tabs/files-tab";
+import PaymentsTab from "./tabs/payments-tab";
+import { priceOf } from "@/lib/spec/pricing";
 
 type Company = {
   id: string;
@@ -291,6 +293,7 @@ export function DetailModal({
             <TabsTrigger value="parameters">Параметры</TabsTrigger>
             <TabsTrigger value="components">Состав</TabsTrigger>
             <TabsTrigger value="files">Файлы</TabsTrigger>
+            <TabsTrigger value="payments">Платежи</TabsTrigger>
             <TabsTrigger value="comments">Комментарии</TabsTrigger>
           </TabsList>
           {/* У каждой вкладки собственный скролл: `comments` не вложена в общий
@@ -384,6 +387,16 @@ export function DetailModal({
               `orgId` вкладке не нужен и намеренно не передаётся. */}
           <ScrollableTab value="files" onViewportScroll={handleContentScroll}>
             <FilesTab orgSlug={orgSlug} specItemId={item.id} />
+          </ScrollableTab>
+          {/* payments — график платежей позиции: свой запрос данных, свои
+              действия. Стоимость позиции передаётся СПРАВКОЙ: остаток по
+              графику от неё не считается (решение Q1 отчёта). */}
+          <ScrollableTab value="payments" onViewportScroll={handleContentScroll}>
+            <PaymentsTab
+              orgSlug={orgSlug}
+              specItemId={item.id}
+              itemCost={priceOf(item).total}
+            />
           </ScrollableTab>
         </Tabs>
       </DialogContent>
