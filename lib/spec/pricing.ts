@@ -1,7 +1,7 @@
 import { UNIT_OPTIONS } from '../constants';
 
 /** Единицы, которые нельзя купить дробно: запас округляется вверх. */
-const INTEGER_UNITS = new Set(UNIT_OPTIONS);
+const INTEGER_UNITS: Set<string> = new Set<string>(UNIT_OPTIONS);
 
 export const round2 = (n: number) => Math.round((n + Number.EPSILON) * 100) / 100;
 

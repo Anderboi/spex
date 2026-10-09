@@ -1,7 +1,7 @@
 import { clsx, type ClassValue } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { CatalogItem, SpecItem } from "./types";
-import { BRAND_SITES, PREFIX_MAP } from "./constants";
+import { BRAND_SITES, PREFIX_MAP, type SpecType } from "./constants";
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
@@ -70,7 +70,9 @@ export function fmt(n: number | string | null): string {
 }
 
 export function prefixFor(type: string): string {
-  return PREFIX_MAP[type] || "М";
+  // `type` приходит из формы и из URL, поэтому проверяем ключ в рантайме:
+  // индексировать PREFIX_MAP строкой нельзя — у него ключи SpecType.
+  return (type in PREFIX_MAP ? PREFIX_MAP[type as SpecType] : "") || "М";
 }
 
 export function nextCode(items: SpecItem[], type: string): string {

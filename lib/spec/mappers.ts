@@ -57,6 +57,11 @@ export function rowToItem(r: SpecItemRowWithRelations): SpecItem {
     clientDiscountPct: Number(r.client_discount_pct ?? 0),
     supplierDiscountPct: Number(r.supplier_discount_pct ?? 0),
     parentId: r.parent_id,
+    // Варианты дочитываются отдельным запросом и накладываются позже —
+    // `applyActiveVariant` (lib/queries.ts:672, lib/spec/variants.ts:24).
+    // Здесь отдаём пустой набор, а не undefined: SpecItem требует оба поля.
+    variants: [],
+    activeVariantId: null,
   };
 }
 

@@ -28,7 +28,8 @@ export default async function AcceptInvitePage({ searchParams }: PageProps) {
   async function handleAccept(): Promise<void> {
     "use server";
     const res = await acceptInvite(token!);
-    if (res?.error) {
+    // ActionResult — размеченное объединение: `error` есть только у отказа.
+    if (!res.success) {
       // При желании здесь можно пробросить ошибку или обработать редирект с query-параметром
       throw new Error(res.error);
     }

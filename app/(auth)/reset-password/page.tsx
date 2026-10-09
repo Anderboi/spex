@@ -20,7 +20,27 @@ import {
 import { NewPasswordInput, newPasswordSchema } from "@/lib/validations";
 import { resetPasswordWithToken } from "../../../actions/auth";
 
+/**
+ * Разметка страницы — в дочернем компоненте, а `useSearchParams` — в обёртке
+ * под Suspense. Без этого Next 16 не может отдать статическую оболочку:
+ * `useSearchParams` заставляет пререндер отдать управление клиенту, а во время
+ * сборки такой бэйлаут без границы Suspense падает (см. /login — там тот же приём).
+ */
 export default function ResetPasswordPage() {
+  return (
+    <React.Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center p-4">
+          <div className="h-130 w-full max-w-md animate-pulse rounded-xl bg-muted" />
+        </div>
+      }
+    >
+      <ResetPasswordForm />
+    </React.Suspense>
+  );
+}
+
+function ResetPasswordForm() {
   const searchParams = useSearchParams();
   const router = useRouter();
   const token = searchParams.get("token");

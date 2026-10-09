@@ -63,7 +63,7 @@ export function ProcureModal({
       <DrawerContent className="flex @container flex-col bg-bg gap-0 p-0 overflow-hidden max-w-225 sm:w-170 sm:max-w-[90vw]">
         {/* ── шапка ───────────────────────────────────── */}
         <DrawerHeader className="flex items-start justify-between border-b border-border-subtle p-4">
-          <span className="font-mono text-[12px] uppercase tracking-[.1em] text-fg-dim">
+          <span className="font-mono text-[12px] uppercase tracking-widest text-fg-dim">
             Закупка и поставка
           </span>
         </DrawerHeader>
@@ -81,7 +81,7 @@ export function ProcureModal({
               </p>
             </div>
             <div className="text-right">
-              <p className="font-mono text-[10px] uppercase tracking-[.1em] text-fg-dim">
+              <p className="font-mono text-[10px] uppercase tracking-widest text-fg-dim">
                 Сумма в закупке
               </p>
               <p className="mt-1 text-[20px] font-bold tracking-[-.01em]">

@@ -9,7 +9,22 @@ import { Button } from "@/components/ui/button";
 import { verifyEmailToken } from "../../../actions/auth";
 import { ResendVerificationButton } from "@/components/auth/resend-verification-button";
 
+/** Обёртка с Suspense: причина та же, что на /reset-password и /login. */
 export default function VerifyEmailPage() {
+  return (
+    <React.Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center p-4">
+          <div className="h-130 w-full max-w-md animate-pulse rounded-xl bg-muted" />
+        </div>
+      }
+    >
+      <VerifyEmailContent />
+    </React.Suspense>
+  );
+}
+
+function VerifyEmailContent() {
   const searchParams = useSearchParams();
   const token = searchParams.get("token");
 
