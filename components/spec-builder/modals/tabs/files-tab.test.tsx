@@ -49,6 +49,8 @@ function entry(overrides: Partial<SpecItemFileEntry> = {}): SpecItemFileEntry {
     category: "document",
     uploadedBy: null,
     createdAt: "2026-10-06T09:30:00.000Z",
+    paymentId: null,
+    payment: null,
     ...overrides,
   };
 }
@@ -727,13 +729,13 @@ describe("FilesTab: empty state", () => {
 /* ------------------------------------------------------------------ */
 
 describe("FilesTab: upload", () => {
-  it("отправляет ровно file и category, без внутренних идентификаторов", async () => {
+  it("отправляет ровно file, category и признак оплаты, без внутренних идентификаторов", async () => {
     const user = userEvent.setup();
     render(<FilesTab orgSlug="andy" specItemId="item-1" />);
     await screen.findByText("Новый.pdf");
 
     pickFile(pickerInput(), new File(["счёт"], "Счёт.pdf", { type: "application/pdf" }));
-    // Вариант категории — это `<label>` с radio внутри, а не кнопка: клик по
+    // Вариант вида документа — это `<label>` с radio внутри, а не кнопка: клик по
     // подписи выбирает значение.
     await user.click(await screen.findByText("Текстура"));
     await user.click(screen.getByRole("button", { name: "Загрузить" }));
@@ -747,8 +749,11 @@ describe("FilesTab: upload", () => {
     const formData = formDataOf(0);
     expect(formData.get("file")).toBeInstanceOf(File);
     expect((formData.get("file") as File).name).toBe("Счёт.pdf");
-    // Выбранная категория уходит как есть.
+    // Выбранный вид документа уходит как есть.
     expect(formData.get("category")).toBe("texture");
+    // Оплаты нет — поле пустое, а не отсутствует: у сервера одно представление
+    // «без оплаты», и это пустая строка.
+    expect(formData.get("payment_id")).toBe("");
 
     // Клиент не передаёт ничего, что определяет сервер.
     for (const forbidden of [
@@ -767,8 +772,12 @@ describe("FilesTab: upload", () => {
     ]) {
       expect(formData.get(forbidden), forbidden).toBeNull();
     }
-    // Список полей формы исчерпывается двумя ключами.
-    expect([...formData.keys()].sort()).toEqual(["category", "file"]);
+    // Список полей формы исчерпывается тремя ключами.
+    expect([...formData.keys()].sort()).toEqual([
+      "category",
+      "file",
+      "payment_id",
+    ]);
   });
 
   it("во время загрузки строка в состоянии uploading, повторный выбор закрыт", async () => {
@@ -986,6 +995,104 @@ describe("FilesTab: гонки загрузки", () => {
     expect(names).toHaveLength(3);
     expect(names.filter((name) => name?.includes("Загруженный.pdf"))).toHaveLength(1);
     expect(names.filter((name) => name?.includes("Новый.pdf"))).toHaveLength(1);
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/*  Документ к оплате                                                  */
+/* ------------------------------------------------------------------ */
+
+describe("FilesTab: документ к оплате", () => {
+  /** Строка списка по имени файла. */
+  const rowOf = (fileName: string) =>
+    screen
+      .getByRole("button", { name: new RegExp(`Открыть «${fileName}»`) })
+      .closest('[data-slot="attachment"]') as HTMLElement;
+
+  it("файл, прикреплённый к оплате, помечен датой проводки", async () => {
+    listMock.mockResolvedValue({
+      success: true,
+      data: [
+        entry({
+          id: "f-1",
+          fileName: "Чек №7.pdf",
+          category: "receipt",
+          paymentId: "p-1",
+          payment: { kind: "payment", paidAt: "2026-10-15", cancelled: false },
+        }),
+      ],
+    });
+
+    render(<FilesTab orgSlug="andy" specItemId="item-1" />);
+    await screen.findByText("Чек №7.pdf");
+
+    // Вид документа и связь — две разные вещи, и обе видны: «Чек» в бейдже,
+    // «К оплате от …» в подписи. Документ при этом остаётся файлом позиции.
+    const row = rowOf("Чек №7.pdf");
+    expect(within(row).getByText("Чек")).toBeTruthy();
+    expect(within(row).getByText(/К оплате от 15 октября 2026/)).toBeTruthy();
+  });
+
+  it("обычный файл позиции подписи об оплате не получает", async () => {
+    listMock.mockResolvedValue({
+      success: true,
+      data: [entry({ id: "f-1", fileName: "Чертёж.dwg", category: "drawing" })],
+    });
+
+    render(<FilesTab orgSlug="andy" specItemId="item-1" />);
+    await screen.findByText("Чертёж.dwg");
+
+    const row = rowOf("Чертёж.dwg");
+    expect(within(row).getByText("Чертёж / схема")).toBeTruthy();
+    expect(within(row).queryByText(/К оплате/)).toBeNull();
+  });
+
+  it("документ к отменённой оплате помечен как «к отменённой»", async () => {
+    // Отмена оплаты документ не удаляет, и `payment_id` в строке остаётся.
+    // Молчать об этом нельзя: файл выглядел бы обычным документом, у которого
+    // в данных есть связь в никуда, — а удалить его можно только отсюда.
+    listMock.mockResolvedValue({
+      success: true,
+      data: [
+        entry({
+          id: "f-1",
+          fileName: "Чек к отменённой.pdf",
+          category: "receipt",
+          paymentId: "p-cancelled",
+          payment: { kind: "payment", paidAt: null, cancelled: true },
+        }),
+      ],
+    });
+
+    render(<FilesTab orgSlug="andy" specItemId="item-1" />);
+    await screen.findByText("Чек к отменённой.pdf");
+
+    const row = rowOf("Чек к отменённой.pdf");
+    expect(within(row).getByText(/К отменённой оплате/)).toBeTruthy();
+    // Это состояние, а не справка: дата проводки здесь не показывается.
+    expect(within(row).queryByText(/К оплате от/)).toBeNull();
+  });
+
+  it("ссылка без строки оплаты подписи не получает", async () => {
+    // Строку отдал сервер без подписи (оплаты по ссылке нет, а читать её не
+    // удалось или не требовалось) — файл остаётся обычным документом.
+    listMock.mockResolvedValue({
+      success: true,
+      data: [
+        entry({
+          id: "f-1",
+          fileName: "Чек без связи.pdf",
+          category: "receipt",
+          paymentId: "p-unknown",
+          payment: null,
+        }),
+      ],
+    });
+
+    render(<FilesTab orgSlug="andy" specItemId="item-1" />);
+    await screen.findByText("Чек без связи.pdf");
+
+    expect(within(rowOf("Чек без связи.pdf")).queryByText(/оплате/)).toBeNull();
   });
 });
 

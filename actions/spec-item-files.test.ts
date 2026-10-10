@@ -61,6 +61,8 @@ const OTHER_ORG = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 const PROJECT = "22222222-2222-4222-8222-222222222222";
 const ITEM = "33333333-3333-4333-8333-333333333333";
 const FILE = "44444444-4444-4444-8444-444444444444";
+const PAYMENT = "55555555-5555-4555-8555-555555555555";
+const PAYMENT_CANCELLED = "66666666-6666-4666-8666-666666666666";
 const FILE_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 const STORAGE_PATH = `${ORG}/spec-items/${ITEM}/${FILE}.pdf`;
@@ -75,6 +77,28 @@ function fakeAdmin() {
   const tables: Record<string, Row[]> = {
     spec_items: [
       { id: ITEM, org_id: ORG, project_id: PROJECT, deleted_at: null },
+    ],
+    // Оплата позиции и отменённая оплата: на них проверяется разбор
+    // `payment_id` из формы.
+    spec_item_payments: [
+      {
+        id: PAYMENT,
+        org_id: ORG,
+        project_id: PROJECT,
+        spec_item_id: ITEM,
+        kind: "payment",
+        paid_at: "2026-01-07",
+        deleted_at: null,
+      },
+      {
+        id: PAYMENT_CANCELLED,
+        org_id: ORG,
+        project_id: PROJECT,
+        spec_item_id: ITEM,
+        kind: "payment",
+        paid_at: "2026-01-04",
+        deleted_at: "2026-01-05T00:00:00.000Z",
+      },
     ],
     spec_item_files: [
       {
@@ -410,7 +434,7 @@ describe("разбор FormData", () => {
     expect(result.data.fileName).toBe("schet.pdf");
   });
 
-  it("без category файл сохраняется как other", async () => {
+  it("без category файл сохраняется как document", async () => {
     const result = await uploadSpecItemFile(
       ORG,
       ITEM,
@@ -419,7 +443,79 @@ describe("разбор FormData", () => {
 
     expect(result.success).toBe(true);
     if (!result.success) return;
-    expect(result.data.category).toBe("other");
+    expect(result.data.category).toBe("document");
+  });
+
+  it("payment_id из формы ложится в строку файла", async () => {
+    const form = formOf();
+    form.set("payment_id", PAYMENT);
+
+    const result = await uploadSpecItemFile(ORG, ITEM, form);
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(admin.tables.spec_item_files.at(-1)!.payment_id).toBe(PAYMENT);
+    // Ответ несёт подпись документа к оплате — без второго запроса.
+    expect(result.data.paymentId).toBe(PAYMENT);
+    expect(result.data.payment).toEqual({
+      kind: "payment",
+      paidAt: "2026-01-07",
+      cancelled: false,
+    });
+  });
+
+  it("пустой payment_id — обычный документ позиции", async () => {
+    const form = formOf();
+    form.set("payment_id", "");
+
+    const result = await uploadSpecItemFile(ORG, ITEM, form);
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(admin.tables.spec_item_files.at(-1)!.payment_id).toBeNull();
+  });
+
+  it("отменённая оплата → INVALID_INPUT с понятным текстом, Storage не тронут", async () => {
+    const form = formOf();
+    form.set("payment_id", PAYMENT_CANCELLED);
+
+    const result = await uploadSpecItemFile(ORG, ITEM, form);
+
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    expect(result.code).toBe("INVALID_INPUT");
+    expect(result.error).toContain("Оплата не найдена");
+    expect(admin.uploads).toHaveLength(0);
+  });
+
+  it("payment_id чужой позиции → INVALID_INPUT", async () => {
+    const form = formOf();
+    form.set("payment_id", "77777777-7777-4777-8777-777777777777");
+
+    const result = await uploadSpecItemFile(ORG, ITEM, form);
+
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    expect(result.code).toBe("INVALID_INPUT");
+    expect(admin.uploads).toHaveLength(0);
+  });
+
+  it("лишние поля формы не влияют на вид оплаты: он читается из строки", async () => {
+    // Вид и сумма оплаты приходят из БД, а не из формы: подсунуть их нечем.
+    const form = formOf();
+    form.set("payment_id", PAYMENT);
+    form.set("kind", "refund");
+    form.set("amount", "999999");
+
+    const result = await uploadSpecItemFile(ORG, ITEM, form);
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.data.payment).toEqual({
+      kind: "payment",
+      paidAt: "2026-01-07",
+      cancelled: false,
+    });
   });
 
   it("запрещённый MIME → INVALID_INPUT, Storage не тронут", async () => {

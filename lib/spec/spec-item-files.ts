@@ -13,11 +13,19 @@
  *
  * ── Границы доверия ───────────────────────────────────────────────────────
  *
- * От клиента приходят ровно три вещи: сам файл, желаемая категория и (необязательно)
- * имя файла. Всё остальное определяет сервер: `orgId` (из сессии), `specItemId`
- * (из аргумента, проверенного по организации), `projectId` (из строки позиции),
- * `storage_path` (собирается здесь), `uploaded_by` (из сессии), `created_at`
- * (серверное время), `id` (БД).
+ * От клиента приходят ровно четыре вещи: сам файл, желаемый вид документа,
+ * (необязательно) имя файла и (необязательно) оплата, к которой файл
+ * прикрепляется. Всё остальное определяет сервер: `orgId` (из сессии),
+ * `specItemId` (из аргумента, проверенного по организации), `projectId` (из
+ * строки позиции), `storage_path` (собирается здесь), `uploaded_by` (из сессии),
+ * `created_at` (серверное время), `id` (БД).
+ *
+ * `payment_id` — единственное клиентское значение, которое что-то СВЯЗЫВАЕТ, и
+ * поэтому оно не принимается на веру: ядро само читает строку оплаты и сверяет
+ * её позицию, организацию и проект (`resolvePayment`), а вид записи для подписи
+ * берёт из БД, а не из формы. Второй контур — триггер
+ * `spec_item_files_payment_scope` (миграция `20261011_001`): он снимает ссылку,
+ * если она всё-таки оказалась чужой.
  *
  * `storage_path` НИКОГДА не приходит снаружи: его нет ни в одном входном типе.
  * Для чтения и удаления путь берётся из строки БД, а строка ищется по
@@ -34,7 +42,12 @@
  * 4. файл не удалён (`NOT_FOUND`) — мягко удалённый файл не должен ни
  *    подписываться, ни удаляться повторно «по-настоящему»;
  * 5. путь объекта ожидаемый (`FAILED`) — сюда попадает только подделка;
- * 6. категория и содержимое файла (`INVALID_INPUT`).
+ * 6. вид документа и содержимое файла (`INVALID_INPUT`);
+ * 7. при загрузке к оплате — оплата есть, жива и принадлежит этой позиции
+ *    (`INVALID_INPUT`, один текст на все расхождения). Проверяется ПОСЛЕ
+ *    содержимого и ДО Storage: незачем грузить объект, привязать который
+ *    всё равно нельзя, и незачем объяснять «оплата не найдена» файлу, который
+ *    не прошёл проверку вида.
  *
  * ── Стратегия рассинхронизации БД и Storage ───────────────────────────────
  *
@@ -81,6 +94,10 @@ import {
   buildSpecItemFilePath,
   type SpecItemFileCategory,
 } from "./file-content";
+import {
+  isPaymentKind,
+  type PaymentRecordKind,
+} from "./payment-types";
 
 /** Клиент БД: как у остальных слоёв, приходит аргументом. */
 export type SpecItemFilesDb = SupabaseClient<Database>;
@@ -118,6 +135,10 @@ export type SpecItemFilesStorage = {
 /** Время жизни signed URL. Короткое: ссылка выдаётся на один показ/скачивание. */
 export const SPEC_ITEM_FILE_URL_TTL_SECONDS = 300;
 
+/** Форма UUID: `paymentId` и `fileId` — uuid-колонки. */
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 /* ------------------------------------------------------------------ */
 /*  Доменная модель                                                    */
 /* ------------------------------------------------------------------ */
@@ -136,6 +157,47 @@ export type SpecItemFileEntry = {
   category: SpecItemFileCategory;
   uploadedBy: string | null;
   createdAt: string;
+  /**
+   * Оплата, к которой прикреплён документ. `null` — обычный файл позиции.
+   *
+   * Поле есть у КАЖДОЙ записи, а не только у пришедшей от оплаты: список файлов
+   * показывает связь по нему, и `undefined` в одном ответе и `null` в другом
+   * означали бы для клиента два разных «нет».
+   */
+  paymentId: string | null;
+  /**
+   * Вид и дата связанной оплаты — подпись документа. `null` — либо оплаты нет,
+   * либо её не удалось прочитать (тогда строка остаётся обычным документом).
+   */
+  payment: SpecItemFilePaymentInfo | null;
+};
+
+/**
+ * Что известно о связанной оплате — ровно то, чем её называет интерфейс.
+ *
+ * Отдельный тип, а не `PaymentEntry` целиком: файлу не нужны ни суммы, ни
+ * автор оплаты, и тащить их в ответ значило бы отдавать данные, которых
+ * карточка файла не показывает. Вид и дата — то, по чему документ узнают:
+ * «Чек · оплата от 15 октября 2026».
+ *
+ * Идентификатора оплаты здесь нет: он лежит рядом, в `paymentId` записи файла.
+ * Хранить его в двух полях значило бы разрешить им разойтись.
+ *
+ * `paidAt` — `null`, если у оплаты не заполнена дата: тогда подпись остаётся
+ * видом записи.
+ */
+export type SpecItemFilePaymentInfo = {
+  kind: PaymentRecordKind;
+  paidAt: string | null;
+  /**
+   * Подписи нет, потому что оплаты по ссылке уже нет.
+   *
+   * Отмена оплаты документ не удаляет (решение тикета), но `payment_id` в
+   * строке файла остаётся. Такой файл виден во вкладке «Файлы» и должен
+   * честно говорить, что проводка отменена, — иначе связь в данных есть, а
+   * объяснения ей нет.
+   */
+  cancelled: boolean;
 };
 
 /** Причина отказа, которую action превращает в `ActionResult`. */
@@ -159,6 +221,14 @@ export type GetSpecItemFileUrlResult =
 export type DeleteSpecItemFileResult =
   | {
       ok: true;
+      /**
+       * Строка в том виде, в каком её видит клиент: с оплатой и всеми полями.
+       *
+       * Нужна карточке оплаты, где документ удаляется из списка: вычеркнуть
+       * строку по идентификатору мало — интерфейсу иногда нужно показать, что
+       * именно исчезло. Это запись, какой она была ДО мягкого удаления; что оно
+       * состоялось, говорит флаг `deleted` ниже.
+       */
       file: SpecItemFileEntry;
       /**
        * `true` — строку удалили этим вызовом; `false` — она была удалена раньше
@@ -173,8 +243,7 @@ export type DeleteSpecItemFileResult =
 /*  Вход операции                                                      */
 /* ------------------------------------------------------------------ */
 
-/**
- * Данные загрузки, которые разрешено передать снаружи.
+/** Данные загрузки, которые разрешено передать снаружи.
  *
  * `bytes`, `fileName` и `category` — пользовательские. Проект, организация,
  * позиция, путь, автор и время приходят в аргументах функции, а не отсюда:
@@ -186,7 +255,7 @@ export type UploadSpecItemFileData = {
   fileName: string | null;
   /** Объявленный браузером MIME. Не доказательство — только заявка. */
   declaredMime: string;
-  /** Категория от клиента; `null` — «не указана», сохранится `other`. */
+  /** Вид документа от клиента; `null` — «не указан», сохранится `document`. */
   category: string | null;
 };
 
@@ -197,6 +266,14 @@ export type UploadSpecItemFileInput = {
   projectId: string;
   specItemId: string;
   uploadedBy: string | null;
+  /**
+   * Оплата, к которой прикрепляется документ.
+   *
+   * `null`/`undefined`/пустая строка — обычный файл позиции. Значение приходит
+   * от клиента, поэтому оно НЕ принимается на веру: ядро само читает строку
+   * оплаты и сверяет позицию, организацию и проект (`resolvePayment`).
+   */
+  paymentId?: string | null;
   data: UploadSpecItemFileData;
 };
 
@@ -206,7 +283,7 @@ export type UploadSpecItemFileInput = {
 
 /** Колонки, нужные ядру. Литерал обязателен: по нему supabase-js выводит тип. */
 const FILE_COLUMNS =
-  "id, org_id, project_id, spec_item_id, storage_path, file_name, mime_type, size_bytes, category, uploaded_by, created_at, deleted_at";
+  "id, org_id, project_id, spec_item_id, storage_path, file_name, mime_type, size_bytes, category, uploaded_by, created_at, deleted_at, payment_id";
 
 type FileRow = {
   id: string;
@@ -221,10 +298,22 @@ type FileRow = {
   uploaded_by: string | null;
   created_at: string;
   deleted_at: string | null;
+  payment_id: string | null;
 };
 
-/** Строка без служебных полей — то, что уходит клиенту. */
-function toEntry(row: FileRow): SpecItemFileEntry {
+/**
+ * Строка без служебных полей — то, что уходит клиенту.
+ *
+ * `payment` приходит аргументом, а не читается здесь: у строки есть только
+ * `payment_id`, а вид и дата записи живут в другой таблице. Где они уже
+ * прочитаны (загрузка, список) — передаются; где не читаются (ссылка,
+ * удаление) — запись отдаёт `paymentId` и `payment: null`, то есть честно
+ * говорит, что связи нет, но не выдумывает её отсутствие в данных.
+ */
+function toEntry(
+  row: FileRow,
+  payment: SpecItemFilePaymentInfo | null = null,
+): SpecItemFileEntry {
   return {
     id: row.id,
     fileName: row.file_name,
@@ -233,6 +322,8 @@ function toEntry(row: FileRow): SpecItemFileEntry {
     category: isSpecItemFileCategory(row.category) ? row.category : "other",
     uploadedBy: row.uploaded_by,
     createdAt: row.created_at,
+    paymentId: row.payment_id ?? null,
+    payment,
   };
 }
 
@@ -252,6 +343,270 @@ function invalidInput(message: string): {
 
 function failed(message: string): { ok: false; error: SpecItemFileError } {
   return { ok: false, error: { code: "FAILED", message } };
+}
+
+/* ------------------------------------------------------------------ */
+/*  Оплата, к которой прикреплён документ                              */
+/* ------------------------------------------------------------------ */
+
+/** Строка оплаты в объёме, нужном файлу: вид, дата и «жива ли ещё». */
+type PaymentRow = {
+  id: string;
+  kind: string;
+  paid_at: string | null;
+  deleted_at: string | null;
+};
+
+/**
+ * Оплата по идентификатору — ТОЛЬКО внутри этой позиции, этой организации и
+ * этого проекта.
+ *
+ * Условия запроса и есть проверка принадлежности: чужой `payment_id` не находит
+ * строку, и вызывающий получает `missing`, а не «чужую оплату». Отдельного
+ * «прочитать и сравнить» нет намеренно — сравнение в коде можно забыть, а
+ * условие выборки забыть нельзя.
+ *
+ * Мягко удалённая оплата (`deleted_at is not null`) находится, но помечается
+ * отменённой: привязать к ней документ нельзя, а показать связь с отменённой
+ * проводкой нужно — именно так документ и остаётся объяснимым после отмены.
+ * Фильтр `.is("deleted_at", null)` здесь поэтому НЕ стоит.
+ *
+ * Три исхода, а не два. «Оплаты нет» и «БД недоступна» — разные вещи: первое
+ * означает отказ пользователю, второе — сбой, и выдавать второе за первое
+ * значило бы объяснять человеку чужой идентификатор, когда на самом деле лежит
+ * база. Подписи в списке (`paymentInfoOf`, `decorateWithPayments`) разницу
+ * сглаживают — им при сбое достаточно остаться без подписи.
+ */
+type PaymentLookup =
+  | { status: "found"; payment: SpecItemFilePaymentInfo }
+  | { status: "missing" }
+  | { status: "failed" };
+
+async function findPayment(
+  db: SpecItemFilesDb,
+  args: {
+    orgId: string;
+    projectId: string;
+    specItemId: string;
+    paymentId: string;
+  },
+): Promise<PaymentLookup> {
+  const { data, error } = await db
+    .from("spec_item_payments")
+    .select("id, kind, paid_at, deleted_at")
+    .eq("id", args.paymentId)
+    .eq("org_id", args.orgId)
+    .eq("spec_item_id", args.specItemId)
+    .eq("project_id", args.projectId)
+    .maybeSingle<PaymentRow>();
+
+  if (error) {
+    console.error("[spec-item-files] payment", error.message);
+    return { status: "failed" };
+  }
+
+  if (!data) return { status: "missing" };
+
+  return { status: "found", payment: toPaymentInfo(data) };
+}
+
+/**
+ * Строка оплаты → то, чем её называет интерфейс.
+ *
+ * Незнакомый вид читается как оплата (`isPaymentKind`) — та же граница, что у
+ * суммы в `payment-mutations`: испорченное значение поля не должно превращать
+ * документ в нечитаемый.
+ */
+function toPaymentInfo(row: PaymentRow): SpecItemFilePaymentInfo {
+  return {
+    kind: isPaymentKind(row.kind) ? row.kind : "payment",
+    paidAt: row.paid_at ?? null,
+    cancelled: row.deleted_at !== null,
+  };
+}
+
+/**
+ * Подпись для ссылки, за которой оплаты уже нет.
+ *
+ * Так выглядит документ к отменённой оплате: `payment_id` в строке остался
+ * (финансовая история не чистится, и мягкое удаление ссылку не рвёт), а живой
+ * записи по нему нет. Показывать «К оплате от …» в этом случае было бы ложью,
+ * а молчать — оставлять связь без объяснения. Дата и вид записи потеряны
+ * вместе со строкой оплаты, поэтому подпись говорит только о факте отмены.
+ */
+const CANCELLED_PAYMENT_INFO: SpecItemFilePaymentInfo = {
+  kind: "payment",
+  paidAt: null,
+  cancelled: true,
+};
+
+/**
+ * Разбор `payment_id` из аргументов операции.
+ *
+ * Пустая строка — то же, что «не указан»: в `FormData` поле всегда есть, и
+ * пустое значение означает «обычный файл позиции», а не ошибку клиента.
+ * Непустое обязано быть uuid: иначе PostgREST ответил бы ошибкой приведения
+ * типа вместо понятного отказа (тот же приём, что в action для `fileId`).
+ */
+export function normalizePaymentIdFilter(
+  raw: string | null | undefined,
+): { ok: true; paymentId: string | null } | { ok: false } {
+  if (raw === null || raw === undefined) return { ok: true, paymentId: null };
+
+  const trimmed = raw.trim();
+  if (trimmed.length === 0) return { ok: true, paymentId: null };
+
+  return UUID_PATTERN.test(trimmed)
+    ? { ok: true, paymentId: trimmed }
+    : { ok: false };
+}
+
+/**
+ * Оплата существует, жива и принадлежит этой позиции — или понятный отказ.
+ *
+ * Текст отказа ОДИН на все случаи расхождения (чужой идентификатор, чужая
+ * позиция, чужой проект, чужая организация, отменённая оплата): пользователь не
+ * должен по формулировке узнавать о чужих строках больше, чем о несуществующих.
+ * Тот же принцип, что у `resolveSpecItem` — один ответ на «нет» и «не твоё».
+ *
+ * Отказ по сбою чтения — ДРУГОЙ (`FAILED`, «не удалось»): он не утверждает, что
+ * оплаты нет, и повтор операции имеет смысл.
+ */
+async function resolvePayment(
+  db: SpecItemFilesDb,
+  args: {
+    orgId: string;
+    projectId: string;
+    specItemId: string;
+    paymentId: string | null | undefined;
+  },
+): Promise<
+  | {
+      ok: true;
+      paymentId: string | null;
+      payment: SpecItemFilePaymentInfo | null;
+    }
+  | { ok: false; error: SpecItemFileError }
+> {
+  /** Один текст на все расхождения — см. заголовок. */
+  const notFoundError: SpecItemFileError = {
+    code: "INVALID_INPUT",
+    message: "Оплата не найдена: проверьте, к какой записи прикрепляете документ",
+  };
+
+  const normalized = normalizePaymentIdFilter(args.paymentId);
+  if (!normalized.ok) return { ok: false, error: notFoundError };
+
+  if (normalized.paymentId === null) {
+    return { ok: true, paymentId: null, payment: null };
+  }
+
+  const found = await findPayment(db, {
+    orgId: args.orgId,
+    projectId: args.projectId,
+    specItemId: args.specItemId,
+    paymentId: normalized.paymentId,
+  });
+
+  if (found.status === "failed") {
+    return {
+      ok: false,
+      error: { code: "FAILED", message: "Не удалось проверить оплату" },
+    };
+  }
+
+  if (found.status === "missing") return { ok: false, error: notFoundError };
+
+  // Отменённая оплата — тот же отказ: документ прикрепляют к действующей
+  // проводке, а не к записи, которая больше не считается в суммах.
+  if (found.payment.cancelled) return { ok: false, error: notFoundError };
+
+  return { ok: true, paymentId: normalized.paymentId, payment: found.payment };
+}
+
+/**
+ * Подпись оплаты для ОДНОЙ уже прочитанной строки файла.
+ *
+ * Нужна операции, которая отдаёт запись целиком (ссылка на файл): клиент
+ * обновляет по ответу свою строку, и без подписи связь с оплатой в ней пропала
+ * бы — при том что в данных она есть. Отдельно от `decorateWithPayments`
+ * (пачка) по той же причине, по которой `resolvePayment` отделён от списка:
+ * одиночной операции незачем читать оплаты чужих файлов. Сбой чтения подписи не
+ * поднимается наверх — запись остаётся «файлом без подписи», и это ровно то, что
+ * видит клиент: сама ссылка на оплату (`paymentId`) лежит в строке.
+ */
+async function paymentInfoOf(
+  db: SpecItemFilesDb,
+  args: { orgId: string; projectId: string; specItemId: string },
+  paymentId: string | null,
+): Promise<SpecItemFilePaymentInfo | null> {
+  if (!paymentId) return null;
+
+  const found = await findPayment(db, { ...args, paymentId });
+  return found.status === "found" ? found.payment : null;
+}
+
+/**
+ * Расставить связь с оплатой по строкам списка.
+ *
+ * Один дополнительный запрос на список, а не соединение таблиц в основном:
+ * соединение потребовало бы фильтра «оплата не удалена» на уровне PostgREST
+ * (`spec_item_payments!inner(...)`), а он сделал бы выборку внутренним join —
+ * и файлы без оплаты исчезли бы из списка вовсе. Здесь же читается пачка оплат
+ * по идентификаторам, и строка без оплаты просто остаётся без подписи.
+ *
+ * Читаются и ОТМЕНЁННЫЕ записи (фильтра по `deleted_at` нет): документ к
+ * отменённой оплате должен быть объясним, иначе он выглядел бы обычным файлом,
+ * а его `payment_id` вёл бы в никуда. Такой документ получает подпись
+ * «К отменённой оплате».
+ *
+ * Ошибка чтения оплат список НЕ ломает: документы важнее подписи, и файл без
+ * вида оплаты показывается как обычный. Ошибка уходит в лог.
+ */
+async function decorateWithPayments(
+  db: SpecItemFilesDb,
+  args: {
+    orgId: string;
+    specItemId: string;
+    files: SpecItemFileEntry[];
+  },
+): Promise<SpecItemFileEntry[]> {
+  const paymentIds = Array.from(
+    new Set(
+      args.files
+        .map((file) => file.paymentId)
+        .filter((id): id is string => id !== null),
+    ),
+  );
+
+  if (paymentIds.length === 0) return args.files;
+
+  const { data, error } = await db
+    .from("spec_item_payments")
+    .select("id, kind, paid_at, deleted_at")
+    .eq("org_id", args.orgId)
+    .eq("spec_item_id", args.specItemId)
+    .in("id", paymentIds);
+
+  if (error) {
+    console.error("[listSpecItemFiles] payments", error.message);
+    return args.files;
+  }
+
+  const byId = new Map<string, SpecItemFilePaymentInfo>();
+  for (const row of (data ?? []) as PaymentRow[]) {
+    byId.set(row.id, toPaymentInfo(row));
+  }
+
+  // Ссылка есть, а строки по ней нет (оплату удалили физически, строка попала в
+  // БД в обход кода) — подпись всё равно нужна: молчание оставило бы `paymentId`
+  // без объяснения, а таким же он выглядел бы и при отменённой оплате.
+  return args.files.map((file) => ({
+    ...file,
+    payment: file.paymentId
+      ? (byId.get(file.paymentId) ?? CANCELLED_PAYMENT_INFO)
+      : null,
+  }));
 }
 
 /* ------------------------------------------------------------------ */
@@ -309,6 +664,11 @@ async function resolveSpecItem(
  * Именно этот порядок покрыт частичным индексом
  * `spec_item_files_spec_item_id_active_idx`, поэтому сортировка в запросе и в
  * схеме — одно правило, а не два.
+ *
+ * Связь с оплатой достраивается вторым запросом (`decorateWithPayments`): у
+ * строки файла есть только `payment_id`, а подпись документа называет вид и
+ * дату записи — они живут в `spec_item_payments`. Без этого вкладка «Файлы»
+ * показывала бы чек как обычный документ.
  */
 export async function listSpecItemFiles(
   db: SpecItemFilesDb,
@@ -331,7 +691,16 @@ export async function listSpecItemFiles(
     return failed("Не удалось получить файлы позиции");
   }
 
-  return { ok: true, files: (data ?? []).map((row) => toEntry(row as FileRow)) };
+  const files = (data ?? []).map((row) => toEntry(row as FileRow));
+
+  return {
+    ok: true,
+    files: await decorateWithPayments(db, {
+      orgId: args.orgId,
+      specItemId: args.specItemId,
+      files,
+    }),
+  };
 }
 
 /* ------------------------------------------------------------------ */
@@ -341,7 +710,7 @@ export async function listSpecItemFiles(
 /**
  * Разбор и проверка загружаемых данных.
  *
- * Здесь нет ни БД, ни Storage — только правила: категория, размер, MIME,
+ * Здесь нет ни БД, ни Storage — только правила: вид документа, размер, MIME,
  * сигнатура содержимого и нормализация имени. Вынесено отдельной функцией,
  * чтобы правила можно было проверить без подставных клиентов.
  */
@@ -353,14 +722,16 @@ export function validateUploadData(data: UploadSpecItemFileData): {
   category: SpecItemFileCategory;
 } | { ok: false; error: SpecItemFileError } {
   // Категория: пустое значение — это «не указана», а не ошибка. Указанное, но
-  // не из списка — ошибка: `other` для опечатки скрыл бы проблему клиента.
+  // не из списка — ошибка: «другое» для опечатки скрыло бы проблему клиента.
   const rawCategory = (data.category ?? "").trim();
   if (rawCategory !== "" && !isSpecItemFileCategory(rawCategory)) {
-    return invalidInput("Неизвестная категория файла");
+    return invalidInput("Неизвестный вид документа");
   }
+  // Вид по умолчанию — общий документ: подставлять `other` значило бы помечать
+  // как «непонятно что» каждый файл, у которого вид не назван.
   const category: SpecItemFileCategory = isSpecItemFileCategory(rawCategory)
     ? rawCategory
-    : "other";
+    : "document";
 
   const fileName = normalizeFileName(data.fileName);
   if (!fileName) return invalidInput("У файла нет имени");
@@ -428,6 +799,17 @@ export async function uploadSpecItemFile(
   const validated = validateUploadData(input.data);
   if (!validated.ok) return { ok: false, error: validated.error };
 
+  // Привязка к оплате проверяется ДО Storage и до INSERT: чужой `payment_id` —
+  // это отказ пользователю, а не объект, оставленный в bucket'е. Проверка идёт
+  // по строке оплаты в БД, а не по доверию аргументу.
+  const payment = await resolvePayment(db, {
+    orgId: input.orgId,
+    projectId: item.item.project_id,
+    specItemId: item.item.id,
+    paymentId: input.paymentId,
+  });
+  if (!payment.ok) return { ok: false, error: payment.error };
+
   // id генерирует сервер, а не БД: он входит в путь объекта, который нужно
   // знать ДО вставки. Тот же генератор, что у `gen_random_uuid()` по умолчанию.
   const fileId = globalThis.crypto.randomUUID();
@@ -464,6 +846,9 @@ export async function uploadSpecItemFile(
         mime_type: validated.mimeType,
         size_bytes: validated.sizeBytes,
         category: validated.category,
+        // Оплата — уже проверенная строка: сюда попадает `id` найденной записи,
+        // а не то, что прислал клиент.
+        payment_id: payment.paymentId,
         // Автор и время — серверные. Ни то, ни другое не приходит от клиента.
         uploaded_by: input.uploadedBy,
         created_at: new Date().toISOString(),
@@ -482,7 +867,7 @@ export async function uploadSpecItemFile(
       return failed("Не удалось сохранить файл");
     }
 
-    return { ok: true, file: toEntry(data as FileRow) };
+    return { ok: true, file: toEntry(data as FileRow, payment.payment) };
   } catch (cause) {
     // Сетевой сбой может вылететь исключением на любом шаге. Если объект уже
     // загружен — компенсируем, иначе оставили бы orphan.
@@ -565,7 +950,7 @@ export async function getSpecItemFileUrl(
       ok: true,
       url: signed.signedUrl,
       expiresAt: new Date(Date.now() + expiresIn * 1000).toISOString(),
-      file: toEntry(data),
+      file: toEntry(data, await paymentInfoOf(db, args, data.payment_id)),
     };
   } catch (cause) {
     console.error("[getSpecItemFileUrl]", cause);
@@ -612,11 +997,16 @@ export async function deleteSpecItemFile(
 
   if (!row) return notFound();
 
+  // В ответе — запись ДО удаления, вместе со ссылкой на оплату из строки. Читать
+  // ради этого оплату отдельным запросом незачем: подпись (`payment`) у
+  // удалённого документа не показывается, а `paymentId` уже лежит в строке.
+  const entry = toEntry(row);
+
   // Повторный вызов: строка уже удалена. Storage не трогаем — объект мог быть
   // удалён первым вызовом, а второй remove вернул бы ошибку «не найдено»,
   // которая ничего не значит.
   if (row.deleted_at !== null) {
-    return { ok: true, file: toEntry(row), deleted: false };
+    return { ok: true, file: entry, deleted: false };
   }
 
   if (
@@ -650,12 +1040,12 @@ export async function deleteSpecItemFile(
   // `null` здесь означает гонку: строку удалил параллельный запрос. Для
   // пользователя результат тот же — файла нет, — поэтому это успех, а не отказ.
   if (!updated) {
-    return { ok: true, file: toEntry({ ...row, deleted_at: deletedAt }), deleted: false };
+    return { ok: true, file: entry, deleted: false };
   }
 
   // Истина уже в БД: файл исчез из списка и больше не подписывается. Ошибка
   // Storage не откатывает удаление и не превращает операцию в неуспешную.
   await removeQuietly(storage, row.storage_path);
 
-  return { ok: true, file: toEntry(updated), deleted: true };
+  return { ok: true, file: entry, deleted: true };
 }

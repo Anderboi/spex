@@ -1,17 +1,21 @@
-import { cleanup, render, screen, waitFor, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import PaymentsTab from "./payments-tab";
 import type { PaymentEntry } from "@/lib/spec/payment-types";
 import type { PaymentPlanEntry } from "@/lib/spec/payment-plan-types";
+import type { SpecItemFileEntry } from "@/lib/spec/spec-item-files";
 
 /**
- * Тесты вкладки «Платежи»: пометка «возвратов больше, чем оплат».
+ * Тесты вкладки «Платежи»: пометка «возвратов больше, чем оплат» и документы
+ * к оплате.
  *
  * Server actions подменяются модульными моками: настоящие требуют сессии
  * next-auth и живой БД. Проверяется поведение вкладки — что состояние
  * «вернули больше, чем заплатили» пользователь видит явной пометкой, а не
- * только отрицательным числом в сводке.
+ * только отрицательным числом в сводке, а документ оплаты виден у своей
+ * записи и прикладывается тем же диалогом, что во вкладке «Файлы».
  *
  * ── Почему проверяется именно пометка ──────────────────────────────────────
  *
@@ -24,6 +28,10 @@ import type { PaymentPlanEntry } from "@/lib/spec/payment-plan-types";
 
 const listPlansMock = vi.hoisted(() => vi.fn());
 const listPaymentsMock = vi.hoisted(() => vi.fn());
+const listFilesMock = vi.hoisted(() => vi.fn());
+const uploadFileMock = vi.hoisted(() => vi.fn());
+const deleteFileMock = vi.hoisted(() => vi.fn());
+const fileUrlMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/actions/spec-item-payment-plans", () => ({
   listPaymentPlans: listPlansMock,
@@ -38,6 +46,13 @@ vi.mock("@/actions/spec-item-payments", () => ({
   createPayment: vi.fn(),
   updatePayment: vi.fn(),
   deletePayment: vi.fn(),
+}));
+
+vi.mock("@/actions/spec-item-files", () => ({
+  listSpecItemFiles: listFilesMock,
+  uploadSpecItemFile: uploadFileMock,
+  deleteSpecItemFile: deleteFileMock,
+  getSpecItemFileUrl: fileUrlMock,
 }));
 
 /** Строка графика. */
@@ -82,10 +97,27 @@ function payment(over: Partial<PaymentEntry> = {}): PaymentEntry {
   };
 }
 
+/** Документ позиции: `paymentId` проставляет сервер. */
+function file(over: Partial<SpecItemFileEntry> = {}): SpecItemFileEntry {
+  return {
+    id: "file-1",
+    fileName: "Чек №7.pdf",
+    mimeType: "application/pdf",
+    sizeBytes: 1024,
+    category: "receipt",
+    uploadedBy: "user-1",
+    createdAt: "2026-10-01T10:00:00.000Z",
+    paymentId: null,
+    payment: null,
+    ...over,
+  };
+}
+
 /** Рендер вкладки с заданными ответами действий. */
 function setup(over: {
   plans?: PaymentPlanEntry[];
   payments?: PaymentEntry[];
+  files?: SpecItemFileEntry[];
   /** Стоимость позиции — база прогресса. */
   itemCost?: number;
 } = {}) {
@@ -96,6 +128,10 @@ function setup(over: {
   listPaymentsMock.mockResolvedValue({
     success: true,
     data: over.payments ?? [],
+  });
+  listFilesMock.mockResolvedValue({
+    success: true,
+    data: over.files ?? [],
   });
 
   render(
@@ -144,6 +180,10 @@ const money = (value: number) =>
 beforeEach(() => {
   listPlansMock.mockReset();
   listPaymentsMock.mockReset();
+  listFilesMock.mockReset();
+  uploadFileMock.mockReset();
+  deleteFileMock.mockReset();
+  fileUrlMock.mockReset();
 });
 
 afterEach(cleanup);
@@ -376,5 +416,279 @@ describe("PaymentsTab · возвратов больше, чем оплат", ()
     });
 
     expect(progressText()).toContain(money(5000));
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/*  Документы к оплате                                                 */
+/* ------------------------------------------------------------------ */
+
+/** Кнопка прикрепления документа у конкретной записи. */
+const attachButton = (date: string) =>
+  screen.getByRole("button", { name: `Прикрепить документ к оплате от ${date}` });
+
+/** Скрытый input выбора документа: их на вкладке ровно один. */
+const documentPicker = () =>
+  screen.getByLabelText("Выбрать документ для оплаты") as HTMLInputElement;
+
+/**
+ * Выбор файла в скрытом input.
+ *
+ * `fireEvent.change` с подставленным `files`, а не `userEvent.upload`: проверка
+ * размера должна достаться обработчику вкладки, а не отфильтроваться внутри
+ * `userEvent`, который уважает ограничения input'а.
+ */
+function pickDocument(input: HTMLElement, chosen: File) {
+  Object.defineProperty(input, "files", {
+    value: [chosen],
+    configurable: true,
+  });
+  fireEvent.change(input);
+}
+
+describe("PaymentsTab · документы к оплате", () => {
+  it("документ виден у своей оплаты и не виден у чужой", async () => {
+    setup({
+      payments: [
+        payment({ id: "p-1", paidAt: "2026-10-01" }),
+        payment({ id: "p-2", paidAt: "2026-10-05" }),
+      ],
+      files: [
+        file({
+          id: "f-1",
+          fileName: "Чек №7.pdf",
+          paymentId: "p-1",
+          payment: { kind: "payment", paidAt: "2026-10-01", cancelled: false },
+        }),
+      ],
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("Чек №7.pdf")).toBeDefined();
+    });
+
+    // Документ привязан к первой записи: строка документа ровно одна, и она
+    // лежит внутри карточки этой оплаты.
+    const rows = screen.getAllByRole("button", { name: /^Открыть «/ });
+    expect(rows).toHaveLength(1);
+    expect(rows[0].getAttribute("aria-label")).toBe(
+      "Открыть «Чек №7.pdf» в новой вкладке",
+    );
+  });
+
+  it("обычный файл позиции у оплат не показывается", async () => {
+    setup({
+      payments: [payment({ id: "p-1" })],
+      files: [file({ id: "f-free", fileName: "Чертёж.dwg", paymentId: null })],
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("Оплат и возвратов: 1")).toBeDefined();
+    });
+
+    expect(screen.queryByText("Чертёж.dwg")).toBeNull();
+  });
+
+  it("участник прикрепляет документ тем же диалогом, что и файлы, — с payment_id", async () => {
+    const user = userEvent.setup();
+    uploadFileMock.mockResolvedValue({
+      success: true,
+      data: file({
+        id: "f-new",
+        fileName: "Поручение.pdf",
+        paymentId: "payment-1",
+        payment: { kind: "payment", paidAt: "2026-10-01", cancelled: false },
+      }),
+    });
+
+    setup({ payments: [payment({ id: "payment-1", paidAt: "2026-10-01" })] });
+
+    await waitFor(() => {
+      expect(screen.getByText("Оплат и возвратов: 1")).toBeDefined();
+    });
+
+    await user.click(attachButton("1 октября 2026 г."));
+
+    // Диалог открывается только после выбора файла: до него на сервер не
+    // уходит ничего.
+    pickDocument(
+      documentPicker(),
+      new File(["чек"], "Поручение.pdf", { type: "application/pdf" }),
+    );
+
+    const dialog = await screen.findByRole("dialog");
+    // Вид документа выбирается в том же диалоге: «Счёт» и «Чек» — разные вещи.
+    expect(within(dialog).getByText("Чек")).toBeDefined();
+    await user.click(within(dialog).getByRole("button", { name: "Загрузить" }));
+
+    await waitFor(() => {
+      expect(uploadFileMock).toHaveBeenCalledTimes(1);
+    });
+
+    const [orgSlug, itemId, formData] = uploadFileMock.mock.calls[0];
+    expect(orgSlug).toBe("acme");
+    expect(itemId).toBe("item-1");
+    // Оплата уходит идентификатором: всё остальное о ней определяет сервер.
+    expect((formData as FormData).get("payment_id")).toBe("payment-1");
+
+    // Запись сервера встаёт в список документов сразу — без второго запроса.
+    await waitFor(() => {
+      expect(screen.getByText("Поручение.pdf")).toBeDefined();
+    });
+  });
+
+  it("наблюдатель видит документ, но не может ни прикрепить, ни удалить", async () => {
+    listPlansMock.mockResolvedValue({ success: true, data: [plan()] });
+    listPaymentsMock.mockResolvedValue({
+      success: true,
+      data: [payment({ id: "p-1", paidAt: "2026-10-01" })],
+    });
+    listFilesMock.mockResolvedValue({
+      success: true,
+      data: [
+        file({
+          id: "f-1",
+          fileName: "Чек №7.pdf",
+          paymentId: "p-1",
+          payment: { kind: "payment", paidAt: "2026-10-01", cancelled: false },
+        }),
+      ],
+    });
+
+    render(
+      <PaymentsTab
+        orgSlug="acme"
+        specItemId="item-1"
+        role="viewer"
+        currentUserId="user-2"
+        itemCost={10000}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(screen.getByText("Чек №7.pdf")).toBeDefined();
+    });
+
+    // Чтение правами не описывается — документ виден; запись правами описана.
+    expect(
+      screen.queryByRole("button", {
+        name: "Прикрепить документ к оплате от 1 октября 2026 г.",
+      }),
+    ).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: "Удалить документ «Чек №7.pdf»" }),
+    ).toBeNull();
+  });
+
+  it("удаление документа убирает строку только после успеха сервера", async () => {
+    const user = userEvent.setup();
+    deleteFileMock.mockResolvedValue({ success: true, data: { deleted: true } });
+
+    setup({
+      payments: [payment({ id: "p-1", paidAt: "2026-10-01" })],
+      files: [
+        file({
+          id: "f-1",
+          fileName: "Чек №7.pdf",
+          paymentId: "p-1",
+          payment: { kind: "payment", paidAt: "2026-10-01", cancelled: false },
+        }),
+      ],
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("Чек №7.pdf")).toBeDefined();
+    });
+
+    await user.click(
+      screen.getByRole("button", { name: "Удалить документ «Чек №7.pdf»" }),
+    );
+
+    // Подтверждение говорит и про позицию, и про оплату: оплата не исчезает.
+    // Роль именно `alertdialog`: диалог предупреждает о необратимом действии.
+    const dialog = await screen.findByRole("alertdialog");
+    expect(within(dialog).getByText(/Сама оплата останется/)).toBeDefined();
+    await user.click(within(dialog).getByRole("button", { name: "Удалить" }));
+
+    await waitFor(() => {
+      expect(deleteFileMock).toHaveBeenCalledWith("acme", "item-1", "f-1");
+    });
+
+    await waitFor(() => {
+      expect(screen.queryByText("Чек №7.pdf")).toBeNull();
+    });
+    // Сама запись оплаты осталась на месте.
+    expect(screen.getByText("Оплат и возвратов: 1")).toBeDefined();
+  });
+
+  it("отказ удаления оставляет документ в списке и показывает текст сервера", async () => {
+    const user = userEvent.setup();
+    deleteFileMock.mockResolvedValue({
+      success: false,
+      error: "Недостаточно прав для удаления файлов",
+    });
+
+    setup({
+      payments: [payment({ id: "p-1", paidAt: "2026-10-01" })],
+      files: [
+        file({
+          id: "f-1",
+          fileName: "Чек №7.pdf",
+          paymentId: "p-1",
+          payment: { kind: "payment", paidAt: "2026-10-01", cancelled: false },
+        }),
+      ],
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("Чек №7.pdf")).toBeDefined();
+    });
+
+    await user.click(
+      screen.getByRole("button", { name: "Удалить документ «Чек №7.pdf»" }),
+    );
+    // Подтверждение — `AlertDialog`, и его роль именно `alertdialog`, а не
+    // `dialog`: диалог предупреждает о необратимом действии.
+    const dialog = await screen.findByRole("alertdialog");
+    expect(within(dialog).getByText(/Сама оплата останется/)).toBeDefined();
+    await user.click(within(dialog).getByRole("button", { name: "Удалить" }));
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("Недостаточно прав для удаления файлов"),
+      ).toBeDefined();
+    });
+    // Оптимистичного удаления нет: файл остался на месте.
+    expect(screen.getByText("Чек №7.pdf")).toBeDefined();
+  });
+
+  it("ошибка списка файлов не скрывает оплаты", async () => {
+    listPlansMock.mockResolvedValue({ success: true, data: [plan()] });
+    listPaymentsMock.mockResolvedValue({
+      success: true,
+      data: [payment({ id: "p-1", amount: 3000 })],
+    });
+    listFilesMock.mockResolvedValue({
+      success: false,
+      error: "Не удалось получить файлы позиции",
+    });
+
+    render(
+      <PaymentsTab
+        orgSlug="acme"
+        specItemId="item-1"
+        role="owner"
+        currentUserId="user-1"
+        itemCost={10000}
+      />,
+    );
+
+    // Вкладка показывает отказ честно, а не пустой список оплат.
+    await waitFor(() => {
+      expect(
+        screen.getByText("Не удалось получить файлы позиции"),
+      ).toBeDefined();
+    });
+    expect(screen.queryByText("Оплат и возвратов: 1")).toBeNull();
   });
 });

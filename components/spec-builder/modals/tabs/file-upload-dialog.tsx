@@ -85,6 +85,7 @@ export default function FileUploadDialog({
   file,
   orgSlug,
   specItemId,
+  paymentId = null,
   onClose,
   onUploaded,
 }: {
@@ -93,6 +94,15 @@ export default function FileUploadDialog({
   file: File | null;
   orgSlug: string;
   specItemId: string;
+  /**
+   * Оплата, к которой прикрепляется документ. `null` — обычный файл позиции.
+   *
+   * Диалог один на оба случая намеренно: и «добавить файл к позиции», и
+   * «прикрепить чек к оплате» — это одна операция с одним набором проверок
+   * (размер, вид документа, права), и отличается она ровно одним полем формы.
+   * Второй диалог разошёлся бы с первым в первой же правке валидации.
+   */
+  paymentId?: string | null;
   /** Закрыть диалог: отмена, крестик, успешная загрузка. */
   onClose: () => void;
   /**
@@ -180,11 +190,15 @@ export default function FileUploadDialog({
     setStatus("uploading");
     setError(null);
 
-    // Только то, что предусмотрено контрактом action: файл и категория.
-    // Организация, проект, позиция, автор, путь и время определяются сервером.
+    // Только то, что предусмотрено контрактом action: файл, вид документа и —
+    // для документа к оплате — идентификатор записи. Организация, проект,
+    // позиция, автор, путь и время определяются сервером.
     const formData = new FormData();
     formData.set("file", file);
     formData.set("category", category);
+    // Поле ставится ВСЕГДА, даже пустым: так у сервера одно представление
+    // «оплаты нет» — пустая строка, а не отсутствие поля.
+    formData.set("payment_id", paymentId ?? "");
 
     try {
       const res = await uploadSpecItemFile(orgSlug, specItemId, formData);
@@ -208,7 +222,16 @@ export default function FileUploadDialog({
       setStatus("error");
       setError("Не удалось загрузить файл");
     }
-  }, [file, status, category, orgSlug, specItemId, onUploaded, isFileReadable]);
+  }, [
+    file,
+    status,
+    category,
+    paymentId,
+    orgSlug,
+    specItemId,
+    onUploaded,
+    isFileReadable,
+  ]);
 
   const uploading = status === "uploading";
 
@@ -267,8 +290,8 @@ export default function FileUploadDialog({
           value={category}
           onValueChange={(value) => setCategory(value as SpecItemFileCategory)}
           disabled={uploading}
-          aria-label="Категория файла"
-          className="gap-2 px-4"
+          aria-label="Вид документа"
+          className="gap-2 px-4 sm:grid sm:grid-cols-2"
         >
           {CATEGORY_OPTIONS.map((option) => (
             <label

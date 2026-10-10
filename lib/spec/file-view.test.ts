@@ -11,6 +11,7 @@ import {
   formatFileDate,
   formatFileSize,
   isLeavingDropZone,
+  paymentLinkLabel,
   placeFileEntry,
 } from "./file-view";
 import { SPEC_ITEM_FILE_CATEGORIES } from "./file-content";
@@ -223,6 +224,8 @@ describe("fileAuthorLabel", () => {
     category: "document",
     uploadedBy,
     createdAt: "2026-10-06T09:30:00.000Z",
+    paymentId: null,
+    payment: null,
   });
 
   it("uuid в подпись не попадает", () => {
@@ -296,6 +299,11 @@ describe("isLeavingDropZone", () => {
 describe("fileCategoryLabel", () => {
   it("значения backend переводятся в подписи", () => {
     expect(fileCategoryLabel("document")).toBe("Документ");
+    expect(fileCategoryLabel("invoice")).toBe("Счёт");
+    expect(fileCategoryLabel("receipt")).toBe("Чек");
+    expect(fileCategoryLabel("contract")).toBe("Договор");
+    expect(fileCategoryLabel("specification")).toBe("ТЗ / спецификация");
+    expect(fileCategoryLabel("drawing")).toBe("Чертёж / схема");
     expect(fileCategoryLabel("texture")).toBe("Текстура");
     expect(fileCategoryLabel("other")).toBe("Другое");
   });
@@ -312,7 +320,44 @@ describe("fileCategoryLabel", () => {
 
   it("значение вне списка не даёт пустой подписи", () => {
     // Так выглядела бы строка, записанная в БД в обход кода.
-    expect(fileCategoryLabel("drawing" as never)).toBe("Другое");
+    expect(fileCategoryLabel("schemas" as never)).toBe("Другое");
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/*  Связь с оплатой                                                    */
+/* ------------------------------------------------------------------ */
+
+describe("paymentLinkLabel", () => {
+  it("называет дату проводки, к которой прикреплён документ", () => {
+    // Вид документа стоит отдельным бейджем, поэтому в подписи его нет:
+    // «чек · чек» в одной строке ничего не добавляет. Формат даты — общий для
+    // проекта `fmtDate`.
+    expect(paymentLinkLabel({ paidAt: "2026-10-15", cancelled: false })).toBe(
+      "К оплате от 15 октября 2026 г.",
+    );
+  });
+
+  it("оплата без даты даёт подпись без даты, а не «Invalid Date»", () => {
+    expect(paymentLinkLabel({ paidAt: null, cancelled: false })).toBe(
+      "К оплате",
+    );
+  });
+
+  it("отменённая оплата называется словом, а не пропадает", () => {
+    // Дата отменённой записи недоступна, а молчание оставило бы `payment_id`
+    // в строке файла без объяснения.
+    expect(paymentLinkLabel({ paidAt: "2026-10-15", cancelled: true })).toBe(
+      "К отменённой оплате",
+    );
+    expect(paymentLinkLabel({ paidAt: null, cancelled: true })).toBe(
+      "К отменённой оплате",
+    );
+  });
+
+  it("обычный файл позиции подписи не получает", () => {
+    expect(paymentLinkLabel(null)).toBeNull();
+    expect(paymentLinkLabel(undefined)).toBeNull();
   });
 });
 
@@ -333,6 +378,8 @@ describe("placeFileEntry", () => {
     category: "document",
     uploadedBy: null,
     createdAt,
+    paymentId: null,
+    payment: null,
   });
 
   it("новая запись встаёт по created_at DESC, а не в конец", () => {

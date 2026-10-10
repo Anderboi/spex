@@ -1054,6 +1054,7 @@ export type Database = {
           id: string
           mime_type: string
           org_id: string
+          payment_id: string | null
           project_id: string
           size_bytes: number
           spec_item_id: string
@@ -1068,6 +1069,7 @@ export type Database = {
           id?: string
           mime_type: string
           org_id: string
+          payment_id?: string | null
           project_id: string
           size_bytes: number
           spec_item_id: string
@@ -1082,6 +1084,7 @@ export type Database = {
           id?: string
           mime_type?: string
           org_id?: string
+          payment_id?: string | null
           project_id?: string
           size_bytes?: number
           spec_item_id?: string
@@ -1094,6 +1097,13 @@ export type Database = {
             columns: ["org_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "spec_item_files_payment_id_fkey"
+            columns: ["payment_id"]
+            isOneToOne: false
+            referencedRelation: "spec_item_payments"
             referencedColumns: ["id"]
           },
           {

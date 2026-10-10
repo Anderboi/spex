@@ -49,6 +49,15 @@ const FILE_OTHER_ORG = "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb";
 const FILE_DELETED = "cccccccc-cccc-4ccc-8ccc-cccccccccccc";
 const FILE_FOREIGN_PATH = "dddddddd-dddd-4ddd-8ddd-dddddddddddd";
 const FILE_NEW = "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee";
+/** Файл, прикреплённый к живой оплате своей позиции. */
+const FILE_WITH_PAYMENT = "ffffffff-ffff-4fff-8fff-ffffffffffff";
+/** Файл, прикреплённый к оплате, которую потом отменили. */
+const FILE_WITH_CANCELLED_PAYMENT = "12121212-1212-4212-8212-121212121212";
+
+const PAYMENT = "13131313-1313-4313-8313-131313131313";
+const PAYMENT_OTHER_ITEM = "14141414-1414-4414-8414-141414141414";
+const PAYMENT_OTHER_ORG = "15151515-1515-4515-8515-151515151515";
+const PAYMENT_DELETED = "16161616-1616-4616-8616-161616161616";
 
 const itemPath = (itemId: string, fileId: string) =>
   `${ORG}/spec-items/${itemId}/${fileId}.pdf`;
@@ -65,13 +74,20 @@ type Call = {
   operation: "select" | "insert" | "update";
   columns: string | null;
   eqs: [string, unknown][];
+  inEqs: [string, unknown[]][];
   isNull: string[];
   order: { column: string; ascending: boolean }[];
   insert: Row | null;
   patch: Row | null;
 };
 
-type Failure = { select?: boolean; insert?: boolean; update?: boolean };
+type Failure = {
+  select?: boolean;
+  insert?: boolean;
+  update?: boolean;
+  /** Отдельный отказ именно на чтении оплат: список файлов его переживает. */
+  selectPayment?: boolean;
+};
 
 function fakeDb(seed: Tables, failure: Failure = {}) {
   const tables: Tables = Object.fromEntries(
@@ -99,6 +115,7 @@ function fakeDb(seed: Tables, failure: Failure = {}) {
       operation: "select",
       columns: null,
       eqs: [],
+      inEqs: [],
       isNull: [],
       order: [],
       insert: null,
@@ -109,6 +126,7 @@ function fakeDb(seed: Tables, failure: Failure = {}) {
       (tables[table] ?? []).filter(
         (row) =>
           call.eqs.every(([column, value]) => row[column] === value) &&
+          call.inEqs.every(([column, values]) => values.includes(row[column])) &&
           call.isNull.every(
             (column) => row[column] === null || row[column] === undefined,
           ),
@@ -137,6 +155,17 @@ function fakeDb(seed: Tables, failure: Failure = {}) {
       },
       eq(column: string, value: unknown) {
         call.eqs.push([column, value]);
+        return chain;
+      },
+      /**
+       * `in` нужен ровно одной выборке — пачке оплат по идентификаторам
+       * (`decorateWithPayments`). Соединение таблиц здесь не поддержано
+       * намеренно: подставной клиент повторяет только те части PostgREST,
+       * которыми пользуется код, а второй способ читать те же данные он бы
+       * закрепил как допустимый.
+       */
+      in(column: string, values: unknown[]) {
+        call.inEqs.push([column, values]);
         return chain;
       },
       is(column: string, value: unknown) {
@@ -168,6 +197,9 @@ function fakeDb(seed: Tables, failure: Failure = {}) {
         if (failure.select) {
           return Promise.resolve({ data: null, error: { message: "ошибка БД" } });
         }
+        if (failure.selectPayment && table === "spec_item_payments") {
+          return Promise.resolve({ data: null, error: { message: "ошибка БД" } });
+        }
         return Promise.resolve({ data: sorted(matched())[0] ?? null, error: null });
       },
       single() {
@@ -185,6 +217,11 @@ function fakeDb(seed: Tables, failure: Failure = {}) {
       ) {
         calls.push(call);
         if (failure.select) {
+          return Promise.resolve(
+            resolve({ data: null, error: { message: "ошибка БД" } }),
+          );
+        }
+        if (failure.selectPayment && table === "spec_item_payments") {
           return Promise.resolve(
             resolve({ data: null, error: { message: "ошибка БД" } }),
           );
@@ -351,6 +388,77 @@ function seedTables(): Tables {
         created_at: "2026-01-06T10:00:00.000Z",
         deleted_at: null,
       },
+      {
+        id: FILE_WITH_PAYMENT,
+        org_id: ORG,
+        project_id: PROJECT,
+        spec_item_id: ITEM,
+        storage_path: itemPath(ITEM, FILE_WITH_PAYMENT),
+        file_name: "Чек №7.pdf",
+        mime_type: "application/pdf",
+        size_bytes: 256,
+        category: "receipt",
+        uploaded_by: USER,
+        created_at: "2026-01-07T10:00:00.000Z",
+        deleted_at: null,
+        payment_id: PAYMENT,
+      },
+      {
+        id: FILE_WITH_CANCELLED_PAYMENT,
+        org_id: ORG,
+        project_id: PROJECT,
+        spec_item_id: ITEM,
+        storage_path: itemPath(ITEM, FILE_WITH_CANCELLED_PAYMENT),
+        file_name: "Чек к отменённой.pdf",
+        mime_type: "application/pdf",
+        size_bytes: 512,
+        category: "receipt",
+        uploaded_by: USER,
+        created_at: "2026-01-08T10:00:00.000Z",
+        deleted_at: null,
+        payment_id: PAYMENT_DELETED,
+      },
+    ],
+    spec_item_payments: [
+      {
+        id: PAYMENT,
+        org_id: ORG,
+        project_id: PROJECT,
+        spec_item_id: ITEM,
+        kind: "payment",
+        paid_at: "2026-01-07",
+        deleted_at: null,
+      },
+      {
+        // Чужая позиция: документ своей позиции на неё ссылаться не может.
+        id: PAYMENT_OTHER_ITEM,
+        org_id: ORG,
+        project_id: PROJECT,
+        spec_item_id: OTHER_ITEM,
+        kind: "payment",
+        paid_at: "2026-01-02",
+        deleted_at: null,
+      },
+      {
+        // Чужая организация.
+        id: PAYMENT_OTHER_ORG,
+        org_id: OTHER_ORG,
+        project_id: OTHER_PROJECT,
+        spec_item_id: ITEM,
+        kind: "payment",
+        paid_at: "2026-01-03",
+        deleted_at: null,
+      },
+      {
+        // Отменённая оплата: привязать к ней документ нельзя.
+        id: PAYMENT_DELETED,
+        org_id: ORG,
+        project_id: PROJECT,
+        spec_item_id: ITEM,
+        kind: "payment",
+        paid_at: "2026-01-04",
+        deleted_at: "2026-01-05T10:00:00.000Z",
+      },
     ],
   };
 }
@@ -383,9 +491,14 @@ describe("listSpecItemFiles", () => {
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    // `created_at` новее у подменённой строки, поэтому она первая: сортировка
+    // `created_at` новее у подставленной строки, поэтому она первая: сортировка
     // идёт по времени, а не по идентификатору.
-    expect(result.files.map((f) => f.id)).toEqual([FILE_FOREIGN_PATH, FILE]);
+    expect(result.files.map((f) => f.id)).toEqual([
+      FILE_WITH_CANCELLED_PAYMENT,
+      FILE_WITH_PAYMENT,
+      FILE_FOREIGN_PATH,
+      FILE,
+    ]);
   });
 
   it("удалённый файл в список не попадает", async () => {
@@ -421,9 +534,9 @@ describe("listSpecItemFiles", () => {
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    // Свежий первым: 2026-01-06 (строка с подменённым путём) новее 2026-01-01.
-    expect(result.files[0].id).toBe(FILE_FOREIGN_PATH);
-    expect(result.files[1].id).toBe(FILE);
+    // Свежие первыми: 2026-01-08 (чек к отменённой оплате) новее 2026-01-06.
+    expect(result.files[0].id).toBe(FILE_WITH_CANCELLED_PAYMENT);
+    expect(result.files[1].id).toBe(FILE_WITH_PAYMENT);
   });
 
   it("sanity: данные выше действительно идут не в том порядке, что id", () => {
@@ -432,7 +545,12 @@ describe("listSpecItemFiles", () => {
     const rows = seedTables().spec_item_files.filter(
       (r) => r.org_id === ORG && r.spec_item_id === ITEM && r.deleted_at === null,
     );
-    expect(rows.map((r) => r.id)).toEqual([FILE, FILE_FOREIGN_PATH]);
+    expect(rows.map((r) => r.id)).toEqual([
+      FILE,
+      FILE_FOREIGN_PATH,
+      FILE_WITH_PAYMENT,
+      FILE_WITH_CANCELLED_PAYMENT,
+    ]);
     expect(String(rows[1].created_at) > String(rows[0].created_at)).toBe(true);
   });
 
@@ -454,7 +572,10 @@ describe("listSpecItemFiles", () => {
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.files[1]).toEqual({
+    // Ищем по идентификатору, а не по номеру в списке: место строки в списке —
+    // предмет отдельного теста сортировки, а не этого.
+    const file = result.files.find((entry) => entry.id === FILE);
+    expect(file).toEqual({
       id: FILE,
       fileName: "Счёт №1.pdf",
       mimeType: "application/pdf",
@@ -462,7 +583,84 @@ describe("listSpecItemFiles", () => {
       category: "document",
       uploadedBy: USER,
       createdAt: "2026-01-01T10:00:00.000Z",
+      // Обычный файл позиции: оплаты за ним нет — и поля говорят об этом
+      // одинаково, а не отсутствием ключа.
+      paymentId: null,
+      payment: null,
     });
+  });
+
+  it("документ к оплате приходит с видом и датой записи", async () => {
+    const db = fakeDb(seedTables());
+    const result = await listSpecItemFiles(db.client, baseArgs);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const file = result.files.find((entry) => entry.id === FILE_WITH_PAYMENT);
+    expect(file?.paymentId).toBe(PAYMENT);
+    // Вид и дата — из строки оплаты, а не из файла: клиент не должен угадывать.
+    expect(file?.payment).toEqual({
+      kind: "payment",
+      paidAt: "2026-01-07",
+      cancelled: false,
+    });
+  });
+
+  it("оплата отменена — файл остаётся документом позиции и говорит об отмене", async () => {
+    const db = fakeDb(seedTables());
+    const result = await listSpecItemFiles(db.client, baseArgs);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const file = result.files.find(
+      (entry) => entry.id === FILE_WITH_CANCELLED_PAYMENT,
+    );
+    // Ссылка в строке осталась (решение тикета: отмена документа не удаляет), и
+    // подпись не исчезает вместе с оплатой — иначе связь в данных осталась бы
+    // без объяснения, а документ выглядел бы обычным файлом. Дата отменённой
+    // записи сохраняется: её читают вместе со строкой, а не после неё.
+    expect(file?.paymentId).toBe(PAYMENT_DELETED);
+    expect(file?.payment).toEqual({
+      kind: "payment",
+      paidAt: "2026-01-04",
+      cancelled: true,
+    });
+  });
+
+  it("ссылка на пропавшую оплату тоже читается как отменённая", async () => {
+    // Так выглядела бы строка после физического удаления оплаты или записи в
+    // обход кода: `payment_id` есть, строки по нему нет.
+    const db = fakeDb(seedTables());
+    const missing = "17171717-1717-4717-8717-171717171717";
+    const tables = seedTables();
+    tables.spec_item_files = tables.spec_item_files.map((row) =>
+      row.id === FILE_WITH_CANCELLED_PAYMENT ? { ...row, payment_id: missing } : row,
+    );
+
+    const result = await listSpecItemFiles(
+      fakeDb(tables).client,
+      baseArgs,
+    );
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const file = result.files.find(
+      (entry) => entry.id === FILE_WITH_CANCELLED_PAYMENT,
+    );
+    expect(file?.paymentId).toBe(missing);
+    expect(file?.payment?.cancelled).toBe(true);
+  });
+
+  it("ошибка чтения оплат не ломает список файлов", async () => {
+    const db = fakeDb(seedTables(), { selectPayment: true });
+    const result = await listSpecItemFiles(db.client, baseArgs);
+
+    // Документы важнее подписи: недоступность оплат оставляет файл обычным.
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const file = result.files.find((entry) => entry.id === FILE_WITH_PAYMENT);
+    expect(file?.payment).toBeNull();
+    expect(file?.paymentId).toBe(PAYMENT);
   });
 
   it("чужая организация → позиция не найдена", async () => {
@@ -649,7 +847,7 @@ describe("uploadSpecItemFile: успех", () => {
     expect(store.uploads[0].path.endsWith(".pdf")).toBe(true);
   });
 
-  it("категория по умолчанию — other", async () => {
+  it("вид документа по умолчанию — document", async () => {
     const db = fakeDb(seedTables());
     const store = fakeStorage();
     const result = await uploadSpecItemFile(db.client, store.storage, {
@@ -660,7 +858,7 @@ describe("uploadSpecItemFile: успех", () => {
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    expect(result.file.category).toBe("other");
+    expect(result.file.category).toBe("document");
     expect(result.file.uploadedBy).toBeNull();
   });
 
@@ -675,6 +873,153 @@ describe("uploadSpecItemFile: успех", () => {
 
     expect(store.uploads).toHaveLength(1);
     expect(db.callsFor("spec_item_files").some((c) => c.operation === "insert")).toBe(true);
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/*  upload: документ к оплате                                          */
+/* ------------------------------------------------------------------ */
+
+describe("uploadSpecItemFile: документ к оплате", () => {
+  it("живая оплата своей позиции принимается, ссылка ложится в строку", async () => {
+    const db = fakeDb(seedTables());
+    const store = fakeStorage();
+    const result = await uploadSpecItemFile(db.client, store.storage, {
+      ...baseArgs,
+      uploadedBy: USER,
+      paymentId: PAYMENT,
+      data: uploadData({ category: "receipt" }),
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(db.tables.spec_item_files.at(-1)!.payment_id).toBe(PAYMENT);
+    // Ответ сразу несёт подпись: клиенту не нужен второй запрос, чтобы показать
+    // «чек к оплате», и он не гадает о виде записи.
+    expect(result.file.paymentId).toBe(PAYMENT);
+    expect(result.file.payment).toEqual({
+      kind: "payment",
+      paidAt: "2026-01-07",
+      cancelled: false,
+    });
+  });
+
+  it("без payment_id файл остаётся обычным документом позиции", async () => {
+    const db = fakeDb(seedTables());
+    const store = fakeStorage();
+    const result = await uploadSpecItemFile(db.client, store.storage, {
+      ...baseArgs,
+      uploadedBy: USER,
+      data: uploadData(),
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(db.tables.spec_item_files.at(-1)!.payment_id).toBeNull();
+    expect(result.file.paymentId).toBeNull();
+    expect(result.file.payment).toBeNull();
+  });
+
+  it("пустая строка — то же, что «оплаты нет»", async () => {
+    const db = fakeDb(seedTables());
+    const store = fakeStorage();
+    const result = await uploadSpecItemFile(db.client, store.storage, {
+      ...baseArgs,
+      uploadedBy: USER,
+      // Именно так поле приходит из формы, когда документ не привязан к оплате.
+      paymentId: "",
+      data: uploadData(),
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(db.tables.spec_item_files.at(-1)!.payment_id).toBeNull();
+  });
+
+  const foreignCases: { title: string; paymentId: string }[] = [
+    { title: "чужая позиция", paymentId: PAYMENT_OTHER_ITEM },
+    { title: "чужая организация", paymentId: PAYMENT_OTHER_ORG },
+    { title: "отменённая оплата", paymentId: PAYMENT_DELETED },
+    { title: "несуществующая оплата", paymentId: FILE_NEW },
+  ];
+
+  for (const testCase of foreignCases) {
+    it(`${testCase.title} → INVALID_INPUT, объекта в Storage нет`, async () => {
+      const db = fakeDb(seedTables());
+      const store = fakeStorage();
+      const result = await uploadSpecItemFile(db.client, store.storage, {
+        ...baseArgs,
+        uploadedBy: USER,
+        paymentId: testCase.paymentId,
+        data: uploadData(),
+      });
+
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.error.code).toBe("INVALID_INPUT");
+      // Понятный текст: не «ошибка БД» и не пустое сообщение.
+      expect(result.error.message).toContain("Оплата не найдена");
+      // Проверка идёт ДО Storage и до INSERT: посторонний объект не остаётся.
+      expect(store.uploads).toHaveLength(0);
+      expect(db.callsFor("spec_item_files").some((c) => c.operation === "insert")).toBe(
+        false,
+      );
+    });
+  }
+
+  it("не-uuid payment_id отвергается до запроса к БД", async () => {
+    const db = fakeDb(seedTables());
+    const store = fakeStorage();
+    const result = await uploadSpecItemFile(db.client, store.storage, {
+      ...baseArgs,
+      uploadedBy: USER,
+      paymentId: "не-uuid",
+      data: uploadData(),
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe("INVALID_INPUT");
+    expect(db.callsFor("spec_item_payments")).toHaveLength(0);
+    expect(store.uploads).toHaveLength(0);
+  });
+
+  it("сбой чтения оплаты — FAILED, а не «оплата не найдена»", async () => {
+    const db = fakeDb(seedTables(), { selectPayment: true });
+    const store = fakeStorage();
+    const result = await uploadSpecItemFile(db.client, store.storage, {
+      ...baseArgs,
+      uploadedBy: USER,
+      paymentId: PAYMENT,
+      data: uploadData(),
+    });
+
+    // Недоступность БД и чужой идентификатор — разные вещи: первый отказ
+    // повторяем, второй требует другого действия от пользователя.
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe("FAILED");
+    expect(result.error.message).not.toContain("не найдена");
+    expect(store.uploads).toHaveLength(0);
+  });
+
+  it("оплата другой организации не читается даже своим запросом", async () => {
+    const db = fakeDb(seedTables());
+    const store = fakeStorage();
+    // Тот же `payment_id`, но операция идёт от лица чужой организации: строка
+    // существует, однако принадлежит не нам — и не должна находиться.
+    const result = await uploadSpecItemFile(db.client, store.storage, {
+      ...baseArgs,
+      orgId: OTHER_ORG,
+      uploadedBy: USER,
+      paymentId: PAYMENT,
+      data: uploadData(),
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe("NOT_FOUND");
+    expect(store.uploads).toHaveLength(0);
   });
 });
 
