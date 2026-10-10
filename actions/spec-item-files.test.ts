@@ -42,6 +42,7 @@ vi.mock("next/cache", () => ({ revalidatePath: () => undefined }));
 import {
   deleteSpecItemFile,
   getSpecItemFileUrl,
+  getSpecItemFileUrls,
   listSpecItemFiles,
   updateSpecItemFile,
   uploadSpecItemFile,
@@ -617,6 +618,82 @@ describe("getUrl и delete: идентификатор файла", () => {
     expect(first.data.deleted).toBe(true);
     expect(second.data.deleted).toBe(false);
     expect(admin.removed).toEqual([STORAGE_PATH]);
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/*  getUrls: пачка                                                     */
+/* ------------------------------------------------------------------ */
+
+describe("getSpecItemFileUrls", () => {
+  it("подписывает пачку одним вызовом действия", async () => {
+    const result = await getSpecItemFileUrls(ORG, ITEM, [FILE]);
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.data.map((entry) => entry.fileId)).toEqual([FILE]);
+    expect(admin.signed).toEqual([STORAGE_PATH]);
+  });
+
+  it("viewer тоже получает ссылки: чтение правами не описывается", async () => {
+    sessionMock.current.role = "viewer";
+
+    const result = await getSpecItemFileUrls(ORG, ITEM, [FILE]);
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.data).toHaveLength(1);
+  });
+
+  it("чужой spec_item → NOT_FOUND, ничего не подписано", async () => {
+    const other = "77777777-7777-4777-8777-777777777777";
+
+    const result = await getSpecItemFileUrls(ORG, other, [FILE]);
+
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    expect(result.code).toBe("NOT_FOUND");
+    expect(admin.signed).toHaveLength(0);
+  });
+
+  it("чужая организация сессии → NOT_FOUND, ничего не подписано", async () => {
+    sessionMock.current.orgId = OTHER_ORG;
+
+    const result = await getSpecItemFileUrls(ORG, ITEM, [FILE]);
+
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    expect(result.code).toBe("NOT_FOUND");
+    expect(admin.signed).toHaveLength(0);
+  });
+
+  /**
+   * `fileIds` приходит от клиента, поэтому форму значения проверяет действие, а
+   * не доверие типу: строка вместо массива — отказ клиента, а не падение.
+   */
+  it("не-массив идентификаторов не роняет действие", async () => {
+    const result = await getSpecItemFileUrls(
+      ORG,
+      ITEM,
+      "не-массив" as unknown as string[],
+    );
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.data).toEqual([]);
+    expect(admin.signed).toHaveLength(0);
+  });
+
+  it("не-uuid идентификаторы отсекаются до запроса в БД", async () => {
+    const result = await getSpecItemFileUrls(ORG, ITEM, [
+      "не-uuid",
+      "../../etc/passwd",
+    ]);
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.data).toEqual([]);
+    expect(admin.signed).toHaveLength(0);
   });
 });
 

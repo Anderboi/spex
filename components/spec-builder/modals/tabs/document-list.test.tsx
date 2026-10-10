@@ -75,6 +75,9 @@ function Harness(overrides: {
   canWrite?: boolean;
   paymentId?: string | null;
   loading?: boolean;
+  /** Подписанные ссылки: список их не запрашивает, а получает пропом. */
+  thumbs?: Record<string, string>;
+  onThumbFailed?: (fileId: string) => void;
 } = {}) {
   const { files, apply, mutate } = useStoredFileList(overrides.files ?? mixed);
 
@@ -84,6 +87,8 @@ function Harness(overrides: {
       specItemId="item-1"
       files={files}
       loading={overrides.loading ?? false}
+      thumbs={overrides.thumbs ?? {}}
+      onThumbFailed={overrides.onThumbFailed ?? (() => {})}
       paymentId={overrides.paymentId ?? null}
       canWrite={overrides.canWrite ?? true}
       onUploaded={(created) => apply({ type: "uploaded", entry: created })}
@@ -800,27 +805,17 @@ describe("DocumentList: мгновенный показ правок", () => {
 /*  Миниатюры                                                          */
 /* ------------------------------------------------------------------ */
 
+/**
+ * Ссылки на миниатюры сюда ПРИХОДЯТ, а не запрашиваются здесь.
+ *
+ * Подпись — это чтение данных, и живёт она в `use-signed-thumbnails` (там же её
+ * тесты: пачка одним вызовом, повтор ровно один). Здесь проверяется ровно то,
+ * что осталось у списка: он рисует превью по готовой ссылке, не ходит за ней
+ * сам и сообщает наружу, если картинка не отрисовалась.
+ */
 describe("DocumentList: миниатюры", () => {
-  it("подписывает изображения и рисует превью", async () => {
-    urlMock.mockResolvedValue({
-      success: true,
-      data: { url: "https://signed.test/thumb", expiresAt: "2026-10-06T12:05:00.000Z" },
-    });
-
-    render(
-      <Harness
-        files={[
-          entry({
-            id: "f-photo",
-            fileName: "Фото.jpg",
-            category: "texture",
-            mimeType: "image/jpeg",
-          }),
-        ]}
-      />,
-    );
-
-    await waitFor(() => expect(urlMock).toHaveBeenCalledTimes(1));
+  it("рисует превью по подписанной ссылке, пришедшей пропом", () => {
+    render(<Harness thumbs={{ "f-photo": "https://signed.test/thumb" }} />);
 
     const row = rowOf("Фото.jpg");
     const image = row.querySelector("img");
@@ -829,34 +824,29 @@ describe("DocumentList: миниатюры", () => {
     expect(image?.getAttribute("alt")).toBe("");
   });
 
-  it("для не-изображений ссылка заранее не запрашивается", () => {
-    render(<Harness files={[entry({ id: "f-1", fileName: "Счёт.pdf" })]} />);
-
-    // Ссылка запрашивается только по клику: заранее подписывать список нельзя.
-    expect(urlMock).not.toHaveBeenCalled();
-  });
-
-  it("отказ подписи не ломает строку: остаётся иконка", async () => {
-    urlMock.mockResolvedValue({ success: false, error: "Не удалось открыть файл" });
-
-    render(
-      <Harness
-        files={[
-          entry({
-            id: "f-photo",
-            fileName: "Фото.jpg",
-            category: "texture",
-            mimeType: "image/jpeg",
-          }),
-        ]}
-      />,
-    );
-
-    await waitFor(() => expect(urlMock).toHaveBeenCalledTimes(1));
+  it("без ссылки картинка остаётся иконкой, и список за ссылкой не идёт", () => {
+    render(<Harness />);
 
     const row = rowOf("Фото.jpg");
     expect(row.querySelector("img")).toBeNull();
     expect(within(row).getByText("Фото.jpg")).toBeTruthy();
+    // Ссылку запрашивает вкладка — и только по клику, а не строкой списка.
+    expect(urlMock).not.toHaveBeenCalled();
+  });
+
+  it("не отрисовавшаяся миниатюра сообщается наружу", () => {
+    const onThumbFailed = vi.fn();
+    render(
+      <Harness
+        thumbs={{ "f-photo": "https://signed.test/broken" }}
+        onThumbFailed={onThumbFailed}
+      />,
+    );
+
+    const image = rowOf("Фото.jpg").querySelector("img") as HTMLImageElement;
+    fireEvent.error(image);
+
+    expect(onThumbFailed).toHaveBeenCalledWith("f-photo");
   });
 });
 

@@ -32,6 +32,7 @@ const listFilesMock = vi.hoisted(() => vi.fn());
 const uploadFileMock = vi.hoisted(() => vi.fn());
 const deleteFileMock = vi.hoisted(() => vi.fn());
 const fileUrlMock = vi.hoisted(() => vi.fn());
+const fileUrlsMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/actions/spec-item-payment-plans", () => ({
   listPaymentPlans: listPlansMock,
@@ -53,6 +54,7 @@ vi.mock("@/actions/spec-item-files", () => ({
   uploadSpecItemFile: uploadFileMock,
   deleteSpecItemFile: deleteFileMock,
   getSpecItemFileUrl: fileUrlMock,
+  getSpecItemFileUrls: fileUrlsMock,
 }));
 
 /** Строка графика. */

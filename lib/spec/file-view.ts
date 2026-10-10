@@ -235,7 +235,7 @@ export const FILE_GROUP_OPTIONS: readonly {
   dotClass: string;
 }[] = [
   { value: "purchase", label: "Закупка", dotClass: "bg-bg-amber" },
-  { value: "documentation", label: "Документация", dotClass: "bg-fg-brand" },
+  { value: "documentation", label: "Документация", dotClass: "bg-bg-red" },
   { value: "visual", label: "Визуальные", dotClass: "bg-bg-green" },
   { value: "other", label: "Другое", dotClass: "bg-fg-dim" },
 ];

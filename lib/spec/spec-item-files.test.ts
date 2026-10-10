@@ -9,6 +9,7 @@ import {
   SPEC_ITEM_FILE_URL_TTL_SECONDS,
   deleteSpecItemFile,
   getSpecItemFileUrl,
+  getSpecItemFileUrls,
   listSpecItemFiles,
   updateSpecItemFile,
   uploadSpecItemFile,
@@ -1435,6 +1436,184 @@ describe("getSpecItemFileUrl", () => {
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.error.code).toBe("FAILED");
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/*  getUrls (пачка)                                                    */
+/* ------------------------------------------------------------------ */
+
+describe("getSpecItemFileUrls", () => {
+  it("подписывает пачку одним чтением строк", async () => {
+    const db = fakeDb(seedTables());
+    const store = fakeStorage();
+    const result = await getSpecItemFileUrls(db.client, store.storage, {
+      ...baseArgs,
+      fileIds: [FILE, FILE_WITH_PAYMENT],
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.urls.map((entry) => entry.fileId).sort()).toEqual(
+      [FILE, FILE_WITH_PAYMENT].sort(),
+    );
+    expect(store.signed.map((entry) => entry.path).sort()).toEqual(
+      [itemPath(ITEM, FILE), itemPath(ITEM, FILE_WITH_PAYMENT)].sort(),
+    );
+    // Всё — ОДНИМ чтением строк: в этом и смысл пачки.
+    expect(db.callsFor("spec_item_files")).toHaveLength(1);
+    expect(store.signed.every((e) => e.expiresIn === SPEC_ITEM_FILE_URL_TTL_SECONDS)).toBe(
+      true,
+    );
+    expect(new Date(result.urls[0].expiresAt).getTime()).toBeGreaterThan(Date.now());
+  });
+
+  it("в ответе только ссылки: записи файла и подписи оплаты здесь нет", async () => {
+    const db = fakeDb(seedTables());
+    const store = fakeStorage();
+    const result = await getSpecItemFileUrls(db.client, store.storage, {
+      ...baseArgs,
+      // Документ к оплате: одиночная подпись читала бы оплату ради записи,
+      // которой пачка не отдаёт.
+      fileIds: [FILE_WITH_PAYMENT],
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(Object.keys(result.urls[0]).sort()).toEqual(["expiresAt", "fileId", "url"]);
+    expect(db.callsFor("spec_item_payments")).toHaveLength(0);
+  });
+
+  it("повтор в пачке подписывается один раз", async () => {
+    const db = fakeDb(seedTables());
+    const store = fakeStorage();
+    const result = await getSpecItemFileUrls(db.client, store.storage, {
+      ...baseArgs,
+      fileIds: [FILE, FILE, FILE],
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.urls).toHaveLength(1);
+    expect(store.signed).toHaveLength(1);
+  });
+
+  it("файлы чужой позиции и чужой организации не подписываются", async () => {
+    const db = fakeDb(seedTables());
+    const store = fakeStorage();
+    const result = await getSpecItemFileUrls(db.client, store.storage, {
+      ...baseArgs,
+      fileIds: [FILE, FILE_OTHER_ITEM, FILE_OTHER_ORG],
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.urls.map((entry) => entry.fileId)).toEqual([FILE]);
+    expect(store.signed).toHaveLength(1);
+  });
+
+  it("удалённый файл и подменённый путь пропускаются, остальные подписываются", async () => {
+    const db = fakeDb(seedTables());
+    const store = fakeStorage();
+    const result = await getSpecItemFileUrls(db.client, store.storage, {
+      ...baseArgs,
+      fileIds: [FILE, FILE_DELETED, FILE_FOREIGN_PATH],
+    });
+
+    // Одна испорченная строка не должна оставлять список без превью.
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.urls.map((entry) => entry.fileId)).toEqual([FILE]);
+    expect(store.signed.map((entry) => entry.path)).toEqual([itemPath(ITEM, FILE)]);
+  });
+
+  it("пустой список не стоит ни чтения, ни подписи", async () => {
+    const db = fakeDb(seedTables());
+    const store = fakeStorage();
+    const result = await getSpecItemFileUrls(db.client, store.storage, {
+      ...baseArgs,
+      fileIds: [],
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.urls).toEqual([]);
+    expect(db.calls).toHaveLength(0);
+    expect(store.signed).toHaveLength(0);
+  });
+
+  it("не-uuid идентификаторы отсекаются до запроса к БД", async () => {
+    const db = fakeDb(seedTables());
+    const store = fakeStorage();
+    const result = await getSpecItemFileUrls(db.client, store.storage, {
+      ...baseArgs,
+      fileIds: ["не-uuid", "123"],
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.urls).toEqual([]);
+    expect(db.calls).toHaveLength(0);
+  });
+
+  it("несовпадающий project_id → NOT_FOUND, ничего не подписано", async () => {
+    const db = fakeDb(seedTables());
+    const store = fakeStorage();
+    const result = await getSpecItemFileUrls(db.client, store.storage, {
+      ...baseArgs,
+      projectId: OTHER_PROJECT,
+      fileIds: [FILE],
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe("NOT_FOUND");
+    expect(store.signed).toHaveLength(0);
+  });
+
+  it("чужая организация → NOT_FOUND, ничего не подписано", async () => {
+    const db = fakeDb(seedTables());
+    const store = fakeStorage();
+    const result = await getSpecItemFileUrls(db.client, store.storage, {
+      ...baseArgs,
+      orgId: OTHER_ORG,
+      fileIds: [FILE],
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe("NOT_FOUND");
+    expect(store.signed).toHaveLength(0);
+  });
+
+  it("ошибка БД → FAILED, а не пустая пачка", async () => {
+    const db = fakeDb(seedTables(), { select: true });
+    const store = fakeStorage();
+    const result = await getSpecItemFileUrls(db.client, store.storage, {
+      ...baseArgs,
+      fileIds: [FILE],
+    });
+
+    // Сбой чтения — отказ, а не «ссылок нет»: выдавать второе за первое значило
+    // бы объяснять человеку сбой Storage отсутствием превью.
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe("FAILED");
+  });
+
+  it("отказ Storage не роняет пачку, но и ссылок не отдаёт", async () => {
+    const db = fakeDb(seedTables());
+    const store = fakeStorage({ sign: true });
+    const result = await getSpecItemFileUrls(db.client, store.storage, {
+      ...baseArgs,
+      fileIds: [FILE, FILE_WITH_PAYMENT],
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.urls).toEqual([]);
+    // За подписью сходили по каждому файлу: отказ был на стороне Storage.
+    expect(store.signed).toHaveLength(2);
   });
 });
 

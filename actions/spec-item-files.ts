@@ -9,18 +9,20 @@ import { SPEC_ITEM_FILES_BUCKET } from "@/lib/spec/file-content";
 import {
   deleteSpecItemFile as deleteSpecItemFileCore,
   getSpecItemFileUrl as getSpecItemFileUrlCore,
+  getSpecItemFileUrls as getSpecItemFileUrlsCore,
   listSpecItemFiles as listSpecItemFilesCore,
   updateSpecItemFile as updateSpecItemFileCore,
   uploadSpecItemFile as uploadSpecItemFileCore,
   type SpecItemFileEntry,
   type SpecItemFileError,
+  type SpecItemFileSignedUrl,
   type SpecItemFilesStorage,
 } from "@/lib/spec/spec-item-files";
 
 /**
  * Все типы выше — только для аннотаций внутри файла: `import type` (и
  * `type`-модификатор) стирается компилятором, поэтому в манифест server actions
- * попадают ровно четыре экспортированные функции. Тот же приём в
+ * попадают ровно шесть экспортированных функций. Тот же приём в
  * `actions/spec-comments.ts` с `HistoryCommentEntry`.
  */
 
@@ -300,6 +302,49 @@ export async function getSpecItemFileUrl(
 
   if (!result.ok) return toFailure(result.error);
   return ok({ url: result.url, expiresAt: result.expiresAt });
+}
+
+/**
+ * Подписанные ссылки на ПАЧКУ файлов: миниатюры списка за один вызов.
+ *
+ * ── Зачем пачка ────────────────────────────────────────────────────────────
+ *
+ * Клиентский диспетчер Next.js отправляет server actions по одному, поэтому
+ * «двадцать картинок» через одиночную подпись — это двадцать последовательных
+ * запросов из браузера. Пачка делает из них один; почему подписи внутри него
+ * уходят параллельно — в докблоке ядра (`getSpecItemFileUrls`).
+ *
+ * ── Границы доверия ────────────────────────────────────────────────────────
+ *
+ * `fileIds` — клиентское значение, и оно не принимается на веру: форму
+ * идентификатора проверяет ядро, а принадлежность файла позиции и организации —
+ * САМА выборка (`org_id + spec_item_id + id`), а не сравнение прочитанного.
+ * Чужой, удалённый или подделанный идентификатор просто не находит строку и в
+ * ответ не попадает: узнать по ответу о чужой позиции нечего.
+ *
+ * Права здесь не проверяются намеренно — как и у одиночной подписи: это чтение,
+ * а чтение в проекте правами не описывается (`lib/permissions.ts`), и доступ к
+ * позиции уже ограничен организацией из сессии.
+ */
+export async function getSpecItemFileUrls(
+  orgSlug: string,
+  specItemId: string,
+  fileIds: string[],
+): Promise<ActionResult<SpecItemFileSignedUrl[]>> {
+  const { ctx, supabase, item, failed } = await resolveItem(orgSlug, specItemId);
+  if (failed) return fail("Не удалось подписать файлы");
+  if (!item) return fail("Позиция не найдена", "NOT_FOUND");
+
+  const result = await getSpecItemFileUrlsCore(supabase, storageOf(supabase), {
+    orgId: ctx.orgId,
+    projectId: item.project_id,
+    specItemId: item.id,
+    // Не массив означает клиента, а не список: у ядра контракт `string[]`, и
+    // разбирать чужую форму здесь — единственное место, где она может прийти.
+    fileIds: Array.isArray(fileIds) ? fileIds : [],
+  });
+
+  return result.ok ? ok(result.urls) : toFailure(result.error);
 }
 
 /**

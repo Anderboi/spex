@@ -48,6 +48,7 @@ import type { PaymentEntry } from "@/lib/spec/payment-types";
 import type { PaymentPlanEntry } from "@/lib/spec/payment-plan-types";
 import type { OrgRole } from "@/lib/permissions";
 import DocumentList from "./document-list";
+import { useSignedThumbnails } from "./use-signed-thumbnails";
 import { useStoredFileList } from "./use-file-list";
 import PaymentPlanForm, {
   type PaymentPlanFormValues,
@@ -379,6 +380,15 @@ export default function PaymentsTab({
   const isCurrent = loadedKey === specItemId;
   const loading = !isCurrent && (error === null || inFlight);
   const failed = !isCurrent && error !== null && !inFlight;
+
+  /**
+   * Миниатюры изображений: одна подпись на ВСЕ карточки сразу.
+   *
+   * Список документов здесь монтируется по одному на каждую оплату, а файлы
+   * вкладка читает один раз на всю позицию — подпись идёт туда же, иначе на
+   * десять карточек приходилось бы десять вызовов подписи вместо одного.
+   */
+  const thumbnails = useSignedThumbnails(orgSlug, specItemId, files, isCurrent);
 
   const busyHere = busy?.itemKey === specItemId ? busy : null;
   const actionErrorHere =
@@ -975,6 +985,8 @@ export default function PaymentsTab({
                     specItemId={specItemId}
                     files={files.filter((file) => file.paymentId === payment.id)}
                     loading={false}
+                    thumbs={thumbnails.urls}
+                    onThumbFailed={thumbnails.onFailed}
                     paymentId={payment.id}
                     canWrite={canWrite}
                     onUploaded={onFileUploaded}

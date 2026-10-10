@@ -241,6 +241,25 @@ export type GetSpecItemFileUrlResult =
   | { ok: true; url: string; expiresAt: string; file: SpecItemFileEntry }
   | { ok: false; error: SpecItemFileError };
 
+/**
+ * Подписанная ссылка на файл: то, ради чего запрашивают пачку.
+ *
+ * Отдельный тип, а не `GetSpecItemFileUrlResult`: пачке не нужна запись файла
+ * целиком (`file`) и не нужна подпись оплаты — вызывающий уже держит список, а
+ * строка миниатюры рисуется по одной ссылке. Здесь ровно то, что пойдёт в `src`
+ * превью, и ничего сверх этого.
+ */
+export type SpecItemFileSignedUrl = {
+  fileId: string;
+  url: string;
+  /** Когда ссылка перестанет работать: одна на всю пачку — подписаны вместе. */
+  expiresAt: string;
+};
+
+export type GetSpecItemFileUrlsResult =
+  | { ok: true; urls: SpecItemFileSignedUrl[] }
+  | { ok: false; error: SpecItemFileError };
+
 export type DeleteSpecItemFileResult =
   | {
       ok: true;
@@ -1087,6 +1106,132 @@ export async function getSpecItemFileUrl(
     console.error("[getSpecItemFileUrl]", cause);
     return failed("Не удалось открыть файл");
   }
+}
+
+/* ------------------------------------------------------------------ */
+/*  getUrls (пачка)                                                    */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Подписанные ссылки на ПАЧКУ файлов: одно чтение строк, одна пачка подписей.
+ *
+ * ── Зачем пачка ────────────────────────────────────────────────────────────
+ *
+ * Next.js отправляет server actions ПО ОДНОМУ на клиента («Next.js dispatches
+ * Server Actions one at a time per client… the second waits for the first»,
+ * `docs/01-app/02-guides/server-actions.md`). Поэтому список из двадцати
+ * картинок, подписывавший себя по одной, — это двадцать ПОСЛЕДОВАТЕЛЬНЫХ
+ * круговых поездок: превью проступали секундами, а очередь действий на клиенте
+ * была занята, так что клик «открыть» ждал хвоста подписей. Здесь на весь
+ * список — одно чтение строк и одна пачка подписей.
+ *
+ * ── Почему подписи уходят параллельно ОТСЮДА ───────────────────────────────
+ *
+ * Запрет на параллельность — свойство КЛИЕНТСКОГО диспетчера действий, а не
+ * серверной функции: «Server-side, an action runs in its own request and can do
+ * anything an async function can do» (там же). Поэтому `Promise.all` уместен
+ * здесь и неуместен в браузере.
+ *
+ * ── Что не подписывается и почему это не отказ ─────────────────────────────
+ *
+ * Строка, которой нет, мягко удалена или чей путь не по ожидаемому префиксу, в
+ * ответ просто не попадает: одна испорченная строка не должна оставлять список
+ * без превью. Молчания при этом нет — каждая пропущенная строка уходит в лог.
+ * Отказ Storage на одной подписи не отменяет остальные. Ошибка ЧТЕНИЯ строк —
+ * другое дело: она отвечает `FAILED`, потому что это сбой, а не «файла нет».
+ *
+ * Записи файла (`toEntry`) и подписи оплаты (`paymentInfoOf`) здесь нет
+ * намеренно: одиночная операция отдаёт запись, потому что клиент обновляет ею
+ * строку, — а пачке её никто не читает, и лишний запрос за оплатой был бы
+ * работой впустую.
+ */
+export async function getSpecItemFileUrls(
+  db: SpecItemFilesDb,
+  storage: SpecItemFilesStorage,
+  args: {
+    orgId: string;
+    projectId: string;
+    specItemId: string;
+    fileIds: string[];
+    /** Переопределение TTL (тесты); по умолчанию — 5 минут. */
+    expiresIn?: number;
+  },
+): Promise<GetSpecItemFileUrlsResult> {
+  // Мусорные идентификаторы отсекаются ДО запроса — как и в одиночной подписи:
+  // PostgREST ответил бы ошибкой приведения типа вместо «не найдено».
+  const requested = Array.from(
+    new Set(args.fileIds.filter((fileId) => UUID_PATTERN.test(fileId))),
+  );
+
+  // Пустой запрос не стоит ни чтения, ни проверки позиции: подписывать нечего.
+  if (requested.length === 0) return { ok: true, urls: [] };
+
+  const item = await resolveSpecItem(db, {
+    orgId: args.orgId,
+    projectId: args.projectId,
+    specItemId: args.specItemId,
+  });
+  if (!item.ok) return { ok: false, error: item.error };
+
+  const { data, error } = await db
+    .from("spec_item_files")
+    .select(FILE_COLUMNS)
+    .eq("org_id", args.orgId)
+    .eq("spec_item_id", args.specItemId)
+    .in("id", requested)
+    .is("deleted_at", null);
+
+  if (error) {
+    console.error("[getSpecItemFileUrls]", error.message);
+    return failed("Не удалось подписать файлы");
+  }
+
+  const expiresIn = args.expiresIn ?? SPEC_ITEM_FILE_URL_TTL_SECONDS;
+  const expiresAt = new Date(Date.now() + expiresIn * 1000).toISOString();
+
+  const signed = await Promise.all(
+    ((data ?? []) as FileRow[]).map(async (row) => {
+      if (
+        !isSpecItemFilePathExpected({
+          storagePath: row.storage_path,
+          orgId: args.orgId,
+          specItemId: args.specItemId,
+        })
+      ) {
+        console.error("[getSpecItemFileUrls] неожиданный storage_path", row.id);
+        return null;
+      }
+
+      try {
+        const result = await storage.createSignedUrl({
+          path: row.storage_path,
+          expiresIn,
+          // Миниатюра — превью в браузере, а не скачивание.
+          download: null,
+        });
+
+        if (result.error || !result.data?.signedUrl) {
+          console.error(
+            "[getSpecItemFileUrls] sign",
+            result.error?.message ?? "нет ссылки",
+          );
+          return null;
+        }
+
+        return { fileId: row.id, url: result.data.signedUrl, expiresAt };
+      } catch (cause) {
+        // Исключение на одной подписи не отменяет остальные: превью — не тот
+        // случай, когда одна сетевая ошибка должна стоить всего списка.
+        console.error("[getSpecItemFileUrls]", cause);
+        return null;
+      }
+    }),
+  );
+
+  return {
+    ok: true,
+    urls: signed.filter((entry): entry is SpecItemFileSignedUrl => entry !== null),
+  };
 }
 
 /* ------------------------------------------------------------------ */

@@ -8,6 +8,7 @@ import { can } from "@/lib/permissions";
 import type { OrgRole } from "@/lib/permissions";
 import type { SpecItemFileEntry } from "@/lib/spec/spec-item-files";
 import DocumentList from "./document-list";
+import { useSignedThumbnails } from "./use-signed-thumbnails";
 import { useStoredFileList } from "./use-file-list";
 
 /**
@@ -167,6 +168,15 @@ export default function FilesTab({
   const loading = !isCurrent && (error === null || inFlight);
   const failed = !isCurrent && error !== null && !inFlight;
 
+  /**
+   * Миниатюры изображений: одна подпись на весь список.
+   *
+   * Чтение — здесь, а не в списке, по той же причине, по которой здесь чтение
+   * самих файлов: список показывает уже полученное. Пока список не прочитан,
+   * подписывать нечего — отсюда `isCurrent`.
+   */
+  const thumbnails = useSignedThumbnails(orgSlug, specItemId, files, isCurrent);
+
   return (
     <div className="flex flex-col gap-2 py-4">
       {failed && (
@@ -187,6 +197,8 @@ export default function FilesTab({
           specItemId={specItemId}
           files={files}
           loading={loading}
+          thumbs={thumbnails.urls}
+          onThumbFailed={thumbnails.onFailed}
           canWrite={canWrite}
           onUploaded={onUploaded}
           onChanged={onChanged}

@@ -24,6 +24,7 @@ const uploadMock = vi.hoisted(() => vi.fn());
 const deleteMock = vi.hoisted(() => vi.fn());
 const updateMock = vi.hoisted(() => vi.fn());
 const urlMock = vi.hoisted(() => vi.fn());
+const urlsMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/actions/spec-item-files", () => ({
   listSpecItemFiles: listMock,
@@ -31,6 +32,7 @@ vi.mock("@/actions/spec-item-files", () => ({
   deleteSpecItemFile: deleteMock,
   updateSpecItemFile: updateMock,
   getSpecItemFileUrl: urlMock,
+  getSpecItemFileUrls: urlsMock,
 }));
 
 /** Файл, который отдаёт список. */

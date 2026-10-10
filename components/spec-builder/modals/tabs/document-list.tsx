@@ -39,7 +39,6 @@ import {
   FILE_GROUP_OPTIONS,
   fileGroupDotClass,
   fileGroupOf,
-  fileKindOf,
   isLeavingDropZone,
   type SpecItemFileGroup,
 } from "@/lib/spec/file-view";
@@ -88,9 +87,9 @@ import type { FileList } from "./use-file-list";
  *
  * Ссылка запрашивается ТОЛЬКО по клику и только на один файл: заранее
  * подписывать список нельзя. Исключение — миниатюры изображений: без ссылки
- * превью не нарисовать, поэтому для картинок ссылка запрашивается один раз и
- * кладётся в кэш этого списка; ошибка подписи или декодирования не мешает
- * строке — остаётся иконка.
+ * превью не нарисовать, поэтому картинки списка подписывает ВКЛАДКА — одним
+ * вызовом на весь экран (`use-signed-thumbnails`), — а сюда ссылки приходят
+ * пропом; ошибка подписи или декодирования не мешает строке — остаётся иконка.
  *
  * Правка (вид документа, имя) уходит отдельным действием и в ответе приносит
  * запись сервера: строка обновляется ею, а не локальной догадкой.
@@ -126,30 +125,16 @@ export type DocumentListProps = {
   orgSlug: string;
   specItemId: string;
   files: SpecItemFileEntry[];
-  /** Идёт загрузка списка: показываются строки-заготовки. */
   loading: boolean;
-  /** Оплата, к которой прикрепляется загруженный документ; `null` — ни к чему. */
+  thumbs: Record<string, string>;
+  onThumbFailed: (fileId: string) => void;
   paymentId?: string | null;
-  /** Право на загрузку, правку и удаление (`record:create`); иначе только чтение. */
   canWrite: boolean;
   onUploaded: (entry: SpecItemFileEntry) => void;
   onChanged: (entry: SpecItemFileEntry) => void;
   onDeleted: (fileId: string) => void;
-  /**
-   * Выполнить правку с оптимистичным показом результата.
-   *
-   * Приходит из `use-file-list`: оптимистичное состояние живёт рядом со списком
-   * (у вкладки), а не внутри показа, поэтому список только сообщает, ЧТО
-   * показать сразу. Отказ сервера откатывает показ сам React, а список
-   * показывает текст отказа у строки.
-   */
   mutate: FileList["mutate"];
-  /**
-   * Заголовок над списком; `null` — без заголовка (в карточке оплаты он лишний:
-   * строка оплаты уже подписана).
-   */
   title?: string | null;
-  /** Подпись пустого состояния. */
   emptyHint?: string;
 };
 
@@ -182,6 +167,8 @@ export default function DocumentList({
   specItemId,
   files,
   loading,
+  thumbs,
+  onThumbFailed,
   paymentId = null,
   canWrite,
   onUploaded,
@@ -223,8 +210,6 @@ export default function DocumentList({
   const [pendingDelete, setPendingDelete] = useState<SpecItemFileEntry | null>(null);
   /** Идёт удаление: кнопка подтверждения выключена. */
   const [deleting, setDeleting] = useState(false);
-  /** Подписанные ссылки на миниатюры изображений: путь → URL. */
-  const [thumbs, setThumbs] = useState<Record<string, string>>({});
   /**
    * Файл, у которого открыт селект вида документа.
    *
@@ -238,8 +223,6 @@ export default function DocumentList({
 
   /** Скрытый `<input type="file">`: открывается кнопкой «Добавить файл». */
   const pickerRef = useRef<HTMLInputElement>(null);
-  /** Уже запрошенные миниатюры: повторный запрос по той же строке не нужен. */
-  const thumbsRequestedRef = useRef(new Set<string>());
   /** Актуальная позиция: ответы прошлых позиций не должны попадать в список. */
   const specItemIdRef = useRef(specItemId);
   useEffect(() => {
@@ -306,47 +289,6 @@ export default function DocumentList({
   const isAnyFile = files.length > 0;
   /** Большой список — группы свёрнуты по умолчанию (кроме выбранного фильтра). */
   const groupsStartCollapsed = files.length > COLLAPSE_FROM;
-
-  /* ------------------------------------------------------------------ */
-  /*  Миниатюры изображений                                              */
-  /* ------------------------------------------------------------------ */
-
-  /**
-   * Подписать изображения списка — по одной ссылке на файл, один раз.
-   *
-   * Исключение из правила «ссылка только по клику»: без ссылки превью не
-   * нарисовать, а превью и есть смысл картинки в списке. Ошибка подписи ничего
-   * не ломает — строка остаётся с иконкой вида.
-   *
-   * Кэш живёт в состоянии списка и намеренно НЕ переживает размонтирование:
-   * ссылка короткоживущая (5 минут), и хранить её дольше — держать протухший
-   * URL. Повторное открытие подпишет заново.
-   *
-   * Эффект перезапускается на каждое изменение `files`, но повторных запросов не
-   * делает: уже запрошенные строки отсекает `thumbsRequestedRef`.
-   */
-  useEffect(() => {
-    if (!isCurrent) return;
-
-    for (const file of files) {
-      if (thumbsRequestedRef.current.has(file.id)) continue;
-      if (fileKindOf(file) !== "image") continue;
-
-      thumbsRequestedRef.current.add(file.id);
-      const forItem = specItemId;
-
-      void (async () => {
-        try {
-          const res = await getSpecItemFileUrl(orgSlug, forItem, file.id);
-          if (specItemIdRef.current !== forItem) return;
-          if (!res.success) return;
-          setThumbs((current) => ({ ...current, [file.id]: res.data.url }));
-        } catch (cause) {
-          console.error("[DocumentList] миниатюра", cause);
-        }
-      })();
-    }
-  }, [files, isCurrent, orgSlug, specItemId]);
 
   /* ------------------------------------------------------------------ */
   /*  Загрузка                                                           */
@@ -921,13 +863,7 @@ export default function DocumentList({
                     file={file}
                     canWrite={canWrite}
                     thumb={thumbs[file.id] ?? null}
-                    onThumbFailed={(fileId) =>
-                      setThumbs((current) => {
-                        const next = { ...current };
-                        delete next[fileId];
-                        return next;
-                      })
-                    }
+                    onThumbFailed={onThumbFailed}
                     onOpen={(target) => void openFile(target, false)}
                     onDownload={(target) => void openFile(target, true)}
                     onRename={startRename}
