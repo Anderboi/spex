@@ -120,6 +120,22 @@ describe("PaymentForm · вид записи при создании", () => {
     expect(kindSelect().value).toBe("payment");
   });
 
+  it("вид записи спрятан в «Дополнительно», но остаётся доступным", () => {
+    // В подавляющем большинстве случаев вносят оплату, поэтому выбор вида не
+    // должен стоять первым полем. Возврат при этом не пропадает: он открывается
+    // в том же блоке — иначе возможность, сделанную в задаче 03, стало бы нечем
+    // воспользоваться.
+    setup();
+
+    const details = kindSelect().closest("details");
+    expect(details).not.toBeNull();
+    expect(details?.querySelector("summary")?.textContent).toContain(
+      "Дополнительно",
+    );
+    // По умолчанию блок закрыт — в этом и смысл переноса.
+    expect((details as HTMLDetailsElement).open).toBe(false);
+  });
+
   it("в списке видов есть ровно оплата и возврат", () => {
     setup();
 

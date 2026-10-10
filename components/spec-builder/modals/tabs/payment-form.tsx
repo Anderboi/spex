@@ -246,33 +246,51 @@ export default function PaymentForm({
         </DialogHeader>
 
         <div className="flex flex-col gap-3">
-          <Field label="Вид записи">
-            {/*
-              Селект, а не переключатель: вариантов ровно два, и нативный
-              `select` уже используется соседним полем «Строка графика».
+          {/*
+            Вид записи убран в «Дополнительно»: в подавляющем большинстве случаев
+            вносят оплату, и поле не должно стоять первым. Возврат никуда не
+            делся — он открывается здесь же, и подпись кнопки отправки за видом
+            следит даже при закрытом блоке, поэтому выбор виден и без раскрытия.
 
-              `aria-label` совпадает с видимой подписью: `Field` рисует `<label>`
-              без `htmlFor`, поэтому без этого доступного имени у селекта его не
-              было бы вовсе — и диктор, и тест искали бы поле безымянным.
-            */}
-            <select
-              aria-label="Вид записи"
-              value={kind}
-              onChange={(event) =>
-                setKind(event.target.value as PaymentRecordKind)
-              }
-              // Вид существующей записи не меняется: это другая проводка, а не
-              // правка (см. заголовок модуля).
-              disabled={saving || payment !== null}
-              className="h-9 w-full rounded-lg border border-border-muted bg-bg-white px-2 font-sans text-[13.5px] text-fg disabled:cursor-not-allowed disabled:opacity-60"
-            >
-              {PAYMENT_KINDS.map((value) => (
-                <option key={value} value={value}>
-                  {PAYMENT_KIND_LABEL[value]}
-                </option>
-              ))}
-            </select>
-          </Field>
+            При правке блок остаётся, но селект внутри заблокирован: смена вида —
+            другая проводка, а не правка (см. заголовок модуля). Показывать
+            заблокированное поле полезно: видно, что это возврат, а не оплата.
+          */}
+          <details className="rounded-lg border border-border-muted px-3 py-2">
+            <summary className="cursor-pointer text-[12.5px] text-fg-muted select-none">
+              Дополнительно
+            </summary>
+            <div className="mt-2.5">
+              <Field label="Вид записи">
+                {/*
+                  Селект, а не переключатель: вариантов ровно два, и нативный
+                  `select` уже используется соседним полем «Строка графика».
+
+                  `aria-label` совпадает с видимой подписью: `Field` рисует
+                  `<label>` без `htmlFor`, поэтому без этого доступного имени у
+                  селекта его не было бы вовсе — и диктор, и тест искали бы поле
+                  безымянным.
+                */}
+                <select
+                  aria-label="Вид записи"
+                  value={kind}
+                  onChange={(event) =>
+                    setKind(event.target.value as PaymentRecordKind)
+                  }
+                  // Вид существующей записи не меняется: это другая проводка, а не
+                  // правка (см. заголовок модуля).
+                  disabled={saving || payment !== null}
+                  className="h-9 w-full rounded-lg border border-border-muted bg-bg-white px-2 font-sans text-[13.5px] text-fg disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {PAYMENT_KINDS.map((value) => (
+                    <option key={value} value={value}>
+                      {PAYMENT_KIND_LABEL[value]}
+                    </option>
+                  ))}
+                </select>
+              </Field>
+            </div>
+          </details>
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Field label="Сумма, ₽">
