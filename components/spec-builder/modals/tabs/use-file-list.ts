@@ -119,8 +119,6 @@ export type FileList = {
   ) => Promise<T>;
   /** Записать в список ответ сервера (без оптимистичного состояния). */
   apply: (action: FileListAction) => void;
-  /** Идёт ли переход: список показывает, что работа в процессе. */
-  pending: boolean;
 };
 
 export function useFileList(
@@ -130,7 +128,7 @@ export function useFileList(
   ) => void,
 ): FileList {
   const [optimistic, setOptimistic] = useOptimistic(stored, applyFileListAction);
-  const [pending, startTransition] = useTransition();
+  const [, startTransition] = useTransition();
 
   /**
    * Оптимистичный показ и запуск операции в ОДНОМ переходе.
@@ -171,7 +169,7 @@ export function useFileList(
     [onStoredChange],
   );
 
-  return { files: optimistic, mutate, apply, pending };
+  return { files: optimistic, mutate, apply };
 }
 
 /**
