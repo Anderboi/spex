@@ -239,8 +239,9 @@ export async function uploadSpecItemFile(
     orgId: ctx.orgId,
     projectId: item.project_id,
     specItemId: item.id,
-    // Автор — из сессии, а не из формы.
+    // Автор — из сессии, а не из формы: и идентификатор, и имя.
     uploadedBy: ctx.userId,
+    uploadedByName: ctx.user.name ?? null,
     // Пустая строка и отсутствие поля одинаково означают «без оплаты» —
     // разбор живёт в ядре (`normalizePaymentIdFilter`).
     paymentId: textField(formData, "payment_id"),
@@ -292,6 +293,9 @@ export async function getSpecItemFileUrl(
     specItemId: item.id,
     fileId,
     download: forDownload,
+    // Имя автора нужно только ответу: строку клиент обновляет именно им, и без
+    // этого после открытия файла подпись автора пропала бы.
+    uploadedByName: ctx.user.name ?? null,
   });
 
   if (!result.ok) return toFailure(result.error);
@@ -338,6 +342,9 @@ export async function updateSpecItemFile(
     fileId,
     category: textField(formData, "category"),
     fileName: textField(formData, "file_name"),
+    // Имя автора — из сессии и только для ответа: в БД его нет, а строка
+    // обновляется записью сервера, поэтому иначе подпись автора пропадала бы.
+    uploadedByName: ctx.user.name ?? null,
   });
 
   if (!result.ok) return toFailure(result.error);

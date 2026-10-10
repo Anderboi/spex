@@ -906,6 +906,25 @@ describe("uploadSpecItemFile: успех", () => {
     expect(store.uploads[0].path.endsWith(".pdf")).toBe(true);
   });
 
+  it("ответ загрузки несёт имя автора, а не только его идентификатор", async () => {
+    // Имя автора в БД не хранится (там ссылка на `users`), а строка списка
+    // встаёт ровно такой, какой её вернул сервер: без имени новая строка
+    // выглядела бы безымянной рядом со старыми до следующего чтения списка.
+    const db = fakeDb(seedTables());
+    const store = fakeStorage();
+    const result = await uploadSpecItemFile(db.client, store.storage, {
+      ...baseArgs,
+      uploadedBy: USER,
+      uploadedByName: "Andy",
+      data: uploadData(),
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.file.uploadedBy).toBe(USER);
+    expect(result.file.uploadedByName).toBe("Andy");
+  });
+
   it("вид документа по умолчанию — document", async () => {
     const db = fakeDb(seedTables());
     const store = fakeStorage();

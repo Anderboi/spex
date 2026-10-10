@@ -21,6 +21,9 @@ const sessionMock = vi.hoisted(() => ({
     orgId: "00000000-0000-4000-8000-000000000000",
     orgSlug: "org-1",
     role: "member" as "owner" | "admin" | "member" | "viewer",
+    // Имя автора приходит из сессии (`ctx.user.name`): действий оно не
+    // касается, но уходит в ответ — по нему строка показывает автора.
+    user: { name: "Andy" },
   },
 }));
 
@@ -645,8 +648,43 @@ describe("updateSpecItemFile: права и разбор формы", () => {
     expect(result.code).toBe("FORBIDDEN");
   });
 
-  it("смена вида из формы доходит до строки", async () => {
-    const result = await updateSpecItemFile(
+  it("ответ загрузки несёт имя автора: строка не должна стать безымянной", async () => {
+    // Именно этот случай ломался: запись вставала в список ровно такой, какой
+    // её вернул сервер, а имя автора в БД не хранится (там ссылка на `users`).
+    // Запрос на список при этом делается только при следующем открытии, поэтому
+    // новая строка выглядела безымянной рядом со старыми.
+    const result = await uploadSpecItemFile(ORG, ITEM, formOf());
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.data.uploadedBy).toBe("user-1");
+    expect(result.data.uploadedByName).toBe("Andy");
+  });
+
+  it("ответ правки тоже несёт имя автора", async () => {
+    const form = new FormData();
+    form.set("category", "receipt");
+
+    const result = await updateSpecItemFile(ORG, ITEM, FILE, form);
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.data.file.uploadedByName).toBe("Andy");
+  });
+
+  it("ссылка выдаётся, а строка при открытии не перечитывается", async () => {
+    const result = await getSpecItemFileUrl(ORG, ITEM, FILE);
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    // Ответ ссылки — только URL и срок: список от него не обновляется, поэтому
+    // имя автора здесь не нужно (оно приходит с загрузкой и правкой, а при
+    // чтении списка — из `users`).
+    expect(result.data.url).toBeTruthy();
+    expect(Object.keys(result.data).sort()).toEqual(["expiresAt", "url"]);
+  });
+
+  it("смена вида из формы доходит до строки", async () => {    const result = await updateSpecItemFile(
       ORG,
       ITEM,
       FILE,

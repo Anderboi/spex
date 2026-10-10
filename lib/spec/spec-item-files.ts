@@ -302,6 +302,15 @@ export type UploadSpecItemFileInput = {
   specItemId: string;
   uploadedBy: string | null;
   /**
+   * Имя автора — как его знает сервер (`ctx.user.name`), а не как его прислал
+   * клиент.
+   *
+   * Нужно в ОТВЕТЕ, а не только при чтении списка: загруженная запись встаёт в
+   * список ровно такой, какой её вернул сервер (второго запроса клиент не
+   * делает), и без имени новая строка выглядела бы безымянной рядом со старыми.
+   */
+  uploadedByName?: string | null;
+  /**
    * Оплата, к которой прикрепляется документ.
    *
    * `null`/`undefined`/пустая строка — обычный файл позиции. Значение приходит
@@ -955,7 +964,10 @@ export async function uploadSpecItemFile(
       return failed("Не удалось сохранить файл");
     }
 
-    return { ok: true, file: toEntry(data as FileRow, payment.payment) };
+    return {
+      ok: true,
+      file: toEntry(data as FileRow, payment.payment, input.uploadedByName ?? null),
+    };
   } catch (cause) {
     // Сетевой сбой может вылететь исключением на любом шаге. Если объект уже
     // загружен — компенсируем, иначе оставили бы orphan.
@@ -999,6 +1011,14 @@ export async function getSpecItemFileUrl(
     expiresIn?: number;
     /** `true` — отдать файл вложением под его оригинальным именем. */
     download?: boolean;
+    /**
+     * Имя автора загрузки — как его знает сервер (`ctx.user.name`).
+     *
+     * Нужно только для ответа: в БД имени автора нет (там ссылка на `users`),
+     * а вызывающий обновляет строку именно ответом. Иначе после открытия файла
+     * строка теряла бы автора.
+     */
+    uploadedByName?: string | null;
   },
 ): Promise<GetSpecItemFileUrlResult> {
   const item = await resolveSpecItem(db, args);
@@ -1057,7 +1077,11 @@ export async function getSpecItemFileUrl(
       ok: true,
       url: signed.signedUrl,
       expiresAt: new Date(Date.now() + expiresIn * 1000).toISOString(),
-      file: toEntry(data, await paymentInfoOf(db, args, data.payment_id)),
+      file: toEntry(
+        data,
+        await paymentInfoOf(db, args, data.payment_id),
+        args.uploadedByName ?? null,
+      ),
     };
   } catch (cause) {
     console.error("[getSpecItemFileUrl]", cause);
@@ -1215,6 +1239,8 @@ export async function updateSpecItemFile(
     category?: string | null;
     /** Новое имя файла; `undefined` — не менять. */
     fileName?: string | null;
+    /** Имя автора загрузки: нужно только для ответа (см. `getSpecItemFileUrl`). */
+    uploadedByName?: string | null;
   },
 ): Promise<UpdateSpecItemFileResult> {
   const item = await resolveSpecItem(db, args);
@@ -1268,7 +1294,11 @@ export async function updateSpecItemFile(
   if (Object.keys(patch).length === 0) {
     return {
       ok: true,
-      file: toEntry(row, await paymentInfoOf(db, args, row.payment_id)),
+      file: toEntry(
+        row,
+        await paymentInfoOf(db, args, row.payment_id),
+        args.uploadedByName ?? null,
+      ),
       changed: false,
     };
   }
@@ -1295,7 +1325,11 @@ export async function updateSpecItemFile(
 
   return {
     ok: true,
-    file: toEntry(updated, await paymentInfoOf(db, args, updated.payment_id)),
+    file: toEntry(
+      updated,
+      await paymentInfoOf(db, args, updated.payment_id),
+      args.uploadedByName ?? null,
+    ),
     changed: true,
   };
 }
