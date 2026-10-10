@@ -105,7 +105,7 @@ export function QtyStepper({
         )}
       >
         <InputGroupInput
-          className={cn("text-right font-mono px-0! tabular-nums", fieldText)}
+          className={cn("text-right //font-mono px-0! tabular-nums", fieldText)}
           value={draft ?? qty}
           readOnly={!editable}
           inputMode="decimal"

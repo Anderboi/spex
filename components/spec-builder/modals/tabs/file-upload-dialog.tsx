@@ -244,8 +244,8 @@ export default function FileUploadDialog({
         if (!next && !uploading) onClose();
       }}
     >
-      <DialogContent className="sm:max-w-115 px-0" showCloseButton={!uploading}>
-        <DialogHeader className="px-4">
+      <DialogContent className="sm:max-w-115" showCloseButton={!uploading}>
+        <DialogHeader>
           <DialogTitle className="text-base font-semibold">
             Загрузка файла
           </DialogTitle>
@@ -257,7 +257,7 @@ export default function FileUploadDialog({
 
         {/* Выбранный файл: до загрузки — обычная строка, во время — uploading,
             после отказа — error. Тот же `Attachment`, что и в списке. */}
-        <div className="px-4">
+       
           <Attachment
             size="sm"
             state={
@@ -284,14 +284,14 @@ export default function FileUploadDialog({
               )}
             </AttachmentActions>
           </Attachment>
-        </div>
+        
 
         <RadioGroup
           value={category}
           onValueChange={(value) => setCategory(value as SpecItemFileCategory)}
           disabled={uploading}
           aria-label="Вид документа"
-          className="gap-2 px-4 sm:grid sm:grid-cols-2"
+          className="gap-2 sm:grid sm:grid-cols-2"
         >
           {CATEGORY_OPTIONS.map((option) => (
             <label

@@ -1,7 +1,12 @@
 "use client";
 import { useState } from "react";
 import { cn, fmt } from "@/lib/utils";
-import { Input } from '@/components/ui/input';
+import { Input } from "@/components/ui/input";
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupText,
+} from "@/components/ui/input-group";
 
 export function PriceField({
   value,
@@ -26,36 +31,41 @@ export function PriceField({
   }
 
   return (
-    <Input
-      inputMode="decimal"
-      aria-label="Цена за единицу"
-      readOnly={readOnly}
-      value={draft ?? (value ? fmt(value) : "")}
-      placeholder="—"
-      onFocus={(e) => {
-        if (readOnly) return;
-        const target = e.target;
+    <InputGroup className="w-full min-w-0 border-0">
+      <Input
+        inputMode="decimal"
+        aria-label="Цена за единицу"
+        readOnly={readOnly}
+        value={draft ?? (value ? fmt(value) : "")}
+        placeholder="—"
+        onFocus={(e) => {
+          if (readOnly) return;
+          const target = e.target;
 
-        setDraft(value ? String(value) : "");
-        setTimeout(() => {
-          target.select();
-        }, 0);
-      }}
-      onChange={(e) => setDraft(e.target.value)}
-      onBlur={() => {
-        if (draft !== null) onCommit(draft);
-        setDraft(null);
-      }}
-      onKeyDown={(e) => {
-        if (e.key === "Enter") e.currentTarget.blur();
-      }}
-      className={cn(
-        className,
-        "w-full min-w-0 rounded border border-transparent bg-transparent focus:px-1 py-1 text-left font-mono text-[13px] tabular-nums focus:outline-none h-6",
-        readOnly
-          ? "cursor-default text-fg-secondary"
-          : "hover:border-border-muted focus:border-fg-brand",
-      )}
-    />
+          setDraft(value ? String(value) : "");
+          setTimeout(() => {
+            target.select();
+          }, 0);
+        }}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={() => {
+          if (draft !== null) onCommit(draft);
+          setDraft(null);
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") e.currentTarget.blur();
+        }}
+        className={cn(
+          className,
+          "w-full min-w-0 rounded border border-transparent bg-transparent  focus:px-1 py-1 text-left font-mono text-[13px] tabular-nums focus:outline-none h-6",
+          readOnly
+            ? "cursor-default text-fg-secondary"
+            : "hover:border-border-muted focus:border-fg-brand",
+        )}
+      />
+      <InputGroupAddon align="inline-end">
+        <InputGroupText className="text-lg">₽</InputGroupText>
+      </InputGroupAddon>
+    </InputGroup>
   );
 }
