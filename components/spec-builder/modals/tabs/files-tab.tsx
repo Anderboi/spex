@@ -6,13 +6,9 @@ import { Button } from "@/components/ui/button";
 import { listSpecItemFiles } from "@/actions/spec-item-files";
 import { can } from "@/lib/permissions";
 import type { OrgRole } from "@/lib/permissions";
-import {
-  applyChangedFile,
-  applyDeletedFile,
-  applyUploadedFile,
-} from "@/lib/spec/file-view";
 import type { SpecItemFileEntry } from "@/lib/spec/spec-item-files";
 import DocumentList from "./document-list";
+import { useStoredFileList } from "./use-file-list";
 
 /**
  * Вкладка «Файлы» карточки позиции: все документы позиции.
@@ -62,7 +58,14 @@ export default function FilesTab({
   /** Роль в организации: гейт для кнопок записи. Проверку повторяет сервер. */
   role?: OrgRole | null;
 }) {
-  const [files, setFiles] = useState<SpecItemFileEntry[]>([]);
+  /**
+   * Список документов: данные из БД плюс оптимистичные правки.
+   *
+   * Состояние держит хук (`use-file-list`), потому что тот же список ведёт
+   * вкладка «Платежи»: правило «правка показывается сразу, отказ её откатывает»
+   * должно быть одно на обе вкладки.
+   */
+  const { files, apply, mutate } = useStoredFileList();
   const [error, setError] = useState<string | null>(null);
   /** Для какой позиции пришли `files`. Не совпало с текущей — идёт загрузка. */
   const [loadedKey, setLoadedKey] = useState<string | null>(null);
@@ -110,7 +113,7 @@ export default function FilesTab({
       if (result === null) return;
 
       if (result.ok) {
-        setFiles(result.files);
+        apply({ type: "replace", files: result.files });
         setLoadedKey(specItemId);
         setError(null);
       } else {
@@ -140,22 +143,25 @@ export default function FilesTab({
   /**
    * Ответы операций над строкой.
    *
-   * Само правило — в `lib/spec/file-view` (`applyUploadedFile` и соседние):
-   * те же три ответа применяет карточка оплаты, и копия здесь разошлась бы с
-   * ней молча. Сверка позиции — в `DocumentList`: он не отдаёт ответ чужой
-   * позиции наружу.
+   * Правило применения — в `use-file-list` (та же функция, что считает
+   * оптимистичное состояние списка): ответ сервера ЗАМЕНЯЕТ оптимистичную
+   * догадку, поэтому обе ветки не могут разойтись. Сверка позиции — в
+   * `DocumentList`: он не отдаёт ответ чужой позиции наружу.
    */
-  const onUploaded = useCallback((entry: SpecItemFileEntry) => {
-    setFiles((current) => applyUploadedFile(current, entry));
-  }, []);
+  const onUploaded = useCallback(
+    (entry: SpecItemFileEntry) => apply({ type: "uploaded", entry }),
+    [apply],
+  );
 
-  const onChanged = useCallback((entry: SpecItemFileEntry) => {
-    setFiles((current) => applyChangedFile(current, entry));
-  }, []);
+  const onChanged = useCallback(
+    (entry: SpecItemFileEntry) => apply({ type: "changed", entry }),
+    [apply],
+  );
 
-  const onDeleted = useCallback((fileId: string) => {
-    setFiles((current) => applyDeletedFile(current, fileId));
-  }, []);
+  const onDeleted = useCallback(
+    (fileId: string) => apply({ type: "deleted", fileId }),
+    [apply],
+  );
 
   const isCurrent = loadedKey === specItemId;
   const loading = !isCurrent && (error === null || inFlight);
@@ -185,6 +191,7 @@ export default function FilesTab({
           onUploaded={onUploaded}
           onChanged={onChanged}
           onDeleted={onDeleted}
+          mutate={mutate}
           /*
             Заголовок — только при непустом списке: в пустом состоянии число
             «Документов: 0» дублировало бы приглашение, которое и так говорит,

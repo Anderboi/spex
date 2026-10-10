@@ -40,11 +40,6 @@ import {
   updatePayment,
 } from "@/actions/spec-item-payments";
 import { listSpecItemFiles } from "@/actions/spec-item-files";
-import {
-  applyChangedFile,
-  applyDeletedFile,
-  applyUploadedFile,
-} from "@/lib/spec/file-view";
 import type { SpecItemFileEntry } from "@/lib/spec/spec-item-files";
 import { paymentPlanCoverage, paymentProgress, summarisePaymentSchedule } from "@/lib/spec/payment-schedule";
 import { canMutatePayment, canRecordPayment, isForeignPayment } from "@/lib/spec/payment-permissions";
@@ -53,6 +48,7 @@ import type { PaymentEntry } from "@/lib/spec/payment-types";
 import type { PaymentPlanEntry } from "@/lib/spec/payment-plan-types";
 import type { OrgRole } from "@/lib/permissions";
 import DocumentList from "./document-list";
+import { useStoredFileList } from "./use-file-list";
 import PaymentPlanForm, {
   type PaymentPlanFormValues,
 } from "./payment-plan-form";
@@ -214,8 +210,11 @@ export default function PaymentsTab({
    * оплаты» рядом с общим списком файлов, а второй список той же таблицы
    * разошёлся бы с первым. Здесь документ выбирается по `paymentId`, и в
    * карточке оплаты показываются ровно его документы.
+   *
+   * Список ведёт хук (`use-file-list`): он же даёт оптимистичные правки, поэтому
+   * удаление документа исчезает из строки сразу, а отказ сервера возвращает его.
    */
-  const [files, setFiles] = useState<SpecItemFileEntry[]>([]);
+  const { files, apply: applyFile, mutate: mutateFile } = useStoredFileList();
   const [error, setError] = useState<string | null>(null);
   /** Для какой позиции пришли данные. Не совпало с текущей — идёт загрузка. */
   const [loadedKey, setLoadedKey] = useState<string | null>(null);
@@ -270,22 +269,25 @@ export default function PaymentsTab({
   /**
    * Ответы списка документов.
    *
-   * Сам список живёт в `DocumentList` — том же компоненте, что во вкладке
-   * «Файлы»: у документов оплаты и документов позиции один вид, одни группы и
-   * один фильтр. Здесь только состояние файлов позиции, из которого каждая
-   * оплата берёт свои.
+   * Сам список живёт в `use-file-list` — он же ведёт его во вкладке «Файлы»: у
+   * документов оплаты и документов позиции один вид, одни группы, один фильтр и
+   * одно правило обновления. Здесь только состояние файлов позиции, из которого
+   * каждая оплата берёт свои.
    */
-  const onFileUploaded = useCallback((entry: SpecItemFileEntry) => {
-    setFiles((current) => applyUploadedFile(current, entry));
-  }, []);
+  const onFileUploaded = useCallback(
+    (entry: SpecItemFileEntry) => applyFile({ type: "uploaded", entry }),
+    [applyFile],
+  );
 
-  const onFileChanged = useCallback((entry: SpecItemFileEntry) => {
-    setFiles((current) => applyChangedFile(current, entry));
-  }, []);
+  const onFileChanged = useCallback(
+    (entry: SpecItemFileEntry) => applyFile({ type: "changed", entry }),
+    [applyFile],
+  );
 
-  const onFileDeleted = useCallback((fileId: string) => {
-    setFiles((current) => applyDeletedFile(current, fileId));
-  }, []);
+  const onFileDeleted = useCallback(
+    (fileId: string) => applyFile({ type: "deleted", fileId }),
+    [applyFile],
+  );
 
   /** Номер попытки загрузки: гасит устаревшие ответы. */
   const requestIdRef = useRef(0);
@@ -347,14 +349,14 @@ export default function PaymentsTab({
       if (result.ok) {
         setPlans(result.plans);
         setPayments(result.payments);
-        setFiles(result.files);
+        applyFile({ type: "replace", files: result.files });
         setLoadedKey(specItemId);
         setError(null);
       } else {
         setError(result.message);
       }
     },
-    [specItemId],
+    [applyFile, specItemId],
   );
 
   const retry = useCallback(() => {
@@ -978,6 +980,7 @@ export default function PaymentsTab({
                     onUploaded={onFileUploaded}
                     onChanged={onFileChanged}
                     onDeleted={onFileDeleted}
+                    mutate={mutateFile}
                     title={null}
                     emptyHint="Приложите чек, платёжное поручение или счёт — вид документа определится по типу файла."
                   />

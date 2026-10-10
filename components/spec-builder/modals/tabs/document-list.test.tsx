@@ -1,14 +1,9 @@
-import { useState } from "react";
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import DocumentList from "./document-list";
-import {
-  applyChangedFile,
-  applyDeletedFile,
-  applyUploadedFile,
-} from "@/lib/spec/file-view";
+import { useStoredFileList } from "./use-file-list";
 import type { SpecItemFileEntry } from "@/lib/spec/spec-item-files";
 
 /**
@@ -68,14 +63,20 @@ const mixed = [
   entry({ id: "f-other", fileName: "Прочее.bin", category: "other" }),
 ];
 
-/** Обёртка с состоянием: список обновляется ответами сервера, как во вкладке. */
+/**
+ * Обёртка с состоянием: список ведёт НАСТОЯЩИЙ хук `use-file-list`.
+ *
+ * Так тест проверяет не подделку, а то же правило, что работает в приложении:
+ * оптимистичную правку, её откат на отказе сервера и применение ответа. Своя
+ * реализация «на три строки» разошлась бы с хуком и подтверждала бы саму себя.
+ */
 function Harness(overrides: {
   files?: SpecItemFileEntry[];
   canWrite?: boolean;
   paymentId?: string | null;
   loading?: boolean;
 } = {}) {
-  const [files, setFiles] = useState(overrides.files ?? mixed);
+  const { files, apply, mutate } = useStoredFileList(overrides.files ?? mixed);
 
   return (
     <DocumentList
@@ -85,13 +86,10 @@ function Harness(overrides: {
       loading={overrides.loading ?? false}
       paymentId={overrides.paymentId ?? null}
       canWrite={overrides.canWrite ?? true}
-      onUploaded={(created) =>
-        setFiles((current) => applyUploadedFile(current, created))
-      }
-      onChanged={(changed) =>
-        setFiles((current) => applyChangedFile(current, changed))
-      }
-      onDeleted={(fileId) => setFiles((current) => applyDeletedFile(current, fileId))}
+      onUploaded={(created) => apply({ type: "uploaded", entry: created })}
+      onChanged={(changed) => apply({ type: "changed", entry: changed })}
+      onDeleted={(fileId) => apply({ type: "deleted", fileId })}
+      mutate={mutate}
     />
   );
 }
@@ -158,6 +156,21 @@ const formDataOf = (call: number) => uploadMock.mock.calls[call][2] as FormData;
 
 const pdfEntry = (id: string, fileName = "Загруженный.pdf") =>
   entry({ id, fileName, createdAt: "2026-10-06T12:00:00.000Z" });
+
+/**
+ * Обещание, которым тест управляет сам.
+ *
+ * Нужно, чтобы увидеть состояние ДО ответа сервера: пока запрос не завершён,
+ * на экране ровно то, что нарисовал оптимистичный показ. Без этого проверить
+ * «строка исчезла сразу» невозможно — ответ приходит в тот же тик.
+ */
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((settle) => {
+    resolve = settle;
+  });
+  return { promise, resolve };
+}
 
 beforeEach(() => {
   urlMock.mockReset();
@@ -672,6 +685,114 @@ describe("DocumentList: действия со строкой", () => {
       expect(textOf(screen.getByRole("alert"))).toContain("Не удалось удалить"),
     );
     expect(screen.getByText("Счёт.pdf")).toBeTruthy();
+  });
+});
+
+describe("DocumentList: мгновенный показ правок", () => {
+  it("удалённая строка исчезает до ответа сервера", async () => {
+    const user = userEvent.setup();
+    const answer = deferred<{ success: true; data: { deleted: boolean } }>();
+    deleteMock.mockReturnValue(answer.promise);
+
+    render(<Harness files={[entry({ id: "f-1", fileName: "Счёт.pdf" })]} />);
+
+    await clickRowAction(user, "Счёт.pdf", "Удалить");
+    // Подтверждение: строка уже удалена пользователем, но сервер ещё молчит.
+    await user.click(
+      within(await screen.findByRole("alertdialog")).getByRole("button", {
+        name: "Удалить",
+      }),
+    );
+
+    // Пока запрос в пути, строка уже исчезла: ждать ответа, глядя на то, что
+    // сам же удалил, незачем.
+    await waitFor(() => expect(screen.queryByText("Счёт.pdf")).toBeNull());
+
+    answer.resolve({ success: true, data: { deleted: true } });
+
+    await waitFor(() => expect(deleteMock).toHaveBeenCalledTimes(1));
+    expect(screen.queryByText("Счёт.pdf")).toBeNull();
+  });
+
+  it("отказ удаления возвращает строку на место и показывает текст сервера", async () => {
+    const user = userEvent.setup();
+    const answer = deferred<{ success: false; error: string }>();
+    deleteMock.mockReturnValue(answer.promise);
+
+    render(<Harness files={[entry({ id: "f-1", fileName: "Счёт.pdf" })]} />);
+
+    await clickRowAction(user, "Счёт.pdf", "Удалить");
+    await user.click(
+      within(await screen.findByRole("alertdialog")).getByRole("button", {
+        name: "Удалить",
+      }),
+    );
+    await waitFor(() => expect(screen.queryByText("Счёт.pdf")).toBeNull());
+
+    answer.resolve({ success: false, error: "Не удалось удалить файл" });
+
+    // Откат делает React: строка возвращается к тому, что лежит в БД, а отказ
+    // виден у неё самой — пользователь не остаётся с исчезнувшим файлом.
+    await waitFor(() => expect(screen.getByText("Счёт.pdf")).toBeTruthy());
+    expect(textOf(screen.getByRole("alert"))).toContain("Не удалось удалить");
+  });
+
+  it("смена вида видна сразу, ответ сервера её подтверждает", async () => {
+    const user = userEvent.setup();
+    const answer = deferred<{
+      success: true;
+      data: { file: SpecItemFileEntry; changed: boolean };
+    }>();
+    updateMock.mockReturnValue(answer.promise);
+
+    render(
+      <Harness
+        files={[entry({ id: "f-1", fileName: "Счёт.pdf", category: "invoice" })]}
+      />,
+    );
+
+    await clickRowAction(user, "Счёт.pdf", "Сменить вид");
+    await user.click(await screen.findByRole("button", { name: "Чек" }));
+
+    // Признак оптимистичного показа: вид уже «Чек», хотя сервер ещё молчит.
+    await waitFor(() =>
+      expect(within(rowOf("Счёт.pdf")).getByText("Чек")).toBeTruthy(),
+    );
+
+    answer.resolve({
+      success: true,
+      data: {
+        file: entry({ id: "f-1", fileName: "Счёт.pdf", category: "receipt" }),
+        changed: true,
+      },
+    });
+
+    await waitFor(() =>
+      expect(within(rowOf("Счёт.pdf")).getByText("Чек")).toBeTruthy(),
+    );
+  });
+
+  it("переименование видно сразу и откатывается на отказе", async () => {
+    const user = userEvent.setup();
+    const answer = deferred<{ success: false; error: string }>();
+    updateMock.mockReturnValue(answer.promise);
+
+    render(<Harness files={[entry({ id: "f-1", fileName: "Старое.pdf" })]} />);
+
+    await clickRowAction(user, "Старое.pdf", "Переименовать");
+    const input = await screen.findByLabelText("Имя файла");
+    await user.clear(input);
+    await user.type(input, "Новое.pdf");
+    await user.click(screen.getByRole("button", { name: "Сохранить" }));
+
+    // Имя новое, сервер ещё не ответил.
+    await waitFor(() => expect(screen.getByText("Новое.pdf")).toBeTruthy());
+
+    answer.resolve({ success: false, error: "Не удалось переименовать файл" });
+
+    // Отказ: имя вернулось к тому, что в БД, и текст отказа виден в диалоге.
+    await waitFor(() => expect(screen.getByText("Старое.pdf")).toBeTruthy());
+    expect(screen.queryByText("Новое.pdf")).toBeNull();
   });
 });
 

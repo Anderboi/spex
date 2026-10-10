@@ -46,6 +46,7 @@ import {
 import type { SpecItemFileCategory } from "@/lib/spec/file-content";
 import type { SpecItemFileEntry } from "@/lib/spec/spec-item-files";
 import DocumentRow from "./document-row";
+import type { FileList } from "./use-file-list";
 
 /**
  * Список документов позиции: группы, фильтры, загрузка и действия со строкой.
@@ -135,6 +136,15 @@ export type DocumentListProps = {
   onChanged: (entry: SpecItemFileEntry) => void;
   onDeleted: (fileId: string) => void;
   /**
+   * Выполнить правку с оптимистичным показом результата.
+   *
+   * Приходит из `use-file-list`: оптимистичное состояние живёт рядом со списком
+   * (у вкладки), а не внутри показа, поэтому список только сообщает, ЧТО
+   * показать сразу. Отказ сервера откатывает показ сам React, а список
+   * показывает текст отказа у строки.
+   */
+  mutate: FileList["mutate"];
+  /**
    * Заголовок над списком; `null` — без заголовка (в карточке оплаты он лишний:
    * строка оплаты уже подписана).
    */
@@ -177,6 +187,7 @@ export default function DocumentList({
   onUploaded,
   onChanged,
   onDeleted,
+  mutate,
   title = null,
   emptyHint = "Перетащите файл сюда или добавьте его кнопкой — счета, спецификации поставщика и другие вложения к этому материалу.",
 }: DocumentListProps) {
@@ -550,9 +561,10 @@ export default function DocumentList({
   /**
    * Правка вида документа.
    *
-   * Строка обновляется ЗАПИСЬЮ СЕРВЕРА, а не локальным значением: только сервер
-   * знает, что записалось (`category` проходит через CHECK-список), и только он
-   * отдаёт подпись связанной оплаты.
+   * Вид показывается СРАЗУ (пользователь его уже выбрал), а запись сервера затем
+   * заменяет догадку: только сервер знает, что записалось (`category` проходит
+   * через CHECK-список), и только он отдаёт подпись связанной оплаты. Отказ
+   * сервера откатывает показ и оставляет текст отказа у строки.
    */
   const changeCategory = useCallback(
     async (file: SpecItemFileEntry, category: SpecItemFileCategory) => {
@@ -564,7 +576,10 @@ export default function DocumentList({
       formData.set("category", category);
 
       try {
-        const res = await updateSpecItemFile(orgSlug, forItem, file.id, formData);
+        const res = await mutate(
+          { type: "category", fileId: file.id, category },
+          () => updateSpecItemFile(orgSlug, forItem, file.id, formData),
+        );
         if (specItemIdRef.current !== forItem) return;
 
         if (!res.success) {
@@ -581,7 +596,7 @@ export default function DocumentList({
         if (specItemIdRef.current === forItem) setSavingCategory(null);
       }
     },
-    [onChanged, orgSlug, specItemId],
+    [mutate, onChanged, orgSlug, specItemId],
   );
 
   /** Открыть диалог переименования с текущим именем файла. */
@@ -601,7 +616,10 @@ export default function DocumentList({
       formData.set("file_name", name);
 
       try {
-        const res = await updateSpecItemFile(orgSlug, forItem, file.id, formData);
+        const res = await mutate(
+          { type: "name", fileId: file.id, fileName: name },
+          () => updateSpecItemFile(orgSlug, forItem, file.id, formData),
+        );
         if (specItemIdRef.current !== forItem) return null;
         if (!res.success) return res.error;
 
@@ -614,11 +632,15 @@ export default function DocumentList({
         return "Не удалось переименовать файл";
       }
     },
-    [onChanged, orgSlug, renaming, specItemId],
+    [mutate, onChanged, orgSlug, renaming, specItemId],
   );
 
   /**
    * Удаление после подтверждения.
+   *
+   * Строка исчезает СРАЗУ — пользователь уже подтвердил удаление в диалоге, и
+   * ждать ответа, глядя на строку, которую он только что удалил, незачем. Отказ
+   * сервера возвращает строку на место и показывает текст отказа у неё.
    *
    * Подтверждение — диалог, а не toast с «Отменить»: удаление мягкое, но объект
    * в Storage сносится best-effort и вернуть его мы не можем, поэтому «Отменить»
@@ -633,10 +655,15 @@ export default function DocumentList({
     setRowError(null);
 
     try {
-      const res = await deleteSpecItemFile(orgSlug, forItem, file.id);
+      const res = await mutate(
+        { type: "deleted", fileId: file.id },
+        () => deleteSpecItemFile(orgSlug, forItem, file.id),
+      );
       if (specItemIdRef.current !== forItem) return;
 
       if (!res.success) {
+        // Диалог закрывается: строка возвращается на место (оптимистичное
+        // состояние откатывает React), и текст отказа виден у неё самой.
         setPendingDelete(null);
         setRowError({ fileId: file.id, message: res.error });
         return;
@@ -652,7 +679,7 @@ export default function DocumentList({
     } finally {
       if (specItemIdRef.current === forItem) setDeleting(false);
     }
-  }, [deleting, onDeleted, orgSlug, pendingDelete, specItemId]);
+  }, [deleting, mutate, onDeleted, orgSlug, pendingDelete, specItemId]);
 
   /* ------------------------------------------------------------------ */
   /*  Разметка                                                           */
