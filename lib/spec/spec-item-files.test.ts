@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   MAX_SPEC_ITEM_FILE_BYTES,
+  MAX_SPEC_ITEM_FILE_NAME_LENGTH,
   SPEC_ITEM_FILES_BUCKET,
 } from "./file-content";
 import {
@@ -9,6 +10,7 @@ import {
   deleteSpecItemFile,
   getSpecItemFileUrl,
   listSpecItemFiles,
+  updateSpecItemFile,
   uploadSpecItemFile,
   validateUploadData,
   type SpecItemFilesDb,
@@ -87,6 +89,8 @@ type Failure = {
   update?: boolean;
   /** Отдельный отказ именно на чтении оплат: список файлов его переживает. */
   selectPayment?: boolean;
+  /** Отдельный отказ на чтении имён авторов: список файлов его переживает. */
+  selectUsers?: boolean;
 };
 
 function fakeDb(seed: Tables, failure: Failure = {}) {
@@ -200,6 +204,9 @@ function fakeDb(seed: Tables, failure: Failure = {}) {
         if (failure.selectPayment && table === "spec_item_payments") {
           return Promise.resolve({ data: null, error: { message: "ошибка БД" } });
         }
+        if (failure.selectUsers && table === "users") {
+          return Promise.resolve({ data: null, error: { message: "ошибка БД" } });
+        }
         return Promise.resolve({ data: sorted(matched())[0] ?? null, error: null });
       },
       single() {
@@ -222,6 +229,11 @@ function fakeDb(seed: Tables, failure: Failure = {}) {
           );
         }
         if (failure.selectPayment && table === "spec_item_payments") {
+          return Promise.resolve(
+            resolve({ data: null, error: { message: "ошибка БД" } }),
+          );
+        }
+        if (failure.selectUsers && table === "users") {
           return Promise.resolve(
             resolve({ data: null, error: { message: "ошибка БД" } }),
           );
@@ -266,7 +278,7 @@ function fakeDb(seed: Tables, failure: Failure = {}) {
 function fakeStorage(failure: { upload?: boolean; remove?: boolean; sign?: boolean } = {}) {
   const uploads: { path: string; contentType: string; size: number }[] = [];
   const removed: string[] = [];
-  const signed: { path: string; expiresIn: number }[] = [];
+  const signed: { path: string; expiresIn: number; download: string | true | null }[] = [];
 
   const storage: SpecItemFilesStorage = {
     async upload({ path, bytes, contentType }) {
@@ -277,9 +289,8 @@ function fakeStorage(failure: { upload?: boolean; remove?: boolean; sign?: boole
       removed.push(path);
       return { error: failure.remove ? { message: "storage недоступен" } : null };
     },
-    async createSignedUrl({ path, expiresIn }) {
-      signed.push({ path, expiresIn });
-      if (failure.sign) {
+    async createSignedUrl({ path, expiresIn, download }) {
+      signed.push({ path, expiresIn, download: download ?? null });      if (failure.sign) {
         return { data: null, error: { message: "storage недоступен" } };
       }
       return { data: { signedUrl: `https://storage.test/${path}?token=t` }, error: null };
@@ -419,6 +430,7 @@ function seedTables(): Tables {
         payment_id: PAYMENT_DELETED,
       },
     ],
+    users: [{ id: USER, name: "Иван П." }],
     spec_item_payments: [
       {
         id: PAYMENT,
@@ -476,6 +488,9 @@ const uploadData = (overrides: Partial<Parameters<typeof uploadSpecItemFile>[2][
   bytes: pdfBytes(),
   fileName: "Счёт №1.pdf",
   declaredMime: "application/pdf",
+  // Вид по умолчанию в тестах называется ЯВНО: без него включается догадка
+  // (`guessSpecItemFileCategory`), и тесты оставляли бы непокрытым главное —
+  // что явно присланный вид догадку перебивает.
   category: "document",
   ...overrides,
 });
@@ -582,12 +597,60 @@ describe("listSpecItemFiles", () => {
       sizeBytes: 1024,
       category: "document",
       uploadedBy: USER,
+      uploadedByName: "Иван П.",
       createdAt: "2026-01-01T10:00:00.000Z",
       // Обычный файл позиции: оплаты за ним нет — и поля говорят об этом
       // одинаково, а не отсутствием ключа.
       paymentId: null,
       payment: null,
     });
+  });
+
+  it("показывает имя автора, а не uuid загрузившего", async () => {
+    const db = fakeDb(seedTables());
+    const result = await listSpecItemFiles(db.client, baseArgs);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const file = result.files.find((entry) => entry.id === FILE);
+    expect(file?.uploadedBy).toBe(USER);
+    expect(file?.uploadedByName).toBe("Иван П.");
+  });
+
+  it("автор без имени и без автора дают `null`, а не прочерк", async () => {
+    const tables = seedTables();
+    tables.spec_item_files = tables.spec_item_files.map((row) =>
+      row.id === FILE
+        ? { ...row, uploaded_by: "1f1f1f1f-1f1f-4f1f-8f1f-1f1f1f1f1f1f" }
+        : row,
+    );
+    tables.users = [{ id: USER, name: "Иван П." }];
+
+    const result = await listSpecItemFiles(fakeDb(tables).client, baseArgs);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    // Пользователя нет в `users` (удалили): имя не выдумывается.
+    expect(
+      result.files.find((entry) => entry.id === FILE)?.uploadedByName,
+    ).toBeNull();
+    // У файла, загруженного без автора, имени тоже нет.
+    expect(
+      result.files.find((entry) => entry.id === FILE_FOREIGN_PATH)?.uploadedByName,
+    ).toBeNull();
+  });
+
+  it("ошибка чтения имён не ломает список", async () => {
+    // Имя автора — подпись, а не данные: без него строки обязаны остаться.
+    const db = fakeDb(seedTables(), { selectUsers: true });
+    const result = await listSpecItemFiles(db.client, baseArgs);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.files.length).toBeGreaterThan(0);
+    expect(
+      result.files.find((entry) => entry.id === FILE)?.uploadedByName,
+    ).toBeNull();
   });
 
   it("документ к оплате приходит с видом и датой записи", async () => {
@@ -630,17 +693,13 @@ describe("listSpecItemFiles", () => {
   it("ссылка на пропавшую оплату тоже читается как отменённая", async () => {
     // Так выглядела бы строка после физического удаления оплаты или записи в
     // обход кода: `payment_id` есть, строки по нему нет.
-    const db = fakeDb(seedTables());
     const missing = "17171717-1717-4717-8717-171717171717";
     const tables = seedTables();
     tables.spec_item_files = tables.spec_item_files.map((row) =>
       row.id === FILE_WITH_CANCELLED_PAYMENT ? { ...row, payment_id: missing } : row,
     );
 
-    const result = await listSpecItemFiles(
-      fakeDb(tables).client,
-      baseArgs,
-    );
+    const result = await listSpecItemFiles(fakeDb(tables).client, baseArgs);
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
@@ -860,6 +919,101 @@ describe("uploadSpecItemFile: успех", () => {
     if (!result.ok) return;
     expect(result.file.category).toBe("document");
     expect(result.file.uploadedBy).toBeNull();
+  });
+
+  /* ---------------------------------------------------------------- */
+  /*  Догадка о виде документа: сервер вместо диалога                   */
+  /* ---------------------------------------------------------------- */
+
+  it("без вида PDF становится документом, JPG — текстурой, DWG — чертежом", async () => {
+    // Основной путь загрузки: клиент вид не присылает вовсе, и его определяет
+    // сервер по подтверждённому формату.
+    const cases: { name: string; type: string; bytes: Uint8Array; expected: string }[] =
+      [
+        {
+          name: "счёт.pdf",
+          type: "application/pdf",
+          bytes: pdfBytes(),
+          expected: "document",
+        },
+        {
+          name: "фото.jpg",
+          type: "image/jpeg",
+          bytes: new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10]),
+          expected: "texture",
+        },
+        {
+          name: "план.dwg",
+          type: "image/vnd.dwg",
+          bytes: new Uint8Array([0x41, 0x43, 0x31, 0x30, 0x31]),
+          expected: "drawing",
+        },
+        {
+          name: "схема.dxf",
+          type: "image/vnd.dxf",
+          bytes: new Uint8Array([0x30, 0x0a, 0x53, 0x45, 0x43]),
+          expected: "drawing",
+        },
+      ];
+
+    for (const testCase of cases) {
+      const db = fakeDb(seedTables());
+      const store = fakeStorage();
+      const result = await uploadSpecItemFile(db.client, store.storage, {
+        ...baseArgs,
+        uploadedBy: USER,
+        data: uploadData({
+          category: null,
+          fileName: testCase.name,
+          declaredMime: testCase.type,
+          bytes: testCase.bytes,
+        }),
+      });
+
+      expect(result.ok, testCase.name).toBe(true);
+      if (!result.ok) continue;
+      expect(result.file.category, testCase.name).toBe(testCase.expected);
+      expect(db.tables.spec_item_files.at(-1)!.category, testCase.name).toBe(
+        testCase.expected,
+      );
+    }
+  });
+
+  it("незнакомый формат даёт document, а не other", async () => {
+    // `other` значит «не знаю, что это»; «файл, вид которого не назван» — это
+    // `document`, значение по умолчанию всего домена.
+    const db = fakeDb(seedTables());
+    const store = fakeStorage();
+    const result = await uploadSpecItemFile(db.client, store.storage, {
+      ...baseArgs,
+      uploadedBy: USER,
+      data: uploadData({
+        category: null,
+        fileName: "заметки.txt",
+        declaredMime: "text/plain",
+        bytes: new TextEncoder().encode("просто текст без сигнатуры"),
+      }),
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.file.category).toBe("document");
+  });
+
+  it("явно присланный вид перебивает догадку", async () => {
+    // Так работает правка в строке и любой вызов в обход формы: сказали «чек» —
+    // значит чек, даже если по формату это обычный PDF.
+    const db = fakeDb(seedTables());
+    const store = fakeStorage();
+    const result = await uploadSpecItemFile(db.client, store.storage, {
+      ...baseArgs,
+      uploadedBy: USER,
+      data: uploadData({ category: "receipt" }),
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.file.category).toBe("receipt");
   });
 
   it("порядок шагов: сначала Storage, потом INSERT", async () => {
@@ -1404,6 +1558,257 @@ describe("deleteSpecItemFile", () => {
       expect(result.ok).toBe(false);
     }
     expect(store.removed).toHaveLength(0);
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/*  update: вид документа и имя                                        */
+/* ------------------------------------------------------------------ */
+
+describe("updateSpecItemFile", () => {
+  const updateArgs = { ...baseArgs, fileId: FILE };
+
+  it("меняет вид документа и отвечает записью сервера", async () => {
+    const db = fakeDb(seedTables());
+    const result = await updateSpecItemFile(db.client, {
+      ...updateArgs,
+      category: "receipt",
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.changed).toBe(true);
+    expect(result.file.category).toBe("receipt");
+    // Строка в БД — из ответа, а не из локальной догадки.
+    expect(db.tables.spec_item_files.find((r) => r.id === FILE)!.category).toBe(
+      "receipt",
+    );
+  });
+
+  it("меняет имя, нормализуя его как при загрузке", async () => {
+    const db = fakeDb(seedTables());
+    const result = await updateSpecItemFile(db.client, {
+      ...updateArgs,
+      // Путь, перевод строки и управляющий символ — так имя пришло бы из
+      // подделанной формы, а оно уходит в `Content-Disposition`.
+      fileName: "C:\\Users\\evil\\Чек\n№7\u0000.pdf",
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    // Путь снят, перевод строки и NUL вырезаны, пробелы сжаты (имя уходит в
+    // `Content-Disposition`).
+    expect(result.file.fileName).toBe("Чек№7.pdf");
+  });
+
+  it("длинное имя обрезается с сохранением расширения", async () => {
+    const db = fakeDb(seedTables());
+    const result = await updateSpecItemFile(db.client, {
+      ...updateArgs,
+      fileName: `${"я".repeat(400)}.pdf`,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.file.fileName.length).toBe(MAX_SPEC_ITEM_FILE_NAME_LENGTH);
+    expect(result.file.fileName.endsWith(".pdf")).toBe(true);
+  });
+
+  it("пустое имя после нормализации — отказ, а не «оставить как было»", async () => {
+    const db = fakeDb(seedTables());
+    const result = await updateSpecItemFile(db.client, {
+      ...updateArgs,
+      fileName: "   ",
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe("INVALID_INPUT");
+    // Строка не тронута: молчаливая подмена старого имени выдала бы себя за успех.
+    expect(db.tables.spec_item_files.find((r) => r.id === FILE)!.file_name).toBe(
+      "Счёт №1.pdf",
+    );
+  });
+
+  it("вид вне списка → INVALID_INPUT, БД не тронута", async () => {
+    const db = fakeDb(seedTables());
+    const result = await updateSpecItemFile(db.client, {
+      ...updateArgs,
+      category: "schemas",
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe("INVALID_INPUT");
+    expect(db.callsFor("spec_item_files").some((c) => c.operation === "update")).toBe(
+      false,
+    );
+  });
+
+  it("нечего менять → changed: false и ни одного UPDATE", async () => {
+    const db = fakeDb(seedTables());
+    const result = await updateSpecItemFile(db.client, {
+      ...updateArgs,
+      category: "document",
+      fileName: "Счёт №1.pdf",
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.changed).toBe(false);
+    // Лишний UPDATE шумно менял бы `updated_at` и слал бы `revalidatePath` зря.
+    expect(db.callsFor("spec_item_files").some((c) => c.operation === "update")).toBe(
+      false,
+    );
+  });
+
+  it("правка документа к оплате возвращает подпись оплаты", async () => {
+    const db = fakeDb(seedTables());
+    const result = await updateSpecItemFile(db.client, {
+      ...updateArgs,
+      fileId: FILE_WITH_PAYMENT,
+      category: "invoice",
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    // Клиент обновляет строку этим ответом: без подписи связь у оплаты пропала бы.
+    expect(result.file.paymentId).toBe(PAYMENT);
+    expect(result.file.payment).toEqual({
+      kind: "payment",
+      paidAt: "2026-01-07",
+      cancelled: false,
+    });
+  });
+
+  it("удалённый файл не правится", async () => {
+    const db = fakeDb(seedTables());
+    const result = await updateSpecItemFile(db.client, {
+      ...updateArgs,
+      fileId: FILE_DELETED,
+      category: "receipt",
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe("NOT_FOUND");
+    expect(
+      db.tables.spec_item_files.find((r) => r.id === FILE_DELETED)!.category,
+    ).toBe("other");
+  });
+
+  it("чужой файл, чужая позиция и чужой проект не правятся", async () => {
+    const cases: Parameters<typeof updateSpecItemFile>[1][] = [
+      { ...updateArgs, fileId: FILE_OTHER_ITEM },
+      { ...updateArgs, fileId: FILE_OTHER_ORG },
+      { ...updateArgs, projectId: OTHER_PROJECT },
+      { ...updateArgs, specItemId: OTHER_ITEM },
+      { ...updateArgs, orgId: OTHER_ORG },
+    ];
+
+    for (const args of cases) {
+      const db = fakeDb(seedTables());
+      const result = await updateSpecItemFile(db.client, {
+        ...args,
+        category: "receipt",
+      });
+      expect(result.ok).toBe(false);
+      expect(db.callsFor("spec_item_files").some((c) => c.operation === "update")).toBe(
+        false,
+      );
+    }
+  });
+
+  it("подмена storage_path в строке закрывает правку", async () => {
+    const db = fakeDb(seedTables());
+    const result = await updateSpecItemFile(db.client, {
+      ...updateArgs,
+      fileId: FILE_FOREIGN_PATH,
+      category: "receipt",
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe("FAILED");
+  });
+
+  it("отказ UPDATE → FAILED, имя не подменяется", async () => {
+    const db = fakeDb(seedTables(), { update: true });
+    const result = await updateSpecItemFile(db.client, {
+      ...updateArgs,
+      fileName: "Новое имя.pdf",
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe("FAILED");
+    expect(db.tables.spec_item_files.find((r) => r.id === FILE)!.file_name).toBe(
+      "Счёт №1.pdf",
+    );
+  });
+});
+
+describe("getSpecItemFileUrl: просмотр и скачивание", () => {
+  it("без download ссылка подписывается на просмотр", async () => {
+    const db = fakeDb(seedTables());
+    const store = fakeStorage();
+    const result = await getSpecItemFileUrl(db.client, store.storage, {
+      ...baseArgs,
+      fileId: FILE,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(store.signed[0].download).toBeNull();
+  });
+
+  it("download: true подставляет оригинальное имя файла из строки", async () => {
+    const db = fakeDb(seedTables());
+    const store = fakeStorage();
+    const result = await getSpecItemFileUrl(db.client, store.storage, {
+      ...baseArgs,
+      fileId: FILE,
+      download: true,
+    });
+
+    expect(result.ok).toBe(true);
+    // Имя берётся из БД, а не из аргумента: подставлять в заголовок то, что
+    // прислал клиент, нельзя.
+    expect(store.signed[0].download).toBe("Счёт №1.pdf");
+  });
+
+  it("испорченное имя в строке не подставляется в заголовок", async () => {
+    // Так выглядела бы строка, записанная в обход кода: имя из пробелов.
+    // Скачивание остаётся скачиванием, но имя подставляет Storage, а не мы.
+    const store = fakeStorage();
+    const tables = seedTables();
+    tables.spec_item_files = tables.spec_item_files.map((row) =>
+      row.id === FILE ? { ...row, file_name: "   " } : row,
+    );
+
+    const result = await getSpecItemFileUrl(fakeDb(tables).client, store.storage, {
+      ...baseArgs,
+      fileId: FILE,
+      download: true,
+    });
+
+    expect(result.ok).toBe(true);
+    expect(store.signed[0].download).toBe(true);
+  });
+
+  it("нормализация имени — второй контур: перевод строки в имени не проходит", async () => {
+    const store = fakeStorage();
+    const tables = seedTables();
+    tables.spec_item_files = tables.spec_item_files.map((row) =>
+      row.id === FILE ? { ...row, file_name: "Чек\n№7.pdf" } : row,
+    );
+
+    await getSpecItemFileUrl(fakeDb(tables).client, store.storage, {
+      ...baseArgs,
+      fileId: FILE,
+      download: true,
+    });
+
+    expect(store.signed[0].download).toBe("Чек№7.pdf");
   });
 });
 

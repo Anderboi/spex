@@ -11,7 +11,10 @@
  */
 
 import { fmtDate, humanSize } from "@/lib/utils";
-import type { SpecItemFileCategory } from "@/lib/spec/file-content";
+import {
+  isSpecItemFileCategory,
+  type SpecItemFileCategory,
+} from "@/lib/spec/file-content";
 import type { SpecItemFileEntry } from "@/lib/spec/spec-item-files";
 
 /* ------------------------------------------------------------------ */
@@ -34,74 +37,13 @@ export function formatFileSize(bytes: number): string {
 /*  Вид файла                                                          */
 /* ------------------------------------------------------------------ */
 
-/** Вид файла: определяет иконку в списке. */
-export type SpecItemFileKind = "pdf" | "image" | "archive" | "cad" | "file";
-
-/** MIME вида «картинка». */
-const IMAGE_MIME_PATTERN = /^image\//;
-
-/** Архивы и контейнеры: показываются одной иконкой «архив». */
-const ARCHIVE_MIME_TYPES = new Set([
-  "application/zip",
-  "application/x-zip-compressed",
-  "application/x-rar-compressed",
-  "application/x-7z-compressed",
-  "application/gzip",
-  "application/x-tar",
-]);
-
 /**
- * CAD и 3D. Проверяются ДО картинок: `image/vnd.dwg` формально `image/*`,
- * но по смыслу это чертёж, и иконка картинки для него неверна.
+ * Вид файла по формату и его классификация живут в ядре
+ * (`./file-content`, `fileKindOf`): по этому же правилу сервер угадывает вид
+ * документа при загрузке, и вторая копия здесь разошлась бы с ним молча.
+ * Реэкспорт — только для удобства потребителей вида (иконка в списке).
  */
-const CAD_MIME_TYPES = new Set([
-  "image/vnd.dwg",
-  "image/vnd.dxf",
-  "model/gltf+json",
-  "model/gltf-binary",
-  "model/obj",
-  "application/acad",
-  "application/dxf",
-  "application/sla",
-]);
-
-/** То же по расширению: MIME приходит от клиента и может быть обобщённым. */
-const KIND_BY_EXTENSION: Readonly<Record<string, SpecItemFileKind>> = {
-  pdf: "pdf",
-  // изображения
-  jpg: "image",
-  jpeg: "image",
-  png: "image",
-  webp: "image",
-  gif: "image",
-  avif: "image",
-  tif: "image",
-  tiff: "image",
-  bmp: "image",
-  heic: "image",
-  // архивы
-  zip: "archive",
-  rar: "archive",
-  "7z": "archive",
-  gz: "archive",
-  tar: "archive",
-  // CAD и 3D
-  dwg: "cad",
-  dxf: "cad",
-  skp: "cad",
-  rfa: "cad",
-  max: "cad",
-  "3ds": "cad",
-  obj: "cad",
-  fbx: "cad",
-  gltf: "cad",
-  glb: "cad",
-  stl: "cad",
-  step: "cad",
-  stp: "cad",
-  iges: "cad",
-  igs: "cad",
-};
+export { fileKindOf, type SpecItemFileKind } from "./file-content";
 
 /** Расширение из имени файла: только буквы и цифры, не длиннее 5. */
 export function fileExtension(fileName: string): string {
@@ -109,50 +51,24 @@ export function fileExtension(fileName: string): string {
   return match ? match[1].toLowerCase() : "";
 }
 
-/**
- * Вид файла по MIME, с запасным определением по расширению.
- *
- * MIME может быть `application/octet-stream` (браузеры часто отдают его для
- * CAD-файлов) или пустым, поэтому расширение — второй источник, а не первый:
- * тип содержимого точнее имени, которое пользователь может переименовать.
- */
-export function fileKindOf(file: {
-  mimeType: string;
-  fileName: string;
-}): SpecItemFileKind {
-  const mime = (file.mimeType ?? "").split(";")[0]?.trim().toLowerCase() ?? "";
-
-  if (mime === "application/pdf") return "pdf";
-  if (CAD_MIME_TYPES.has(mime)) return "cad";
-  if (ARCHIVE_MIME_TYPES.has(mime)) return "archive";
-  if (IMAGE_MIME_PATTERN.test(mime)) return "image";
-
-  const extension = fileExtension(file.fileName);
-  return KIND_BY_EXTENSION[extension] ?? "file";
-}
-
 /* ------------------------------------------------------------------ */
 /*  Автор                                                              */
 /* ------------------------------------------------------------------ */
 
 /**
- * Подпись автора файла.
+ * Подпись автора файла: имя, под которым файл загрузили.
  *
- * ── Почему сейчас `null` ──────────────────────────────────────────────────
+ * Имя приходит в записи (`uploadedByName`), а не выводится здесь: uuid в
+ * подпись не годится (это внутренний идентификатор), а имя живёт в таблице
+ * `users` и читается запросом — там же, где читаются подписи оплат.
  *
- * Серверная модель отдаёт только `uploadedBy` — uuid пользователя. Показывать
- * uuid нельзя (это внутренний идентификатор), а имени в ответе нет: в БД у
- * файла хранится только ссылка на `users`, без снимка имени — в отличие от
- * `spec_item_events.actor_name_snapshot` и
- * `spec_item_comments.author_name_snapshot`, где снимок есть.
- *
- * Поэтому функция честно возвращает `null`, и строка просто не показывает
- * автора. Когда в модель добавится снимок имени, менять придётся ровно это
- * место и `fileMetaLine` — они уже готовы принять автора.
+ * Пустое имя читается как «автора нет»: пользователя могли удалить
+ * (`on delete set null`), тогда `uploadedBy` тоже `null`. Строка просто не
+ * показывает автора, а не подставляет прочерк.
  */
-export function fileAuthorLabel(_file: SpecItemFileEntry): string | null {
-  void _file;
-  return null;
+export function fileAuthorLabel(file: SpecItemFileEntry): string | null {
+  const name = file.uploadedByName?.trim();
+  return name && name.length > 0 ? name : null;
 }
 
 /* ------------------------------------------------------------------ */
@@ -247,22 +163,126 @@ export function formatFileDate(createdAt: string): string {
   return fmtDate(createdAt);
 }
 
-/** Подпись строки: «1.2 MB · Андрей · 6 октября 2026» (автор — если известен). */
+/**
+ * Те же метаданные строки одной подписью: «1.2 MB · Андрей · 6 октября 2026».
+ *
+ * Нужна там, где части показываются ОДНИМ текстом, а не отдельными элементами:
+ * правило «что попадает в подпись и в каком порядке» живёт в `fileMetaParts`, и
+ * склейка здесь — только разделитель. Пустые части опускаются: мусорная дата не
+ * оставляет висящий разделитель.
+ */
 export function fileMetaLine(args: {
   sizeBytes: number;
   /**
-   * Дата загрузки. Пустая строка означает «не показывать дату»: в карточке
-   * оплаты подпись документа — это размер и автор, а дата проводки уже стоит в
-   * самой строке факта, и вторая дата рядом читалась бы как дата файла.
+   * Дата загрузки. Пустая строка означает «не показывать дату».
    */
   createdAt: string;
   author?: string | null;
 }): string {
+  return fileMetaParts(args).join(" · ");
+}
+
+/**
+ * Те же метаданные строки, но по частям: размер, автор, дата.
+ *
+ * Нужны там, где части показываются РАЗНЫМИ элементами (строка списка: чип вида,
+ * размер, дата, автор — отдельными узлами). Склейка `fileMetaLine` — для мест,
+ * где метаданные это одна строка; правило «что попадает в подпись и в каком
+ * порядке» живёт здесь одно, поэтому две формы подписи не разъедутся.
+ *
+ * Пустые части опускаются: мусорная дата не оставляет висящий разделитель.
+ */
+export function fileMetaParts(args: {
+  sizeBytes: number;
+  createdAt: string;
+  author?: string | null;
+}): string[] {
   const parts = [formatFileSize(args.sizeBytes)];
   if (args.author) parts.push(args.author);
   const date = formatFileDate(args.createdAt);
   if (date) parts.push(date);
-  return parts.join(" · ");
+  return parts;
+}
+
+/* ------------------------------------------------------------------ */
+/*  Группы документов                                                  */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Группа документов: то, ЗАЧЕМ файл нужен, в отличие от вида документа (что это).
+ *
+ * Вид документа (`SPEC_ITEM_FILE_CATEGORIES`) — девять значений, и в плоском
+ * списке девять бейджей читаются как шум: «Счёт» и «Договор» соседствуют с
+ * «Текстура» без всякой логики. Группа отвечает на вопрос пользователя
+ * («где документы по закупке?»), вид — на вопрос «что это за файл».
+ *
+ * Групп ровно четыре, и это отображение, а не схема: в БД лежит вид документа,
+ * группа выводится из него этой функцией. Пятая группа не заводится правкой
+ * миграции — она заводится здесь.
+ */
+export type SpecItemFileGroup = "purchase" | "documentation" | "visual" | "other";
+
+/** Подписи групп в порядке показа (и порядок фильтр-чипов). */
+export const FILE_GROUP_OPTIONS: readonly {
+  value: SpecItemFileGroup;
+  label: string;
+  /**
+   * Цвет точки группы. Живёт рядом с подписью, а не в разметке: тот же цвет
+   * нужен и чипу фильтра, и заголовку секции, и чипу вида в строке. Классы —
+   * из уже существующих токенов палитры проекта (`app/globals.css`): новая
+   * палитра ради четырёх точек не заводится.
+   */
+  dotClass: string;
+}[] = [
+  { value: "purchase", label: "Закупка", dotClass: "bg-bg-amber" },
+  { value: "documentation", label: "Документация", dotClass: "bg-fg-brand" },
+  { value: "visual", label: "Визуальные", dotClass: "bg-bg-green" },
+  { value: "other", label: "Другое", dotClass: "bg-fg-dim" },
+];
+
+/**
+ * Группа вида документа.
+ *
+ * Запасная группа — `other`, а не ошибка: значение из БД может быть незнакомым
+ * (строка, записанная в обход кода), и такие файлы должны быть видны, а не
+ * потеряны. Отдельный `Record` с полным перечислением, а не вычисление по
+ * префиксу: добавление вида документа не должно молча попадать в «Другое» —
+ * за этим следит тест «каждый вид документа попадает в группу».
+ */
+const GROUP_BY_CATEGORY: Readonly<Record<SpecItemFileCategory, SpecItemFileGroup>> = {
+  // Закупка: бумаги, по которым платят.
+  invoice: "purchase",
+  receipt: "purchase",
+  contract: "purchase",
+  // Документация: то, по чему работают.
+  specification: "documentation",
+  drawing: "documentation",
+  document: "documentation",
+  // Визуальные: то, на что смотрят.
+  texture: "visual",
+  // Всё остальное.
+  other: "other",
+};
+
+export function fileGroupOf(category: string): SpecItemFileGroup {
+  return isSpecItemFileCategory(category)
+    ? GROUP_BY_CATEGORY[category]
+    : "other";
+}
+
+/** Подпись группы; неизвестная группа читается как «Другое». */
+export function fileGroupLabel(group: string): string {
+  return (
+    FILE_GROUP_OPTIONS.find((option) => option.value === group)?.label ?? "Другое"
+  );
+}
+
+/** Цвет точки группы; неизвестная группа читается как «Другое». */
+export function fileGroupDotClass(group: string): string {
+  return (
+    FILE_GROUP_OPTIONS.find((option) => option.value === group)?.dotClass ??
+    "bg-fg-dim"
+  );
 }
 
 /* ------------------------------------------------------------------ */
@@ -336,7 +356,8 @@ export function compareFileEntries(
  * список остаётся ровно тем, что предписывает серверный порядок.
  *
  * Дубликат по `id` заменяется: повторная вставка той же записи не должна
- * создавать вторую строку.
+ * создавать вторую строку. Именно поэтому вызывающим не нужна собственная
+ * проверка «а нет ли уже такой» — она была бы вторым правилом о том же.
  */
 export function placeFileEntry(
   entries: readonly SpecItemFileEntry[],
@@ -344,4 +365,39 @@ export function placeFileEntry(
 ): SpecItemFileEntry[] {
   const withoutDuplicate = entries.filter((existing) => existing.id !== entry.id);
   return [...withoutDuplicate, entry].sort(compareFileEntries);
+}
+
+/* ------------------------------------------------------------------ */
+/*  Ответы операций над списком                                        */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Применить к списку ответ сервера: файл загружен.
+ *
+ * Три функции ниже — одно место на две вкладки: и «Файлы», и карточка оплаты
+ * держат список файлов позиции и обновляют его одними и теми же ответами
+ * действий. Копия этих трёх строк в каждой вкладке разошлась бы молча —
+ * например, одна заменила бы запись, а другая добавила вторую.
+ */
+export function applyUploadedFile(
+  entries: readonly SpecItemFileEntry[],
+  entry: SpecItemFileEntry,
+): SpecItemFileEntry[] {
+  return placeFileEntry(entries, entry);
+}
+
+/** Применить к списку ответ сервера: у файла изменились вид или имя. */
+export function applyChangedFile(
+  entries: readonly SpecItemFileEntry[],
+  entry: SpecItemFileEntry,
+): SpecItemFileEntry[] {
+  return entries.map((existing) => (existing.id === entry.id ? entry : existing));
+}
+
+/** Применить к списку ответ сервера: файл удалён (мягко). */
+export function applyDeletedFile(
+  entries: readonly SpecItemFileEntry[],
+  fileId: string,
+): SpecItemFileEntry[] {
+  return entries.filter((existing) => existing.id !== fileId);
 }

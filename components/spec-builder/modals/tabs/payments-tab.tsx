@@ -5,9 +5,7 @@ import {
   ArrowDown,
   ArrowUp,
   CalendarPlus,
-  FileText,
   Loader2,
-  Paperclip,
   Pencil,
   Plus,
   Receipt,
@@ -41,16 +39,12 @@ import {
   listPayments,
   updatePayment,
 } from "@/actions/spec-item-payments";
+import { listSpecItemFiles } from "@/actions/spec-item-files";
 import {
-  deleteSpecItemFile,
-  getSpecItemFileUrl,
-  listSpecItemFiles,
-} from "@/actions/spec-item-files";
-import {
-  MAX_SPEC_ITEM_FILE_BYTES,
-  MAX_SPEC_ITEM_FILE_LABEL,
-} from "@/lib/spec/file-content";
-import { fileCategoryLabel, fileMetaLine, placeFileEntry } from "@/lib/spec/file-view";
+  applyChangedFile,
+  applyDeletedFile,
+  applyUploadedFile,
+} from "@/lib/spec/file-view";
 import type { SpecItemFileEntry } from "@/lib/spec/spec-item-files";
 import { paymentPlanCoverage, paymentProgress, summarisePaymentSchedule } from "@/lib/spec/payment-schedule";
 import { canMutatePayment, canRecordPayment, isForeignPayment } from "@/lib/spec/payment-permissions";
@@ -58,7 +52,7 @@ import { PAYMENT_KIND_LABEL } from "@/lib/spec/payment-types";
 import type { PaymentEntry } from "@/lib/spec/payment-types";
 import type { PaymentPlanEntry } from "@/lib/spec/payment-plan-types";
 import type { OrgRole } from "@/lib/permissions";
-import FileUploadDialog from "./file-upload-dialog";
+import DocumentList from "./document-list";
 import PaymentPlanForm, {
   type PaymentPlanFormValues,
 } from "./payment-plan-form";
@@ -83,11 +77,13 @@ import PaymentForm, { type PaymentFormValues } from "./payment-form";
  * Документ — это ОБЫЧНЫЙ файл позиции (`spec_item_files`) со ссылкой на оплату,
  * а не вторая сущность: и вкладка «Файлы», и карточка факта показывают одну и ту
  * же строку. Поэтому список файлов читается здесь тем же действием
- * (`listSpecItemFiles`), а фильтр по оплате — на клиенте: отдельного запроса
- * «документы оплаты» нет, и второго правила о том, какие файлы принадлежат
- * оплате, тоже. Права у документов файловые (`record:create`): приложить чек к
- * чужой оплате может любой участник, кроме наблюдателя, — это решение тикета, и
- * оно отличается от права правки самой записи.
+ * (`listSpecItemFiles`), а у каждой записи монтируется ТОТ ЖЕ список, что во
+ * вкладке «Файлы» (`DocumentList`), с фильтром по `paymentId`: у документов
+ * оплаты и документов позиции одни группы, один фильтр и одни действия.
+ *
+ * Права у документов файловые (`record:create`): приложить чек к чужой оплате
+ * может любой участник, кроме наблюдателя, — это решение тикета, и оно
+ * отличается от права правки самой записи.
  *
  * ── График платежей в интерфейсе не участвует ──────────────────────────────
  *
@@ -272,28 +268,24 @@ export default function PaymentsTab({
   /* ------------------------------------------------------------------ */
 
   /**
-   * Оплата, к которой прикрепляем документ: пока не `null`, открыт выбор файла.
+   * Ответы списка документов.
    *
-   * Выбор и загрузка разделены на два шага тем же диалогом, что и во вкладке
-   * «Файлы»: вид документа из имени файла не выводится, и до подтверждения на
-   * сервер не уходит ничего. Оплата запоминается здесь, а не выводится из
-   * `open`: за время выбора строку могли отменить.
+   * Сам список живёт в `DocumentList` — том же компоненте, что во вкладке
+   * «Файлы»: у документов оплаты и документов позиции один вид, одни группы и
+   * один фильтр. Здесь только состояние файлов позиции, из которого каждая
+   * оплата берёт свои.
    */
-  const [attachTo, setAttachTo] = useState<string | null>(null);
-  /** Выбранный файл: пока не `null`, открыт диалог загрузки. */
-  const [picked, setPicked] = useState<File | null>(null);
-  /** UX-ошибка выбора (слишком большой файл): до сервера дело не доходит. */
-  const [pickError, setPickError] = useState<string | null>(null);
-  /** Файл, для которого сейчас получаем ссылку. */
-  const [openingFileId, setOpeningFileId] = useState<string | null>(null);
-  /** Файл, для которого открыто подтверждение удаления. */
-  const [pendingDeleteFileId, setPendingDeleteFileId] = useState<string | null>(
-    null,
-  );
-  /** Идёт удаление документа: повторное нажатие заблокировано. */
-  const [deletingFileId, setDeletingFileId] = useState<string | null>(null);
-  /** Скрытый `<input type="file">`: открывается кнопкой «Прикрепить». */
-  const pickerRef = useRef<HTMLInputElement>(null);
+  const onFileUploaded = useCallback((entry: SpecItemFileEntry) => {
+    setFiles((current) => applyUploadedFile(current, entry));
+  }, []);
+
+  const onFileChanged = useCallback((entry: SpecItemFileEntry) => {
+    setFiles((current) => applyChangedFile(current, entry));
+  }, []);
+
+  const onFileDeleted = useCallback((fileId: string) => {
+    setFiles((current) => applyDeletedFile(current, fileId));
+  }, []);
 
   /** Номер попытки загрузки: гасит устаревшие ответы. */
   const requestIdRef = useRef(0);
@@ -667,166 +659,6 @@ export default function PaymentsTab({
     }
   }, [busy, orgSlug, pendingCancelId, specItemId]);
 
-  /* ------------------------------------------------------------------ */
-  /*  Документы к оплате: выбор, открытие, удаление                       */
-  /* ------------------------------------------------------------------ */
-
-  /** Документы конкретной оплаты: связь проставлена сервером. */
-  const documentsOf = useCallback(
-    (paymentId: string) => files.filter((file) => file.paymentId === paymentId),
-    [files],
-  );
-
-  /**
-   * Разбор выбранного файла.
-   *
-   * Проверка размера — единственная клиентская: и вид документа, и права, и
-   * принадлежность оплаты позиции проверяет сервер, и его текст отказа
-   * показывается как есть. Вторая такая проверка здесь разошлась бы с первой.
-   */
-  const acceptFile = useCallback((file: File | null) => {
-    if (!file) return;
-
-    if (file.size > MAX_SPEC_ITEM_FILE_BYTES) {
-      setPickError(
-        `Файл слишком большой. Максимальный размер — ${MAX_SPEC_ITEM_FILE_LABEL}.`,
-      );
-      return;
-    }
-
-    setPickError(null);
-    setPicked(file);
-  }, []);
-
-  /**
-   * `change` у скрытого input.
-   *
-   * `input.value` сбрасывается сразу: без этого повторный выбор ТОГО ЖЕ файла
-   * не вызовет `change` (браузер считает значение неизменным), и после ошибки
-   * пользователь не смог бы выбрать файл заново.
-   */
-  const handlePick = useCallback(
-    (event: React.ChangeEvent<HTMLInputElement>) => {
-      const file = event.target.files?.[0] ?? null;
-      event.target.value = "";
-      acceptFile(file);
-    },
-    [acceptFile],
-  );
-
-  /**
-   * Открыть документ: ссылка запрашивается ТОЛЬКО по клику и только для одного
-   * файла — заранее подписывать весь список нельзя.
-   */
-  const openDocument = useCallback(
-    async (file: SpecItemFileEntry) => {
-      const forItem = specItemId;
-      setOpeningFileId(file.id);
-      setActionError(null);
-
-      try {
-        const res = await getSpecItemFileUrl(orgSlug, forItem, file.id);
-        if (specItemIdRef.current !== forItem) return;
-
-        if (!res.success) {
-          setActionError({
-            itemKey: forItem,
-            rowId: file.paymentId,
-            message: res.error,
-          });
-          return;
-        }
-
-        // `noopener` обязателен: без него открытая страница получает
-        // `window.opener` и может управлять вкладкой приложения.
-        window.open(res.data.url, "_blank", "noopener,noreferrer");
-      } catch (cause) {
-        if (specItemIdRef.current !== forItem) return;
-        console.error("[PaymentsTab] ссылка на документ", cause);
-        setActionError({
-          itemKey: forItem,
-          rowId: file.paymentId,
-          message: "Не удалось открыть документ",
-        });
-      } finally {
-        if (specItemIdRef.current === forItem) setOpeningFileId(null);
-      }
-    },
-    [orgSlug, specItemId],
-  );
-
-  /**
-   * Удаление документа оплаты — то же действие, что и во вкладке «Файлы»
-   * (`deleteSpecItemFile`, право `record:create`).
-   *
-   * Список НЕ меняется оптимистично: строка исчезает только после успешного
-   * ответа, а при отказе остаётся на месте с текстом ошибки — восстанавливать
-   * состояние не приходится.
-   */
-  const removeDocument = useCallback(async () => {
-    const fileId = pendingDeleteFileId;
-    if (!fileId) return;
-    if (deletingFileId === fileId) return;
-
-    const forItem = specItemId;
-    const file = files.find((entry) => entry.id === fileId) ?? null;
-    setDeletingFileId(fileId);
-    setActionError(null);
-
-    try {
-      const res = await deleteSpecItemFile(orgSlug, forItem, fileId);
-      if (specItemIdRef.current !== forItem) return;
-
-      if (!res.success) {
-        setPendingDeleteFileId(null);
-        setActionError({
-          itemKey: forItem,
-          rowId: file?.paymentId ?? null,
-          message: res.error,
-        });
-        return;
-      }
-
-      setFiles((current) => current.filter((entry) => entry.id !== fileId));
-      setPendingDeleteFileId(null);
-    } catch (cause) {
-      if (specItemIdRef.current !== forItem) return;
-      console.error("[PaymentsTab] удаление документа", cause);
-      setPendingDeleteFileId(null);
-      setActionError({
-        itemKey: forItem,
-        rowId: file?.paymentId ?? null,
-        message: "Не удалось удалить документ",
-      });
-    } finally {
-      if (specItemIdRef.current === forItem) setDeletingFileId(null);
-    }
-  }, [deletingFileId, files, orgSlug, pendingDeleteFileId, specItemId]);
-
-  /**
-   * Успешная загрузка: в список встаёт ЗАПИСЬ СЕРВЕРА.
-   *
-   * Порядок задаёт `placeFileEntry` — та же функция и то же правило
-   * (`created_at desc, id desc`), что во вкладке «Файлы»: иначе один и тот же
-   * список выглядел бы по-разному на двух вкладках.
-   *
-   * Повторный `listSpecItemFiles` не нужен: action вернул созданную запись
-   * целиком, вместе с подписью оплаты, к которой её прикрепили.
-   */
-  const handleUploaded = useCallback(
-    (entry: SpecItemFileEntry, forSpecItemId: string) => {
-      if (forSpecItemId !== specItemIdRef.current) return;
-      setFiles((current) => placeFileEntry(current, entry));
-      setPicked(null);
-      setAttachTo(null);
-    },
-    [],
-  );
-
-  /** Файл, для которого открыто подтверждение удаления. */
-  const pendingDeleteFile =
-    files.find((file) => file.id === pendingDeleteFileId) ?? null;
-
   return (
     <div className="flex flex-col gap-2 py-4">
       {loading &&
@@ -970,29 +802,6 @@ export default function PaymentsTab({
             </p>
           )}
 
-          {/*
-            Скрытый native input живёт вне строк списка: одна точка выбора файла
-            на вкладку, а какую оплату прикрепляем — решает `attachTo`, а не
-            место в разметке. Второго `<input type="file">` здесь нет.
-          */}
-          <input
-            ref={pickerRef}
-            type="file"
-            className="hidden"
-            onChange={handlePick}
-            aria-label="Выбрать документ для оплаты"
-          />
-
-          {/*
-            Ошибка выбора (слишком большой файл) — на уровне вкладки, а не у
-            строки: файл в этот момент ещё ни к какой оплате не привязан.
-          */}
-          {pickError && (
-            <p role="alert" className="px-1 text-[12px] text-fg-red">
-              {pickError}
-            </p>
-          )}
-
           {/* ── Факты: что реально заплачено ───────────────────────────── */}
           <div className="flex items-center justify-between gap-2 px-1">
             <span className="flex items-center gap-1.5 text-[11.5px] text-fg-muted">
@@ -1047,8 +856,6 @@ export default function PaymentsTab({
             const planTitle = payment.paymentPlanId
               ? planTitles.get(payment.paymentPlanId)
               : null;
-            /** Документы этой записи: связь проставлена сервером. */
-            const documents = documentsOf(payment.id);
 
             return (
               <div
@@ -1101,31 +908,6 @@ export default function PaymentsTab({
 
                   {(canWrite || editable) && (
                     <div className="flex shrink-0 items-center gap-0.5">
-                      {canWrite && (
-                        /*
-                          Прикрепление документа — операция с ФАЙЛОМ, поэтому
-                          право здесь то же, что у загрузки файлов
-                          (`record:create`), а не «автор или администратор»:
-                          приложить чек к чужой оплате может любой участник,
-                          кроме наблюдателя. Это осознанное решение тикета:
-                          документ живёт по правилам файлов позиции.
-                        */
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          aria-label={`Прикрепить документ к оплате от ${dateLabel(payment.paidAt)}`}
-                          title="Прикрепить документ"
-                          disabled={rowBusy !== null}
-                          onClick={() => {
-                            setAttachTo(payment.id);
-                            pickerRef.current?.click();
-                          }}
-                        >
-                          <Paperclip className="size-3.5" />
-                        </Button>
-                      )}
-
                       {editable && (
                         <>
                           <Button
@@ -1171,67 +953,35 @@ export default function PaymentsTab({
                 </div>
 
                 {/*
-                  Документы оплаты: чек, платёжное поручение, счёт. Тот же файл
-                  позиции, что и во вкладке «Файлы», — строка одна, точек входа
-                  две. Показываются и наблюдателю: чтение файлов правами не
-                  описывается, а документ к оплате — часть суммы, которую
-                  наблюдатель видит.
-                */}
-                {documents.length > 0 && (
-                  <ul className="flex flex-col gap-0.5 border-t border-border-muted pt-1.5">
-                    {documents.map((file) => (
-                      <li key={file.id} className="flex items-center gap-1.5">
-                        <button
-                          type="button"
-                          className="flex min-w-0 flex-1 items-center gap-1.5 rounded-md px-1 py-0.5 text-left hover:bg-bg-card2"
-                          aria-label={`Открыть «${file.fileName}» в новой вкладке`}
-                          disabled={openingFileId === file.id}
-                          onClick={() => void openDocument(file)}
-                        >
-                          {openingFileId === file.id ? (
-                            <Loader2 className="size-3.5 shrink-0 animate-spin text-fg-muted" />
-                          ) : (
-                            <FileText
-                              className="size-3.5 shrink-0 text-fg-muted"
-                              aria-hidden="true"
-                            />
-                          )}
-                          <span className="min-w-0 truncate text-[12.5px] text-fg">
-                            {file.fileName}
-                          </span>
-                          <span className="shrink-0 text-[11px] text-fg-dim">
-                            {fileCategoryLabel(file.category)}
-                          </span>
-                          <span className="shrink-0 font-mono text-[11px] text-fg-dim">
-                            {fileMetaLine({
-                              sizeBytes: file.sizeBytes,
-                              createdAt: "",
-                            })}
-                          </span>
-                        </button>
+                  Документы этой оплаты — ТЕМ ЖЕ списком, что во вкладке «Файлы»:
+                  одна строка, две точки входа, одни группы и один фильтр.
+                  Отличается ровно выборка (`paymentId`) и привязка при загрузке.
 
-                        {canWrite && (
-                          <Button
-                            type="button"
-                            variant="ghost"
-                            size="icon"
-                            className="shrink-0 text-fg-muted hover:bg-bg-red-light hover:text-fg-red"
-                            aria-label={`Удалить документ «${file.fileName}»`}
-                            title="Удалить документ"
-                            disabled={deletingFileId === file.id}
-                            onClick={() => setPendingDeleteFileId(file.id)}
-                          >
-                            {deletingFileId === file.id ? (
-                              <Loader2 className="size-3.5 animate-spin" />
-                            ) : (
-                              <Trash2 className="size-3.5" />
-                            )}
-                          </Button>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                )}
+                  Список монтируется всегда, а не только при непустых документах:
+                  он же — точка входа для прикрепления («Добавить файл» и
+                  drop-зона), поэтому прятать его, пока документов нет, значило бы
+                  прятать саму возможность приложить чек.
+
+                  Показывается и наблюдателю: чтение файлов правами не
+                  описывается, а документ к оплате — часть суммы, которую
+                  наблюдатель видит. Кнопки записи внутри списка он не получит:
+                  гейт — тот же `canWrite`.
+                */}
+                <div className="border-t border-border-muted pt-1.5">
+                  <DocumentList
+                    orgSlug={orgSlug}
+                    specItemId={specItemId}
+                    files={files.filter((file) => file.paymentId === payment.id)}
+                    loading={false}
+                    paymentId={payment.id}
+                    canWrite={canWrite}
+                    onUploaded={onFileUploaded}
+                    onChanged={onFileChanged}
+                    onDeleted={onFileDeleted}
+                    title={null}
+                    emptyHint="Приложите чек, платёжное поручение или счёт — вид документа определится по типу файла."
+                  />
+                </div>
               </div>
             );
           })}
@@ -1348,66 +1098,6 @@ export default function PaymentsTab({
                 <Loader2 className="mr-2 size-4 animate-spin" />
               )}
               Отменить оплату
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/*
-        Загрузка документа к оплате — ТОТ ЖЕ диалог, что и во вкладке «Файлы»
-        (`FileUploadDialog`): отличается он ровно одним пропсом `paymentId`.
-        Второй диалог разошёлся бы с первым в первой же правке валидации вида
-        документа или лимита размера.
-
-        `key` пересоздаёт диалог на каждый выбор файла: состояние (вид, ошибка,
-        признак отправки) начинает с чистого листа без сброса эффектом.
-      */}
-      <FileUploadDialog
-        key={`${specItemId}:${attachTo ?? "none"}:${picked?.name ?? ""}:${picked?.size ?? 0}:${picked?.lastModified ?? 0}`}
-        open={picked !== null && attachTo !== null}
-        file={picked}
-        orgSlug={orgSlug}
-        specItemId={specItemId}
-        paymentId={attachTo}
-        onClose={() => {
-          setPicked(null);
-          setAttachTo(null);
-        }}
-        onUploaded={handleUploaded}
-      />
-
-      {/*
-        Подтверждение удаления документа — один диалог на вкладку: иначе в
-        списке жило бы столько невидимых диалогов, сколько документов.
-        Документ к отменённой оплате удалить тоже можно: он остаётся обычным
-        файлом позиции (решение тикета — отмена оплаты документ не удаляет).
-      */}
-      <AlertDialog
-        open={pendingDeleteFileId !== null}
-        onOpenChange={(next) => !next && setPendingDeleteFileId(null)}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Удалить документ?</AlertDialogTitle>
-            <AlertDialogDescription>
-              {/* Имя — из списка: файл могли удалить с другой вкладки, тогда
-                  текст остаётся общим, без пустых кавычек. */}
-              {pendingDeleteFile
-                ? `«${pendingDeleteFile.fileName}» исчезнет из позиции и из этой оплаты. Сама оплата останется.`
-                : "Документ исчезнет из позиции и из оплаты. Сама оплата останется."}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Отмена</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => void removeDocument()}
-              disabled={deletingFileId !== null}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-            >
-              {deletingFileId !== null && (
-                <Loader2 className="mr-2 size-4 animate-spin" />
-              )}
-              Удалить
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

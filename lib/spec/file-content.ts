@@ -45,9 +45,13 @@ import { sniffImageMime } from "../material-import/image";
  * `20261011_001`), а не заведён второй сущностью: вид документа — свойство
  * файла, а не отдельная таблица.
  *
- * `document` остаётся значением (и значением по умолчанию), хотя в интерфейсе
- * его больше нет: это уже записанное в схему значение и запасной вариант для
+ * `document` остаётся значением (и значением по умолчанию), хотя подписи у него
+ * в интерфейсе нет: это уже записанное в схему значение и запасной вариант для
  * файла, вид которого не назван.
+ *
+ * Вид — это ДАННЫЕ, а не производная формата: он хранится в строке и правится
+ * человеком. Формат даёт лишь догадку при загрузке (`guessSpecItemFileCategory`
+ * ниже), и догадка эта грубая — счёт, договор и ТЗ одинаково выглядят как PDF.
  *
  * Legacy `FILE_CATS` (`lib/constants.ts`) сюда по-прежнему НЕ перенесён: это
  * четыре продуктовые категории старой архитектуры («Схемы», «Текстуры»,
@@ -547,4 +551,163 @@ export function isSpecItemFilePathExpected(args: {
 /** Расширение для пути из подтверждённого MIME; неизвестный — `bin`. */
 export function extensionForMime(mime: string): string {
   return SPEC_ITEM_FILE_MIME_TYPES[mime] ?? "bin";
+}
+
+/* ------------------------------------------------------------------ */
+/*  Вид файла: формат содержимого                                      */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Вид файла по формату: определяет иконку в списке и участвует в угадывании
+ * вида документа при загрузке.
+ *
+ * Живёт в ядре, а не в модуле отображения (`./file-view`), потому что нужен
+ * ДВУМ сторонам: сервер угадывает по нему вид документа (`guessSpecItemFileCategory`),
+ * а список рисует по нему иконку. Две копии этого правила разошлись бы молча —
+ * ровно на этом ломается «pdf угадали, а иконку нарисовали другую».
+ */
+export type SpecItemFileKind = "pdf" | "image" | "archive" | "cad" | "file";
+
+/** MIME вида «картинка». */
+const IMAGE_MIME_PATTERN = /^image\//;
+
+/** Архивы и контейнеры: показываются одной иконкой «архив». */
+const ARCHIVE_MIME_TYPES = new Set([
+  "application/zip",
+  "application/x-zip-compressed",
+  "application/x-rar-compressed",
+  "application/x-7z-compressed",
+  "application/gzip",
+  "application/x-tar",
+]);
+
+/**
+ * CAD и 3D. Проверяются ДО картинок: `image/vnd.dwg` формально `image/*`,
+ * но по смыслу это чертёж, и иконка картинки для него неверна.
+ */
+const CAD_MIME_TYPES = new Set([
+  "image/vnd.dwg",
+  "image/vnd.dxf",
+  "model/gltf+json",
+  "model/gltf-binary",
+  "model/obj",
+  "application/acad",
+  "application/dxf",
+  "application/sla",
+]);
+
+/**
+ * То же по расширению: MIME от клиента может быть обобщённым
+ * (`application/octet-stream`) или пустым.
+ */
+const KIND_BY_EXTENSION: Readonly<Record<string, SpecItemFileKind>> = {
+  pdf: "pdf",
+  // изображения
+  jpg: "image",
+  jpeg: "image",
+  png: "image",
+  webp: "image",
+  gif: "image",
+  avif: "image",
+  tif: "image",
+  tiff: "image",
+  bmp: "image",
+  heic: "image",
+  // архивы
+  zip: "archive",
+  rar: "archive",
+  "7z": "archive",
+  gz: "archive",
+  tar: "archive",
+  // CAD и 3D
+  dwg: "cad",
+  dxf: "cad",
+  skp: "cad",
+  rfa: "cad",
+  max: "cad",
+  "3ds": "cad",
+  obj: "cad",
+  fbx: "cad",
+  gltf: "cad",
+  glb: "cad",
+  stl: "cad",
+  step: "cad",
+  stp: "cad",
+  iges: "cad",
+  igs: "cad",
+};
+
+/**
+ * Вид файла по MIME, с запасным определением по расширению.
+ *
+ * MIME может быть `application/octet-stream` (браузеры часто отдают его для
+ * CAD-файлов) или пустым, поэтому расширение — второй источник, а не первый:
+ * тип содержимого точнее имени, которое пользователь может переименовать.
+ */
+export function fileKindOf(file: {
+  mimeType: string;
+  fileName: string;
+}): SpecItemFileKind {
+  // Пустой MIME — это «неизвестно», а не `octet-stream`: нормализация здесь
+  // только помешала бы, подставив значение, которого клиент не присылал.
+  const mime = (file.mimeType ?? "").split(";")[0]?.trim().toLowerCase() ?? "";
+
+  if (mime === "application/pdf") return "pdf";
+  if (CAD_MIME_TYPES.has(mime)) return "cad";
+  if (ARCHIVE_MIME_TYPES.has(mime)) return "archive";
+  if (IMAGE_MIME_PATTERN.test(mime)) return "image";
+
+  const extension = extensionOfFileName(file.fileName) ?? "";
+  return KIND_BY_EXTENSION[extension] ?? "file";
+}
+
+/* ------------------------------------------------------------------ */
+/*  Вид документа: угадывание при загрузке                             */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Вид документа по формату файла: ДОГАДКА сервера, а не выбор пользователя.
+ *
+ * Зачем нужно. Подавляющее большинство загрузок не требует вопроса «что это»:
+ * PDF — это документ, JPG — изображение, DWG — чертёж. Раньше вид спрашивался
+ * диалогом всегда, и пользователь делал лишний шаг ради редкого случая. Теперь
+ * вид угадывается, а исправляется в строке списка — «не спрашивай, а исправляй».
+ *
+ * Догадка — про ФОРМАТ, а не про назначение файла. Счёт, договор и ТЗ одинаково
+ * выглядят как PDF, и различить их по байтам нельзя: все три получают
+ * `document`. Назначение знает человек, поэтому точный вид ставится правкой
+ * строки, а не выводится из содержимого.
+ *
+ * Почему угадывает СЕРВЕР, а не браузер. Вид документа — данные строки в БД, и
+ * он же лежит в CHECK-констрейнте. Браузерное `file.type` — заявка клиента,
+ * которую мы нигде больше не считаем доказательством (см. заголовок модуля);
+ * сервер к этому моменту уже подтвердил MIME сигнатурой содержимого
+ * (`checkDeclaredMimeMatchesContent`). Так догадка опирается на проверенный
+ * факт, а не на расширение из имени.
+ *
+ * Незнакомый формат даёт `document`, а не `other`: `other` означает «я не знаю,
+ * что это», а «файл, вид которого не назван» — это `document`, значение по
+ * умолчанию всего домена. Архив (zip, rar, 7z) — тоже `document`: это контейнер,
+ * содержимое которого неизвестно, и назвать его чем-то точнее нельзя.
+ */
+export function guessSpecItemFileCategory(file: {
+  /** Подтверждённый MIME (сигнатура уже проверена вызывающим). */
+  mimeType: string;
+  fileName: string | null;
+}): SpecItemFileCategory {
+  switch (fileKindOf({ mimeType: file.mimeType, fileName: file.fileName ?? "" })) {
+    case "image":
+      return "texture";
+    case "cad":
+      return "drawing";
+    // `pdf` и `archive` перечислены явно, а `file` уходит в `default`: так
+    // видно, что «PDF — это документ» и «незнакомый формат — тоже документ» —
+    // два разных решения, а не одно по умолчанию. Явные ветки здесь не
+    // декоративны: если появится формат со своим видом, менять придётся именно
+    // их, и пропустить `pdf` будет заметно.
+    case "pdf":
+    case "archive":
+    default:
+      return "document";
+  }
 }

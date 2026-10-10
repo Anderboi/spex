@@ -10,6 +10,7 @@ import {
   deleteSpecItemFile as deleteSpecItemFileCore,
   getSpecItemFileUrl as getSpecItemFileUrlCore,
   listSpecItemFiles as listSpecItemFilesCore,
+  updateSpecItemFile as updateSpecItemFileCore,
   uploadSpecItemFile as uploadSpecItemFileCore,
   type SpecItemFileEntry,
   type SpecItemFileError,
@@ -128,8 +129,14 @@ function storageOf(supabase: ReturnType<typeof createAdminClient>): SpecItemFile
       const { error } = await bucket().remove([path]);
       return { error: error ? { message: error.message } : null };
     },
-    async createSignedUrl({ path, expiresIn }) {
-      const { data, error } = await bucket().createSignedUrl(path, expiresIn);
+    async createSignedUrl({ path, expiresIn, download }) {
+      // `download` — имя для `Content-Disposition: attachment`; `null` значит
+      // «просмотр», и тогда параметр в Storage не передаётся вовсе.
+      const { data, error } = await bucket().createSignedUrl(
+        path,
+        expiresIn,
+        download ? { download } : undefined,
+      );
       return {
         data: data?.signedUrl ? { signedUrl: data.signedUrl } : null,
         error: error ? { message: error.message } : null,
@@ -256,11 +263,17 @@ export async function uploadSpecItemFile(
  *
  * Ни `storage_path`, ни URL от клиента не принимаются: путь читается из строки
  * БД и сверяется с ожидаемым префиксом `orgId/spec-items/specItemId/`.
+ *
+ * `forDownload` — намерение пользователя, а не данные файла: с ним ссылка отдаёт
+ * файл вложением под его оригинальным именем, без него — открывает в браузере.
+ * Имя для заголовка берёт ядро из строки (`file_name`), а не из аргумента:
+ * подставлять имя из формы в `Content-Disposition` нельзя.
  */
 export async function getSpecItemFileUrl(
   orgSlug: string,
   specItemId: string,
   fileId: string,
+  forDownload = false,
 ): Promise<ActionResult<{ url: string; expiresAt: string }>> {
   const { ctx, supabase, item, failed } = await resolveItem(orgSlug, specItemId);
   if (failed) return fail("Не удалось открыть файл");
@@ -278,10 +291,59 @@ export async function getSpecItemFileUrl(
     projectId: item.project_id,
     specItemId: item.id,
     fileId,
+    download: forDownload,
   });
 
   if (!result.ok) return toFailure(result.error);
   return ok({ url: result.url, expiresAt: result.expiresAt });
+}
+
+/**
+ * Правка файла: вид документа и оригинальное имя.
+ *
+ * Право — `record:create`, та же граница, что у загрузки и удаления: отдельного
+ * права «править файл» в матрице нет, а наблюдатель не должен уметь ничего из
+ * этого. Авторство здесь не проверяется намеренно — в отличие от оплат, у файла
+ * нет правила «своё правит автор, чужое — администратор»: файл позиции
+ * принадлежит позиции, а не загрузившему его человеку, и команда работает с ним
+ * как с общим.
+ *
+ * Из формы берутся только два поля: `category` и `file_name`. Пустое значение
+ * поля означает «не менять» — так форма может отправить только то, что
+ * действительно правится, и не затирать второе поле пустотой.
+ */
+export async function updateSpecItemFile(
+  orgSlug: string,
+  specItemId: string,
+  fileId: string,
+  formData: FormData,
+): Promise<ActionResult<{ file: SpecItemFileEntry; changed: boolean }>> {
+  const { ctx, supabase, item, failed } = await resolveItem(orgSlug, specItemId);
+
+  if (!can(ctx.role, "record:create")) {
+    return fail("Недостаточно прав для правки файлов", "FORBIDDEN");
+  }
+
+  if (failed) return fail("Не удалось сохранить файл");
+  if (!item) return fail("Позиция не найдена", "NOT_FOUND");
+
+  if (!UUID_PATTERN.test(fileId)) {
+    return fail("Файл не найден", "NOT_FOUND");
+  }
+
+  const result = await updateSpecItemFileCore(supabase, {
+    orgId: ctx.orgId,
+    projectId: item.project_id,
+    specItemId: item.id,
+    fileId,
+    category: textField(formData, "category"),
+    fileName: textField(formData, "file_name"),
+  });
+
+  if (!result.ok) return toFailure(result.error);
+
+  revalidatePath(`/${orgSlug}/projects/${item.project_id}`);
+  return ok({ file: result.file, changed: result.changed });
 }
 
 /**

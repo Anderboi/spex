@@ -40,6 +40,7 @@ import {
   deleteSpecItemFile,
   getSpecItemFileUrl,
   listSpecItemFiles,
+  updateSpecItemFile,
   uploadSpecItemFile,
 } from "./spec-item-files";
 
@@ -78,6 +79,8 @@ function fakeAdmin() {
     spec_items: [
       { id: ITEM, org_id: ORG, project_id: PROJECT, deleted_at: null },
     ],
+    // Имя автора загрузки: список файлов читает его из `users`.
+    users: [{ id: "user-1", name: "Andy" }],
     // Оплата позиции и отменённая оплата: на них проверяется разбор
     // `payment_id` из формы.
     spec_item_payments: [
@@ -124,6 +127,7 @@ function fakeAdmin() {
 
   function from(table: string) {
     const eqs: [string, unknown][] = [];
+    const inEqs: [string, unknown[]][] = [];
     const isNull: string[] = [];
     let insertRow: Row | null = null;
     let patch: Row | null = null;
@@ -141,6 +145,7 @@ function fakeAdmin() {
                 : row[column];
             return actual === expected;
           }) &&
+          inEqs.every(([column, values]) => values.includes(row[column])) &&
           isNull.every(
             (column) => row[column] === null || row[column] === undefined,
           ),
@@ -165,6 +170,15 @@ function fakeAdmin() {
       select: () => chain,
       eq(column: string, value: unknown) {
         eqs.push([column, value]);
+        return chain;
+      },
+      /**
+       * `in` нужен выборке имён авторов (пачка `spec_item_files.uploaded_by`).
+       * Сравнение — по значению как есть: `users.id` в подставных данных уже
+       * uuid в нижнем регистре, и приводить его не нужно.
+       */
+      in(column: string, values: unknown[]) {
+        inEqs.push([column, values.map((value) => asUuid(value) ?? value)]);
         return chain;
       },
       is(column: string, value: unknown) {
@@ -600,5 +614,115 @@ describe("getUrl и delete: идентификатор файла", () => {
     expect(first.data.deleted).toBe(true);
     expect(second.data.deleted).toBe(false);
     expect(admin.removed).toEqual([STORAGE_PATH]);
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/*  update: права и разбор формы                                       */
+/* ------------------------------------------------------------------ */
+
+describe("updateSpecItemFile: права и разбор формы", () => {
+  /** Форма правки: обе графы необязательны, пустая значит «не менять». */
+  function patchForm(fields: { category?: string; fileName?: string } = {}) {
+    const form = new FormData();
+    if (fields.category !== undefined) form.set("category", fields.category);
+    if (fields.fileName !== undefined) form.set("file_name", fields.fileName);
+    return form;
+  }
+
+  it("viewer не может править файл", async () => {
+    sessionMock.current.role = "viewer";
+
+    const result = await updateSpecItemFile(
+      ORG,
+      ITEM,
+      FILE,
+      patchForm({ category: "receipt" }),
+    );
+
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    expect(result.code).toBe("FORBIDDEN");
+  });
+
+  it("смена вида из формы доходит до строки", async () => {
+    const result = await updateSpecItemFile(
+      ORG,
+      ITEM,
+      FILE,
+      patchForm({ category: "invoice" }),
+    );
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.data.changed).toBe(true);
+    expect(result.data.file.category).toBe("invoice");
+    expect(
+      admin.tables.spec_item_files.find((row) => row.id === FILE)!.category,
+    ).toBe("invoice");
+  });
+
+  it("переименование из формы нормализуется", async () => {
+    const result = await updateSpecItemFile(
+      ORG,
+      ITEM,
+      FILE,
+      patchForm({ fileName: "  Чек №7.pdf  " }),
+    );
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.data.file.fileName).toBe("Чек №7.pdf");
+  });
+
+  it("невалидный uuid отсекается до запроса в БД", async () => {
+    const result = await updateSpecItemFile(
+      ORG,
+      ITEM,
+      "не-uuid",
+      patchForm({ category: "receipt" }),
+    );
+
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    expect(result.code).toBe("NOT_FOUND");
+  });
+
+  it("чужой файл своей позиции → NOT_FOUND", async () => {
+    const other = "77777777-7777-4777-8777-777777777777";
+    const result = await updateSpecItemFile(
+      ORG,
+      ITEM,
+      other,
+      patchForm({ category: "receipt" }),
+    );
+
+    expect(result.success).toBe(false);
+    if (result.success) return;
+    expect(result.code).toBe("NOT_FOUND");
+  });
+
+  it("пустая форма ничего не меняет и отвечает успехом", async () => {
+    // Так выглядит «открыл селект и выбрал то же значение»: менять нечего, но
+    // это не ошибка.
+    const result = await updateSpecItemFile(ORG, ITEM, FILE, patchForm());
+
+    expect(result.success).toBe(true);
+    if (!result.success) return;
+    expect(result.data.changed).toBe(false);
+  });
+
+  it("лишние поля формы игнорируются: storage_path и mime_type не правятся", async () => {
+    const form = patchForm({ category: "receipt" });
+    form.set("storage_path", `${OTHER_ORG}/spec-items/evil/evil.pdf`);
+    form.set("mime_type", "application/x-msdownload");
+    form.set("size_bytes", "999");
+
+    await updateSpecItemFile(ORG, ITEM, FILE, form);
+
+    const row = admin.tables.spec_item_files.find((entry) => entry.id === FILE)!;
+    expect(row.storage_path).toBe(STORAGE_PATH);
+    expect(row.mime_type).toBe("application/pdf");
+    expect(row.size_bytes).toBe(30);
   });
 });

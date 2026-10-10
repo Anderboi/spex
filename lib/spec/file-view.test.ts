@@ -2,12 +2,15 @@ import { afterEach, describe, expect, it } from "vitest";
 
 import {
   FILE_CATEGORY_OPTIONS,
+  FILE_GROUP_OPTIONS,
   compareFileEntries,
   fileAuthorLabel,
   fileCategoryLabel,
   fileExtension,
+  fileGroupDotClass,
+  fileGroupOf,
   fileKindOf,
-  fileMetaLine,
+  fileMetaParts,
   formatFileDate,
   formatFileSize,
   isLeavingDropZone,
@@ -182,32 +185,43 @@ describe("formatFileDate", () => {
 /*  Подпись строки                                                     */
 /* ------------------------------------------------------------------ */
 
-describe("fileMetaLine", () => {
+describe("fileMetaParts", () => {
   it("размер и дата", () => {
-    const line = fileMetaLine({
+    const parts = fileMetaParts({
       sizeBytes: 1.2 * 1048576,
       createdAt: "2026-10-06T09:30:00.000Z",
     });
 
-    expect(line).toMatch(/^1\.2 MB · /);
-    expect(line).toContain("2026");
-    // Автора нет — лишних разделителей не появляется.
-    expect(line).not.toContain("· ·");
+    expect(parts[0]).toMatch(/^1\.2 MB$/);
+    expect(parts.join(" ")).toContain("2026");
+    // Ни одной пустой части: строка собирает их через разделитель, и пустая
+    // дала бы « · · » в подписи.
+    expect(parts.every((part) => part.length > 0)).toBe(true);
   });
 
   it("автор встаёт между размером и датой", () => {
-    const line = fileMetaLine({
+    const parts = fileMetaParts({
       sizeBytes: 1024,
       createdAt: "2026-10-06T09:30:00.000Z",
       author: "Андрей",
     });
 
-    expect(line).toMatch(/^1 KB · Андрей · /);
+    expect(parts).toEqual(["1 KB", "Андрей", expect.stringContaining("2026")]);
   });
 
-  it("пустая дата не оставляет висящий разделитель", () => {
-    const line = fileMetaLine({ sizeBytes: 512, createdAt: "мусор" });
-    expect(line).toBe("512 B");
+  it("пустая дата не оставляет пустой части", () => {
+    expect(fileMetaParts({ sizeBytes: 512, createdAt: "мусор" })).toEqual([
+      "512 B",
+    ]);
+  });
+
+  it("без автора части ровно две", () => {
+    expect(
+      fileMetaParts({
+        sizeBytes: 512,
+        createdAt: "2026-10-06T09:30:00.000Z",
+      }),
+    ).toHaveLength(2);
   });
 });
 
@@ -216,30 +230,36 @@ describe("fileMetaLine", () => {
 /* ------------------------------------------------------------------ */
 
 describe("fileAuthorLabel", () => {
-  const entry = (uploadedBy: string | null): SpecItemFileEntry => ({
+  const entry = (
+    uploadedBy: string | null,
+    uploadedByName: string | null = null,
+  ): SpecItemFileEntry => ({
     id: "1",
     fileName: "файл.pdf",
     mimeType: "application/pdf",
     sizeBytes: 10,
     category: "document",
     uploadedBy,
+    uploadedByName,
     createdAt: "2026-10-06T09:30:00.000Z",
     paymentId: null,
     payment: null,
   });
 
-  it("uuid в подпись не попадает", () => {
-    // Пока в модели только uuid, показывать его нельзя: подпись пустая.
+  it("показывает имя автора, а не uuid загрузившего", () => {
+    // Имя читается сервером из `users` и приходит в записи: uuid в подпись не
+    // годится — это внутренний идентификатор.
     expect(
-      fileAuthorLabel(entry("a0a3fc2f-4bc6-4088-ab7c-68b70acb1e3c")),
-    ).toBeNull();
-    expect(fileAuthorLabel(entry(null))).toBeNull();
+      fileAuthorLabel(entry("a0a3fc2f-4bc6-4088-ab7c-68b70acb1e3c", "Иван П.")),
+    ).toBe("Иван П.");
   });
 
-  it("модель с uuid не даёт имени автора", () => {
-    // Инвариант на будущее: если поле имени появится в `fileMetaLine`, тест
-    // `fileAuthorLabel` должен измениться вместе с моделью.
-    expect(Object.keys(entry("x"))).not.toContain("uploadedByName");
+  it("без имени автора подписи нет", () => {
+    // Пользователя удалили (`on delete set null`) — прочерк вместо имени был бы
+    // выдумкой, поэтому строка просто не показывает автора.
+    expect(fileAuthorLabel(entry(null))).toBeNull();
+    expect(fileAuthorLabel(entry("a0a3fc2f-4bc6-4088-ab7c-68b70acb1e3c"))).toBeNull();
+    expect(fileAuthorLabel(entry("user-1", "   "))).toBeNull();
   });
 });
 
@@ -324,6 +344,51 @@ describe("fileCategoryLabel", () => {
   });
 });
 
+describe("группы документов", () => {
+  it("каждый вид документа попадает в свою группу, а не в «Другое»", () => {
+    // Иначе новый вид документа молча окажется в «Другом», и заметить это можно
+    // будет только глазами. Закупка, документация и визуальные — названы явно.
+    const expectedOther = new Set<string>(["other"]);
+
+    for (const category of SPEC_ITEM_FILE_CATEGORIES) {
+      const group = fileGroupOf(category);
+      expect(FILE_GROUP_OPTIONS.map((option) => option.value), category).toContain(
+        group,
+      );
+      if (expectedOther.has(category)) {
+        expect(group, category).toBe("other");
+      } else {
+        expect(group, category).not.toBe("other");
+      }
+    }
+  });
+
+  it("восемь видов документа делятся ровно на четыре группы", () => {
+    expect(fileGroupOf("invoice")).toBe("purchase");
+    expect(fileGroupOf("receipt")).toBe("purchase");
+    expect(fileGroupOf("contract")).toBe("purchase");
+    expect(fileGroupOf("specification")).toBe("documentation");
+    expect(fileGroupOf("drawing")).toBe("documentation");
+    expect(fileGroupOf("document")).toBe("documentation");
+    expect(fileGroupOf("texture")).toBe("visual");
+    expect(fileGroupOf("other")).toBe("other");
+  });
+
+  it("незнакомый вид из БД попадает в «Другое», а не теряется", () => {
+    // Так выглядела бы строка, записанная в обход кода: файл обязан быть виден.
+    expect(fileGroupOf("schemas")).toBe("other");
+    expect(fileGroupDotClass("schemas")).toBe("bg-fg-dim");
+  });
+
+  it("у каждой группы есть подпись и цвет", () => {
+    for (const option of FILE_GROUP_OPTIONS) {
+      expect(option.label.length).toBeGreaterThan(0);
+      expect(fileGroupDotClass(option.value)).toBe(option.dotClass);
+      expect(option.dotClass).toMatch(/^bg-/);
+    }
+  });
+});
+
 /* ------------------------------------------------------------------ */
 /*  Связь с оплатой                                                    */
 /* ------------------------------------------------------------------ */
@@ -377,6 +442,7 @@ describe("placeFileEntry", () => {
     sizeBytes: 10,
     category: "document",
     uploadedBy: null,
+    uploadedByName: null,
     createdAt,
     paymentId: null,
     payment: null,

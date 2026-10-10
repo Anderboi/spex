@@ -40,14 +40,22 @@
  *    и в п.1: по коду отказа нельзя узнать о чужой позиции ничего лишнего;
  * 3. файл есть в этой организации и этой позиции (`NOT_FOUND`);
  * 4. файл не удалён (`NOT_FOUND`) — мягко удалённый файл не должен ни
- *    подписываться, ни удаляться повторно «по-настоящему»;
+ *    подписываться, ни правиться, ни удаляться повторно «по-настоящему»;
  * 5. путь объекта ожидаемый (`FAILED`) — сюда попадает только подделка;
- * 6. вид документа и содержимое файла (`INVALID_INPUT`);
+ * 6. при загрузке — вид документа и содержимое файла (`INVALID_INPUT`);
  * 7. при загрузке к оплате — оплата есть, жива и принадлежит этой позиции
  *    (`INVALID_INPUT`, один текст на все расхождения). Проверяется ПОСЛЕ
  *    содержимого и ДО Storage: незачем грузить объект, привязать который
  *    всё равно нельзя, и незачем объяснять «оплата не найдена» файлу, который
  *    не прошёл проверку вида.
+ *
+ * ── Вид документа: догадка вместо вопроса ─────────────────────────────────
+ *
+ * Если клиент не указал вид, его определяет сервер по ПОДТВЕРЖДЁННОМУ формату
+ * (`guessSpecItemFileCategory` в `./file-content`) — PDF становится документом,
+ * JPG текстурой, DWG чертежом. Так большинство загрузок не требует лишнего шага
+ * «выберите вид», а точный вид ставится потом правкой строки (`updateSpecItemFile`).
+ * Явно присланный вид догадку перебивает — но обязан быть из закрытого списка.
  *
  * ── Стратегия рассинхронизации БД и Storage ───────────────────────────────
  *
@@ -86,6 +94,7 @@ import {
   MAX_SPEC_ITEM_FILE_LABEL,
   checkDeclaredMimeMatchesContent,
   extensionForMime,
+  guessSpecItemFileCategory,
   isAllowedSpecItemFileMime,
   isSpecItemFileCategory,
   isSpecItemFilePathExpected,
@@ -126,6 +135,12 @@ export type SpecItemFilesStorage = {
   createSignedUrl(args: {
     path: string;
     expiresIn: number;
+    /**
+     * Имя для `Content-Disposition: attachment`; `true` — «имя подставит
+     * Storage», `null`/отсутствие — просмотр в браузере, а не скачивание: это
+     * разные действия пользователя, и различает их он сам.
+     */
+    download?: string | true | null;
   }): Promise<{
     data: { signedUrl: string } | null;
     error: StorageErrorLike;
@@ -156,6 +171,14 @@ export type SpecItemFileEntry = {
   sizeBytes: number;
   category: SpecItemFileCategory;
   uploadedBy: string | null;
+  /**
+   * Имя автора загрузки. `null` — имени нет (пользователя удалили).
+   *
+   * Читается из `users` при выдаче списка, а не хранится снимком: у файла нет
+   * колонки имени, в отличие от `spec_item_events.actor_name_snapshot`. Показывать
+   * `uploadedBy` вместо имени нельзя — это внутренний идентификатор.
+   */
+  uploadedByName: string | null;
   createdAt: string;
   /**
    * Оплата, к которой прикреплён документ. `null` — обычный файл позиции.
@@ -239,6 +262,18 @@ export type DeleteSpecItemFileResult =
     }
   | { ok: false; error: SpecItemFileError };
 
+/**
+ * Результат правки метаданных файла: вид документа и/или имя.
+ *
+ * `changed` — что именно поменялось. Нужен, чтобы интерфейс не показывал
+ * «сохранено» на запрос, который ничего не изменил (пользователь открыл
+ * селект и выбрал то же значение), и чтобы вызывающий не гадал по сравнению
+ * `before`/`after`.
+ */
+export type UpdateSpecItemFileResult =
+  | { ok: true; file: SpecItemFileEntry; changed: boolean }
+  | { ok: false; error: SpecItemFileError };
+
 /* ------------------------------------------------------------------ */
 /*  Вход операции                                                      */
 /* ------------------------------------------------------------------ */
@@ -313,6 +348,7 @@ type FileRow = {
 function toEntry(
   row: FileRow,
   payment: SpecItemFilePaymentInfo | null = null,
+  uploadedByName: string | null = null,
 ): SpecItemFileEntry {
   return {
     id: row.id,
@@ -321,6 +357,7 @@ function toEntry(
     sizeBytes: Number(row.size_bytes),
     category: isSpecItemFileCategory(row.category) ? row.category : "other",
     uploadedBy: row.uploaded_by,
+    uploadedByName,
     createdAt: row.created_at,
     paymentId: row.payment_id ?? null,
     payment,
@@ -547,7 +584,7 @@ async function paymentInfoOf(
 }
 
 /**
- * Расставить связь с оплатой по строкам списка.
+ * Подписи оплаты для списка файлов.
  *
  * Один дополнительный запрос на список, а не соединение таблиц в основном:
  * соединение потребовало бы фильтра «оплата не удалена» на уровне PostgREST
@@ -606,6 +643,47 @@ async function decorateWithPayments(
     payment: file.paymentId
       ? (byId.get(file.paymentId) ?? CANCELLED_PAYMENT_INFO)
       : null,
+  }));
+}
+
+/**
+ * Имена авторов загрузки для списка файлов.
+ *
+ * Тот же приём, что у подписей оплат: один запрос на пачку идентификаторов.
+ * Имя нужно строке («размер · дата · автор»), а в таблице файлов лежит только
+ * ссылка на `users`. Ошибка чтения имён список не ломает — автор просто не
+ * показывается, а файлы важнее подписи.
+ */
+async function decorateWithAuthors(
+  db: SpecItemFilesDb,
+  files: SpecItemFileEntry[],
+): Promise<SpecItemFileEntry[]> {
+  const userIds = Array.from(
+    new Set(
+      files.map((file) => file.uploadedBy).filter((id): id is string => id !== null),
+    ),
+  );
+
+  if (userIds.length === 0) return files;
+
+  const { data, error } = await db
+    .from("users")
+    .select("id, name")
+    .in("id", userIds);
+
+  if (error) {
+    console.error("[listSpecItemFiles] users", error.message);
+    return files;
+  }
+
+  const byId = new Map<string, string | null>();
+  for (const row of (data ?? []) as { id: string; name: string | null }[]) {
+    byId.set(row.id, row.name);
+  }
+
+  return files.map((file) => ({
+    ...file,
+    uploadedByName: file.uploadedBy ? (byId.get(file.uploadedBy) ?? null) : null,
   }));
 }
 
@@ -695,11 +773,14 @@ export async function listSpecItemFiles(
 
   return {
     ok: true,
-    files: await decorateWithPayments(db, {
-      orgId: args.orgId,
-      specItemId: args.specItemId,
-      files,
-    }),
+    files: await decorateWithAuthors(
+      db,
+      await decorateWithPayments(db, {
+        orgId: args.orgId,
+        specItemId: args.specItemId,
+        files,
+      }),
+    ),
   };
 }
 
@@ -721,17 +802,24 @@ export function validateUploadData(data: UploadSpecItemFileData): {
   sizeBytes: number;
   category: SpecItemFileCategory;
 } | { ok: false; error: SpecItemFileError } {
-  // Категория: пустое значение — это «не указана», а не ошибка. Указанное, но
-  // не из списка — ошибка: «другое» для опечатки скрыло бы проблему клиента.
+  /**
+   * Вид документа: явно указанный главнее догадки, иначе — догадка сервера.
+   *
+   * Указанное, но не из списка значение — ошибка: «другое» для опечатки скрыло
+   * бы проблему клиента. А вот ОТСУТСТВИЕ вида ошибкой не является: это и есть
+   * основной путь (`guessSpecItemFileCategory`), где вид определяется по
+   * подтверждённому формату файла, а не спрашивается диалогом.
+   */
   const rawCategory = (data.category ?? "").trim();
   if (rawCategory !== "" && !isSpecItemFileCategory(rawCategory)) {
     return invalidInput("Неизвестный вид документа");
   }
-  // Вид по умолчанию — общий документ: подставлять `other` значило бы помечать
-  // как «непонятно что» каждый файл, у которого вид не назван.
   const category: SpecItemFileCategory = isSpecItemFileCategory(rawCategory)
     ? rawCategory
-    : "document";
+    : guessSpecItemFileCategory({
+        mimeType: normalizeMimeType(data.declaredMime),
+        fileName: data.fileName,
+      });
 
   const fileName = normalizeFileName(data.fileName);
   if (!fileName) return invalidInput("У файла нет имени");
@@ -886,6 +974,18 @@ export async function uploadSpecItemFile(
  *
  * Путь берётся из строки БД и сверяется с ожидаемым префиксом. Клиент не может
  * передать ни `storage_path`, ни URL: их нет в аргументах.
+ *
+ * ── Просмотр и скачивание ─────────────────────────────────────────────────
+ *
+ * `download` — «пользователь хочет сохранить файл», а не «открыть». Тогда имя
+ * для заголовка берётся из строки (`file_name`) и нормализуется заново:
+ * `normalizeFileName` снимает переводы строк (защита от подделки заголовка) и
+ * пути. При загрузке и правке имя уже нормализовано — это второй контур для
+ * строки, записанной в БД в обход кода.
+ *
+ * Имя НЕ приходит от клиента: подставлять в `Content-Disposition` то, что
+ * прислала форма, нельзя. Скачивают ровно то имя, которое видно в списке, —
+ * за это отвечает `file_name` строки, а не догадка вызывающего.
  */
 export async function getSpecItemFileUrl(
   db: SpecItemFilesDb,
@@ -897,6 +997,8 @@ export async function getSpecItemFileUrl(
     fileId: string;
     /** Переопределение TTL (тесты); по умолчанию — 5 минут. */
     expiresIn?: number;
+    /** `true` — отдать файл вложением под его оригинальным именем. */
+    download?: boolean;
   },
 ): Promise<GetSpecItemFileUrlResult> {
   const item = await resolveSpecItem(db, args);
@@ -931,11 +1033,16 @@ export async function getSpecItemFileUrl(
   }
 
   const expiresIn = args.expiresIn ?? SPEC_ITEM_FILE_URL_TTL_SECONDS;
+  const downloadName = args.download ? normalizeFileName(data.file_name) : "";
 
   try {
     const { data: signed, error: signError } = await storage.createSignedUrl({
       path: data.storage_path,
       expiresIn,
+      // Пустое имя после нормализации означает, что строка испорчена (в БД
+      // лежит имя из одних пробелов): скачивание остаётся скачиванием, а имя
+      // подставит Storage (`true`).
+      download: !args.download ? null : downloadName.length > 0 ? downloadName : true,
     });
 
     if (signError || !signed?.signedUrl) {
@@ -1048,4 +1155,147 @@ export async function deleteSpecItemFile(
   await removeQuietly(storage, row.storage_path);
 
   return { ok: true, file: entry, deleted: true };
+}
+
+/* ------------------------------------------------------------------ */
+/*  update                                                             */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Правка метаданных файла: вид документа и оригинальное имя.
+ *
+ * ── Почему это одна операция, а не две ────────────────────────────────────
+ *
+ * И вид, и имя — поля ОДНОЙ строки, правит их один и тот же человек по одному и
+ * тому же праву, и живут они в одном диалоге/меню. Разводить их по двум
+ * действиям значило бы завести два запроса на одну правку и два места, где
+ * проверяется принадлежность файла позиции.
+ *
+ * ── Что НЕ правится ───────────────────────────────────────────────────────
+ *
+ * * `storage_path` — путь объекта в Storage. Имя объекта там UUID, и оно не
+ *   зависит от `file_name`: переименование файла не двигает объект и не требует
+ *   его повторной загрузки. Это ключевое свойство модели: имя файла и имя
+ *   объекта разделены намеренно (см. заголовок модуля), и именно поэтому
+ *   переименование — дешёвая операция над строкой БД;
+ * * `mime_type` и `size_bytes` — производные содержимого. Их нельзя «поправить»
+ *   иначе как загрузив другой файл, а правка вручную разошлась бы с объектом;
+ * * `category` на что-либо, кроме закрытого списка (`INVALID_INPUT`).
+ *
+ * ── Границы доверия ───────────────────────────────────────────────────────
+ *
+ * Имя приходит от клиента, поэтому нормализуется тем же `normalizeFileName`,
+ * что и при загрузке: снимаются пути, управляющие символы и переводы строк
+ * (имя уходит в `Content-Disposition` при скачивании), обрезается длина. Пустое
+ * после нормализации имя — отказ, а не «оставить как было»: пользователь стёр
+ * имя намеренно, и молча вернуть старое значило бы соврать об успехе.
+ *
+ * ── Порядок проверок ──────────────────────────────────────────────────────
+ *
+ * 1. позиция в этой организации и проекте (`NOT_FOUND`);
+ * 2. файл в этой организации и позиции (`NOT_FOUND`);
+ * 3. файл не удалён (`NOT_FOUND`) — мягко удалённый файл не правится: он уже
+ *    не показывается, и правка была бы невидимой;
+ * 4. путь объекта ожидаемый (`FAILED`) — как у чтения и удаления: строка,
+ *    записанная в обход кода, не должна становиться «правимой»;
+ * 5. значения полей (`INVALID_INPUT`).
+ *
+ * Правка НЕ трогает журнал позиции (`spec_item_events`): файлы туда не
+ * пишутся и при загрузке с удалением, и заводить событие только для
+ * переименования значило бы завести половину истории файла.
+ */
+export async function updateSpecItemFile(
+  db: SpecItemFilesDb,
+  args: {
+    orgId: string;
+    projectId: string;
+    specItemId: string;
+    fileId: string;
+    /** Новый вид документа; `undefined` — не менять. */
+    category?: string | null;
+    /** Новое имя файла; `undefined` — не менять. */
+    fileName?: string | null;
+  },
+): Promise<UpdateSpecItemFileResult> {
+  const item = await resolveSpecItem(db, args);
+  if (!item.ok) return { ok: false, error: item.error };
+
+  const { data: row, error } = await db
+    .from("spec_item_files")
+    .select(FILE_COLUMNS)
+    .eq("id", args.fileId)
+    .eq("org_id", args.orgId)
+    .eq("spec_item_id", args.specItemId)
+    .maybeSingle<FileRow>();
+
+  if (error) {
+    console.error("[updateSpecItemFile] read", error.message);
+    return failed("Не удалось сохранить файл");
+  }
+
+  if (!row || row.deleted_at !== null) return notFound();
+
+  if (
+    !isSpecItemFilePathExpected({
+      storagePath: row.storage_path,
+      orgId: args.orgId,
+      specItemId: args.specItemId,
+    })
+  ) {
+    console.error("[updateSpecItemFile] неожиданный storage_path", row.id);
+    return failed("Не удалось сохранить файл");
+  }
+
+  const patch: { category?: SpecItemFileCategory; file_name?: string } = {};
+
+  if (args.category !== undefined && args.category !== null) {
+    const category = args.category.trim();
+    if (!isSpecItemFileCategory(category)) {
+      return invalidInput("Неизвестный вид документа");
+    }
+    if (category !== row.category) patch.category = category;
+  }
+
+  if (args.fileName !== undefined && args.fileName !== null) {
+    const fileName = normalizeFileName(args.fileName);
+    if (!fileName) return invalidInput("У файла нет имени");
+    if (fileName !== row.file_name) patch.file_name = fileName;
+  }
+
+  // Ничего не поменялось — не пишем в БД и отвечаем тем же, что лежит в строке.
+  // Это нормальный случай (открыли селект и выбрали текущее значение), а не
+  // ошибка: пользователь сделал запрос, но менять было нечего.
+  if (Object.keys(patch).length === 0) {
+    return {
+      ok: true,
+      file: toEntry(row, await paymentInfoOf(db, args, row.payment_id)),
+      changed: false,
+    };
+  }
+
+  const { data: updated, error: updateError } = await db
+    .from("spec_item_files")
+    .update(patch)
+    .eq("id", row.id)
+    .eq("org_id", args.orgId)
+    .eq("spec_item_id", args.specItemId)
+    .is("deleted_at", null)
+    .select(FILE_COLUMNS)
+    .maybeSingle<FileRow>();
+
+  if (updateError) {
+    console.error("[updateSpecItemFile] update", updateError.message);
+    return failed("Не удалось сохранить файл");
+  }
+
+  // `null` — гонка: строку удалили параллельно. Для пользователя это «файла
+  // нет», то есть тот же `NOT_FOUND`, что и у отсутствующей строки: ответить
+  // успехом значило бы показать правку файла, которого больше нет.
+  if (!updated) return notFound();
+
+  return {
+    ok: true,
+    file: toEntry(updated, await paymentInfoOf(db, args, updated.payment_id)),
+    changed: true,
+  };
 }

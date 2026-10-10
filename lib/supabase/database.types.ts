@@ -1907,6 +1907,16 @@ export type Database = {
           }
       ensure_personal_org: { Args: { p_user_id: string }; Returns: string }
       is_org_member: { Args: { _org_id: string }; Returns: boolean }
+      move_spec_item_payment_plan: {
+        Args: { p_dir: string; p_item: string; p_org: string; p_plan: string }
+        Returns: {
+          neighbour_id: string
+          neighbour_position: number
+          result: string
+          target_id: string
+          target_position: number
+        }[]
+      }
       set_spec_item_code: {
         Args: {
           p_allow_swap?: boolean

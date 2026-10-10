@@ -12,6 +12,8 @@ import {
   checkDeclaredMimeMatchesContent,
   extensionForMime,
   extensionOfFileName,
+  fileKindOf,
+  guessSpecItemFileCategory,
   isAllowedSpecItemFileMime,
   isSpecItemFilePathExpected,
   isSpecItemFileCategory,
@@ -104,6 +106,94 @@ describe("константы синхронизированы с миграци�
   it("SVG не разрешён — это XML со скриптами", () => {
     expect(isAllowedSpecItemFileMime("image/svg+xml")).toBe(false);
     expect(migration).not.toContain("'image/svg+xml'");
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/*  Вид файла и угадывание вида документа                              */
+/* ------------------------------------------------------------------ */
+
+describe("fileKindOf", () => {
+  it("MIME важнее расширения", () => {
+    expect(fileKindOf({ mimeType: "application/pdf", fileName: "x" })).toBe("pdf");
+    expect(fileKindOf({ mimeType: "image/png", fileName: "скан.pdf" })).toBe(
+      "image",
+    );
+    expect(fileKindOf({ mimeType: "image/vnd.dwg", fileName: "plan" })).toBe("cad");
+  });
+
+  it("расширение — второй источник, когда MIME обобщённый или пустой", () => {
+    for (const [name, expected] of [
+      ["план.dwg", "cad"],
+      ["модель.obj", "cad"],
+      ["архив.zip", "archive"],
+      ["фото.JPG", "image"],
+      ["счёт.pdf", "pdf"],
+    ] as const) {
+      expect(
+        fileKindOf({ mimeType: "application/octet-stream", fileName: name }),
+        name,
+      ).toBe(expected);
+    }
+    expect(fileKindOf({ mimeType: "", fileName: "файл" })).toBe("file");
+  });
+
+  it("параметры MIME не мешают", () => {
+    expect(fileKindOf({ mimeType: "application/pdf; charset=binary", fileName: "x" })).toBe(
+      "pdf",
+    );
+  });
+});
+
+describe("guessSpecItemFileCategory", () => {
+  it("PDF — документ, картинка — текстура, CAD — чертёж", () => {
+    const cases: { mimeType: string; fileName: string; expected: string }[] = [
+      { mimeType: "application/pdf", fileName: "счёт.pdf", expected: "document" },
+      { mimeType: "image/jpeg", fileName: "фото.jpg", expected: "texture" },
+      { mimeType: "image/png", fileName: "скан.png", expected: "texture" },
+      { mimeType: "image/vnd.dwg", fileName: "план.dwg", expected: "drawing" },
+      { mimeType: "image/vnd.dxf", fileName: "схема.dxf", expected: "drawing" },
+      { mimeType: "model/gltf-binary", fileName: "модель.glb", expected: "drawing" },
+    ];
+
+    for (const testCase of cases) {
+      expect(
+        guessSpecItemFileCategory(testCase),
+        `${testCase.mimeType} ${testCase.fileName}`,
+      ).toBe(testCase.expected);
+    }
+  });
+
+  it("архив и незнакомый формат — документ, а не «другое»", () => {
+    // Содержимое архива неизвестно, а `other` значит «не знаю, что это»:
+    // значение по умолчанию домена — именно документ.
+    expect(
+      guessSpecItemFileCategory({
+        mimeType: "application/zip",
+        fileName: "выгрузка.zip",
+      }),
+    ).toBe("document");
+    expect(
+      guessSpecItemFileCategory({ mimeType: "text/plain", fileName: "заметки.txt" }),
+    ).toBe("document");
+    expect(
+      guessSpecItemFileCategory({ mimeType: "", fileName: "файл" }),
+    ).toBe("document");
+  });
+
+  it("угаданное значение всегда из закрытого списка", () => {
+    // Иначе сервер предложил бы вид, который отвергнет CHECK-констрейнт.
+    const samples: { mimeType: string; fileName: string }[] = [
+      { mimeType: "application/pdf", fileName: "a.pdf" },
+      { mimeType: "image/png", fileName: "b.png" },
+      { mimeType: "image/vnd.dwg", fileName: "c.dwg" },
+      { mimeType: "application/zip", fileName: "d.zip" },
+      { mimeType: "", fileName: "" },
+    ];
+
+    for (const sample of samples) {
+      expect(isSpecItemFileCategory(guessSpecItemFileCategory(sample))).toBe(true);
+    }
   });
 });
 
