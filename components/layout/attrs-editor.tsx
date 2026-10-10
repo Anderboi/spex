@@ -170,6 +170,7 @@ export function AttrsEditor({
               const id = `${idPrefix}-attr-${i}`;
               return (
                 <SpecParameterInlineEdit
+                  key={key}
                   label={key}
                   htmlFor={id}
                   className={isPreset ? undefined : "text-fg"}
