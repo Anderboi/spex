@@ -69,6 +69,10 @@ function payment(over: Partial<PaymentEntry> = {}): PaymentEntry {
 function setup(over: {
   payment?: PaymentEntry | null;
   plans?: PaymentPlanEntry[];
+  /** Стоимость позиции: база для процента. Ноль — процента не предлагаем. */
+  itemCost?: number;
+  /** Сколько осталось доплатить по позиции. */
+  remaining?: number;
   onSubmit?: (values: PaymentFormValues) => Promise<string | null>;
 } = {}) {
   const onSubmit = vi.fn<(values: PaymentFormValues) => Promise<string | null>>(
@@ -80,6 +84,8 @@ function setup(over: {
       open
       payment={over.payment ?? null}
       plans={over.plans ?? [plan()]}
+      itemCost={over.itemCost ?? 0}
+      remaining={over.remaining ?? 0}
       onClose={() => {}}
       onSubmit={onSubmit}
     />,
@@ -93,9 +99,14 @@ function setup(over: {
 const kindSelect = () =>
   screen.getByRole("combobox", { name: "Вид записи" }) as HTMLSelectElement;
 
-/** Поле суммы: у него подпись без `htmlFor`, поэтому берём по плейсхолдеру —
- * как в тестах модалки услуги. */
-const amountInput = () => screen.getByPlaceholderText("0");
+/** Поле суммы: своё доступное имя, потому что плейсхолдер «0» делит с полем
+ * процента — по плейсхолдеру запрос стал бы неоднозначным. */
+const amountInput = () =>
+  screen.getByLabelText("Сумма, ₽") as HTMLInputElement;
+
+/** Поле процента: своё доступное имя, потому что плейсхолдер у него свой. */
+const percentInput = () =>
+  screen.getByLabelText("Процент от стоимости") as HTMLInputElement;
 
 afterEach(cleanup);
 
@@ -202,5 +213,131 @@ describe("PaymentForm · сумма по-прежнему обязательна
     // Проверка формы не сбрасывает выбор: пользователь исправляет сумму, а не
     // заново выбирает вид записи.
     expect(kindSelect().value).toBe("refund");
+  });
+});
+
+/**
+ * Процент и остаток.
+ *
+ * Процент — удобство ввода, а не данные: он разово превращается в сумму, и в БД
+ * уходит сумма (решение интервью 2026-10-10). Поэтому проверяется именно то, что
+ * уходит в `onSubmit`: второго источника правды не заводится.
+ *
+ * Остаток — контекст текущей позиции: стоимость минус уже оплаченное. Он не
+ * часть записи, а справка о том, сколько ещё осталось по позиции.
+ */
+describe("PaymentForm · процент от стоимости", () => {
+  it("ввод процента считает сумму и уходит в onSubmit суммой", async () => {
+    const user = userEvent.setup();
+    const { onSubmit } = setup({ itemCost: 100000 });
+
+    await user.type(percentInput(), "25");
+    await user.click(screen.getByRole("button", { name: "Внести оплату" }));
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+
+    expect(onSubmit.mock.calls[0][0]).toMatchObject({ amount: 25000 });
+    // Процента в отправляемых данных нет: он не хранится.
+    expect(onSubmit.mock.calls[0][0]).not.toHaveProperty("percent");
+  });
+
+  it("кнопка процента подставляет сумму в поле — видно, что уйдёт", async () => {
+    const user = userEvent.setup();
+    setup({ itemCost: 100000 });
+
+    await user.click(screen.getByRole("button", { name: "50 %" }));
+
+    expect(amountInput().value).toBe("50000");
+  });
+
+  it("процент округляется до копейки", async () => {
+    const user = userEvent.setup();
+    const { onSubmit } = setup({ itemCost: 33333 });
+
+    await user.type(percentInput(), "10");
+    await user.click(screen.getByRole("button", { name: "Внести оплату" }));
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+
+    // 10 % от 33 333 — 3333.3, а не 3333.3000000000002.
+    expect(onSubmit.mock.calls[0][0]).toMatchObject({ amount: 3333.3 });
+  });
+
+  it("сумма, введённая руками, важнее процента", async () => {
+    // Процент только заполняет поле. Если после него поправить сумму, уйдёт
+    // сумма: пользователь видел её в поле и подтвердил именно её.
+    const user = userEvent.setup();
+    const { onSubmit } = setup({ itemCost: 100000 });
+
+    await user.click(screen.getByRole("button", { name: "25 %" }));
+    await user.clear(amountInput());
+    await user.type(amountInput(), "40000");
+    await user.click(screen.getByRole("button", { name: "Внести оплату" }));
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+
+    expect(onSubmit.mock.calls[0][0]).toMatchObject({ amount: 40000 });
+  });
+
+  it("без стоимости проценты не предлагаются: считать не от чего", () => {
+    setup({ itemCost: 0 });
+
+    expect(screen.queryByRole("button", { name: "25 %" })).toBeNull();
+    expect(screen.queryByLabelText("Процент от стоимости")).toBeNull();
+  });
+});
+
+describe("PaymentForm · сколько осталось доплатить", () => {
+  it("показывает остаток по позиции", () => {
+    setup({ remaining: 50000 });
+
+    expect(screen.getByText(/Не оплачено/)).toBeDefined();
+  });
+
+  it("остаток подставляется в сумму одним нажатием", async () => {
+    const user = userEvent.setup();
+    setup({ remaining: 50000 });
+
+    await user.click(
+      screen.getByRole("button", { name: /Подставить остаток/ }),
+    );
+
+    expect(amountInput().value).toBe("50000");
+  });
+
+  it("подставленный остаток уходит в onSubmit", async () => {
+    const user = userEvent.setup();
+    const { onSubmit } = setup({ remaining: 50000 });
+
+    await user.click(
+      screen.getByRole("button", { name: /Подставить остаток/ }),
+    );
+    await user.click(screen.getByRole("button", { name: "Внести оплату" }));
+
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+
+    expect(onSubmit.mock.calls[0][0]).toMatchObject({ amount: 50000 });
+  });
+
+  it("доплачивать нечего — остатка и кнопки нет", () => {
+    // Ноль в «осталось доплатить» читался бы как «осталось ноль»: верно, но
+    // бесполезно — подставлять нечего и напоминать не о чем.
+    setup({ remaining: 0 });
+
+    expect(screen.queryByText(/Не оплачено/)).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: /Подставить остаток/ }),
+    ).toBeNull();
+  });
+
+  it("в правке остаток виден, но не подставляется", () => {
+    // Правка меняет уже существующую сумму; кнопка «подставить остаток» здесь
+    // подменила бы её целиком, ничего не сообщив о том, что было.
+    setup({ payment: payment(), remaining: 50000 });
+
+    expect(screen.getByText(/Не оплачено/)).toBeDefined();
+    expect(
+      screen.queryByRole("button", { name: /Подставить остаток/ }),
+    ).toBeNull();
   });
 });

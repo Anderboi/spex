@@ -8,4 +8,4 @@
 - Ошибочная проводка отменяется мягким удалением (`deleted_at`) с записью в журнал, а не удалением строки.
 - Удаление организации (если появится) потребует отдельного решения о судьбе финансовой истории: сейчас каскад до неё не доходит — его останавливает `RESTRICT` на платежах.
 
-Основание и разбор удаления — [.scratch/material-payments/REPORT.md](../.scratch/material-payments/REPORT.md); смежное решение — [0003](0003-grafik-platezhey-eto-samostoyatelnyy-fakt.md).
+Основание и разбор удаления — [.scratch/material-payments/REPORT.md](../.scratch/material-payments/REPORT.md); смежное решение — [0003](0003-ostatok-ot-stoimosti.md).

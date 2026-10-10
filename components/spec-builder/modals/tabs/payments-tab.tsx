@@ -39,11 +39,7 @@ import {
   listPayments,
   updatePayment,
 } from "@/actions/spec-item-payments";
-import { paymentPlanDeadline } from "@/lib/spec/service-operation-deadline";
-import {
-  paymentPlanCoverage,
-  summarisePaymentSchedule,
-} from "@/lib/spec/payment-schedule";
+import { paymentPlanCoverage, paymentProgress, summarisePaymentSchedule } from "@/lib/spec/payment-schedule";
 import { canMutatePayment, canRecordPayment, isForeignPayment } from "@/lib/spec/payment-permissions";
 import { PAYMENT_KIND_LABEL } from "@/lib/spec/payment-types";
 import type { PaymentEntry } from "@/lib/spec/payment-types";
@@ -55,33 +51,39 @@ import PaymentPlanForm, {
 import PaymentForm, { type PaymentFormValues } from "./payment-form";
 
 /**
- * Вкладка «Платежи» карточки материала: график и фактические оплаты позиции.
+ * Вкладка «Платежи» карточки материала: прогресс оплаты и фактические записи.
  *
  * ── Что здесь есть ─────────────────────────────────────────────────────────
  *
- * 1. сводка: план · оплачено · остаток · переплата · вне графика · возвраты
- *    (своей строкой) и пометка «возвратов больше, чем оплат»;
- * 2. график: строки с покрытием (`оплачено / осталось`), сроком и действиями;
- * 3. факты: вид записи, дата, сумма, привязка к строке графика, комментарий,
+ * 1. прогресс от стоимости позиции: сколько стоит, сколько оплачено, сколько
+ *    осталось, процент и полоса; рядом — возвраты и пометка «возвратов больше,
+ *    чем оплат»;
+ * 2. факты: вид записи, дата, сумма, привязка к строке графика, комментарий,
  *    автор и действия по правам;
- * 4. две формы — строка графика и запись (оплата или возврат).
+ * 3. форма записи — оплата или возврат, с вводом суммы числом или процентом.
+ *
+ * ── График платежей в интерфейсе не участвует ──────────────────────────────
+ *
+ * Решение интервью 2026-10-10: обязательство не ведётся строками графика, а
+ * остаток считается от стоимости позиции (`paymentProgress`). Таблица графика,
+ * кнопка «Добавить платёж» и форма строки выведены из рендера; код, действия и
+ * данные сохранены, поэтому возврат блока обратим.
  *
  * ── Почему данные грузятся вкладкой, а не приходят пропсом ─────────────────
  *
  * Тем же приёмом, что «Файлы» и «Комментарии»: у вкладки собственный запрос в
  * локальное состояние. Конструктор держит `items` в `useState`, синхронизации с
  * пропсами нет, и `revalidatePath` из action до открытой модалки не доходит —
- * полагаться на него здесь нельзя. Поэтому оба списка обновляются из ответов
- * действий (они возвращают записанную строку), а после перестановки графика
- * список перечитывается: там меняется не одна строка.
+ * полагаться на него здесь нельзя. Поэтому список фактов обновляется из ответов
+ * действий (они возвращают записанную строку).
  *
  * ── Почему один запрос на две таблицы ──────────────────────────────────────
  *
- * График и факты читаются ВМЕСТЕ (`Promise.all`) и обновляются вместе. Причина не
- * в экономии запросов: покрытие строки — это факты по строке, и список фактов,
- * показанный рядом со старым графиком, давал бы неверные остатки. Одновременная
- * загрузка делает состояние вкладки одним куском, а не двумя, которые могут
- * разъехаться.
+ * Факты и строки графика читаются ВМЕСТЕ (`Promise.all`) и обновляются вместе.
+ * Причина историческая: покрытие строки считалось из фактов, и список фактов,
+ * показанный рядом со старым графиком, давал бы неверные остатки. Пока график
+ * скрыт, второй список не показывается, но читается: привязка факта к строке
+ * сохраняется в записи и должна быть целой, если блок вернут.
  *
  * ── Арифметика ─────────────────────────────────────────────────────────────
  *
@@ -160,36 +162,6 @@ function dateLabel(value: string): string {
     month: "long",
     year: "numeric",
   });
-}
-
-/** Строка сводки: подпись и значение. */
-function SummaryCell({
-  label,
-  value,
-  tone = "default",
-}: {
-  label: string;
-  value: string;
-  tone?: "default" | "muted" | "accent" | "danger";
-}) {
-  return (
-    <div className="flex min-w-0 flex-col gap-0.5">
-      <span className="font-mono text-[10.5px] uppercase tracking-wider text-fg-muted">
-        {label}
-      </span>
-      <span
-        className={cn(
-          "font-mono text-[13.5px] tabular-nums",
-          tone === "muted" && "text-fg-dim",
-          tone === "accent" && "text-fg-brand",
-          tone === "danger" && "text-fg-red",
-          tone === "default" && "text-fg",
-        )}
-      >
-        {value}
-      </span>
-    </div>
-  );
 }
 
 export default function PaymentsTab({
@@ -371,6 +343,41 @@ export default function PaymentsTab({
       deletedAt: null,
     })),
   );
+
+  /**
+   * Прогресс оплаты от стоимости позиции: сколько стоит, сколько оплачено,
+   * сколько осталось и какой это процент.
+   *
+   * Считается тем же модулем, что и сводка, поэтому «оплачено» здесь и в
+   * сводке — одна величина, а не две похожие.
+   */
+  const progress = paymentProgress(
+    itemCost ?? 0,
+    payments.map((payment) => ({
+      paymentPlanId: payment.paymentPlanId,
+      amount: payment.amount,
+      kind: payment.kind,
+      deletedAt: null,
+    })),
+  );
+
+  /**
+   * Ширины полосы прогресса в процентах.
+   *
+   * Оплаченная доля не длиннее всей полосы, а превышение показывается отдельным
+   * красным отрезком вплотную к ней: полоса «120 % ширины» ничего не сообщает, а
+   * «сколько именно сверху» видно из подписи переплаты.
+   */
+  const paidBarPct = progress.percent ?? 0;
+  const overpaidBarPct =
+    progress.total > 0
+      ? Math.min(
+          Math.round(
+            ((100 - paidBarPct) * progress.overpaid) / progress.total,
+          ),
+          100 - paidBarPct,
+        )
+      : 0;
 
   const coverage = useMemo(
     () =>
@@ -614,35 +621,93 @@ export default function PaymentsTab({
       {isCurrent && (
         <>
           {/*
-            Сводка. «Переплата» и «Вне графика» — раздельные величины: при пустом
-            графике оплата вне графика не превращается в переплату на 100 %
-            (REPORT §5.1). «Возвраты» появляются строкой только тогда, когда они
-            есть: нулевая строка «Возвраты» ничего не сообщает.
+            Стоимость, прогресс и остаток.
+
+            База — стоимость позиции, а не сумма графика: это осознанный откат
+            решения ADR 0003 (см. `paymentProgress` в `lib/spec/payment-schedule`
+            и ADR). Следствие принято явно: при смене цены, количества или
+            скидок «осталось» изменится без единой новой оплаты.
+
+            График платежей в интерфейсе не участвует вовсе — блок убран ниже.
+            Данные графика при этом сохранены.
           */}
-          <div className="grid grid-cols-2 gap-x-4 gap-y-3 rounded-xl border border-border-muted bg-bg-card2 px-3.5 py-3 sm:grid-cols-4">
-            <SummaryCell label="План" value={fmtRub(summary.planned)} />
-            <SummaryCell
-              label="Оплачено"
-              value={fmtRub(summary.paid)}
-              tone="muted"
-            />
-            <SummaryCell label="Остаток" value={fmtRub(summary.remaining)} />
-            <SummaryCell
-              label="Переплата"
-              value={fmtRub(summary.overpaid)}
-              tone={summary.overpaid > 0 ? "danger" : "muted"}
-            />
-            <SummaryCell
-              label="Вне графика"
-              value={fmtRub(summary.unplanned)}
-              tone={summary.unplanned !== 0 ? "accent" : "muted"}
-            />
-            {summary.refunded !== 0 && (
-              <SummaryCell
-                label="Возвраты"
-                value={fmtRub(summary.refunded)}
-                tone="danger"
+          <div
+            /*
+              `data-testid` — по той же причине, что в модалке закупки: карточка
+              это `div` без роли и без единого текстового узла (подписи и числа
+              лежат в разных `span`), поэтому ни роль, ни текст не дают тесту
+              устойчивой точки опоры.
+            */
+            data-testid="payments-progress"
+            className="flex flex-col gap-2.5 rounded-xl border border-border-muted bg-bg-card2 px-4 py-3.5"
+          >
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <span className="text-[12.5px] text-fg-muted">
+                Стоимость материала
+              </span>
+              <span className="text-[17px] font-bold tabular-nums">
+                {fmtRub(progress.total)}
+              </span>
+            </div>
+
+            {/*
+              Полоса: зелёная — оплаченная доля стоимости, красная — превышение
+              над ней. Ширины считаются от стоимости, поэтому полоса не «врёт»
+              при переплате: зелёная часть не длиннее всей полосы.
+            */}
+            <div className="flex h-2.5 overflow-hidden rounded-full bg-bg-select">
+              <div
+                className="bg-fg-green"
+                style={{ width: `${paidBarPct}%` }}
               />
+              {progress.overpaid > 0 && (
+                <div
+                  className="bg-fg-red"
+                  style={{ width: `${overpaidBarPct}%` }}
+                />
+              )}
+            </div>
+
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <span className="text-[13px] text-fg-green">
+                Оплачено:{" "}
+                <span className="font-mono tabular-nums text-fg">
+                  {fmtRub(progress.paid)}
+                </span>
+                {progress.percent !== null && (
+                  <span className="ml-1.5 text-fg-dim">
+                    · {progress.percent} %
+                  </span>
+                )}
+              </span>
+              {progress.overpaid > 0 ? (
+                <span className="text-[13px] text-fg-red">
+                  Переплата:{" "}
+                  <span className="font-mono tabular-nums">
+                    {fmtRub(progress.overpaid)}
+                  </span>
+                </span>
+              ) : (
+                <span className="text-[13px] text-fg-muted">
+                  Осталось:{" "}
+                  <span className="font-mono tabular-nums text-fg">
+                    {fmtRub(progress.remaining)}
+                  </span>
+                </span>
+              )}
+            </div>
+
+            {/*
+              Возвраты — отдельной строкой, а не только уменьшением итога: иначе
+              уменьшение оплаченного выглядит как правка истории.
+            */}
+            {summary.refunded !== 0 && (
+              <span className="text-[12px] text-fg-red">
+                Возвраты:{" "}
+                <span className="font-mono tabular-nums">
+                  {fmtRub(summary.refunded)}
+                </span>
+              </span>
             )}
           </div>
 
@@ -667,19 +732,6 @@ export default function PaymentsTab({
                 получили. Запись сохранена: причина возврата не требуется.
               </span>
             </div>
-          )}
-
-          {/*
-            Стоимость позиции — справка рядом с платежами, а не база остатка
-            (решение Q1). Подпись называет источник: цена и количество позиции
-            считаются отдельно и ни на график, ни на факты не влияют.
-          */}
-          {itemCost !== undefined && (
-            <p className="px-1 text-[11.5px] text-fg-dim">
-              Стоимость позиции:{" "}
-              <span className="font-mono">{fmtRub(itemCost)}</span> — справка,
-              остаток от неё не считается
-            </p>
           )}
 
           {actionErrorHere && actionErrorHere.rowId === null && (
@@ -769,15 +821,13 @@ export default function PaymentsTab({
                     </div>
 
                     <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[12px] text-fg-muted">
-                      {/* Привязка: название строки графика, «без плана» или
-                          честная пометка, что строки больше нет в графике. */}
-                      {payment.paymentPlanId === null ? (
-                        <span className="text-fg-dim">Без плана · вне графика</span>
-                      ) : (
-                        <span className="min-w-0 truncate">
-                          {planTitle ?? "Строка графика удалена"}
-                        </span>
-                      )}
+                      {/*
+                        Привязка к строке графика больше НЕ показывается: график
+                        выведен из интерфейса, и «без плана · вне графика» рядом
+                        с невидимым графиком читалось бы как загадка. Сама
+                        привязка в записи сохраняется — см. `paymentProgress` и
+                        ADR 0003.
+                      */}
                       {payment.comment && (
                         <span className="min-w-0">{payment.comment}</span>
                       )}
@@ -838,190 +888,19 @@ export default function PaymentsTab({
             );
           })}
 
-          {/* ── График: обязательства ─────────────────────────────────── */}
-          <div className="mt-2 flex items-center justify-between gap-2 px-1">
-            <span className="flex items-center gap-1.5 text-[11.5px] text-fg-muted">
-              <CalendarPlus className="size-3.5" aria-hidden="true" />
-              {plans.length > 0
-                ? `Строк в графике: ${plans.length}`
-                : "График платежей пуст"}
-            </span>
-            {canWrite && (
-              <Button
-                type="button"
-                variant="outline"
-                className="shrink-0 gap-1.5"
-                onClick={() => {
-                  setPlanFormVersion((current) => current + 1);
-                  setPlanForm({ plan: null });
-                }}
-              >
-                <Plus className="size-3.5" />
-                Добавить платёж
-              </Button>
-            )}
-          </div>
+          {/*
+            ── Блок графика платежей убран из интерфейса ──────────────────────
+            Решение интервью 2026-10-10: оплаты считаются от стоимости позиции
+            (`paymentProgress` выше), а вести график платежей не нужно.
 
-          {plans.length === 0 && (
-            <div className="flex flex-col items-center gap-1.5 rounded-xl border-2 border-dashed border-border-muted px-4 py-6 text-center">
-              <CalendarPlus className="size-5 text-fg-dim" aria-hidden="true" />
-              <p className="text-[13.5px] font-medium text-fg">
-                Платежей пока нет
-              </p>
-              <p className="max-w-xs text-[12.5px] text-fg-muted">
-                График — это обязательства по позиции: сумма, условие оплаты и
-                срок. Из стоимости позиции он не выводится.
-              </p>
-            </div>
-          )}
+            Убрано ЧТО ПОКАЗЫВАЕТСЯ, а не что хранится: таблица графика, кнопка
+            «Добавить платёж», форма строки графика и её подтверждение удаления
+            остаются в `payment-plan-*`; данные в БД не тронуты. Вернуть блок —
+            значит вернуть его рендер, а не восстанавливать данные.
 
-          {plans.map((plan, index) => {
-            const deadline = paymentPlanDeadline({ dueDate: plan.dueDate });
-            const rowBusy = busyHere?.rowId === plan.id ? busyHere : null;
-            const rowError =
-              actionErrorHere?.rowId === plan.id ? actionErrorHere.message : null;
-            const planCoverage = coverage.get(plan.id);
-            const coverPaid = planCoverage?.paid ?? 0;
-            const coverRemaining = planCoverage?.remaining ?? plan.amount;
-            const coverOverpaid = planCoverage?.overpaid ?? 0;
-
-            return (
-              <div
-                key={plan.id}
-                className="flex flex-col gap-1 rounded-xl border border-border-muted px-3 py-2.5"
-              >
-                <div className="flex items-start gap-3">
-                  <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-                    <div className="flex min-w-0 items-baseline gap-2">
-                      <span className="truncate text-[13.5px] font-medium text-fg">
-                        {plan.title}
-                      </span>
-                      <span className="shrink-0 font-mono text-[13.5px] tabular-nums text-fg">
-                        {fmtRub(plan.amount)}
-                      </span>
-                    </div>
-
-                    <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5 text-[12px] text-fg-muted">
-                      {plan.condition ? (
-                        <span className="min-w-0">{plan.condition}</span>
-                      ) : (
-                        <span className="text-fg-dim">Условие не указано</span>
-                      )}
-                      {plan.dueDate && (
-                        <span
-                          className={cn(
-                            "font-mono",
-                            deadline?.overdue ? "text-fg-red" : "text-fg-muted",
-                          )}
-                          // Тот же приём, что у строки услуги: срок показывает
-                          // «сегодня / через N дн. / просрочено N дн.».
-                          title={deadline?.text}
-                        >
-                          до {dateLabel(plan.dueDate)}
-                          {deadline ? ` · ${deadline.text}` : ""}
-                        </span>
-                      )}
-                    </div>
-
-                    {/*
-                      Покрытие строки: сколько по ней уже оплачено и сколько
-                      осталось. Частичные оплаты видны именно здесь — сумма
-                      фактов по строке против её суммы.
-                    */}
-                    <span className="text-[11.5px] text-fg-dim">
-                      {coverPaid === 0 && coverOverpaid === 0 ? (
-                        "Не оплачено"
-                      ) : (
-                        <>
-                          Оплачено{" "}
-                          <span className="font-mono">{fmtRub(coverPaid)}</span>
-                          {coverOverpaid > 0 ? (
-                            <>
-                              {" · "}
-                              <span className="text-fg-red">
-                                переплата {fmtRub(coverOverpaid)}
-                              </span>
-                            </>
-                          ) : (
-                            <>
-                              {" · "}
-                              осталось{" "}
-                              <span className="font-mono">
-                                {fmtRub(coverRemaining)}
-                              </span>
-                            </>
-                          )}
-                        </>
-                      )}
-                    </span>
-
-                    {rowError && (
-                      <span role="alert" className="text-[12px] text-fg-red">
-                        {rowError}
-                      </span>
-                    )}
-                  </div>
-
-                  {canWrite && (
-                    <div className="flex shrink-0 items-center gap-0.5">
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        aria-label={`Поднять «${plan.title}» выше`}
-                        title="Выше"
-                        disabled={index === 0 || rowBusy !== null}
-                        onClick={() => void move(plan.id, "up")}
-                      >
-                        <ArrowUp className="size-3.5" />
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        aria-label={`Опустить «${plan.title}» ниже`}
-                        title="Ниже"
-                        disabled={index === plans.length - 1 || rowBusy !== null}
-                        onClick={() => void move(plan.id, "down")}
-                      >
-                        <ArrowDown className="size-3.5" />
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        aria-label={`Изменить «${plan.title}»`}
-                        title="Изменить"
-                        disabled={rowBusy !== null}
-                        onClick={() => {
-                          setPlanFormVersion((current) => current + 1);
-                          setPlanForm({ plan });
-                        }}
-                      >
-                        <Pencil className="size-3.5" />
-                      </Button>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        aria-label={`Удалить «${plan.title}»`}
-                        title="Удалить"
-                        className="hover:bg-bg-red-light hover:text-fg-red"
-                        disabled={rowBusy !== null}
-                        onClick={() => setPendingDeleteId(plan.id)}
-                      >
-                        {rowBusy?.kind === "delete" ? (
-                          <Loader2 className="size-3.5 animate-spin" />
-                        ) : (
-                          <Trash2 className="size-3.5" />
-                        )}
-                      </Button>
-                    </div>
-                  )}
-                </div>
-              </div>
-            );
-          })}
+            Привязка факта к строке графика (`paymentPlanId`) сохраняется в
+            записи: она больше не показывается, но и не теряется.
+          */}
         </>
       )}
 
@@ -1044,6 +923,8 @@ export default function PaymentsTab({
         open={paymentForm !== null}
         payment={paymentForm?.payment ?? null}
         plans={plans}
+        itemCost={itemCost}
+        remaining={progress.remaining}
         onClose={() => setPaymentForm(null)}
         onSubmit={submitPayment}
       />

@@ -5,6 +5,7 @@ import {
   orderPaymentPlans,
   paymentPlanCoverage,
   paymentPlanRows,
+  paymentProgress,
   roundMoney,
   summarisePaymentSchedule,
   summarisePaymentScheduleByItem,
@@ -821,5 +822,146 @@ describe("findPaymentPlanPosition", () => {
 
   it("незнакомая строка даёт -1", () => {
     expect(findPaymentPlanPosition([plan({ id: "a" })], "zzz")).toBe(-1);
+  });
+});
+
+/**
+ * Прогресс оплаты позиции: сколько стоит, сколько оплачено, сколько осталось и
+ * какой это процент.
+ *
+ * ── Откуда берётся база ────────────────────────────────────────────────────
+ *
+ * База — стоимость позиции (`priceOf().total`), поэтому `total` приходит сюда
+ * готовым числом. Это осознанный откат решения ADR 0003: сумма обязательства
+ * больше не хранится, и остаток меняется вместе со стоимостью. Здесь это
+ * свойство закреплено явно, чтобы откат не выглядел случайностью.
+ *
+ * ── Почему процент считается здесь, а не в разметке ───────────────────────
+ *
+ * Процент — единственное место, где возможно деление на ноль: у позиции без
+ * цены стоимость равна нулю. В разметке это дало бы `Infinity` или `NaN` прямо
+ * в подписи, поэтому правило живёт в чистой функции: нет базы — нет процента.
+ */
+describe("paymentProgress", () => {
+  it("считает оплачено, остаток и процент от стоимости", () => {
+    const progress = paymentProgress(100000, [
+      { paymentPlanId: null, amount: 50000 },
+    ]);
+
+    expect(progress.total).toBe(100000);
+    expect(progress.paid).toBe(50000);
+    expect(progress.remaining).toBe(50000);
+    expect(progress.overpaid).toBe(0);
+    expect(progress.percent).toBe(50);
+  });
+
+  it("полностью оплаченная позиция — 100 % и нулевой остаток", () => {
+    const progress = paymentProgress(100000, [
+      { paymentPlanId: null, amount: 100000 },
+    ]);
+
+    expect(progress.percent).toBe(100);
+    expect(progress.remaining).toBe(0);
+    expect(progress.overpaid).toBe(0);
+  });
+
+  it("переплата показывается отдельно, а процент не уходит выше 100", () => {
+    // Полоса — не график переплаты: 120 % ширины ничего не сообщают, а
+    // превышение показывает `overpaid` отдельной подписью.
+    const progress = paymentProgress(100000, [
+      { paymentPlanId: null, amount: 120000 },
+    ]);
+
+    expect(progress.paid).toBe(120000);
+    expect(progress.remaining).toBe(0);
+    expect(progress.overpaid).toBe(20000);
+    expect(progress.percent).toBe(100);
+  });
+
+  it("возвраты уменьшают оплаченное", () => {
+    const progress = paymentProgress(100000, [
+      { paymentPlanId: null, amount: 60000 },
+      { paymentPlanId: null, amount: 10000, kind: "refund" },
+    ]);
+
+    expect(progress.paid).toBe(50000);
+    expect(progress.remaining).toBe(50000);
+    expect(progress.percent).toBe(50);
+  });
+
+  it("возвратов больше, чем оплат: оплаченное отрицательно", () => {
+    // Случай не запрещён (решение Q13). Отрицательное «оплачено» — честная
+    // величина, поэтому:
+    //   * процент — ровно 0, а не отрицательный: полосы «−20 %» не бывает;
+    //   * остаток равен `стоимость − paid` = 100 000 − (−20 000) = 120 000, то
+    //     есть БОЛЬШЕ стоимости. Это следствие уже принятого правила: `overpaid`
+    //     считается только как `paid − стоимость`, поэтому превышение возвратов
+    //     над оплатами переплатой не объявляется и не «съедает» остаток. Здесь
+    //     оно закреплено явно, чтобы выглядело решением, а не арифметической
+    //     случайностью.
+    const progress = paymentProgress(100000, [
+      { paymentPlanId: null, amount: 30000 },
+      { paymentPlanId: null, amount: 50000, kind: "refund" },
+    ]);
+
+    expect(progress.paid).toBe(-20000);
+    expect(progress.percent).toBe(0);
+    expect(progress.remaining).toBe(120000);
+    expect(progress.overpaid).toBe(0);
+  });
+
+  it("мягко удалённые факты не считаются", () => {
+    const progress = paymentProgress(100000, [
+      { paymentPlanId: null, amount: 40000 },
+      {
+        paymentPlanId: null,
+        amount: 99999,
+        deletedAt: "2026-10-01T00:00:00.000Z",
+      },
+    ]);
+
+    expect(progress.paid).toBe(40000);
+    expect(progress.percent).toBe(40);
+  });
+
+  it("нулевая стоимость: процента нет, остаток нулевой, а не долг в ноль", () => {
+    // Позиция без цены: делить не на что. `percent: null` — «процента нет», а не
+    // «0 %», потому что 0 % утверждал бы, что база есть и она не оплачена.
+    const progress = paymentProgress(0, [
+      { paymentPlanId: null, amount: 5000 },
+    ]);
+
+    expect(progress.percent).toBeNull();
+    expect(progress.paid).toBe(5000);
+    expect(progress.remaining).toBe(0);
+    expect(progress.overpaid).toBe(5000);
+  });
+
+  it("нет фактов — нули и ноль процентов при непустой стоимости", () => {
+    const progress = paymentProgress(100000, []);
+
+    expect(progress.paid).toBe(0);
+    expect(progress.remaining).toBe(100000);
+    expect(progress.percent).toBe(0);
+    expect(progress.overpaid).toBe(0);
+  });
+
+  it("округляет процент до целого", () => {
+    // 1/3 от 100 000 — 33.33…%: в подписи нужна одна цифра, а не хвост.
+    const progress = paymentProgress(100000, [
+      { paymentPlanId: null, amount: 33333 },
+    ]);
+
+    expect(progress.percent).toBe(33);
+  });
+
+  it("стоимость и оплата приходят строками из `numeric`", () => {
+    const progress = paymentProgress("100000.00", [
+      { paymentPlanId: null, amount: "25000.50" },
+    ]);
+
+    expect(progress.paid).toBe(25000.5);
+    expect(progress.remaining).toBe(74999.5);
+    expect(progress.percent).toBe(25);
   });
 });

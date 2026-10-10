@@ -18,6 +18,7 @@ import Field from "@/components/layout/modal-field";
 import { PAYMENT_LIMITS } from "@/lib/validations";
 import { fmtRub } from "@/lib/utils";
 import { todayIso } from "@/lib/spec/payment-date";
+import { roundMoney } from "@/lib/spec/payment-schedule";
 import type { PaymentPlanEntry } from "@/lib/spec/payment-plan-types";
 import {
   PAYMENT_KIND_ACTION_LABEL,
@@ -79,10 +80,18 @@ export type PaymentFormValues = {
   comment: string | null;
 };
 
+/**
+ * Готовые доли стоимости: самые частые случаи ввода (аванс, половина,
+ * полностью). Своё число вводится в поле процента рядом.
+ */
+const PERCENT_PRESETS = [25, 50, 100] as const;
+
 export default function PaymentForm({
   open,
   payment,
   plans,
+  itemCost = 0,
+  remaining = 0,
   onClose,
   onSubmit,
 }: {
@@ -91,6 +100,19 @@ export default function PaymentForm({
   payment: PaymentEntry | null;
   /** График позиции: варианты привязки. Пустой список — плана ещё нет. */
   plans: PaymentPlanEntry[];
+  /**
+   * Стоимость позиции — база для процента. Ноль означает, что процент
+   * предлагать не от чего: делить не на что.
+   */
+  itemCost?: number;
+  /**
+   * Сколько осталось доплатить по позиции (`стоимость − оплачено`).
+   *
+   * Справка о позиции, а не поле записи: показывается, чтобы вводящий видел
+   * контекст, и подставляется в сумму одним нажатием — обычный случай «это
+   * последний платёж». Ноль означает «доплачивать нечего», и тогда справки нет.
+   */
+  remaining?: number;
   /** Закрыть без сохранения: отмена, крестик, успех. */
   onClose: () => void;
   /**
@@ -121,6 +143,36 @@ export default function PaymentForm({
   const [clientError, setClientError] = useState<string | null>(null);
   const [serverError, setServerError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+
+  /**
+   * Процент от стоимости — только способ ввода суммы.
+   *
+   * Хранится в состоянии формы и НЕ уходит на сервер: в БД ложится посчитанная
+   * сумма (решение интервью 2026-10-10). Двух правд — суммы и процента — не
+   * заводится, потому что при смене стоимости они разошлись бы, и никто не
+   * сказал бы, какая верна.
+   */
+  const [percent, setPercent] = useState("");
+
+  /**
+   * Процент предлагается, только когда есть от чего считать: стоимость ноль —
+   * деление на ноль, и показывать поле было бы обещанием, которого нет.
+   */
+  const percentAvailable = !payment && itemCost > 0;
+
+  /** Доплачивать есть что — иначе справка сообщала бы «осталось 0 ₽». */
+  const hasRemaining = remaining > 0;
+
+  /** Заполнить сумму из процента, округляя до копейки. */
+  const applyPercent = useCallback(
+    (value: string) => {
+      setPercent(value);
+      const parsed = Number(value.trim().replace(",", "."));
+      if (value.trim().length === 0 || !Number.isFinite(parsed)) return;
+      setAmount(String(roundMoney((itemCost * parsed) / 100)));
+    },
+    [itemCost],
+  );
 
   const submit = useCallback(async () => {
     setServerError(null);
@@ -168,7 +220,6 @@ export default function PaymentForm({
       setSaving(false);
     }
   }, [amount, comment, kind, paidAt, planId, onSubmit]);
-
   const error = clientError ?? serverError;
 
   return (
@@ -225,7 +276,14 @@ export default function PaymentForm({
 
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <Field label="Сумма, ₽">
+              {/*
+                `aria-label` повторяет видимую подпись, как у селекта вида
+                записи: `Field` рисует `<label>` без `htmlFor`, поэтому иначе у
+                поля не было бы доступного имени. Оно же отличает сумму от поля
+                процента — у обоих плейсхолдер «0».
+              */}
               <Input
+                aria-label="Сумма, ₽"
                 value={amount}
                 onChange={(event) => setAmount(event.target.value)}
                 inputMode="decimal"
@@ -245,21 +303,98 @@ export default function PaymentForm({
             </Field>
           </div>
 
-          <Field label="Строка графика">
-            <select
-              value={planId}
-              onChange={(event) => setPlanId(event.target.value)}
-              disabled={saving}
-              className="h-9 w-full rounded-lg border border-border-muted bg-bg-white px-2 font-sans text-[13.5px] text-fg"
-            >
-              <option value="">Без плана — оплата вне графика</option>
-              {plans.map((plan) => (
-                <option key={plan.id} value={plan.id}>
-                  {plan.title} · {fmtRub(plan.amount)}
-                </option>
-              ))}
-            </select>
-          </Field>
+          {/*
+            Процент — способ ВВОДА суммы, а не данные записи: он заполняет поле
+            выше, и в БД уходит посчитанная сумма. Поэтому поле процента стоит
+            рядом с суммой, а не отдельной сущностью.
+          */}
+          {percentAvailable && (
+            <Field label={`Процент от стоимости (${fmtRub(itemCost)})`}>
+              <div className="flex flex-wrap items-center gap-2">
+                <Input
+                  aria-label="Процент от стоимости"
+                  value={percent}
+                  onChange={(event) => applyPercent(event.target.value)}
+                  inputMode="decimal"
+                  placeholder="0"
+                  disabled={saving}
+                  className="w-20 h-9"
+                />
+                {PERCENT_PRESETS.map((preset) => (
+                  <Button
+                    key={preset}
+                    type="button"
+                    variant="outline"
+                    size="lg"
+                    disabled={saving}
+                    onClick={() => applyPercent(String(preset))}
+                  >
+                    {preset} %
+                  </Button>
+                ))}
+              </div>
+            </Field>
+          )}
+
+          {/*
+            Сколько осталось доплатить по позиции — справка о позиции, а не поле
+            записи. Кнопка подставляет остаток в сумму: обычный случай «это
+            последний платёж». В правке кнопки нет — она подменила бы уже
+            существующую сумму целиком.
+          */}
+          {hasRemaining && (
+            <div className="flex flex-wrap items-center gap-2 rounded-lg bg-bg-card2 px-3 py-2">
+              <span className="text-[12.5px] text-fg-muted">
+                Не оплачено:{" "}
+                <span className="font-mono tabular-nums text-fg">
+                  {fmtRub(remaining)}
+                </span>
+              </span>
+              {payment === null && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  disabled={saving}
+                  onClick={() => {
+                    setPercent("");
+                    setAmount(String(remaining));
+                  }}
+                >
+                  Подставить остаток
+                </Button>
+              )}
+            </div>
+          )}
+
+          {/*
+            Поле остаётся в разметке и сохраняет своё значение, но НЕ
+            показывается: график платежей выведен из интерфейса целиком, поэтому
+            у привязки к его строке нет видимого контекста.
+
+            Убрать поле нельзя: правка записи отправляет `paymentPlanId`
+            (`updatePayment` пишет `payment_plan_id`), поэтому удаление поля
+            молча стёрло бы привязку у всех существующих оплат. Скрытое поле
+            сохраняет её, а новый платёж получает «без плана», как и раньше.
+          */}
+          <div hidden>
+            <Field label="Строка графика">
+              <select
+                aria-label="Строка графика"
+                value={planId}
+                onChange={(event) => setPlanId(event.target.value)}
+                disabled={saving}
+                className="h-9 w-full rounded-lg border border-border-muted bg-bg-white px-2 font-sans text-[13.5px] text-fg"
+              >
+                <option value="">Без плана — оплата вне графика</option>
+                {plans.map((plan) => (
+                  <option key={plan.id} value={plan.id}>
+                    {plan.title} · {fmtRub(plan.amount)}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          </div>
 
           <Field label="Комментарий">
             <Textarea

@@ -86,6 +86,8 @@ function payment(over: Partial<PaymentEntry> = {}): PaymentEntry {
 function setup(over: {
   plans?: PaymentPlanEntry[];
   payments?: PaymentEntry[];
+  /** Стоимость позиции — база прогресса. */
+  itemCost?: number;
 } = {}) {
   listPlansMock.mockResolvedValue({
     success: true,
@@ -102,7 +104,7 @@ function setup(over: {
       specItemId="item-1"
       role="owner"
       currentUserId="user-1"
-      itemCost={10000}
+      itemCost={over.itemCost ?? 10000}
     />,
   );
 }
@@ -122,12 +124,133 @@ const overRefundMarker = () => {
   return marker ?? null;
 };
 
+/**
+ * Карточка прогресса: стоимость, оплачено, остаток.
+ *
+ * `data-testid` — по той же причине, что в модалке закупки: карточка это `div`
+ * без роли и без единого текстового узла.
+ */
+const progressCard = () => screen.getByTestId("payments-progress");
+
+/** Текст карточки с пробелами, приведёнными к обычным: `fmtRub` печатает
+ * неразрывные, и сравнивать их с литералами теста нельзя. */
+const progressText = () =>
+  (progressCard().textContent ?? "").replace(/\s/g, " ");
+
+/** Сумма как её печатает `fmtRub`, с обычными пробелами. */
+const money = (value: number) =>
+  Math.abs(value).toLocaleString("ru-RU").replace(/\s/g, " ");
+
 beforeEach(() => {
   listPlansMock.mockReset();
   listPaymentsMock.mockReset();
 });
 
 afterEach(cleanup);
+
+describe("PaymentsTab · прогресс от стоимости позиции", () => {
+  it("показывает стоимость, оплаченное, остаток и процент", async () => {
+    setup({
+      payments: [payment({ id: "p-1", kind: "payment", amount: 4000 })],
+      itemCost: 10000,
+    });
+
+    await waitFor(() => {
+      expect(progressText()).toContain(money(4000));
+    });
+
+    expect(progressText()).toContain("Стоимость материала");
+    expect(progressText()).toContain(money(10000));
+    expect(progressText()).toContain("Осталось");
+    expect(progressText()).toContain(money(6000));
+    // 4000 из 10000 — 40 %.
+    expect(progressText()).toContain("40 %");
+  });
+
+  it("полностью оплаченная позиция — 100 % и нулевой остаток", async () => {
+    setup({
+      payments: [payment({ id: "p-1", kind: "payment", amount: 10000 })],
+      itemCost: 10000,
+    });
+
+    await waitFor(() => {
+      expect(progressText()).toContain("100 %");
+    });
+
+    expect(progressText()).toContain("Осталось");
+    expect(progressText()).toContain(money(0));
+  });
+
+  it("переплата показывается вместо остатка и не уводит процент выше 100", async () => {
+    setup({
+      payments: [payment({ id: "p-1", kind: "payment", amount: 12000 })],
+      itemCost: 10000,
+    });
+
+    await waitFor(() => {
+      expect(progressText()).toContain("Переплата");
+    });
+
+    expect(progressText()).toContain(money(2000));
+    expect(progressText()).toContain("100 %");
+    // Остатка при переплате нет: две подписи одного места противоречили бы друг
+    // другу.
+    expect(progressText()).not.toContain("Осталось");
+  });
+
+  it("возвраты уменьшают оплаченное и видны отдельной строкой", async () => {
+    setup({
+      payments: [
+        payment({ id: "p-1", kind: "payment", amount: 6000 }),
+        payment({ id: "r-1", kind: "refund", amount: 1000 }),
+      ],
+      itemCost: 10000,
+    });
+
+    await waitFor(() => {
+      expect(progressText()).toContain("Возвраты");
+    });
+
+    // 6000 − 1000 = 5000 из 10000 — половина.
+    expect(progressText()).toContain(money(5000));
+    expect(progressText()).toContain("50 %");
+  });
+
+  it("позиция без цены: процента нет, а не деление на ноль", async () => {
+    setup({
+      payments: [payment({ id: "p-1", kind: "payment", amount: 5000 })],
+      itemCost: 0,
+    });
+
+    await waitFor(() => {
+      expect(progressText()).toContain("Стоимость материала");
+    });
+
+    // Ни «Infinity %», ни «NaN %», ни ложного «0 %».
+    expect(progressText()).not.toContain("Infinity");
+    expect(progressText()).not.toContain("NaN");
+    expect(progressText()).not.toContain("%");
+  });
+
+  it("блок графика платежей не показывается вовсе", async () => {
+    // Решение интервью 2026-10-10: график выведен из интерфейса, данные и код
+    // сохранены. Проверяется именно отсутствие входа в него — кнопки и таблицы.
+    setup({
+      plans: [plan()],
+      payments: [payment({ id: "p-1", kind: "payment", amount: 4000 })],
+      itemCost: 10000,
+    });
+
+    await waitFor(() => {
+      expect(progressText()).toContain(money(4000));
+    });
+
+    expect(screen.queryByText(/Строк в графике/)).toBeNull();
+    expect(screen.queryByText(/Добавить платёж/)).toBeNull();
+    expect(screen.queryByText(/^Аванс/)).toBeNull();
+    expect(screen.queryByText(/Платежей пока нет/)).toBeNull();
+  });
+});
 
 describe("PaymentsTab · возвратов больше, чем оплат", () => {
   it("пометка показана, когда возвраты превышают оплаты", async () => {
@@ -238,6 +361,9 @@ describe("PaymentsTab · возвратов больше, чем оплат", ()
   it("сумма возвратов остаётся видна отдельной строкой сводки", async () => {
     // Требование ТЗ: возвраты показываются собственной строкой, а не только
     // уменьшением итога, — иначе уменьшение оплаты выглядит как правка истории.
+    //
+    // Проверяется по тексту карточки: подпись и сумма лежат в одном `span`, и у
+    // него нет собственного текста «Возвраты».
     setup({
       payments: [
         payment({ id: "p-1", kind: "payment", amount: 3000 }),
@@ -246,9 +372,9 @@ describe("PaymentsTab · возвратов больше, чем оплат", ()
     });
 
     await waitFor(() => {
-      expect(screen.getByText("Возвраты")).toBeDefined();
+      expect(progressText()).toContain("Возвраты");
     });
 
-    expect(screen.getByText("5 000 ₽")).toBeDefined();
+    expect(progressText()).toContain(money(5000));
   });
 });
