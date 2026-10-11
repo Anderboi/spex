@@ -15,6 +15,11 @@ import {
   showsServices,
 } from "./spec-table";
 import { DensitySwitcher } from "./layout/density-switcher";
+import {
+  SpecDraftsToggle,
+  SpecStatusSelect,
+  SpecSupplierSelect,
+} from "./layout/spec-filter-controls";
 import { SpecFilterSheet } from "./spec-filter-sheet";
 import { ActiveFilterChips } from "./layout/active-filter-chips";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -329,8 +334,8 @@ export default function SpecBuilder({
       </div>
 
       {/* ── поиск, фильтры и сортировка ───────────────────── */}
-      <div className="mt-4 flex gap-2">
-        <div className="relative min-w-0 flex-1">
+      <div className="mt-4 flex flex-wrap items-center gap-2">
+        <div className="relative min-w-44 flex-1">
           <Search className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-fg-muted" />
           <input
             defaultValue={ctx.filters.query}
@@ -341,30 +346,38 @@ export default function SpecBuilder({
           />
         </div>
         {isDesktop ? (
-          // На широких экранах сортировка переключается одной кнопкой по кругу.
-          <button
-            type="button"
-            onClick={() =>
-              ctx.filters.setSort(
-                ctx.filters.sort === "code"
-                  ? "az"
-                  : ctx.filters.sort === "az"
-                    ? "sum"
-                    : "code",
-              )
-            }
-            className="flex h-10 shrink-0 items-center gap-1.5 rounded-lg border border-border-muted px-3 text-[13px] text-fg-secondary"
-          >
-            <ArrowUpDown className="size-3.5" />
-            {ctx.filters.sort === "code"
-              ? "По марке"
-              : ctx.filters.sort === "az"
-                ? "А→Я"
-                : "По сумме"}
-          </button>
+          // На широких экранах фильтры стоят прямо в тулбаре — как в библиотеке
+          // материалов. Шторка «Все фильтры» остаётся узким экранам: там четыре
+          // контрола в строку не помещаются.
+          <>
+            <SpecStatusSelect filters={ctx.filters} items={ctx.items} />
+            <SpecSupplierSelect filters={ctx.filters} items={ctx.items} />
+            <SpecDraftsToggle filters={ctx.filters} items={ctx.items} />
+            {/* Сортировка переключается одной кнопкой по кругу. */}
+            <button
+              type="button"
+              onClick={() =>
+                ctx.filters.setSort(
+                  ctx.filters.sort === "code"
+                    ? "az"
+                    : ctx.filters.sort === "az"
+                      ? "sum"
+                      : "code",
+                )
+              }
+              className="flex h-10 shrink-0 items-center gap-1.5 rounded-lg border border-border-muted px-3 text-[13px] text-fg-secondary"
+            >
+              <ArrowUpDown className="size-3.5" />
+              {ctx.filters.sort === "code"
+                ? "По марке"
+                : ctx.filters.sort === "az"
+                  ? "А→Я"
+                  : "По сумме"}
+            </button>
+          </>
         ) : (
-          // На узких экранах статус и сортировка уезжают в нижнюю шторку —
-          // как на страницах материалов и контактов.
+          // На узких экранах статус, поставщик, черновики и сортировка уезжают в
+          // нижнюю шторку — как на страницах материалов и контактов.
           <>
             <SpecFilterSheet filters={ctx.filters} items={ctx.items} />
             {/* Плотность управляет только карточками: пока контейнер вмещает

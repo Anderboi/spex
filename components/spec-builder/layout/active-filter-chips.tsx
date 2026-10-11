@@ -7,9 +7,10 @@ import { ALL_CATEGORIES } from "@/lib/constants";
 import type { SpecFilters } from "@/hooks/use-spec-filters";
 
 /**
- * Сводка активных фильтров, спрятанных в шторке на узких экранах: видно, что
- * именно отфильтровано, и снять фильтр можно одним тапом, не открывая шторку.
- * На широких экранах не нужна — там чипсы типов и сортировка на виду.
+ * Сводка активных фильтров, спрятанных в шторке «Все фильтры» на узких экранах:
+ * видно, что именно отфильтровано, и снять фильтр можно одним тапом, не открывая
+ * шторку. На широких экранах не нужна — там фильтры стоят в тулбаре: чипсы
+ * типов, статус, поставщик, черновики и сортировка.
  */
 export function ActiveFilterChips({
   filters,
@@ -32,6 +33,13 @@ export function ActiveFilterChips({
       key: "status",
       label: SPEC_STATUS_CONFIG[filters.statusFilter].label,
       clear: () => filters.setStatusFilter(null),
+    });
+  }
+  if (filters.company) {
+    chips.push({
+      key: "company",
+      label: filters.company,
+      clear: () => filters.setCompany(null),
     });
   }
 

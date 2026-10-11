@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { RotateCcw, SlidersHorizontal } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Sheet,
   SheetContent,
@@ -16,15 +17,18 @@ import {
   type FilterSelectOption,
 } from "@/components/layout/filter-select";
 import { cn } from "@/lib/utils";
+import { ALL_CATEGORIES, TYPE_ORDER } from "@/lib/constants";
 import {
-  ALL_CATEGORIES,
-  SPEC_STATUSES,
-  TYPE_ORDER,
-  type SpecStatus,
-} from "@/lib/constants";
-import { SPEC_STATUS_CONFIG } from "@/lib/spec/status";
+  countDrafts,
+  specTypeCounts,
+  type SpecSort,
+} from "@/lib/spec/list-filters";
 import type { SpecItem } from "@/lib/types";
-import type { SpecFilters, SpecSort } from "@/hooks/use-spec-filters";
+import type { SpecFilters } from "@/hooks/use-spec-filters";
+import {
+  SpecStatusSelect,
+  SpecSupplierSelect,
+} from "./layout/spec-filter-controls";
 
 const SORT_OPTIONS: FilterSelectOption<SpecSort>[] = [
   { value: "code", label: "По марке" },
@@ -33,13 +37,15 @@ const SORT_OPTIONS: FilterSelectOption<SpecSort>[] = [
 ];
 
 /**
- * Фильтры спецификации (категория, статус) и сортировка в нижней шторке — так
- * же, как в тулбарах материалов, контактов и проектов.
+ * Панель «Все фильтры» на узких экранах: категория, статус, поставщик,
+ * черновики и сортировка в нижней шторке — так же, как в тулбарах материалов,
+ * контактов и проектов.
  *
- * На узких экранах в тулбаре остаётся только поиск с кнопкой: чипсы типов,
- * статус и сортировка не помещаются в одну строку и переезжают сюда. На
- * широких экранах шторка не рендерится вовсе — там чипсы типов остаются
- * на виду.
+ * На узких экранах в тулбаре остаётся только поиск с кнопкой: четыре контрола
+ * не помещаются в одну строку и переезжают сюда. На широких экранах шторка не
+ * рендерится вовсе — те же контролы стоят прямо в тулбаре (`spec-builder.tsx`),
+ * поэтому подписи и счётчики живут в `layout/spec-filter-controls.tsx`, а не
+ * дублируются здесь.
  *
  * Контролы — те же `FilterSelect`, что и в остальных фильтрах приложения;
  * попап открывается вверх (`side="top"`), потому что под триггером в шторке
@@ -54,7 +60,7 @@ export function SpecFilterSheet({
   className,
 }: {
   filters: SpecFilters;
-  /** Позиции проекта — для счётчиков по типам и статусам. */
+  /** Позиции проекта — для счётчиков по типам, статусам и поставщикам. */
   items: SpecItem[];
   className?: string;
 }) {
@@ -62,35 +68,28 @@ export function SpecFilterSheet({
 
   const hasType = filters.activeType !== ALL_CATEGORIES;
   const hasStatus = filters.statusFilter !== null;
+  const hasCompany = filters.company !== null;
   const hasSort = filters.sort !== "code";
-  const activeCount = Number(hasType) + Number(hasStatus) + Number(hasSort);
+  const activeCount =
+    Number(hasType) + Number(hasStatus) + Number(hasCompany) + Number(hasSort);
+
+  const typeCounts = useMemo(() => specTypeCounts(items), [items]);
+  const draftCount = useMemo(() => countDrafts(items), [items]);
 
   // Пустые типы не показываем (как и чипсы), кроме выбранного: иначе на
   // устаревшем значении из URL селект показывал бы «Все категории».
-  const typeOptions = useMemo<FilterSelectOption<string>[]>(() => {
-    const count = (type: string) =>
-      items.reduce((n, item) => n + (item.type === type ? 1 : 0), 0);
-
-    return [
+  const typeOptions = useMemo<FilterSelectOption<string>[]>(
+    () => [
       { value: null, label: `${ALL_CATEGORIES} (${items.length})` },
       ...TYPE_ORDER.filter(
-        (type) => count(type) > 0 || type === filters.activeType,
-      ).map((type) => ({ value: type, label: `${type} (${count(type)})` })),
-    ];
-  }, [items, filters.activeType]);
-
-  const statusOptions = useMemo<FilterSelectOption<SpecStatus>[]>(() => {
-    const count = (status: SpecStatus) =>
-      items.reduce((n, item) => n + (item.status === status ? 1 : 0), 0);
-
-    return [
-      { value: null, label: `Все статусы (${items.length})` },
-      ...SPEC_STATUSES.map((status) => ({
-        value: status,
-        label: `${SPEC_STATUS_CONFIG[status].label} (${count(status)})`,
+        (type) => (typeCounts[type] ?? 0) > 0 || type === filters.activeType,
+      ).map((type) => ({
+        value: type,
+        label: `${type} (${typeCounts[type] ?? 0})`,
       })),
-    ];
-  }, [items]);
+    ],
+    [items.length, typeCounts, filters.activeType],
+  );
 
   return (
     <>
@@ -99,14 +98,13 @@ export function SpecFilterSheet({
         className={cn("h-10 shrink-0 gap-2 border border-border", className)}
         aria-label={
           activeCount > 0
-            ? `Фильтры, активно ${activeCount}`
-            : "Фильтры и сортировка"
+            ? `Все фильтры, активно ${activeCount}`
+            : "Все фильтры"
         }
         aria-haspopup="dialog"
         onClick={() => setOpen(true)}
       >
         <SlidersHorizontal className="size-4" />
-        {/* Фильтры */}
         {activeCount > 0 && (
           <span className="flex size-5 items-center justify-center rounded-full bg-bg-accent text-[11px] font-medium text-bg">
             {activeCount}
@@ -120,7 +118,7 @@ export function SpecFilterSheet({
           className="max-h-[85svh] gap-0 overflow-y-auto border-t border-border bg-bg-card p-0"
         >
           <SheetHeader className="border-b border-border-subtle p-4 pr-12">
-            <SheetTitle>Фильтры и сортировка</SheetTitle>
+            <SheetTitle>Все фильтры</SheetTitle>
           </SheetHeader>
 
           <div className="flex flex-col gap-4 p-4">
@@ -139,15 +137,44 @@ export function SpecFilterSheet({
             </FilterField>
 
             <FilterField label="Статус">
-              <FilterSelect
-                ariaLabel="Статус"
-                placeholder="Все статусы"
+              <SpecStatusSelect
+                filters={filters}
+                items={items}
                 side="top"
                 className="w-full"
-                value={filters.statusFilter}
-                onChange={filters.setStatusFilter}
-                options={statusOptions}
               />
+            </FilterField>
+
+            <FilterField label="Поставщик">
+              <SpecSupplierSelect
+                filters={filters}
+                items={items}
+                side="top"
+                className="w-full"
+              />
+            </FilterField>
+
+            {/* Галочка несёт собственную подпись, поэтому поле — `div`:
+                вложенный `<label>` невалиден. */}
+            <FilterField
+              as="div"
+              label="Черновики"
+              hint={
+                draftCount > 0
+                  ? "Позиции со статусом «Не выбрано» — материал ещё не подобран."
+                  : "Черновиков нет: во всех позициях материал уже подобран."
+              }
+            >
+              <label className="flex items-center gap-3 text-[13px] text-fg-body">
+                <Checkbox
+                  checked={filters.draftOnly}
+                  disabled={draftCount === 0}
+                  onCheckedChange={(checked) =>
+                    filters.setDraftOnly(checked === true)
+                  }
+                />
+                Только черновики
+              </label>
             </FilterField>
 
             <FilterField label="Сортировка">
@@ -174,6 +201,7 @@ export function SpecFilterSheet({
                 // (как «Сбросить» в шторке материалов).
                 filters.setActiveType(ALL_CATEGORIES);
                 filters.setStatusFilter(null);
+                filters.setCompany(null);
                 filters.setSort("code");
               }}
             >

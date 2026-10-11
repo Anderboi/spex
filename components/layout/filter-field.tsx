@@ -14,17 +14,31 @@ export function FilterField({
   label,
   hint,
   children,
+  as = "label",
 }: {
   label: string;
   /** Пояснение под контролом: например, почему список производителей пуст. */
   hint?: string;
   children: ReactNode;
+  /**
+   * Чем оборачивать поле. По умолчанию `<label>`: подпись становится accessible
+   * name контрола, и отдельный `aria-label` не нужен. `div` нужен там, где
+   * контрол несёт собственную подпись (галочка «Только черновики»): вложенный
+   * `<label>` — невалидная разметка.
+   */
+  as?: "label" | "div";
 }) {
-  return (
-    <label className="flex flex-col gap-2">
+  const content = (
+    <>
       <span className="text-xs font-medium text-fg-muted">{label}</span>
       {children}
       {hint && <span className="text-[11px] text-fg-muted">{hint}</span>}
-    </label>
+    </>
+  );
+
+  return as === "div" ? (
+    <div className="flex flex-col gap-2">{content}</div>
+  ) : (
+    <label className="flex flex-col gap-2">{content}</label>
   );
 }

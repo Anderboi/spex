@@ -15,7 +15,6 @@ import { useSearchParams } from "next/navigation";
 import { fmt, plural, prefixFor } from "@/lib/utils";
 import { SpecItem, SpecItemPatch, type SpecVariant } from "@/lib/types";
 import {
-  ALL_CATEGORIES,
   PICKING_FLOW,
   PROCUREMENT_FLOW,
   operationLabel,
@@ -48,6 +47,7 @@ import {
   updateVariant,
 } from "@/actions/spec-variants";
 import { SPEC_STATUS_CONFIG } from "@/lib/spec/status";
+import { selectSpecList } from "@/lib/spec/list-filters";
 import { nextCodesFrom } from "@/lib/spec/codes";
 import type {
   SpecItemCreateOrigin,
@@ -1429,45 +1429,24 @@ export function useSpecBuilder({
   /*  Выборка и агрегаты                                               */
   /* ---------------------------------------------------------------- */
 
-  const list = useMemo(() => {
-    const q = filters.query.trim().toLowerCase();
-
-    const filtered = items.filter((it) => {
-      if (filters.activeType !== ALL_CATEGORIES && it.type !== filters.activeType)
-        return false;
-      if (filters.statusFilter && it.status !== filters.statusFilter)
-        return false;
-      if (q) {
-        const hay =
-          `${it.name} ${it.brand} ${it.code} ${it.spec} ${it.article}`.toLowerCase();
-        if (!hay.includes(q)) return false;
-      }
-      return true;
-    });
-
-    const sorted = [...filtered];
-    if (filters.sort === "az") {
-      sorted.sort((a, b) => a.name.localeCompare(b.name, "ru"));
-    } else if (filters.sort === "sum") {
-      sorted.sort((a, b) => b.qty * b.price - a.qty * a.price);
-    } else {
-      sorted.sort((a, b) =>
-        a.code.localeCompare(b.code, "ru", { numeric: true }),
-      );
-    }
-
-    // В основной таблице показываем все SpecItem, в том числе дочерние:
-    // parentId — обычная связь SpecItem → SpecItem, а не принадлежность
-    // «составу» (для него есть отдельная таблица spec_item_components,
-    // строки которой не попадают в ctx.items и в эту таблицу).
-    return sorted;
-  }, [
-    items,
-    filters.query,
-    filters.activeType,
-    filters.statusFilter,
-    filters.sort,
-  ]);
+  const list = useMemo(
+    () =>
+      selectSpecList(items, {
+        query: filters.query,
+        type: filters.activeType,
+        status: filters.statusFilter,
+        company: filters.company,
+        sort: filters.sort,
+      }),
+    [
+      items,
+      filters.query,
+      filters.activeType,
+      filters.statusFilter,
+      filters.company,
+      filters.sort,
+    ],
+  );
 
   const groups = useMemo(
     () =>
