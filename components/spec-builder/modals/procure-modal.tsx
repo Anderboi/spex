@@ -32,6 +32,14 @@ import { useIsMobile } from "@/hooks/use-mobile";
  * модулем, что и вкладка (`lib/spec/payment-schedule`), поэтому второго рецепта
  * остатка не появляется: цифра здесь и цифра в карточке совпадают по построению.
  *
+ * ── Оплачено от стоимости, а не от графика ─────────────────────────────────
+ *
+ * Строка оплат показывает `оплачено` против стоимости позиций воронки — так же,
+ * как шапка блока во вкладке «Платежи» и как «Сумма в закупке» рядом. Плановая
+ * сумма графика в неё не входит: после ADR 0006 строка графика это счёт, а не
+ * обязательство, и «план» рядом с суммой закупки читался бы как второй, гораздо
+ * меньший долг (прежняя редакция блока — тикет 04, пересмотрена в тикете 09).
+ *
  * Оплаты по позициям ВНЕ области воронки не растворяются в итоге — их число и
  * сальдо приходят отдельно и показываются пометкой. Молча сложить их значило бы
  * показать «оплачено по закупке» больше, чем есть на самом деле.
@@ -163,8 +171,12 @@ export function ProcureModal({
           {/*
             ── оплаты ───────────────────────────────────────────────────────
             Только чтение (решение Q5): ведение платежей — во вкладке карточки.
-            Цифры приходят из серверного действия тем же модулем, что считает
-            вкладка, поэтому двух расходящихся остатков не бывает.
+
+            База — стоимость позиций области, а не сумма графика: после ADR 0006
+            строка графика это счёт, и «план» в шапке не показывается вовсе
+            (ADR 0003). Числа приходят из серверного действия тем же модулем, что
+            считает вкладка (`paymentProgress`), поэтому двух расходящихся
+            остатков не бывает.
           */}
           <div
             /*
@@ -179,7 +191,7 @@ export function ProcureModal({
             className="mt-5 rounded-xl border border-border-muted bg-bg-card2 px-4 py-3"
           >
             <span className="font-mono text-[10px] uppercase tracking-widest text-fg-dim">
-              Оплачено по позициям закупки
+              Оплачено в закупке
             </span>
 
             {payments === null && (
@@ -198,24 +210,42 @@ export function ProcureModal({
                   <span className="text-[15px] font-bold tabular-nums">
                     {fmt(payments.data.scope.paid)} ₽
                   </span>
-                  <span className="text-[12.5px] text-fg-muted">
-                    план{" "}
-                    <span className="font-mono tabular-nums">
-                      {fmt(payments.data.scope.planned)} ₽
+                  {payments.data.scope.percent !== null && (
+                    <span className="text-[12.5px] text-fg-muted">
+                      · {payments.data.scope.percent} %
                     </span>
+                  )}
+                  <span className="text-[12.5px] text-fg-muted">
+                    из{" "}
+                    <span className="font-mono tabular-nums">
+                      {fmt(payments.data.scope.total)} ₽
+                    </span>{" "}
+                    стоимости позиций закупки
                   </span>
-                  {payments.data.scope.overpaid > 0 ? (
+                </div>
+
+                {/*
+                  Остаток и переплата здесь НЕ взаимоисключающие, как в карточке:
+                  там позиция одна и превышение означает нулевой остаток, а тут
+                  позиций много — по одной переплатили, по другой ещё должны.
+                  Скрыть остаток из-за чужой переплаты значило бы показать
+                  «долгов нет» там, где они есть.
+                */}
+                <div className="mt-1 flex flex-wrap items-baseline gap-x-5 gap-y-1">
+                  {(payments.data.scope.remaining > 0 ||
+                    payments.data.scope.overpaid === 0) && (
+                    <span className="text-[12.5px] text-fg-muted">
+                      осталось{" "}
+                      <span className="font-mono tabular-nums">
+                        {fmt(payments.data.scope.remaining)} ₽
+                      </span>
+                    </span>
+                  )}
+                  {payments.data.scope.overpaid > 0 && (
                     <span className="text-[12.5px] text-fg-red">
                       переплата{" "}
                       <span className="font-mono tabular-nums">
                         {fmt(payments.data.scope.overpaid)} ₽
-                      </span>
-                    </span>
-                  ) : (
-                    <span className="text-[12.5px] text-fg-muted">
-                      остаток{" "}
-                      <span className="font-mono tabular-nums">
-                        {fmt(payments.data.scope.remaining)} ₽
                       </span>
                     </span>
                   )}
@@ -227,11 +257,12 @@ export function ProcureModal({
                   больше, чем по закупке есть.
 
                   Счётчик и сумма отвечают на РАЗНЫЕ вопросы, поэтому и названы
-                  врозь: счётчик — «у скольких позиций есть график или оплаты»
-                  (план без оплат тоже повод сказать, что за строкой что-то
-                  есть), сумма — сальдо по ним. Знак сальдо сохраняется:
-                  возвратов вне воронки может быть больше, чем оплат, и
-                  «оплатами 3 500 ₽» вместо «−3 500 ₽» было бы неправдой.
+                  врозь: счётчик — «у скольких позиций есть деньги» (график в
+                  этой строке не участвует, поэтому позиция со счётом, но без
+                  оплат, сюда не попадает), сумма — сальдо по ним. Знак сальдо
+                  сохраняется: возвратов вне воронки может быть больше, чем
+                  оплат, и «оплатами 3 500 ₽» вместо «−3 500 ₽» было бы
+                  неправдой.
                 */}
                 {payments.data.outOfScopeCount > 0 && (
                   <p className="mt-1.5 text-[11.5px] text-fg-dim">
@@ -242,7 +273,7 @@ export function ProcureModal({
                       "позиции",
                       "позиций",
                     )}{" "}
-                    с графиком или оплатами, сальдо{" "}
+                    с оплатами, сальдо{" "}
                     <span className="font-mono tabular-nums">
                       {fmt(payments.data.outOfScopeNet)} ₽
                     </span>{" "}

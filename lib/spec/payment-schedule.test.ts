@@ -8,7 +8,7 @@ import {
   paymentProgress,
   roundMoney,
   summarisePaymentSchedule,
-  summarisePaymentScheduleByItem,
+  summarisePaymentProgressByItem,
   type PaidAmountLike,
   type PaymentPlanLike,
   type PaymentPlanOrderRow,
@@ -22,8 +22,11 @@ import {
  *   * сумма графика — самостоятельная величина из сумм строк (цена, количество
  *     и скидки позиции в расчёт не входят вовсе — их нет среди входных данных);
  *   * мягко удалённые строки не считаются ни в сумме, ни в порядке;
- *   * остаток = план − факт; переплата показывается только при непустом графике,
- *     поэтому оплата вне графика не превращается в «переплату на 100 %»;
+ *   * остаток по ГРАФИКУ = план − факт; переплата показывается только при
+ *     непустом графике, поэтому оплата вне графика не превращается в «переплату
+ *     на 100 %»;
+ *   * остаток по СТОИМОСТИ = стоимость − факт (ADR 0003), и это та база, которой
+ *     живёт интерфейс: и шапка вкладки, и строка оплат в воронке;
  *   * перестановка строки меняет порядок двух строк и не оставляет дублей
  *     номера порядка.
  *
@@ -454,208 +457,162 @@ describe("summarisePaymentSchedule: факты", () => {
 
 /**
  * Агрегат по НЕСКОЛЬКИМ позициям — база строки оплат в воронке закупки
- * (тикет 04).
+ * (тикет 09; прежде считался по графику — тикет 04).
  *
  * ── Почему правило считает каждая позиция, а не одна большая сумма ─────────
  *
- * Так же считает вкладка «Платежи»: она складывает `summarisePaymentSchedule`
- * по одной позиции. Проектный уровень обязан повторить это, иначе цифра в
- * воронке разойдётся с цифрой в карточке — а пользователь видит обе и решит,
- * что одна из них врёт. На этом расходятся по-настоящему: «остаток» не уходит в
- * минус, а «переплата» показывается только при непустом графике, поэтому
- * `Σ max(план − оплачено, 0)` и `max(Σплан − Σоплачено, 0)` — РАЗНЫЕ величины
- * (см. кейс с переплатой по одной позиции ниже).
+ * Так же считает вкладка «Платежи»: она зовёт `paymentProgress` на одну позицию.
+ * Проектный уровень обязан повторить это, иначе цифра в воронке разойдётся с
+ * цифрой в карточке — а пользователь видит обе и решит, что одна из них врёт.
+ * На этом расходятся по-настоящему: «остаток» не уходит в минус, а превышение
+ * показывает `overpaid`, поэтому `Σ max(стоимость − оплачено, 0)` и
+ * `max(Σстоимость − Σоплачено, 0)` — РАЗНЫЕ величины (см. кейс с переплатой по
+ * одной позиции ниже).
+ *
+ * ── Стоимость приходит готовой ─────────────────────────────────────────────
+ *
+ * Её считает `priceOf` у вызывающего (`actions/project-payments`) — с запасом,
+ * скидками и активным вариантом позиции. В тесте она задана числом: пересчёт
+ * здесь проверял бы не агрегат, а `priceOf`.
  *
  * ── Пустой список ──────────────────────────────────────────────────────────
  *
  * Ноль позиций — нули, а не отсутствие значений: строка воронки показывает «0 ₽»
- * и при пустом проекте, и этот ноль обязан быть числом.
+ * и при пустом проекте, и этот ноль обязан быть числом. Процента при этом нет
+ * (`null`), а не «0 %»: базы тоже нет.
  */
-describe("summarisePaymentScheduleByItem", () => {
+describe("summarisePaymentProgressByItem", () => {
   it("складывает позиции и повторяет формулу вкладки по каждой из них", () => {
-    const summary = summarisePaymentScheduleByItem([
-      {
-        plans: [plan({ id: "p1", amount: 10000 })],
-        paidRows: [paid({ paymentPlanId: "p1", amount: 4000 })],
-      },
-      {
-        plans: [plan({ id: "p2", amount: 5000 })],
-        paidRows: [],
-      },
+    const summary = summarisePaymentProgressByItem([
+      { total: 10000, paidRows: [paid({ amount: 4000 })] },
+      { total: 5000, paidRows: [] },
     ]);
 
-    expect(summary.planned).toBe(15000);
+    expect(summary.total).toBe(15000);
     expect(summary.paid).toBe(4000);
     expect(summary.remaining).toBe(11000);
     expect(summary.overpaid).toBe(0);
+    // Покрыто 15 000 − 11 000 = 4 000 из 15 000 — 26.67 %, в подписи 27.
+    expect(summary.percent).toBe(27);
   });
 
   it("пустой список позиций — нули, а не отсутствие значений", () => {
-    expect(summarisePaymentScheduleByItem([])).toEqual({
-      planned: 0,
+    expect(summarisePaymentProgressByItem([])).toEqual({
+      total: 0,
       paid: 0,
-      paidGross: 0,
-      refunded: 0,
       remaining: 0,
       overpaid: 0,
-      unplanned: 0,
-      refundsExceedPayments: false,
-      hasPlan: false,
+      percent: null,
     });
   });
 
   it("переплата по одной позиции не гасит остаток по другой", () => {
-    // Первая позиция: план 10 000, оплачено 12 000 — переплата 2 000, остатка нет.
-    // Вторая: план 10 000, оплачено 3 000 — остаток 7 000.
-    // «Одним котлом» получилось бы planned − paid = 20 000 − 15 000 = 5 000, то
-    // есть остаток, уменьшённый чужой переплатой. Вкладка так не считает.
-    const summary = summarisePaymentScheduleByItem([
-      {
-        plans: [plan({ id: "a", amount: 10000 })],
-        paidRows: [paid({ paymentPlanId: "a", amount: 12000 })],
-      },
-      {
-        plans: [plan({ id: "b", amount: 10000 })],
-        paidRows: [paid({ paymentPlanId: "b", amount: 3000 })],
-      },
+    // Первая позиция: стоимость 10 000, оплачено 12 000 — переплата 2 000,
+    // остатка нет. Вторая: стоимость 10 000, оплачено 3 000 — остаток 7 000.
+    // «Одним котлом» получилось бы 20 000 − 15 000 = 5 000, то есть остаток,
+    // уменьшённый чужой переплатой. Вкладка так не считает.
+    const summary = summarisePaymentProgressByItem([
+      { total: 10000, paidRows: [paid({ amount: 12000 })] },
+      { total: 10000, paidRows: [paid({ amount: 3000 })] },
     ]);
 
+    expect(summary.total).toBe(20000);
+    expect(summary.paid).toBe(15000);
     expect(summary.remaining).toBe(7000);
     expect(summary.overpaid).toBe(2000);
+    // Покрыто 20 000 − 7 000 = 13 000 из 20 000 — 65 %, а не 15 000 / 20 000 =
+    // 75 %: переплата покрытия не увеличивает.
+    expect(summary.percent).toBe(65);
   });
 
-  it("позиция без графика не даёт переплаты: её факт — «вне графика»", () => {
-    // Правило границы (REPORT §5.1(5)): при пустом графике факт — оплата вне
-    // графика, а не переплата на 100 %. Проектный агрегат обязан его сохранить.
-    const summary = summarisePaymentScheduleByItem([
-      { plans: [], paidRows: [paid({ paymentPlanId: null, amount: 3000 })] },
+  it("процент — покрытая доля стоимости, а не Σ оплачено / Σ стоимость", () => {
+    // Первая позиция оплачена вдвое, вторая не оплачена вовсе. Доля оплаченного
+    // «одним котлом» дала бы 100 % (20 000 из 20 000) рядом с «осталось
+    // 10 000 ₽» — противоречие в одной строке. Покрыто 10 000 из 20 000.
+    const summary = summarisePaymentProgressByItem([
+      { total: 10000, paidRows: [paid({ amount: 20000 })] },
+      { total: 10000, paidRows: [] },
     ]);
 
-    expect(summary.planned).toBe(0);
-    expect(summary.overpaid).toBe(0);
-    expect(summary.remaining).toBe(0);
-    expect(summary.unplanned).toBe(3000);
-    expect(summary.paid).toBe(3000);
+    expect(summary.paid).toBe(20000);
+    expect(summary.remaining).toBe(10000);
+    expect(summary.overpaid).toBe(10000);
+    expect(summary.percent).toBe(50);
   });
 
-  it("возвраты уменьшают оплаченное и виден признак превышения", () => {
-    const summary = summarisePaymentScheduleByItem([
+  it("возвраты уменьшают оплаченное, и остаток может превысить стоимость", () => {
+    // Следствие ADR 0003, принятое осознанно: возвратов больше, чем оплат,
+    // переплатой не объявляется (`overpaid` считается только как `paid −
+    // стоимость`), поэтому остаток = 10 000 − (−2 000) = 12 000.
+    const summary = summarisePaymentProgressByItem([
       {
-        plans: [plan({ id: "a", amount: 10000 })],
+        total: 10000,
         paidRows: [
-          paid({ paymentPlanId: "a", amount: 3000 }),
-          paid({ paymentPlanId: "a", amount: 5000, kind: "refund" }),
+          paid({ amount: 3000 }),
+          paid({ amount: 5000, kind: "refund" }),
         ],
       },
     ]);
 
     expect(summary.paid).toBe(-2000);
-    expect(summary.paidGross).toBe(3000);
-    expect(summary.refunded).toBe(5000);
     expect(summary.remaining).toBe(12000);
-    expect(summary.refundsExceedPayments).toBe(true);
+    expect(summary.overpaid).toBe(0);
+    expect(summary.percent).toBe(0);
   });
 
-  it("признак превышения складывается по «или»: он есть, если есть хоть где-то", () => {
-    // Признак — не сумма, а состояние: одна позиция с перебором возвратов
-    // означает, что показывать его надо, даже если по остальным всё в порядке.
-    const summary = summarisePaymentScheduleByItem([
+  it("нулевая стоимость: процента нет, а оплата — переплата", () => {
+    // Позиция без цены: делить не на что. `percent: null` — «процента нет», а не
+    // «0 %»: ноль процентов утверждал бы, что база есть и она не оплачена.
+    const summary = summarisePaymentProgressByItem([
+      { total: 0, paidRows: [paid({ amount: 5000 })] },
+    ]);
+
+    expect(summary.total).toBe(0);
+    expect(summary.percent).toBeNull();
+    expect(summary.overpaid).toBe(5000);
+    expect(summary.remaining).toBe(0);
+  });
+
+  it("мягко удалённый факт не считается", () => {
+    const summary = summarisePaymentProgressByItem([
       {
-        plans: [plan({ id: "a", amount: 10000 })],
+        total: 10000,
         paidRows: [
-          paid({ paymentPlanId: "a", amount: 1000 }),
-          paid({ paymentPlanId: "a", amount: 9000, kind: "refund" }),
+          paid({ amount: 4000 }),
+          paid({ amount: 9999, deletedAt: "2026-10-01T00:00:00.000Z" }),
         ],
-      },
-      {
-        plans: [plan({ id: "b", amount: 10000 })],
-        paidRows: [paid({ paymentPlanId: "b", amount: 10000 })],
       },
     ]);
 
-    expect(summary.refundsExceedPayments).toBe(true);
+    expect(summary.paid).toBe(4000);
+    expect(summary.remaining).toBe(6000);
   });
 
-  it("признак превышения не появляется, когда его нет ни у одной позиции", () => {
-    const summary = summarisePaymentScheduleByItem([
+  it("копейки и строки из `numeric`: итог — сумма по позициям, а не разность итогов", () => {
+    // Числа посчитаны руками и записаны литералами. Главное здесь — пара
+    // «остаток 0.24 · переплата 6.70»: если считать «одним котлом», переплата по
+    // второй позиции погасила бы остаток по первой и вышло бы 0 и 6.46.
+    //
+    //   первая:  стоимость 0.34,  оплата 0.10            → остаток 0.24
+    //   вторая:  стоимость 12.25, оплата 20.00 и возврат
+    //            1.05                                     → оплачено 18.95,
+    //                                                       переплата 6.70
+    //   итог:    стоимость 12.59, оплачено 19.05, остаток 0.24, переплата 6.70
+    const summary = summarisePaymentProgressByItem([
+      { total: "0.34", paidRows: [paid({ amount: "0.10" })] },
       {
-        plans: [plan({ id: "a", amount: 10000 })],
-        paidRows: [paid({ paymentPlanId: "a", amount: 1000 })],
-      },
-      {
-        plans: [plan({ id: "b", amount: 10000 })],
+        total: "12.25",
         paidRows: [
-          paid({ paymentPlanId: "b", amount: 5000 }),
-          paid({ paymentPlanId: "b", amount: 5000, kind: "refund" }),
+          paid({ amount: "20.00" }),
+          paid({ amount: "1.05", kind: "refund" }),
         ],
       },
     ]);
 
-    expect(summary.refunded).toBe(5000);
-    expect(summary.refundsExceedPayments).toBe(false);
-  });
-
-  it("план считается по позициям: у одной строки графика, у другой пусто", () => {
-    const summary = summarisePaymentScheduleByItem([
-      {
-        plans: [
-          plan({ id: "a1", amount: 1000 }),
-          plan({ id: "a2", amount: 2000 }),
-        ],
-        paidRows: [],
-      },
-      { plans: [], paidRows: [] },
-    ]);
-
-    expect(summary.planned).toBe(3000);
-    expect(summary.hasPlan).toBe(true);
-  });
-
-  it("hasPlan — «есть хоть где-то»: пустой график всего проекта даёт false", () => {
-    const withPlan = summarisePaymentScheduleByItem([
-      { plans: [], paidRows: [] },
-      { plans: [plan({ id: "a", amount: 100 })], paidRows: [] },
-    ]);
-    const withoutPlan = summarisePaymentScheduleByItem([
-      { plans: [], paidRows: [paid({ amount: 500 })] },
-    ]);
-
-    expect(withPlan.hasPlan).toBe(true);
-    expect(withoutPlan.hasPlan).toBe(false);
-  });
-
-  it("итог равен сумме итогов по позициям — третий рецепт формулы не заводится", () => {
-    // Тождество, которое обязано держаться: воронка складывает РОВНО то, что
-    // показывает карточка. Проверяется на неудобных числах (возврат, пустой
-    // график, внеплановый факт), где «одним котлом» уже разошлось бы.
-    const items = [
-      {
-        plans: [plan({ id: "a", amount: "0.34" })],
-        paidRows: [paid({ paymentPlanId: "a", amount: "0.10" })],
-      },
-      {
-        plans: [plan({ id: "b", amount: "12.25" })],
-        paidRows: [
-          paid({ paymentPlanId: "b", amount: "20.00" }),
-          paid({ paymentPlanId: "b", amount: "1.05", kind: "refund" }),
-        ],
-      },
-      { plans: [], paidRows: [paid({ paymentPlanId: null, amount: "7.77" })] },
-    ];
-
-    const total = summarisePaymentScheduleByItem(items);
-    const each = items.map((item) =>
-      summarisePaymentSchedule(item.plans, item.paidRows),
-    );
-    const sumOf = (pick: (summary: (typeof each)[number]) => number) =>
-      roundMoney(each.reduce((sum, summary) => sum + pick(summary), 0));
-
-    expect(total.planned).toBe(sumOf((s) => s.planned));
-    expect(total.paid).toBe(sumOf((s) => s.paid));
-    expect(total.remaining).toBe(sumOf((s) => s.remaining));
-    expect(total.overpaid).toBe(sumOf((s) => s.overpaid));
-    expect(total.unplanned).toBe(sumOf((s) => s.unplanned));
-    expect(total.refunded).toBe(sumOf((s) => s.refunded));
+    expect(summary.total).toBe(12.59);
+    expect(summary.paid).toBe(19.05);
+    expect(summary.remaining).toBe(0.24);
+    expect(summary.overpaid).toBe(6.7);
   });
 });
 

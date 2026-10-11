@@ -11,10 +11,11 @@ import type { ProjectPaymentsSummary } from "@/actions/project-payments";
  * ── Что здесь проверяется, а что нет ───────────────────────────────────────
  *
  * Арифметика живёт в `lib/spec/payment-schedule` и покрыта там; выбор позиций
- * области — в `actions/project-payments`, и он покрыт там же. Здесь проверяется
- * ровно последняя миля: что модалка догружает цифры при открытии, показывает
- * план · оплачено · остаток · переплату и НЕ складывает молча оплаты мимо
- * области. Пересчитывать формулу в этом тесте значило бы подтверждать сам себя.
+ * области и стоимость — в `actions/project-payments`, и они покрыты там же. Здесь
+ * проверяется ровно последняя миля: что модалка догружает цифры при открытии,
+ * показывает оплачено · процент · стоимость · остаток/переплату и НЕ складывает
+ * молча оплаты мимо области. Пересчитывать формулу в этом тесте значило бы
+ * подтверждать сам себя.
  *
  * Действие подменяется модульным моком: настоящее требует сессии и БД.
  */
@@ -25,34 +26,30 @@ vi.mock("@/actions/project-payments", () => ({
   getProjectPaymentsSummary: summaryMock,
 }));
 
-import type { PaymentScheduleSummary } from "@/lib/spec/payment-schedule";
+import type { PaymentProgressSummary } from "@/lib/spec/payment-schedule";
 
-/** Сводка с заданными числами; остальное — нули. */
-function schedule(
-  over: Partial<PaymentScheduleSummary> = {},
-): PaymentScheduleSummary {
+/** Сводка с заданными числами; остальное — нули, процента нет. */
+function progress(
+  over: Partial<PaymentProgressSummary> = {},
+): PaymentProgressSummary {
   return {
-    planned: 0,
+    total: 0,
     paid: 0,
-    paidGross: 0,
-    refunded: 0,
     remaining: 0,
     overpaid: 0,
-    unplanned: 0,
-    refundsExceedPayments: false,
-    hasPlan: false,
+    percent: null,
     ...over,
   };
 }
 
 /** Ответ действия с заданной областью воронки. */
 function response(
-  scope: Partial<PaymentScheduleSummary> = {},
+  scope: Partial<PaymentProgressSummary> = {},
   over: Partial<ProjectPaymentsSummary> = {},
 ): { success: true; data: ProjectPaymentsSummary } {
   return {
     success: true,
-    data: { scope: schedule(scope), outOfScopeCount: 0, outOfScopeNet: 0, ...over },
+    data: { scope: progress(scope), outOfScopeCount: 0, outOfScopeNet: 0, ...over },
   };
 }
 
@@ -134,7 +131,7 @@ const showsMoney = (value: number) => cardText().includes(money(value));
 beforeEach(() => {
   summaryMock.mockReset();
   summaryMock.mockResolvedValue(
-    response({ planned: 150000, paid: 40000, remaining: 110000 }),
+    response({ total: 150000, paid: 40000, remaining: 110000, percent: 27 }),
   );
 });
 
@@ -151,13 +148,14 @@ describe("ProcureModal · строка оплат", () => {
     });
   });
 
-  it("показывает план, оплачено, остаток и переплату", async () => {
+  it("показывает оплачено, процент, стоимость и переплату", async () => {
     summaryMock.mockResolvedValue(
       response({
-        planned: 150000,
+        total: 150000,
         paid: 160000,
         remaining: 0,
         overpaid: 10000,
+        percent: 100,
       }),
     );
 
@@ -167,30 +165,62 @@ describe("ProcureModal · строка оплат", () => {
       expect(showsMoney(160000)).toBe(true);
     });
 
+    // Стоимость — база строки: без неё «оплачено» и процент не к чему отнести.
     expect(showsMoney(150000)).toBe(true);
+    expect(cardText()).toContain("100 %");
     expect(showsMoney(10000)).toBe(true);
     // Подписи лежат в одном `span` с суммой, поэтому «ровно этот текст» не
     // находится ни у одного элемента: проверяется текст карточки целиком.
     expect(cardText()).toContain("переплата");
+    // «План» прежней редакции блока (тикет 04) не вернулся: графика в строке
+    // нет, и суммы счетов здесь не показываются.
+    expect(cardText()).not.toContain("план");
   });
 
-  it("показывает остаток, когда оплачено меньше плана", async () => {
+  it("показывает остаток и процент, когда оплачено меньше стоимости", async () => {
     setup();
 
     await waitFor(() => {
       expect(showsMoney(110000)).toBe(true);
     });
 
-    expect(cardText()).toContain("остаток");
+    expect(cardText()).toContain("осталось");
+    expect(cardText()).toContain("27 %");
     // Переплаты нет — подписи тоже быть не должно: ноль в ней читался бы как
     // «переплатили ноль».
     expect(cardText()).not.toContain("переплата");
   });
 
+  it("остаток и переплата видны вместе, когда они по разным позициям", async () => {
+    // В карточке позиции эти подписи взаимоисключающие: позиция одна, и
+    // превышение означает нулевой остаток. В воронке позиций много — по одной
+    // переплатили, по другой ещё должны, — и скрыть остаток из-за чужой
+    // переплаты значило бы показать «долгов нет» там, где они есть.
+    summaryMock.mockResolvedValue(
+      response({
+        total: 20000,
+        paid: 15000,
+        remaining: 7000,
+        overpaid: 2000,
+        percent: 65,
+      }),
+    );
+
+    setup();
+
+    await waitFor(() => {
+      expect(showsMoney(7000)).toBe(true);
+    });
+
+    expect(showsMoney(2000)).toBe(true);
+    expect(cardText()).toContain("осталось");
+    expect(cardText()).toContain("переплата");
+  });
+
   it("оплаты мимо области воронки отмечены отдельно, а не сложены в итог", async () => {
     summaryMock.mockResolvedValue(
       response(
-        { planned: 10000, paid: 4000, remaining: 6000 },
+        { total: 10000, paid: 4000, remaining: 6000, percent: 40 },
         { outOfScopeCount: 2, outOfScopeNet: 3500 },
       ),
     );
@@ -209,11 +239,11 @@ describe("ProcureModal · строка оплат", () => {
 
   it("отрицательное сальдо мимо области показывается со знаком", async () => {
     // Возвратов вне воронки больше, чем оплат: сальдо отрицательное. Знак
-    // обязан дойти до экрана — «с графиком или оплатами 3 500 ₽» там, где на
-    // самом деле вернули 3 500 ₽, читается как противоположное утверждение.
+    // обязан дойти до экрана — «с оплатами 3 500 ₽» там, где на самом деле
+    // вернули 3 500 ₽, читается как противоположное утверждение.
     summaryMock.mockResolvedValue(
       response(
-        { planned: 10000, paid: 4000, remaining: 6000 },
+        { total: 10000, paid: 4000, remaining: 6000, percent: 40 },
         { outOfScopeCount: 1, outOfScopeNet: -3500 },
       ),
     );
@@ -231,24 +261,26 @@ describe("ProcureModal · строка оплат", () => {
     setup();
 
     await waitFor(() => {
-      expect(cardText()).toContain("Оплачено по позициям закупки");
+      expect(cardText()).toContain("Оплачено в закупке");
     });
 
     expect(cardText()).not.toContain("Мимо области воронки");
   });
 
-  it("пустой график и отсутствие оплат — нули, а не прочерки", async () => {
-    // Требование тикета: «поведение при пустом графике и при отсутствии оплат».
-    // Ноль — это ответ («оплат нет»), и он обязан быть показан.
+  it("нет оплат — нули, а не прочерки, и процента нет", async () => {
+    // Ноль — это ответ («оплат нет»), и он обязан быть показан. Процента при
+    // нулевой стоимости нет вовсе: «0 %» утверждал бы, что база есть и она не
+    // оплачена (ADR 0003).
     summaryMock.mockResolvedValue(response());
 
     setup();
 
     await waitFor(() => {
-      expect(cardText()).toContain("Оплачено по позициям закупки");
+      expect(cardText()).toContain("Оплачено в закупке");
     });
 
     expect(showsMoney(0)).toBe(true);
+    expect(cardText()).not.toContain("%");
     expect(cardText()).not.toContain("Загружаем");
   });
 
@@ -291,7 +323,7 @@ describe("ProcureModal · строка оплат", () => {
     setup();
 
     await waitFor(() => {
-      expect(cardText()).toContain("Оплачено по позициям закупки");
+      expect(cardText()).toContain("Оплачено в закупке");
     });
 
     const labels = [
