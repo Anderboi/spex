@@ -20,12 +20,13 @@
  * строки позиции), `storage_path` (собирается здесь), `uploaded_by` (из сессии),
  * `created_at` (серверное время), `id` (БД).
  *
- * `payment_id` — единственное клиентское значение, которое что-то СВЯЗЫВАЕТ, и
- * поэтому оно не принимается на веру: ядро само читает строку оплаты и сверяет
- * её позицию, организацию и проект (`resolvePayment`), а вид записи для подписи
- * берёт из БД, а не из формы. Второй контур — триггер
- * `spec_item_files_payment_scope` (миграция `20261011_001`): он снимает ссылку,
- * если она всё-таки оказалась чужой.
+ * `payment_id` и `payment_plan_id` — единственные клиентские значения, которые
+ * что-то СВЯЗЫВАЮТ, и поэтому они не принимаются на веру: ядро само читает строку
+ * оплаты и строку графика, сверяя их позицию, организацию и проект
+ * (`resolveFileLinks`), а вид записи для подписи берёт из БД, а не из формы.
+ * Второй контур — триггеры `spec_item_files_payment_scope` (миграция
+ * `20261011_001`) и `spec_item_files_payment_plan_scope` (миграция
+ * `20261012_001`): они снимают ссылку, если она всё-таки оказалась чужой.
  *
  * `storage_path` НИКОГДА не приходит снаружи: его нет ни в одном входном типе.
  * Для чтения и удаления путь берётся из строки БД, а строка ищется по
@@ -107,6 +108,7 @@ import {
   isPaymentKind,
   type PaymentRecordKind,
 } from "./payment-types";
+import { toAmount } from "./payment-schedule";
 
 /** Клиент БД: как у остальных слоёв, приходит аргументом. */
 export type SpecItemFilesDb = SupabaseClient<Database>;
@@ -189,10 +191,57 @@ export type SpecItemFileEntry = {
    */
   paymentId: string | null;
   /**
+   * Строка графика, к которой прикреплён документ. `null` — файл ни к какому
+   * плану не привязан.
+   *
+   * Ссылок у файла ДВЕ, и они не конкурируют: счёт, приложенный к плановому
+   * платежу, остаётся основанием и после отметки «Оплачено», получая вторую
+   * связь — с фактом (ADR 0006). Клиент показывает ту, что объясняет файл
+   * сейчас: до оплаты — план, после — оплату.
+   */
+  paymentPlanId: string | null;
+  /**
    * Вид и дата связанной оплаты — подпись документа. `null` — либо оплаты нет,
    * либо её не удалось прочитать (тогда строка остаётся обычным документом).
    */
   payment: SpecItemFilePaymentInfo | null;
+  /**
+   * Строка графика — основание документа. `null` — плана нет, не прочитан или
+   * он не принадлежит этой позиции.
+   *
+   * Нужна ради подписи до оплаты: счёт без неё выглядел бы в списке файлом,
+   * про который непонятно, почему он здесь (решение Q34). После оплаты подпись
+   * берётся из `payment` — файл объясняет уже факт, а не обязательство.
+   */
+  paymentPlan: SpecItemFilePaymentPlanInfo | null;
+};
+
+/**
+ * Что известно о строке графика, к которой прикреплён документ.
+ *
+ * Отдельный тип, а не `PaymentPlanEntry` целиком: карточке файла нужны срок,
+ * сумма и состояние, а не автор, порядок и время правки. `paid` считается здесь,
+ * а не выводится в разметке: правило «строка оплачена, если по ней есть живой
+ * факт» должно быть одно, и живёт оно там же, где читаются обе таблицы.
+ */
+export type SpecItemFilePaymentPlanInfo = {
+  id: string;
+  title: string;
+  amount: number;
+  /** Срок платежа 'YYYY-MM-DD'. `null` — срока нет. */
+  dueDate: string | null;
+  /**
+   * Дата живой оплаты по этой строке. `null` — строка ещё не оплачена.
+   *
+   * Подпись счёта меняется сама: пока даты нет, файл объясняется обязательством
+   * («К запланированному платежу · до 1 ноября»), а после отметки «Оплачено» —
+   * фактом («К оплате от 5 ноября»), хотя сам файл при этом не правится и связь
+   * с планом не переезжает (ADR 0006). Второй ссылки у файла для этого не
+   * требуется: счёт, приложенный к плану и не приложенный к оплате, обязан
+   * получить новую подпись — иначе он остался бы подписан ожиданием, которое уже
+   * сбылось.
+   */
+  paidAt: string | null;
 };
 
 /**
@@ -334,9 +383,18 @@ export type UploadSpecItemFileInput = {
    *
    * `null`/`undefined`/пустая строка — обычный файл позиции. Значение приходит
    * от клиента, поэтому оно НЕ принимается на веру: ядро само читает строку
-   * оплаты и сверяет позицию, организацию и проект (`resolvePayment`).
+   * оплаты и сверяет позицию, организацию и проект (`resolveFileLinks`).
    */
   paymentId?: string | null;
+  /**
+   * Строка графика, к которой прикрепляется документ, — основание платежа.
+   *
+   * Вторая ссылка, а не замена первой: счёт приходит ДО денег, и когда оплату
+   * отметят, файл получит ещё и `payment_id`, оставшись привязанным к плану
+   * (ADR 0006). Проверяется так же, как оплата: чтением строки, а не доверием
+   * аргументу.
+   */
+  paymentPlanId?: string | null;
   data: UploadSpecItemFileData;
 };
 
@@ -346,7 +404,7 @@ export type UploadSpecItemFileInput = {
 
 /** Колонки, нужные ядру. Литерал обязателен: по нему supabase-js выводит тип. */
 const FILE_COLUMNS =
-  "id, org_id, project_id, spec_item_id, storage_path, file_name, mime_type, size_bytes, category, uploaded_by, created_at, deleted_at, payment_id";
+  "id, org_id, project_id, spec_item_id, storage_path, file_name, mime_type, size_bytes, category, uploaded_by, created_at, deleted_at, payment_id, payment_plan_id";
 
 type FileRow = {
   id: string;
@@ -362,21 +420,23 @@ type FileRow = {
   created_at: string;
   deleted_at: string | null;
   payment_id: string | null;
+  payment_plan_id: string | null;
 };
 
 /**
  * Строка без служебных полей — то, что уходит клиенту.
  *
- * `payment` приходит аргументом, а не читается здесь: у строки есть только
- * `payment_id`, а вид и дата записи живут в другой таблице. Где они уже
- * прочитаны (загрузка, список) — передаются; где не читаются (ссылка,
- * удаление) — запись отдаёт `paymentId` и `payment: null`, то есть честно
- * говорит, что связи нет, но не выдумывает её отсутствие в данных.
+ * `payment` и `paymentPlan` приходят аргументами, а не читаются здесь: у строки
+ * есть только ссылки, а вид, дата и срок живут в других таблицах. Где они уже
+ * прочитаны (загрузка, список) — передаются; где не читаются (ссылка, удаление)
+ * — запись отдаёт идентификаторы, а подписи остаются `null`, то есть честно
+ * говорят, что связи не прочитаны, но не выдумывают их отсутствие.
  */
 function toEntry(
   row: FileRow,
   payment: SpecItemFilePaymentInfo | null = null,
   uploadedByName: string | null = null,
+  paymentPlan: SpecItemFilePaymentPlanInfo | null = null,
 ): SpecItemFileEntry {
   return {
     id: row.id,
@@ -389,6 +449,8 @@ function toEntry(
     createdAt: row.created_at,
     paymentId: row.payment_id ?? null,
     payment,
+    paymentPlanId: row.payment_plan_id ?? null,
+    paymentPlan,
   };
 }
 
@@ -439,7 +501,7 @@ type PaymentRow = {
  * Три исхода, а не два. «Оплаты нет» и «БД недоступна» — разные вещи: первое
  * означает отказ пользователю, второе — сбой, и выдавать второе за первое
  * значило бы объяснять человеку чужой идентификатор, когда на самом деле лежит
- * база. Подписи в списке (`paymentInfoOf`, `decorateWithPayments`) разницу
+ * база. Подписи в списке (`decorateWithLinks`) разницу
  * сглаживают — им при сбое достаточно остаться без подписи.
  */
 type PaymentLookup =
@@ -506,28 +568,49 @@ const CANCELLED_PAYMENT_INFO: SpecItemFilePaymentInfo = {
 };
 
 /**
- * Разбор `payment_id` из аргументов операции.
+ * Разбор ссылки файла из аргументов операции: `payment_id` или `payment_plan_id`.
  *
  * Пустая строка — то же, что «не указан»: в `FormData` поле всегда есть, и
  * пустое значение означает «обычный файл позиции», а не ошибку клиента.
  * Непустое обязано быть uuid: иначе PostgREST ответил бы ошибкой приведения
  * типа вместо понятного отказа (тот же приём, что в action для `fileId`).
+ *
+ * У обеих ссылок правило одно, поэтому и разбор один. `undefined` в ответе
+ * означает «не uuid» — третье состояние рядом с `null` («не указана») и
+ * значением: `null` в этом месте означал бы «ссылки нет», то есть принял бы
+ * мусор за её отсутствие.
  */
 export function normalizePaymentIdFilter(
   raw: string | null | undefined,
 ): { ok: true; paymentId: string | null } | { ok: false } {
-  if (raw === null || raw === undefined) return { ok: true, paymentId: null };
+  const normalized = normalizeLinkId(raw);
+  return normalized === undefined
+    ? { ok: false }
+    : { ok: true, paymentId: normalized };
+}
+
+/** Разбор одной ссылки: строка uuid, `null` — «не указана», `undefined` — мусор. */
+function normalizeLinkId(
+  raw: string | null | undefined,
+): string | null | undefined {
+  if (raw === null || raw === undefined) return null;
 
   const trimmed = raw.trim();
-  if (trimmed.length === 0) return { ok: true, paymentId: null };
+  if (trimmed.length === 0) return null;
 
-  return UUID_PATTERN.test(trimmed)
-    ? { ok: true, paymentId: trimmed }
-    : { ok: false };
+  return UUID_PATTERN.test(trimmed) ? trimmed : undefined;
 }
 
 /**
- * Оплата существует, жива и принадлежит этой позиции — или понятный отказ.
+ * Обе связи файла — оплата и строка графика — или понятный отказ.
+ *
+ * ── Почему одним шагом, а не двумя ─────────────────────────────────────────
+ *
+ * Проверки у связей РАЗНЫЕ (оплата не должна быть отменённой, строка графика
+ * может быть мягко удалена), но отказ — один и тот же по смыслу: «ссылка не
+ * принадлежит этой позиции». Разведи их по двум функциям, и загрузка с обеими
+ * ссылками ходила бы в БД дважды, а отказы пришлось бы согласовывать в двух
+ * местах.
  *
  * Текст отказа ОДИН на все случаи расхождения (чужой идентификатор, чужая
  * позиция, чужой проект, чужая организация, отменённая оплата): пользователь не
@@ -535,103 +618,230 @@ export function normalizePaymentIdFilter(
  * Тот же принцип, что у `resolveSpecItem` — один ответ на «нет» и «не твоё».
  *
  * Отказ по сбою чтения — ДРУГОЙ (`FAILED`, «не удалось»): он не утверждает, что
- * оплаты нет, и повтор операции имеет смысл.
+ * связи нет, и повтор операции имеет смысл.
  */
-async function resolvePayment(
+async function resolveFileLinks(
   db: SpecItemFilesDb,
   args: {
     orgId: string;
     projectId: string;
     specItemId: string;
     paymentId: string | null | undefined;
+    paymentPlanId: string | null | undefined;
   },
 ): Promise<
   | {
       ok: true;
       paymentId: string | null;
       payment: SpecItemFilePaymentInfo | null;
+      paymentPlanId: string | null;
     }
   | { ok: false; error: SpecItemFileError }
 > {
-  /** Один текст на все расхождения — см. заголовок. */
-  const notFoundError: SpecItemFileError = {
+  /** Один текст на все расхождения по любой из двух ссылок — см. заголовок. */
+  const notFoundPayment: SpecItemFileError = {
     code: "INVALID_INPUT",
     message: "Оплата не найдена: проверьте, к какой записи прикрепляете документ",
   };
+  const notFoundPlan: SpecItemFileError = {
+    code: "INVALID_INPUT",
+    message:
+      "Платёж в графике не найден: проверьте, к какой строке прикрепляете документ",
+  };
 
-  const normalized = normalizePaymentIdFilter(args.paymentId);
-  if (!normalized.ok) return { ok: false, error: notFoundError };
+  /* ── Оплата ─────────────────────────────────────────────────────────── */
 
-  if (normalized.paymentId === null) {
-    return { ok: true, paymentId: null, payment: null };
+  const paymentId = normalizeLinkId(args.paymentId);
+  if (paymentId === undefined) return { ok: false, error: notFoundPayment };
+
+  let payment: SpecItemFilePaymentInfo | null = null;
+  if (paymentId !== null) {
+    const found = await findPayment(db, {
+      orgId: args.orgId,
+      projectId: args.projectId,
+      specItemId: args.specItemId,
+      paymentId,
+    });
+
+    if (found.status === "failed") {
+      return {
+        ok: false,
+        error: { code: "FAILED", message: "Не удалось проверить оплату" },
+      };
+    }
+
+    if (found.status === "missing") return { ok: false, error: notFoundPayment };
+
+    // Отменённая оплата — тот же отказ: документ прикрепляют к действующей
+    // проводке, а не к записи, которая больше не считается в суммах.
+    if (found.payment.cancelled) return { ok: false, error: notFoundPayment };
+
+    payment = found.payment;
   }
 
-  const found = await findPayment(db, {
-    orgId: args.orgId,
-    projectId: args.projectId,
-    specItemId: args.specItemId,
-    paymentId: normalized.paymentId,
-  });
+  /* ── Строка графика ─────────────────────────────────────────────────── */
 
-  if (found.status === "failed") {
-    return {
-      ok: false,
-      error: { code: "FAILED", message: "Не удалось проверить оплату" },
-    };
+  const paymentPlanId = normalizeLinkId(args.paymentPlanId);
+  if (paymentPlanId === undefined) return { ok: false, error: notFoundPlan };
+
+  if (paymentPlanId !== null) {
+    const plan = await findPlan(db, {
+      orgId: args.orgId,
+      projectId: args.projectId,
+      specItemId: args.specItemId,
+      planId: paymentPlanId,
+    });
+
+    if (plan.status === "failed") {
+      return {
+        ok: false,
+        error: { code: "FAILED", message: "Не удалось проверить платёж в графике" },
+      };
+    }
+
+    if (plan.status === "missing") return { ok: false, error: notFoundPlan };
   }
 
-  if (found.status === "missing") return { ok: false, error: notFoundError };
-
-  // Отменённая оплата — тот же отказ: документ прикрепляют к действующей
-  // проводке, а не к записи, которая больше не считается в суммах.
-  if (found.payment.cancelled) return { ok: false, error: notFoundError };
-
-  return { ok: true, paymentId: normalized.paymentId, payment: found.payment };
+  return { ok: true, paymentId, payment, paymentPlanId };
 }
 
 /**
- * Подпись оплаты для ОДНОЙ уже прочитанной строки файла.
- *
- * Нужна операции, которая отдаёт запись целиком (ссылка на файл): клиент
- * обновляет по ответу свою строку, и без подписи связь с оплатой в ней пропала
- * бы — при том что в данных она есть. Отдельно от `decorateWithPayments`
- * (пачка) по той же причине, по которой `resolvePayment` отделён от списка:
- * одиночной операции незачем читать оплаты чужих файлов. Сбой чтения подписи не
- * поднимается наверх — запись остаётся «файлом без подписи», и это ровно то, что
- * видит клиент: сама ссылка на оплату (`paymentId`) лежит в строке.
+ * Строка графика в объёме, нужном файлу: чем она называется и когда по ней срок.
  */
-async function paymentInfoOf(
-  db: SpecItemFilesDb,
-  args: { orgId: string; projectId: string; specItemId: string },
-  paymentId: string | null,
-): Promise<SpecItemFilePaymentInfo | null> {
-  if (!paymentId) return null;
+type PlanRow = {
+  id: string;
+  title: string;
+  amount: number | string;
+  due_date: string | null;
+};
 
-  const found = await findPayment(db, { ...args, paymentId });
-  return found.status === "found" ? found.payment : null;
+/** Три исхода чтения строки графика — те же, что у оплаты, и по той же причине. */
+type PlanLookup =
+  | { status: "found"; plan: PlanRow }
+  | { status: "missing" }
+  | { status: "failed" };
+
+/**
+ * Строка графика по идентификатору — ТОЛЬКО внутри этой позиции, организации и
+ * проекта.
+ *
+ * ── Почему живость строки здесь НЕ проверяется ──────────────────────────────
+ *
+ * У оплаты стоит `deleted_at is null`: привязать документ к отменённой проводке
+ * нельзя, и это решение тикета 06. У строки графика правило другое, и разница
+ * намеренная. Строку графика удаляют, когда обязательство снято, — а счёт,
+ * который её объяснял, остаётся документом позиции. Запрети мы привязку к
+ * мягко удалённой строке, счёт стало бы нечем объяснить; а снятие ссылки
+ * триггером на удалении плана молча стёрло бы основание уже случившейся оплаты.
+ *
+ * Поэтому триггер `spec_item_files_payment_plan_scope` живость тоже не
+ * проверяет, а здесь проверяется ровно принадлежность.
+ *
+ * Условия запроса и есть проверка принадлежности: чужой `payment_plan_id` не
+ * находит строку, и вызывающий получает `missing`, а не «чужой план». Отдельного
+ * «прочитать и сравнить» нет намеренно — сравнение в коде можно забыть, а
+ * условие выборки забыть нельзя.
+ */
+async function findPlan(
+  db: SpecItemFilesDb,
+  args: {
+    orgId: string;
+    projectId: string;
+    specItemId: string;
+    planId: string;
+  },
+): Promise<PlanLookup> {
+  const { data, error } = await db
+    .from("spec_item_payment_plans")
+    .select("id, title, amount, due_date")
+    .eq("id", args.planId)
+    .eq("org_id", args.orgId)
+    .eq("spec_item_id", args.specItemId)
+    .eq("project_id", args.projectId)
+    .maybeSingle<PlanRow>();
+
+  if (error) {
+    console.error("[spec-item-files] plan", error.message);
+    return { status: "failed" };
+  }
+
+  if (!data) return { status: "missing" };
+
+  return { status: "found", plan: data };
 }
 
 /**
- * Подписи оплаты для списка файлов.
+ * Когда по каждой из строк графика прошли деньги.
  *
- * Один дополнительный запрос на список, а не соединение таблиц в основном:
- * соединение потребовало бы фильтра «оплата не удалена» на уровне PostgREST
- * (`spec_item_payments!inner(...)`), а он сделал бы выборку внутренним join —
- * и файлы без оплаты исчезли бы из списка вовсе. Здесь же читается пачка оплат
- * по идентификаторам, и строка без оплаты просто остаётся без подписи.
+ * Нужно подписи документа: до оплаты у файла одна подпись, после — другая, и
+ * различает их именно дата факта. Считается одним запросом на пачку, а не
+ * запросом на файл: у позиции документов десятки, а строк графика единицы.
+ *
+ * Ошибка чтения список НЕ ломает: документы важнее подписи, и файл показывается
+ * так, будто план ещё не оплачен — то есть с той подписью, которая объясняет
+ * счёт ДО оплаты. Ошибка уходит в лог.
+ */
+async function paidPlans(
+  db: SpecItemFilesDb,
+  args: { orgId: string; specItemId: string; planIds: string[] },
+): Promise<Map<string, string>> {
+  const paid = new Map<string, string>();
+  if (args.planIds.length === 0) return paid;
+
+  const { data, error } = await db
+    .from("spec_item_payments")
+    .select("payment_plan_id, paid_at")
+    .eq("org_id", args.orgId)
+    .eq("spec_item_id", args.specItemId)
+    .in("payment_plan_id", args.planIds)
+    .is("deleted_at", null)
+    .order("paid_at", { ascending: false });
+
+  if (error) {
+    console.error("[spec-item-files] plans paid", error.message);
+    return paid;
+  }
+
+  for (const row of (data ?? []) as {
+    payment_plan_id: string | null;
+    paid_at: string | null;
+  }[]) {
+    // Серверный порядок — поздние первыми, поэтому первая запись строки и есть
+    // её дата оплаты; повторные (второй факт по той же строке интерфейсом не
+    // создаётся, но данные этого не запрещают) только подтверждают решение.
+    if (row.payment_plan_id && row.paid_at && !paid.has(row.payment_plan_id)) {
+      paid.set(row.payment_plan_id, row.paid_at);
+    }
+  }
+
+  return paid;
+}
+
+/**
+ * Подписи обеих связей файла: оплатыИ строки графика.
+ *
+ * Одним шагом, а не двумя, по той же причине, по которой одним запросом
+ * читается список: у файла две ссылки, и правило «когда подпись берётся из
+ * оплаты, а когда из плана» должно жить в одном месте. `paymentPlan` остаётся и
+ * у оплаченного файла — он объясняет и идентификатор, лежащий в строке, — но
+ * подпись выбирает клиент (`paymentLinkLabel`).
+ *
+ * ── Почему соединение таблиц не используется ───────────────────────────────
+ *
+ * `spec_item_payments!inner(...)` сделал бы выборку внутренним join — и файлы
+ * без оплаты исчезли бы из списка вовсе. Поэтому читаются две пачки по
+ * идентификаторам, а строка без ссылки просто остаётся без подписи.
  *
  * Читаются и ОТМЕНЁННЫЕ записи (фильтра по `deleted_at` нет): документ к
  * отменённой оплате должен быть объясним, иначе он выглядел бы обычным файлом,
  * а его `payment_id` вёл бы в никуда. Такой документ получает подпись
  * «К отменённой оплате».
- *
- * Ошибка чтения оплат список НЕ ломает: документы важнее подписи, и файл без
- * вида оплаты показывается как обычный. Ошибка уходит в лог.
  */
-async function decorateWithPayments(
+async function decorateWithLinks(
   db: SpecItemFilesDb,
   args: {
     orgId: string;
+    projectId: string;
     specItemId: string;
     files: SpecItemFileEntry[];
   },
@@ -643,35 +853,123 @@ async function decorateWithPayments(
         .filter((id): id is string => id !== null),
     ),
   );
+  const planIds = Array.from(
+    new Set(
+      args.files
+        .map((file) => file.paymentPlanId)
+        .filter((id): id is string => id !== null),
+    ),
+  );
 
-  if (paymentIds.length === 0) return args.files;
+  if (paymentIds.length === 0 && planIds.length === 0) return args.files;
 
-  const { data, error } = await db
-    .from("spec_item_payments")
-    .select("id, kind, paid_at, deleted_at")
-    .eq("org_id", args.orgId)
-    .eq("spec_item_id", args.specItemId)
-    .in("id", paymentIds);
+  /**
+   * Прочитались ли связи.
+   *
+   * Различает два случая, которые иначе слились бы в один: «строки по ссылке нет
+   * вовсе» (запись удалили физически, строка попала в БД в обход кода) и «связи
+   * не прочитались» (ошибка БД). Первому нужна подпись — иначе `paymentId` в
+   * строке остался бы без объяснения, — а второму НЕ нужна: объявить оплату
+   * отменённой на основании сбоя чтения значило бы выдумать состояние.
+   */
+  let paymentsRead = false;
+  let plansRead = false;
 
-  if (error) {
-    console.error("[listSpecItemFiles] payments", error.message);
-    return args.files;
+  const paymentById = new Map<string, SpecItemFilePaymentInfo>();
+  if (paymentIds.length > 0) {
+    const { data, error } = await db
+      .from("spec_item_payments")
+      .select("id, kind, paid_at, deleted_at")
+      .eq("org_id", args.orgId)
+      .eq("spec_item_id", args.specItemId)
+      .in("id", paymentIds);
+
+    if (error) {
+      console.error("[listSpecItemFiles] payments", error.message);
+    } else {
+      paymentsRead = true;
+      for (const row of (data ?? []) as PaymentRow[]) {
+        paymentById.set(row.id, toPaymentInfo(row));
+      }
+    }
   }
 
-  const byId = new Map<string, SpecItemFilePaymentInfo>();
-  for (const row of (data ?? []) as PaymentRow[]) {
-    byId.set(row.id, toPaymentInfo(row));
+  const planById = new Map<string, PlanRow>();
+  let paid = new Map<string, string>();
+  if (planIds.length > 0) {
+    const { data, error } = await db
+      .from("spec_item_payment_plans")
+      .select("id, title, amount, due_date")
+      .eq("org_id", args.orgId)
+      .eq("spec_item_id", args.specItemId)
+      .in("id", planIds);
+
+    if (error) {
+      console.error("[listSpecItemFiles] plans", error.message);
+    } else {
+      plansRead = true;
+      for (const row of (data ?? []) as PlanRow[]) planById.set(row.id, row);
+      paid = await paidPlans(db, {
+        orgId: args.orgId,
+        specItemId: args.specItemId,
+        planIds: Array.from(planById.keys()),
+      });
+    }
   }
 
-  // Ссылка есть, а строки по ней нет (оплату удалили физически, строка попала в
-  // БД в обход кода) — подпись всё равно нужна: молчание оставило бы `paymentId`
-  // без объяснения, а таким же он выглядел бы и при отменённой оплате.
   return args.files.map((file) => ({
     ...file,
+    // Ссылка есть, а строки по ней нет, и чтение при этом УДАЛОСЬ — только тогда
+    // это «связи больше нет», а не «не удалось прочитать».
     payment: file.paymentId
-      ? (byId.get(file.paymentId) ?? CANCELLED_PAYMENT_INFO)
+      ? (paymentById.get(file.paymentId) ??
+        (paymentsRead ? CANCELLED_PAYMENT_INFO : null))
       : null,
+    paymentPlan:
+      file.paymentPlanId && plansRead
+        ? toPlanInfo(planById.get(file.paymentPlanId), paid)
+        : null,
   }));
+}
+
+/** Строка графика → подпись основания. Строку не прочитали — подписи нет. */
+function toPlanInfo(
+  row: PlanRow | undefined,
+  paid: Map<string, string>,
+): SpecItemFilePaymentPlanInfo | null {
+  if (!row) return null;
+
+  return {
+    id: row.id,
+    title: row.title,
+    amount: toAmount(row.amount),
+    dueDate: row.due_date ?? null,
+    paidAt: paid.get(row.id) ?? null,
+  };
+}
+
+/**
+ * Подписи обеих связей для ОДНОЙ уже прочитанной строки файла.
+ *
+ * Нужна операции, которая отдаёт запись целиком (загрузка, ссылка на файл):
+ * клиент обновляет по ответу свою строку, и без подписей связи в ней пропали бы
+ * — при том что в данных они есть. Отдельно от `decorateWithLinks` (пачка) по
+ * той же причине, по которой `resolveFileLinks` отделён от списка: одиночной
+ * операции незачем читать связи чужих файлов. Сбой чтения подписи не поднимается
+ * наверх — запись остаётся «файлом без подписи», и идентификаторы связей лежат в
+ * самой строке.
+ */
+async function decorateEntry(
+  db: SpecItemFilesDb,
+  args: { orgId: string; projectId: string; specItemId: string },
+  entry: SpecItemFileEntry,
+): Promise<SpecItemFileEntry> {
+  const [decorated] = await decorateWithLinks(db, {
+    ...args,
+    files: [entry],
+  });
+
+  return decorated ?? entry;
 }
 
 /**
@@ -771,10 +1069,11 @@ async function resolveSpecItem(
  * `spec_item_files_spec_item_id_active_idx`, поэтому сортировка в запросе и в
  * схеме — одно правило, а не два.
  *
- * Связь с оплатой достраивается вторым запросом (`decorateWithPayments`): у
- * строки файла есть только `payment_id`, а подпись документа называет вид и
- * дату записи — они живут в `spec_item_payments`. Без этого вкладка «Файлы»
- * показывала бы чек как обычный документ.
+ * Связи файла достраиваются вторым шагом (`decorateWithLinks`): у строки файла
+ * есть только `payment_id` и `payment_plan_id`, а подпись документа называет вид
+ * и дату оплаты или срок платежа — они живут в `spec_item_payments` и
+ * `spec_item_payment_plans`. Без этого вкладка «Файлы» показывала бы счёт
+ * обычным документом, а чек — без даты проводки.
  */
 export async function listSpecItemFiles(
   db: SpecItemFilesDb,
@@ -803,8 +1102,9 @@ export async function listSpecItemFiles(
     ok: true,
     files: await decorateWithAuthors(
       db,
-      await decorateWithPayments(db, {
+      await decorateWithLinks(db, {
         orgId: args.orgId,
+        projectId: item.item.project_id,
         specItemId: args.specItemId,
         files,
       }),
@@ -915,16 +1215,17 @@ export async function uploadSpecItemFile(
   const validated = validateUploadData(input.data);
   if (!validated.ok) return { ok: false, error: validated.error };
 
-  // Привязка к оплате проверяется ДО Storage и до INSERT: чужой `payment_id` —
-  // это отказ пользователю, а не объект, оставленный в bucket'е. Проверка идёт
-  // по строке оплаты в БД, а не по доверию аргументу.
-  const payment = await resolvePayment(db, {
+  // Обе привязки проверяются ДО Storage и до INSERT: чужая ссылка — это отказ
+  // пользователю, а не объект, оставленный в bucket'е. Проверка идёт по строкам
+  // в БД, а не по доверию аргументам.
+  const links = await resolveFileLinks(db, {
     orgId: input.orgId,
     projectId: item.item.project_id,
     specItemId: item.item.id,
     paymentId: input.paymentId,
+    paymentPlanId: input.paymentPlanId,
   });
-  if (!payment.ok) return { ok: false, error: payment.error };
+  if (!links.ok) return { ok: false, error: links.error };
 
   // id генерирует сервер, а не БД: он входит в путь объекта, который нужно
   // знать ДО вставки. Тот же генератор, что у `gen_random_uuid()` по умолчанию.
@@ -962,9 +1263,11 @@ export async function uploadSpecItemFile(
         mime_type: validated.mimeType,
         size_bytes: validated.sizeBytes,
         category: validated.category,
-        // Оплата — уже проверенная строка: сюда попадает `id` найденной записи,
-        // а не то, что прислал клиент.
-        payment_id: payment.paymentId,
+        // Ссылки — уже проверенные строки: сюда попадают `id` найденных
+        // записей, а не то, что прислал клиент. Их две, и они не конкурируют:
+        // счёт к плану, чек к оплате, и оба — у одной позиции.
+        payment_id: links.paymentId,
+        payment_plan_id: links.paymentPlanId,
         // Автор и время — серверные. Ни то, ни другое не приходит от клиента.
         uploaded_by: input.uploadedBy,
         created_at: new Date().toISOString(),
@@ -983,9 +1286,20 @@ export async function uploadSpecItemFile(
       return failed("Не удалось сохранить файл");
     }
 
+    // Запись отдаётся клиенту ЦЕЛИКОМ, с подписями обеих связей: форма
+    // обновляет по ответу свою строку, и без подписи привязанный документ
+    // выглядел бы в ней обычным файлом, пока список не перечитают.
     return {
       ok: true,
-      file: toEntry(data as FileRow, payment.payment, input.uploadedByName ?? null),
+      file: await decorateEntry(
+        db,
+        {
+          orgId: input.orgId,
+          projectId: item.item.project_id,
+          specItemId: item.item.id,
+        },
+        toEntry(data as FileRow, links.payment, input.uploadedByName ?? null),
+      ),
     };
   } catch (cause) {
     // Сетевой сбой может вылететь исключением на любом шаге. Если объект уже
@@ -1096,10 +1410,10 @@ export async function getSpecItemFileUrl(
       ok: true,
       url: signed.signedUrl,
       expiresAt: new Date(Date.now() + expiresIn * 1000).toISOString(),
-      file: toEntry(
-        data,
-        await paymentInfoOf(db, args, data.payment_id),
-        args.uploadedByName ?? null,
+      file: await decorateEntry(
+        db,
+        args,
+        toEntry(data, null, args.uploadedByName ?? null),
       ),
     };
   } catch (cause) {
@@ -1140,7 +1454,7 @@ export async function getSpecItemFileUrl(
  * Отказ Storage на одной подписи не отменяет остальные. Ошибка ЧТЕНИЯ строк —
  * другое дело: она отвечает `FAILED`, потому что это сбой, а не «файла нет».
  *
- * Записи файла (`toEntry`) и подписи оплаты (`paymentInfoOf`) здесь нет
+ * Записи файла (`toEntry`) и подписей связей (`decorateEntry`) здесь нет
  * намеренно: одиночная операция отдаёт запись, потому что клиент обновляет ею
  * строку, — а пачке её никто не читает, и лишний запрос за оплатой был бы
  * работой впустую.
@@ -1273,9 +1587,9 @@ export async function deleteSpecItemFile(
 
   if (!row) return notFound();
 
-  // В ответе — запись ДО удаления, вместе со ссылкой на оплату из строки. Читать
-  // ради этого оплату отдельным запросом незачем: подпись (`payment`) у
-  // удалённого документа не показывается, а `paymentId` уже лежит в строке.
+  // В ответе — запись ДО удаления, вместе со ссылками из строки. Читать ради
+  // этого оплату и график отдельными запросами незачем: подписи у удалённого
+  // документа не показываются, а `paymentId` и `paymentPlanId` уже лежат в строке.
   const entry = toEntry(row);
 
   // Повторный вызов: строка уже удалена. Storage не трогаем — объект мог быть
@@ -1439,10 +1753,10 @@ export async function updateSpecItemFile(
   if (Object.keys(patch).length === 0) {
     return {
       ok: true,
-      file: toEntry(
-        row,
-        await paymentInfoOf(db, args, row.payment_id),
-        args.uploadedByName ?? null,
+      file: await decorateEntry(
+        db,
+        args,
+        toEntry(row, null, args.uploadedByName ?? null),
       ),
       changed: false,
     };
@@ -1470,10 +1784,10 @@ export async function updateSpecItemFile(
 
   return {
     ok: true,
-    file: toEntry(
-      updated,
-      await paymentInfoOf(db, args, updated.payment_id),
-      args.uploadedByName ?? null,
+    file: await decorateEntry(
+      db,
+      args,
+      toEntry(updated, null, args.uploadedByName ?? null),
     ),
     changed: true,
   };

@@ -9,45 +9,50 @@ import type { PaymentPlanEntry } from "@/lib/spec/payment-plan-types";
 import type { SpecItemFileEntry } from "@/lib/spec/spec-item-files";
 
 /**
- * Тесты вкладки «Платежи»: пометка «возвратов больше, чем оплат» и документы
- * к оплате.
+ * Тесты вкладки «Платежи»: строки-обязательства, отметка «Оплачено», пометка об
+ * отмене, арифметика от стоимости и документы.
  *
  * Server actions подменяются модульными моками: настоящие требуют сессии
- * next-auth и живой БД. Проверяется поведение вкладки — что состояние
- * «вернули больше, чем заплатили» пользователь видит явной пометкой, а не
- * только отрицательным числом в сводке, а документ оплаты виден у своей
- * записи и прикладывается тем же диалогом, что во вкладке «Файлы».
+ * next-auth и живой БД. Проверяется поведение вкладки:
  *
- * ── Почему проверяется именно пометка ──────────────────────────────────────
+ *   * план и факт — ОДНА строка на экране (ADR 0006), а не две;
+ *   * маркер состояния вместо чипса вида записи;
+ *   * отмена возвращает строку в «Не оплачено» и оставляет пометку;
+ *   * остаток и процент считаются только по фактам.
  *
- * Арифметика (суммы, остаток, покрытие) уже покрыта юнит-тестами
- * `lib/spec/payment-schedule.test.ts` и здесь не пересчитывается: тест,
+ * ── Почему арифметика здесь не пересчитывается ─────────────────────────────
+ *
+ * Суммы считает `lib/spec/payment-schedule` и проверяет их своими тестами: тест,
  * повторяющий формулу, подтверждал бы сам себя. Здесь проверяется то, чего в
- * чистом модуле нет, — что признак `refundsExceedPayments` ДОХОДИТ до экрана.
- * Пометка ищется по роли `alert`, а не по классу: разметка — не контракт.
+ * чистом модуле нет, — что признак `refundsExceedPayments` ДОХОДИТ до экрана, а
+ * соединение строк доезжает до разметки.
  */
 
 const listPlansMock = vi.hoisted(() => vi.fn());
 const listPaymentsMock = vi.hoisted(() => vi.fn());
+const listCancellationsMock = vi.hoisted(() => vi.fn());
 const listFilesMock = vi.hoisted(() => vi.fn());
 const uploadFileMock = vi.hoisted(() => vi.fn());
 const deleteFileMock = vi.hoisted(() => vi.fn());
 const fileUrlMock = vi.hoisted(() => vi.fn());
 const fileUrlsMock = vi.hoisted(() => vi.fn());
+const createPlanMock = vi.hoisted(() => vi.fn());
+const updatePlanMock = vi.hoisted(() => vi.fn());
+const createPaymentMock = vi.hoisted(() => vi.fn());
+const deletePaymentMock = vi.hoisted(() => vi.fn());
 
 vi.mock("@/actions/spec-item-payment-plans", () => ({
   listPaymentPlans: listPlansMock,
-  createPaymentPlan: vi.fn(),
-  updatePaymentPlan: vi.fn(),
-  deletePaymentPlan: vi.fn(),
-  movePaymentPlan: vi.fn(),
+  createPaymentPlan: createPlanMock,
+  updatePaymentPlan: updatePlanMock,
 }));
 
 vi.mock("@/actions/spec-item-payments", () => ({
   listPayments: listPaymentsMock,
-  createPayment: vi.fn(),
+  listPaymentCancellations: listCancellationsMock,
+  createPayment: createPaymentMock,
   updatePayment: vi.fn(),
-  deletePayment: vi.fn(),
+  deletePayment: deletePaymentMock,
 }));
 
 vi.mock("@/actions/spec-item-files", () => ({
@@ -100,7 +105,7 @@ function payment(over: Partial<PaymentEntry> = {}): PaymentEntry {
   };
 }
 
-/** Документ позиции: `paymentId` проставляет сервер. */
+/** Документ позиции: `paymentId` и `paymentPlanId` проставляет сервер. */
 function file(over: Partial<SpecItemFileEntry> = {}): SpecItemFileEntry {
   return {
     id: "file-1",
@@ -113,6 +118,8 @@ function file(over: Partial<SpecItemFileEntry> = {}): SpecItemFileEntry {
     createdAt: "2026-10-01T10:00:00.000Z",
     paymentId: null,
     payment: null,
+    paymentPlanId: null,
+    paymentPlan: null,
     ...over,
   };
 }
@@ -121,6 +128,8 @@ function file(over: Partial<SpecItemFileEntry> = {}): SpecItemFileEntry {
 function setup(over: {
   plans?: PaymentPlanEntry[];
   payments?: PaymentEntry[];
+  /** Отменённые оплаты: по ним строка получает пометку. */
+  cancelled?: PaymentEntry[];
   files?: SpecItemFileEntry[];
   /** Стоимость позиции — база прогресса. */
   itemCost?: number;
@@ -133,10 +142,20 @@ function setup(over: {
     success: true,
     data: over.payments ?? [],
   });
+  listCancellationsMock.mockResolvedValue({
+    success: true,
+    data: over.cancelled ?? [],
+  });
   listFilesMock.mockResolvedValue({
     success: true,
     data: over.files ?? [],
   });
+  /*
+    Загрузка по умолчанию отвечает отказом, а не `undefined`: тесты о документах
+    подставляют свой ответ, а остальные (наблюдатель, порядок строк) файлов не
+    отправляют — и без этого значения чтение ответа падало бы в консоль.
+  */
+  uploadFileMock.mockResolvedValue({ success: false, error: "Не удалось загрузить файл" });
 
   render(
     <PaymentsTab
@@ -182,17 +201,28 @@ const money = (value: number) =>
   Math.abs(value).toLocaleString("ru-RU").replace(/\s/g, " ");
 
 /**
- * Выбор файла в скрытом input.
+ * Строка списка по её состоянию.
+ *
+ * Опорная точка — атрибут состояния, а не класс и не текст: состояние строки это
+ * данные («оплачено» или «запланировано»), а оформление (зелёная рамка, маркер)
+ * — украшение поверх него и меняться может свободно.
+ */
+const rows = (state: "planned" | "paid") =>
+  screen.queryAllByTestId("payment-row").filter(
+    (node) => node.getAttribute("data-payment-row") === state,
+  );
+
+/** Текст строки с обычными пробелами. */
+const rowText = (row: HTMLElement) =>
+  (row.textContent ?? "").replace(/\s/g, " ");
+
+/**
+ * Выбор файлов в скрытом input.
  *
  * `fireEvent.change` с подставленным `files`, а не `userEvent.upload`: проверка
  * размера должна достаться обработчику списка, а не отфильтроваться внутри
  * `userEvent`, который уважает ограничения input'а.
  */
-function pickDocument(input: HTMLElement, chosen: File) {
-  pickDocuments(input, [chosen]);
-}
-
-/** То же для пачки: `multiple` у input'а включён, файлы выбираются сразу. */
 function pickDocuments(input: HTMLElement, chosen: File[]) {
   Object.defineProperty(input, "files", {
     value: chosen,
@@ -204,13 +234,22 @@ function pickDocuments(input: HTMLElement, chosen: File[]) {
 beforeEach(() => {
   listPlansMock.mockReset();
   listPaymentsMock.mockReset();
+  listCancellationsMock.mockReset();
   listFilesMock.mockReset();
   uploadFileMock.mockReset();
   deleteFileMock.mockReset();
   fileUrlMock.mockReset();
+  createPlanMock.mockReset();
+  updatePlanMock.mockReset();
+  createPaymentMock.mockReset();
+  deletePaymentMock.mockReset();
 });
 
 afterEach(cleanup);
+
+/* ------------------------------------------------------------------ */
+/*  Прогресс                                                           */
+/* ------------------------------------------------------------------ */
 
 describe("PaymentsTab · прогресс от стоимости позиции", () => {
   it("показывает стоимость, оплаченное, остаток и процент", async () => {
@@ -266,7 +305,7 @@ describe("PaymentsTab · прогресс от стоимости позиции
     setup({
       payments: [
         payment({ id: "p-1", kind: "payment", amount: 6000 }),
-        payment({ id: "r-1", kind: "refund", amount: 1000 }),
+        payment({ id: "r-1", kind: "refund", amount: 1000, paymentPlanId: null }),
       ],
       itemCost: 10000,
     });
@@ -296,38 +335,36 @@ describe("PaymentsTab · прогресс от стоимости позиции
     expect(progressText()).not.toContain("%");
   });
 
-  it("блок графика платежей не показывается вовсе", async () => {
-    // Решение интервью 2026-10-10: график выведен из интерфейса, данные и код
-    // сохранены. Проверяется именно отсутствие входа в него — кнопки и таблицы.
-    setup({
-      plans: [plan()],
-      payments: [payment({ id: "p-1", kind: "payment", amount: 4000 })],
-      itemCost: 10000,
-    });
+  it("плановая сумма в остаток не входит: он считается только по фактам", async () => {
+    // Решение Q24: отдельной величины «запланировано» в шапке нет. Иначе у
+    // неоплаченной позиции «осталось» уменьшалось бы от одного плана.
+    setup({ plans: [plan({ amount: 10000 })], payments: [], itemCost: 10000 });
 
     await waitFor(() => {
-      expect(progressText()).toContain(money(4000));
+      expect(progressText()).toContain("Осталось");
     });
 
-    expect(screen.queryByText(/Строк в графике/)).toBeNull();
-    expect(screen.queryByText(/Добавить платёж/)).toBeNull();
-    expect(screen.queryByText(/^Аванс/)).toBeNull();
-    expect(screen.queryByText(/Платежей пока нет/)).toBeNull();
+    expect(progressText()).toContain(money(10000));
+    expect(progressText()).toContain(money(0));
   });
 });
+
+/* ------------------------------------------------------------------ */
+/*  Возвратов больше, чем оплат                                        */
+/* ------------------------------------------------------------------ */
 
 describe("PaymentsTab · возвратов больше, чем оплат", () => {
   it("пометка показана, когда возвраты превышают оплаты", async () => {
     setup({
       payments: [
         payment({ id: "p-1", kind: "payment", amount: 3000 }),
-        payment({ id: "r-1", kind: "refund", amount: 5000 }),
+        payment({ id: "r-1", kind: "refund", amount: 5000, paymentPlanId: null }),
       ],
     });
 
     // Загрузка асинхронная: ждём, пока вкладка получит факты.
     await waitFor(() => {
-      expect(screen.getByText("Оплат и возвратов: 2")).toBeDefined();
+      expect(screen.getByText("Строк: 2")).toBeDefined();
     });
 
     expect(overRefundMarker()).not.toBeNull();
@@ -337,12 +374,12 @@ describe("PaymentsTab · возвратов больше, чем оплат", ()
     setup({
       payments: [
         payment({ id: "p-1", kind: "payment", amount: 1000 }),
-        payment({ id: "r-1", kind: "refund", amount: 4000 }),
+        payment({ id: "r-1", kind: "refund", amount: 4000, paymentPlanId: null }),
       ],
     });
 
     await waitFor(() => {
-      expect(screen.getByText("Оплат и возвратов: 2")).toBeDefined();
+      expect(screen.getByText("Строк: 2")).toBeDefined();
     });
 
     const marker = overRefundMarker();
@@ -351,47 +388,21 @@ describe("PaymentsTab · возвратов больше, чем оплат", ()
     // Случай не запрещён (решение Q13): причина не требуется, запись уже
     // сохранена. Поэтому текст говорит, что это состояние, а не ошибка ввода,
     // — иначе пользователь искал бы, что он сделал не так.
-    //
-    // Проверяется тело пометки ВНУТРИ неё: та же формулировка в другом месте
-    // страницы контрактом не является.
     expect(
       within(marker as HTMLElement).getByText(/Запись сохранена/),
     ).toBeDefined();
-  });
-
-  it("пометка называет оплаченное и возвращённое, а не переворачивает их", async () => {
-    // Формулировка — часть требования: пометка объясняет ОТРИЦАТЕЛЬНОЕ
-    // «Оплачено». Сказать «оплачено больше, чем получено» в случае, когда
-    // вернули больше, значит добавить второе противоречащее утверждение.
-    setup({
-      payments: [
-        payment({ id: "p-1", kind: "payment", amount: 1000 }),
-        payment({ id: "r-1", kind: "refund", amount: 4000 }),
-      ],
-    });
-
-    await waitFor(() => {
-      expect(screen.getByText("Оплат и возвратов: 2")).toBeDefined();
-    });
-
-    const marker = overRefundMarker() as HTMLElement;
-
-    // Числа берутся из сводки, а не восстанавливаются как `paid + refunded`.
-    expect(within(marker).getByText(/1 000 ₽/)).toBeDefined();
-    expect(within(marker).getByText(/4 000 ₽/)).toBeDefined();
-    expect(within(marker).getByText(/вернули больше, чем получили/)).toBeDefined();
   });
 
   it("равные возвраты и оплаты пометки не дают", async () => {
     setup({
       payments: [
         payment({ id: "p-1", kind: "payment", amount: 5000 }),
-        payment({ id: "r-1", kind: "refund", amount: 5000 }),
+        payment({ id: "r-1", kind: "refund", amount: 5000, paymentPlanId: null }),
       ],
     });
 
     await waitFor(() => {
-      expect(screen.getByText("Оплат и возвратов: 2")).toBeDefined();
+      expect(screen.getByText("Строк: 2")).toBeDefined();
     });
 
     expect(overRefundMarker()).toBeNull();
@@ -401,22 +412,22 @@ describe("PaymentsTab · возвратов больше, чем оплат", ()
     setup({
       payments: [
         payment({ id: "p-1", kind: "payment", amount: 5000 }),
-        payment({ id: "r-1", kind: "refund", amount: 1000 }),
+        payment({ id: "r-1", kind: "refund", amount: 1000, paymentPlanId: null }),
       ],
     });
 
     await waitFor(() => {
-      expect(screen.getByText("Оплат и возвратов: 2")).toBeDefined();
+      expect(screen.getByText("Строк: 2")).toBeDefined();
     });
 
     expect(overRefundMarker()).toBeNull();
   });
 
   it("фактов нет — пометки нет: ноль возвратов не «больше» нуля оплат", async () => {
-    setup();
+    setup({ plans: [] });
 
     await waitFor(() => {
-      expect(screen.getByText("Оплат пока нет")).toBeDefined();
+      expect(screen.getByText("График платежей пуст")).toBeDefined();
     });
 
     expect(overRefundMarker()).toBeNull();
@@ -425,13 +436,10 @@ describe("PaymentsTab · возвратов больше, чем оплат", ()
   it("сумма возвратов остаётся видна отдельной строкой сводки", async () => {
     // Требование ТЗ: возвраты показываются собственной строкой, а не только
     // уменьшением итога, — иначе уменьшение оплаты выглядит как правка истории.
-    //
-    // Проверяется по тексту карточки: подпись и сумма лежат в одном `span`, и у
-    // него нет собственного текста «Возвраты».
     setup({
       payments: [
         payment({ id: "p-1", kind: "payment", amount: 3000 }),
-        payment({ id: "r-1", kind: "refund", amount: 5000 }),
+        payment({ id: "r-1", kind: "refund", amount: 5000, paymentPlanId: null }),
       ],
     });
 
@@ -444,27 +452,528 @@ describe("PaymentsTab · возвратов больше, чем оплат", ()
 });
 
 /* ------------------------------------------------------------------ */
-/*  Документы к оплате                                                 */
+/*  Одна строка на экране, две в хранилище                              */
 /* ------------------------------------------------------------------ */
 
-/**
- * Карточка одной записи: в ней живут чипсы её документов.
- *
- * Опорная точка — дата записи. Она встречается в строке дважды (подпись факта и
- * подпись документа), поэтому берётся ПЕРВОЕ совпадение: подпись факта стоит в
- * разметке выше. Так тест не зависит от того, какой именно элемент обрамляет
- * карточку, а дата не повторяется в других записях (суммы повторяются — в
- * карточке прогресса та же цифра).
- */
-const paymentCard = (date: string) =>
-  screen.getAllByText(date)[0].closest("div.rounded-xl") as HTMLElement;
+describe("PaymentsTab · план и факт — одна строка", () => {
+  it("неоплаченный плановый платёж показывается строкой «Запланирован»", async () => {
+    setup({ plans: [plan({ dueDate: "2026-11-01" })], payments: [] });
+
+    await waitFor(() => {
+      expect(rows("planned")).toHaveLength(1);
+    });
+
+    const text = rowText(rows("planned")[0]);
+    expect(text).toContain("Запланирован");
+    expect(text).toContain("Аванс 50 %");
+    expect(text).toContain(money(10000));
+    expect(text).toContain("до 1 ноября 2026 г.");
+  });
+
+  it("отметка «Оплачено» не добавляет вторую строку, а меняет состояние", async () => {
+    // Главное требование ADR 0006. Две строки означали бы, что один и тот же
+    // платёж виден дважды, и остаток в шапке перестал бы сходиться со списком.
+    setup({
+      plans: [plan()],
+      payments: [payment({ paymentPlanId: "plan-1", amount: 10000 })],
+    });
+
+    await waitFor(() => {
+      expect(rows("paid")).toHaveLength(1);
+    });
+
+    expect(rows("planned")).toHaveLength(0);
+    expect(screen.getByText("Строк: 1")).toBeDefined();
+  });
+
+  it("маркер «Оплачено» стоит вместо чипса вида записи: два носителя не показываются", async () => {
+    setup({
+      plans: [plan()],
+      payments: [payment({ kind: "payment", paymentPlanId: "plan-1" })],
+    });
+
+    await waitFor(() => {
+      expect(rows("paid")).toHaveLength(1);
+    });
+
+    const text = rowText(rows("paid")[0]);
+    expect(text).toContain("Оплачено");
+    // Прежний чипс вида записи заменён маркером: слова «Оплата» отдельным
+    // носителем того же смысла в строке больше нет.
+    expect(text).not.toContain("Оплата");
+  });
+
+  it("возврат показывается своей строкой с маркером «Возврат»", async () => {
+    // Решение Q33: плановая таблица видов не знает, запланировать возврат
+    // нельзя, поэтому у возврата нет строки плана — он вносится отдельным входом.
+    setup({
+      plans: [plan()],
+      payments: [
+        payment({
+          id: "r-1",
+          kind: "refund",
+          amount: 2000,
+          paymentPlanId: null,
+          paidAt: "2026-10-09",
+        }),
+      ],
+    });
+
+    await waitFor(() => {
+      expect(rows("paid")).toHaveLength(1);
+    });
+
+    const text = rowText(rows("paid")[0]);
+    expect(text).toContain("Возврат");
+    expect(text).toContain(money(2000));
+    // Строка плана при этом осталась неоплаченной: возврат её не закрывает.
+    expect(rows("planned")).toHaveLength(1);
+  });
+
+  it("оплата без плана — своя строка, а не «без плана · вне графика»", async () => {
+    setup({
+      plans: [],
+      payments: [payment({ paymentPlanId: null, amount: 4000 })],
+    });
+
+    await waitFor(() => {
+      expect(rows("paid")).toHaveLength(1);
+    });
+
+    const text = rowText(rows("paid")[0]);
+    expect(text).toContain("Оплачено");
+    expect(text).toContain(money(4000));
+    expect(screen.getByText("Строк: 1")).toBeDefined();
+  });
+
+  it("оплата по УДАЛЁННОЙ строке графика не пропадает из списка", async () => {
+    // Строку графика удалили мягко, а оплата осталась. Спрятать её значило бы
+    // показать в шапке то, чего нет в списке.
+    setup({
+      plans: [],
+      payments: [payment({ paymentPlanId: "plan-deleted", amount: 4000 })],
+    });
+
+    await waitFor(() => {
+      expect(rows("paid")).toHaveLength(1);
+    });
+
+    expect(rowText(rows("paid")[0])).toContain(money(4000));
+  });
+
+  it("строки графика идут по своему порядку и раньше фактов вне графика", async () => {
+    setup({
+      plans: [
+        plan({ id: "plan-b", position: 1, title: "Второй" }),
+        plan({ id: "plan-a", position: 0, title: "Первый" }),
+      ],
+      payments: [payment({ id: "p-1", paymentPlanId: null })],
+    });
+
+    await waitFor(() => {
+      expect(rows("planned")).toHaveLength(2);
+    });
+
+    const order = screen
+      .getAllByTestId("payment-row")
+      .map((row) => rowText(row));
+    expect(order[0]).toContain("Первый");
+    expect(order[1]).toContain("Второй");
+    expect(order[2]).toContain("Оплачено");
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/*  Отмена оплаты                                                      */
+/* ------------------------------------------------------------------ */
+
+describe("PaymentsTab · отмена возвращает строку в неоплаченное", () => {
+  it("отмена снимает факт со строки и оставляет пометку с датой проводки", async () => {
+    const user = userEvent.setup();
+    const paid = payment({
+      id: "payment-1",
+      paymentPlanId: "plan-1",
+      paidAt: "2026-10-05",
+      amount: 10000,
+    });
+    deletePaymentMock.mockResolvedValue({ success: true, data: { deleted: true } });
+
+    setup({ plans: [plan()], payments: [paid] });
+
+    await waitFor(() => {
+      expect(rows("paid")).toHaveLength(1);
+    });
+
+    await user.click(
+      screen.getByRole("button", { name: "Отменить оплату от 5 октября 2026 г." }),
+    );
+    await user.click(screen.getByRole("button", { name: "Отменить оплату" }));
+
+    await waitFor(() => {
+      expect(rows("planned")).toHaveLength(1);
+    });
+
+    const text = rowText(rows("planned")[0]);
+    // Обязательство снова открыто, но отмена не исчезает молча (решение Q29).
+    expect(text).toContain("Запланирован");
+    expect(text).toContain("Оплата от 5 октября 2026 г. отменена");
+    // Документ при этом не теряется: связь осталась, и файл виден во вкладке.
+    expect(deleteFileMock).not.toHaveBeenCalled();
+  });
+
+  it("подтверждение предупреждает, что строка вернётся в «Не оплачено»", async () => {
+    const user = userEvent.setup();
+    setup({
+      plans: [plan({ title: "Аванс 50 %" })],
+      payments: [payment({ paymentPlanId: "plan-1", paidAt: "2026-10-05" })],
+    });
+
+    await waitFor(() => {
+      expect(rows("paid")).toHaveLength(1);
+    });
+
+    await user.click(
+      screen.getByRole("button", { name: "Отменить оплату от 5 октября 2026 г." }),
+    );
+
+    expect(screen.getByText(/вернётся в «Не оплачено»/)).toBeDefined();
+    expect(screen.getByText(/«Аванс 50 %»/)).toBeDefined();
+  });
+
+  it("отмена оплаты без плана строку графика не возвращает", async () => {
+    const user = userEvent.setup();
+    deletePaymentMock.mockResolvedValue({ success: true, data: { deleted: true } });
+
+    setup({
+      plans: [],
+      payments: [payment({ id: "p-1", paymentPlanId: null })],
+    });
+
+    await waitFor(() => {
+      expect(rows("paid")).toHaveLength(1);
+    });
+
+    await user.click(
+      screen.getByRole("button", { name: "Отменить оплату от 1 октября 2026 г." }),
+    );
+    await user.click(screen.getByRole("button", { name: "Отменить оплату" }));
+
+    await waitFor(() => {
+      expect(rows("paid")).toHaveLength(0);
+    });
+    expect(rows("planned")).toHaveLength(0);
+  });
+
+  it("отказ отмены оставляет строку оплаченной и показывает текст", async () => {
+    const user = userEvent.setup();
+    deletePaymentMock.mockResolvedValue({
+      success: false,
+      error: "Не удалось отменить оплату",
+    });
+
+    setup({ plans: [plan()], payments: [payment({ paymentPlanId: "plan-1" })] });
+
+    await waitFor(() => {
+      expect(rows("paid")).toHaveLength(1);
+    });
+
+    await user.click(
+      screen.getByRole("button", { name: "Отменить оплату от 1 октября 2026 г." }),
+    );
+    await user.click(screen.getByRole("button", { name: "Отменить оплату" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Не удалось отменить оплату")).toBeDefined();
+    });
+    expect(rows("paid")).toHaveLength(1);
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/*  Отметка «Оплачено» и входы в форму                                  */
+/* ------------------------------------------------------------------ */
+
+describe("PaymentsTab · отметка «Оплачено»", () => {
+  it("отметка переносит сумму плана как есть и связывает факт со строкой", async () => {
+    const user = userEvent.setup();
+    createPaymentMock.mockResolvedValue({
+      success: true,
+      data: payment({ paymentPlanId: "plan-1", amount: 10000, paidAt: "2026-10-05" }),
+    });
+
+    setup({ plans: [plan({ amount: 10000, dueDate: "2026-10-05" })] });
+
+    await waitFor(() => {
+      expect(rows("planned")).toHaveLength(1);
+    });
+
+    await user.click(
+      screen.getByRole("button", { name: "Отметить «Аванс 50 %» оплаченным" }),
+    );
+
+    // Дата по умолчанию — срок плана (ADR 0006).
+    expect(
+      (screen.getByLabelText("Дата оплаты") as HTMLInputElement).value,
+    ).toBe("2026-10-05");
+
+    await user.click(screen.getByRole("button", { name: "Отметить оплаченным" }));
+
+    await waitFor(() => expect(createPaymentMock).toHaveBeenCalledTimes(1));
+
+    const [, itemId, payload] = createPaymentMock.mock.calls[0] as [
+      string,
+      string,
+      { amount: number; paymentPlanId: string | null; paidAt: string | null },
+    ];
+    expect(itemId).toBe("item-1");
+    // Сумма перенесена как есть, а не пересчитана от стоимости позиции.
+    expect(payload.amount).toBe(10000);
+    expect(payload.paymentPlanId).toBe("plan-1");
+    expect(payload.paidAt).toBe("2026-10-05");
+  });
+
+  it("у оплаченной строки правятся ОБЕ записи: план и факт — кнопки разные", async () => {
+    // «Изменить» у факта правит сумму и дату проводки, а строка графика — его
+    // название, срок и условие. Пока обе правки были одной кнопкой, после оплаты
+    // обязательство становилось нечем исправить (запланировать заново — значит
+    // потерять связь с оплатой).
+    const user = userEvent.setup();
+    setup({
+      plans: [plan({ title: "Аванс 50 %" })],
+      payments: [payment({ paymentPlanId: "plan-1", paidAt: "2026-10-05" })],
+    });
+
+    await waitFor(() => {
+      expect(rows("paid")).toHaveLength(1);
+    });
+
+    await user.click(screen.getByRole("button", { name: "Изменить «Аванс 50 %»" }));
+
+    // Открылась форма ПЛАНА: поля графика, а не дата оплаты.
+    expect(screen.getByLabelText("Название")).toBeDefined();
+    expect(screen.getByLabelText("Срок оплаты")).toBeDefined();
+    expect(screen.queryByLabelText("Дата оплаты")).toBeNull();
+  });
+
+  it("после успеха строка становится оплаченной без второго запроса", async () => {
+    const user = userEvent.setup();
+    createPaymentMock.mockResolvedValue({
+      success: true,
+      data: payment({
+        id: "p-new",
+        paymentPlanId: "plan-1",
+        amount: 10000,
+        paidAt: "2026-10-05",
+      }),
+    });
+
+    setup({ plans: [plan({ dueDate: "2026-10-05" })] });
+
+    await waitFor(() => {
+      expect(rows("planned")).toHaveLength(1);
+    });
+
+    await user.click(
+      screen.getByRole("button", { name: "Отметить «Аванс 50 %» оплаченным" }),
+    );
+    await user.click(screen.getByRole("button", { name: "Отметить оплаченным" }));
+
+    await waitFor(() => {
+      expect(rows("paid")).toHaveLength(1);
+    });
+    expect(rows("planned")).toHaveLength(0);
+  });
+
+  it("чипс счёта к плану в форме получает дату оплаты сразу после отметки", async () => {
+    // Счёт связан ТОЛЬКО с планом: второй ссылки у него нет, и дату факта он
+    // берёт из подписи плана. Без этого файл показывался бы подписью ожидания,
+    // которое уже сбылось, — до следующего чтения списка.
+    const user = userEvent.setup();
+    createPaymentMock.mockResolvedValue({
+      success: true,
+      data: payment({
+        id: "p-new",
+        paymentPlanId: "plan-1",
+        amount: 10000,
+        paidAt: "2026-10-05",
+      }),
+    });
+
+    setup({
+      plans: [plan({ dueDate: "2026-10-05" })],
+      files: [
+        file({
+          id: "f-plan",
+          fileName: "Счёт на аванс.pdf",
+          category: "invoice",
+          paymentPlanId: "plan-1",
+          paymentPlan: {
+            id: "plan-1",
+            title: "Аванс 50 %",
+            amount: 10000,
+            dueDate: "2026-10-05",
+            paidAt: null,
+          },
+        }),
+      ],
+    });
+
+    await waitFor(() => {
+      expect(rows("planned")).toHaveLength(1);
+    });
+
+    await user.click(
+      screen.getByRole("button", { name: "Отметить «Аванс 50 %» оплаченным" }),
+    );
+    await user.click(screen.getByRole("button", { name: "Отметить оплаченным" }));
+
+    await waitFor(() => {
+      expect(rows("paid")).toHaveLength(1);
+    });
+
+    // Файл остался в строке — теперь уже оплаченной, — и остался один: связь
+    // добавилась, а не заменилась (ADR 0006).
+    expect(documentChipIn(rows("paid")[0], "Счёт на аванс.pdf")).toBeDefined();
+  });
+
+  it("вкладка даёт вход в заведение платежа и отдельный возврат", async () => {
+    const user = userEvent.setup();
+    setup({ plans: [], payments: [] });
+
+    await waitFor(() => {
+      expect(screen.getByText("График платежей пуст")).toBeDefined();
+    });
+
+    /*
+      Входы в форму ищутся в своей группе: «Внести оплату» и «Внести возврат»
+      есть и у кнопок наверху, и у кнопки отправки формы — без группы запрос был
+      бы неоднозначным.
+    */
+    const actions = () => screen.getByTestId("payment-actions");
+
+    /*
+      ОДИН вход в заведение платежа: внутри выбор «Аванс» или «Оплата», и оба
+      варианта кладут в график обязательство. Отдельной кнопки «Запланировать»
+      нет — оплата отмечается кнопкой на самой карточке, а не вторым диалогом.
+    */
+    await user.click(within(actions()).getByRole("button", { name: "Внести оплату" }));
+
+    const operation = screen.getByRole("group", { name: "Что за платёж" });
+    expect(
+      within(operation).getByRole("button", { name: "Оплата" }).getAttribute(
+        "aria-pressed",
+      ),
+    ).toBe("true");
+    // Карточка заводится обязательством: даты оплаты в форме нет.
+    expect(screen.getByLabelText("Срок оплаты")).toBeDefined();
+    expect(screen.queryByLabelText("Дата оплаты")).toBeNull();
+
+    await user.click(within(operation).getByRole("button", { name: "Аванс" }));
+
+    await waitFor(() => {
+      expect((screen.getByLabelText("Название") as HTMLInputElement).value).toBe(
+        "Аванс",
+      );
+    });
+
+    await user.click(screen.getByRole("button", { name: "Отмена" }));
+
+    await user.click(within(actions()).getByRole("button", { name: "Внести возврат" }));
+    // Возврат — закреплённый вид той же формы, а не вторая форма (решение Q33).
+    expect(screen.queryByRole("combobox", { name: "Вид записи" })).toBeNull();
+    expect(screen.queryByRole("group", { name: "Что за платёж" })).toBeNull();
+    expect(screen.getByRole("heading", { name: /возврат/i })).toBeDefined();
+  });
+
+  it("карточка заводится обязательством и оплачивается кнопкой на ней", async () => {
+    // Главный поток: «Внести оплату» кладёт платёж в график, а факт появляется
+    // отметкой на карточке. Один вход — одно состояние — один способ его сменить.
+    const user = userEvent.setup();
+    createPlanMock.mockResolvedValue({
+      success: true,
+      data: plan({ id: "plan-new", title: "Аванс", amount: 5000, dueDate: null }),
+    });
+
+    setup({ plans: [], payments: [] });
+
+    await waitFor(() => {
+      expect(screen.getByText("График платежей пуст")).toBeDefined();
+    });
+
+    await user.click(
+      within(screen.getByTestId("payment-actions")).getByRole("button", {
+        name: "Внести оплату",
+      }),
+    );
+    await user.click(
+      within(screen.getByRole("group", { name: "Что за платёж" })).getByRole(
+        "button",
+        { name: "Аванс" },
+      ),
+    );
+    await user.type(screen.getByLabelText("Сумма, ₽"), "5000");
+    await user.click(screen.getByRole("button", { name: "Добавить в график" }));
+
+    await waitFor(() => expect(createPlanMock).toHaveBeenCalledTimes(1));
+
+    const [, itemId, payload] = createPlanMock.mock.calls[0] as [
+      string,
+      string,
+      { title: string; amount: number },
+    ];
+    expect(itemId).toBe("item-1");
+    expect(payload).toMatchObject({ title: "Аванс", amount: 5000 });
+    // Факта при этом не создаётся: деньги ещё не ушли.
+    expect(createPaymentMock).not.toHaveBeenCalled();
+
+    // Карточка встала в список неоплаченной, и отметка у неё на месте.
+    await waitFor(() => {
+      expect(rows("planned")).toHaveLength(1);
+    });
+    expect(rowText(rows("planned")[0])).toContain("Запланирован");
+    expect(rowText(rows("planned")[0])).toContain("Аванс");
+    expect(
+      screen.getByRole("button", { name: "Отметить «Аванс» оплаченным" }),
+    ).toBeDefined();
+  });
+
+  it("наблюдателю входов записи не показывают", async () => {
+    listPlansMock.mockResolvedValue({ success: true, data: [plan()] });
+    listPaymentsMock.mockResolvedValue({ success: true, data: [] });
+    listCancellationsMock.mockResolvedValue({ success: true, data: [] });
+    listFilesMock.mockResolvedValue({ success: true, data: [] });
+
+    render(
+      <PaymentsTab
+        orgSlug="acme"
+        specItemId="item-1"
+        role="viewer"
+        currentUserId="user-2"
+        itemCost={10000}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(rows("planned")).toHaveLength(1);
+    });
+
+    expect(screen.queryByRole("button", { name: "Запланировать" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Внести возврат" })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Отметить «/ })).toBeNull();
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/*  Документы к оплате                                                 */
+/* ------------------------------------------------------------------ */
 
 describe("PaymentsTab · документы к оплате", () => {
   it("документ виден чипсом у своей оплаты и не виден у чужой", async () => {
     setup({
+      plans: [],
       payments: [
-        payment({ id: "p-1", paidAt: "2026-10-01" }),
-        payment({ id: "p-2", paidAt: "2026-10-05" }),
+        payment({ id: "p-1", paymentPlanId: null, paidAt: "2026-10-01" }),
+        payment({ id: "p-2", paymentPlanId: null, paidAt: "2026-10-05" }),
       ],
       files: [
         file({
@@ -480,19 +989,80 @@ describe("PaymentsTab · документы к оплате", () => {
       expect(documentChip("Чек №7.pdf")).toBeDefined();
     });
 
-    // Документ привязан к первой записи: чипс один, и лежит он в карточке этой
-    // оплаты — вторая карточка осталась с одним приглашением.
-    expect(
-      documentChipIn(paymentCard("1 октября 2026 г."), "Чек №7.pdf"),
-    ).toBeDefined();
-    expect(
-      within(paymentCard("5 октября 2026 г.")).queryByRole("img"),
-    ).toBeNull();
+    const paidRows = rows("paid");
+    // Документ привязан к первой записи: чипс один, и лежит он в её строке.
+    expect(documentChipIn(paidRows[0], "Чек №7.pdf")).toBeDefined();
+    expect(within(paidRows[1]).queryByRole("img")).toBeNull();
+  });
+
+  it("счёт у неоплаченного плана виден в его строке, а не у оплаты", async () => {
+    // Один файл, две точки входа — не копия: счёт приложен к плану и до оплаты
+    // показывается там, где стоит обязательство.
+    setup({
+      plans: [plan()],
+      payments: [],
+      files: [
+        file({
+          id: "f-plan",
+          fileName: "Счёт на аванс.pdf",
+          category: "invoice",
+          paymentPlanId: "plan-1",
+          paymentPlan: {
+            id: "plan-1",
+            title: "Аванс 50 %",
+            amount: 10000,
+            dueDate: null,
+            paidAt: null,
+          },
+        }),
+      ],
+    });
+
+    await waitFor(() => {
+      expect(documentChip("Счёт на аванс.pdf")).toBeDefined();
+    });
+
+    expect(documentChipIn(rows("planned")[0], "Счёт на аванс.pdf")).toBeDefined();
+  });
+
+  it("счёт, приложенный ТОЛЬКО к плану, виден и после оплаты", async () => {
+    /*
+      Связь с оплатой сама не появляется: файл прикладывали к плану, а отметку
+      поставили позже. Спрятать его значило бы убрать основание из строки, в
+      которой деньги уже прошли, — и «один файл, две точки входа» сломалось бы
+      ровно на том документе, ради которого правило и писали.
+    */
+    setup({
+      plans: [plan()],
+      payments: [payment({ paymentPlanId: "plan-1", amount: 10000 })],
+      files: [
+        file({
+          id: "f-plan",
+          fileName: "Счёт на аванс.pdf",
+          category: "invoice",
+          paymentPlanId: "plan-1",
+          paymentPlan: {
+            id: "plan-1",
+            title: "Аванс 50 %",
+            amount: 10000,
+            dueDate: null,
+            paidAt: "2026-10-01",
+          },
+        }),
+      ],
+    });
+
+    await waitFor(() => {
+      expect(rows("paid")).toHaveLength(1);
+    });
+
+    expect(documentChipIn(rows("paid")[0], "Счёт на аванс.pdf")).toBeDefined();
   });
 
   it("чипс показывает вид документа, а имя — в подсказке: управление во вкладке «Файлы»", async () => {
     setup({
-      payments: [payment({ id: "p-1", paidAt: "2026-10-01" })],
+      plans: [],
+      payments: [payment({ id: "p-1", paymentPlanId: null, paidAt: "2026-10-01" })],
       files: [
         file({
           id: "f-1",
@@ -512,79 +1082,11 @@ describe("PaymentsTab · документы к оплате", () => {
     expect(chip.textContent).toContain("Чек");
     // Имя показано подсказкой: два чека на разные суммы различаются только им.
     expect(chip.getAttribute("title")).toBe("Чек: Чек №7.pdf");
-    // Меню и кнопок у документа оплаты в строке больше нет: открыть, скачать,
-    // переименовать, сменить вид и удалить можно только во вкладке «Файлы».
     expect(screen.queryByRole("button", { name: /^Открыть «/ })).toBeNull();
     expect(screen.queryByRole("button", { name: /^Действия с «/ })).toBeNull();
   });
 
-  it("больше трёх документов — одна строка и инертный счётчик «+N», без попапа", async () => {
-    const user = userEvent.setup();
-
-    setup({
-      payments: [payment({ id: "p-1", paidAt: "2026-10-01" })],
-      files: Array.from({ length: 5 }, (_, index) =>
-        file({
-          id: `f-${index}`,
-          fileName: `Чек ${index}.pdf`,
-          category: "receipt",
-          paymentId: "p-1",
-          payment: { kind: "payment", paidAt: "2026-10-01", cancelled: false },
-        }),
-      ),
-    });
-
-    await waitFor(() => {
-      expect(screen.getByText("+2")).toBeDefined();
-    });
-
-    // Три чипса и «+2» вместо пяти: счётчик занимает одну строку, а не вторую.
-    expect(documentChip("Чек 0.pdf")).toBeDefined();
-    expect(documentChip("Чек 2.pdf")).toBeDefined();
-    expect(screen.queryByLabelText("Чек: Чек 3.pdf")).toBeNull();
-    await user.click(screen.getByText("+2"));
-    // Счётчик инертен: попап требовал бы клика, которого у чипсов нет.
-    expect(screen.queryByRole("menu")).toBeNull();
-  });
-
-  it("обычный файл позиции у оплат не показывается", async () => {
-    setup({
-      payments: [payment({ id: "p-1" })],
-      files: [file({ id: "f-free", fileName: "Чертёж.dwg", paymentId: null })],
-    });
-
-    await waitFor(() => {
-      expect(screen.getByText("Оплат и возвратов: 1")).toBeDefined();
-    });
-
-    expect(screen.queryByText("Чертёж.dwg")).toBeNull();
-    expect(screen.queryByLabelText("Чертёж: Чертёж.dwg")).toBeNull();
-  });
-
-  it("документ к отменённой оплате не показывается ни у одной живой записи", async () => {
-    // Отмена оплаты документ не удаляет: он остаётся во вкладке «Файлы» с
-    // пометкой. Здесь ему места нет — проводки, к которой он приложен, в
-    // списке фактов уже нет.
-    setup({
-      payments: [payment({ id: "p-1" })],
-      files: [
-        file({
-          id: "f-old",
-          fileName: "Чек к отменённой.pdf",
-          paymentId: "p-cancelled",
-          payment: { kind: "payment", paidAt: null, cancelled: true },
-        }),
-      ],
-    });
-
-    await waitFor(() => {
-      expect(screen.getByText("Оплат и возвратов: 1")).toBeDefined();
-    });
-
-    expect(screen.queryByText("Чек к отменённой.pdf")).toBeNull();
-  });
-
-  it("документ прикрепляется к ЭТОЙ оплате: payment_id, доставшийся перетаскиванием", async () => {
+  it("документ к оплате прикрепляется к ЭТОЙ оплате: payment_id перетаскиванием", async () => {
     uploadFileMock.mockResolvedValue({
       success: true,
       data: file({
@@ -597,48 +1099,91 @@ describe("PaymentsTab · документы к оплате", () => {
     });
 
     setup({
-      payments: [
-        payment({ id: "payment-1", paidAt: "2026-10-01" }),
-        payment({ id: "payment-2", paidAt: "2026-10-05" }),
-      ],
+      plans: [],
+      payments: [payment({ id: "payment-1", paymentPlanId: null, paidAt: "2026-10-01" })],
     });
 
     await waitFor(() => {
-      expect(screen.getByText("Оплат и возвратов: 2")).toBeDefined();
+      expect(rows("paid")).toHaveLength(1);
     });
 
-    const card = paymentCard("1 октября 2026 г.");
-    const zone = card.querySelector("[data-drag-active]") as HTMLElement;
+    const row = rows("paid")[0];
+    const zone = row.querySelector("[data-drag-active]") as HTMLElement;
     const dropped = new File(["чек"], "Поручение.pdf", { type: "application/pdf" });
 
     fireEvent.drop(zone, { dataTransfer: { files: [dropped], types: ["Files"] } });
 
     // Вид спрашивается сразу после приёма: до ответа файл на сервер не уходит.
     await waitFor(() => {
-      expect(within(card).getByText("Поручение.pdf")).toBeDefined();
+      expect(within(row).getByText("Поручение.pdf")).toBeDefined();
     });
     expect(uploadFileMock).not.toHaveBeenCalled();
 
-    await userEvent.setup().click(within(card).getByRole("button", { name: "Чек" }));
+    await userEvent.setup().click(within(row).getByRole("button", { name: "Чек" }));
 
     await waitFor(() => {
       expect(uploadFileMock).toHaveBeenCalledTimes(1);
     });
 
-    const [orgSlug, itemId, formData] = uploadFileMock.mock.calls[0];
+    const [orgSlug, itemId, formData] = uploadFileMock.mock.calls[0] as [
+      string,
+      string,
+      FormData,
+    ];
     expect(orgSlug).toBe("acme");
     expect(itemId).toBe("item-1");
-    // Документ уходит к ЭТОЙ оплате, а не к позиции: вкладка «Файлы» пишет
-    // `payment_id = ""`, и прикрепить чек к оплате можно только отсюда.
-    expect((formData as FormData).get("payment_id")).toBe("payment-1");
-    // Догадка сервера перебита явным видом: PDF он назвал бы «Документом», и
-    // роль подтверждения потерялась бы молча (ADR 0005).
-    expect((formData as FormData).get("category")).toBe("receipt");
+    expect(formData.get("payment_id")).toBe("payment-1");
+    expect(formData.get("category")).toBe("receipt");
+    // Вторая ссылка пуста: документ приложен к факту, а не к плану.
+    expect(formData.get("payment_plan_id")).toBe("");
+  });
 
-    // Запись сервера встаёт в строку сразу — без второго запроса.
-    await waitFor(() => {
-      expect(documentChipIn(card, "Поручение.pdf")).toBeDefined();
+  it("счёт к неоплаченному плану уходит с payment_plan_id, а не с payment_id", async () => {
+    uploadFileMock.mockResolvedValue({
+      success: true,
+      data: file({
+        id: "f-plan",
+        fileName: "Счёт.pdf",
+        category: "invoice",
+        paymentPlanId: "plan-1",
+        paymentPlan: {
+          id: "plan-1",
+          title: "Аванс 50 %",
+          amount: 10000,
+          dueDate: null,
+          paidAt: null,
+        },
+      }),
     });
+
+    setup({ plans: [plan()], payments: [] });
+
+    await waitFor(() => {
+      expect(rows("planned")).toHaveLength(1);
+    });
+
+    const row = rows("planned")[0];
+    const zone = row.querySelector("[data-drag-active]") as HTMLElement;
+    fireEvent.drop(zone, {
+      dataTransfer: {
+        files: [new File(["счёт"], "Счёт.pdf", { type: "application/pdf" })],
+        types: ["Files"],
+      },
+    });
+
+    await waitFor(() => {
+      expect(within(row).getByText("Счёт.pdf")).toBeDefined();
+    });
+
+    await userEvent.setup().click(within(row).getByRole("button", { name: "Счёт" }));
+
+    await waitFor(() => {
+      expect(uploadFileMock).toHaveBeenCalledTimes(1);
+    });
+
+    const formData = uploadFileMock.mock.calls[0][2] as FormData;
+    expect(formData.get("payment_plan_id")).toBe("plan-1");
+    expect(formData.get("payment_id")).toBe("");
   });
 
   it("пачка принимается целиком: у каждого файла свой вид", async () => {
@@ -666,88 +1211,48 @@ describe("PaymentsTab · документы к оплате", () => {
         }),
       });
 
-    setup({ payments: [payment({ id: "p-1", paidAt: "2026-10-01" })] });
-
-    await waitFor(() => {
-      expect(screen.getByText("Оплат и возвратов: 1")).toBeDefined();
+    setup({
+      plans: [],
+      payments: [payment({ id: "p-1", paymentPlanId: null, paidAt: "2026-10-01" })],
     });
 
-    const card = paymentCard("1 октября 2026 г.");
-    pickDocuments(within(card).getByLabelText("Выбрать файлы для загрузки"), [
+    await waitFor(() => {
+      expect(rows("paid")).toHaveLength(1);
+    });
+
+    const row = rows("paid")[0];
+    pickDocuments(within(row).getByLabelText("Выбрать файлы для загрузки"), [
       new File(["счёт"], "Основание.pdf", { type: "application/pdf" }),
       new File(["чек"], "Подтверждение.pdf", { type: "application/pdf" }),
     ]);
 
-    // Вид спрашивают у каждого файла отдельно: у основания и подтверждения
-    // роли разные, и один ответ на пачку потерял бы одну из них.
-    await user.click(within(card).getByRole("button", { name: "Счёт" }));
+    // Вид спрашивают у каждого файла отдельно: у основания и подтверждения роли
+    // разные, и один ответ на пачку потерял бы одну из них.
+    await user.click(within(row).getByRole("button", { name: "Счёт" }));
     await waitFor(() => expect(uploadFileMock).toHaveBeenCalledTimes(1));
 
     await waitFor(() => {
-      expect(within(card).getByText("Подтверждение.pdf")).toBeDefined();
+      expect(within(row).getByText("Подтверждение.pdf")).toBeDefined();
     });
-    await user.click(within(card).getByRole("button", { name: "Чек" }));
+    await user.click(within(row).getByRole("button", { name: "Чек" }));
 
     await waitFor(() => expect(uploadFileMock).toHaveBeenCalledTimes(2));
     expect((uploadFileMock.mock.calls[0][2] as FormData).get("category")).toBe("invoice");
     expect((uploadFileMock.mock.calls[1][2] as FormData).get("category")).toBe("receipt");
 
-    // Оба документа в строке: ответы сервера, а не локальная догадка.
     await waitFor(() => {
-      expect(documentChipIn(card, "Основание.pdf")).toBeDefined();
-      expect(documentChipIn(card, "Подтверждение.pdf")).toBeDefined();
+      expect(documentChipIn(row, "Основание.pdf")).toBeDefined();
+      expect(documentChipIn(row, "Подтверждение.pdf")).toBeDefined();
     });
   });
 
-  it("ошибка загрузки снимается следующей удачной отправкой", async () => {
-    const user = userEvent.setup();
-
-    uploadFileMock
-      .mockResolvedValueOnce({ success: false, error: "Тип файла не поддерживается" })
-      .mockResolvedValueOnce({
-        success: true,
-        data: file({
-          id: "f-ok",
-          fileName: "Второй.pdf",
-          category: "receipt",
-          paymentId: "p-1",
-          payment: { kind: "payment", paidAt: "2026-10-01", cancelled: false },
-        }),
-      });
-
-    setup({ payments: [payment({ id: "p-1", paidAt: "2026-10-01" })] });
-
-    await waitFor(() => {
-      expect(screen.getByText("Оплат и возвратов: 1")).toBeDefined();
-    });
-
-    const card = paymentCard("1 октября 2026 г.");
-    const picker = within(card).getByLabelText("Выбрать файлы для загрузки");
-
-    pickDocument(picker, new File(["чек"], "Первый.pdf", { type: "application/pdf" }));
-    await user.click(within(card).getByRole("button", { name: "Чек" }));
-
-    await waitFor(() => {
-      expect(screen.getByText("Тип файла не поддерживается")).toBeDefined();
-    });
-
-    // Поведение сохраняется: вторая удачная отправка гасит текст отказа, а не
-    // оставляет его висеть над строкой.
-    pickDocument(picker, new File(["чек"], "Второй.pdf", { type: "application/pdf" }));
-    await user.click(within(card).getByRole("button", { name: "Чек" }));
-
-    await waitFor(() => {
-      expect(screen.queryByText("Тип файла не поддерживается")).toBeNull();
-    });
-    expect(documentChipIn(card, "Второй.pdf")).toBeDefined();
-  });
-
-  it("наблюдатель видит чипс, но не получает ни точки прикрепления, ни шага выбора вида", async () => {
-    listPlansMock.mockResolvedValue({ success: true, data: [plan()] });
+  it("наблюдатель видит чипс, но не получает точки прикрепления", async () => {
+    listPlansMock.mockResolvedValue({ success: true, data: [] });
     listPaymentsMock.mockResolvedValue({
       success: true,
-      data: [payment({ id: "p-1", paidAt: "2026-10-01" })],
+      data: [payment({ id: "p-1", paymentPlanId: null, paidAt: "2026-10-01" })],
     });
+    listCancellationsMock.mockResolvedValue({ success: true, data: [] });
     listFilesMock.mockResolvedValue({
       success: true,
       data: [
@@ -778,49 +1283,16 @@ describe("PaymentsTab · документы к оплате", () => {
     expect(
       screen.queryByRole("button", { name: /^Прикрепить счёт или чек/ }),
     ).toBeNull();
-    // И шага выбора вида наблюдатель тоже не получает: он ничего не прикрепляет.
     expect(screen.queryByRole("group", { name: "Какой это документ?" })).toBeNull();
-
-    const dropped = new File(["чек"], "Чужой.pdf", { type: "application/pdf" });
-    fireEvent.drop(
-      paymentCard("1 октября 2026 г.").querySelector("[data-drag-active]") as HTMLElement,
-      { dataTransfer: { files: [dropped], types: ["Files"] } },
-    );
-
-    expect(screen.queryByRole("group", { name: "Какой это документ?" })).toBeNull();
-    expect(uploadFileMock).not.toHaveBeenCalled();
-  });
-
-  it("удаление и смена вида документа у оплаты недоступны: они живут во вкладке «Файлы»", async () => {
-    setup({
-      payments: [payment({ id: "p-1", paidAt: "2026-10-01" })],
-      files: [
-        file({
-          id: "f-1",
-          fileName: "Чек №7.pdf",
-          paymentId: "p-1",
-          payment: { kind: "payment", paidAt: "2026-10-01", cancelled: false },
-        }),
-      ],
-    });
-
-    await waitFor(() => {
-      expect(documentChip("Чек №7.pdf")).toBeDefined();
-    });
-
-    // Ни меню `⋯`, ни кнопки удаления: управление документом в одном месте —
-    // во вкладке «Файлы», соседней вкладке той же модалки.
-    expect(screen.queryByRole("button", { name: /^Действия с «/ })).toBeNull();
-    expect(screen.queryByRole("button", { name: /^Вид документа «/ })).toBeNull();
-    expect(screen.queryByRole("button", { name: "Скачать «Чек №7.pdf»" })).toBeNull();
   });
 
   it("ошибка списка файлов не скрывает оплаты", async () => {
-    listPlansMock.mockResolvedValue({ success: true, data: [plan()] });
+    listPlansMock.mockResolvedValue({ success: true, data: [] });
     listPaymentsMock.mockResolvedValue({
       success: true,
-      data: [payment({ id: "p-1", amount: 3000 })],
+      data: [payment({ id: "p-1", paymentPlanId: null, amount: 3000 })],
     });
+    listCancellationsMock.mockResolvedValue({ success: true, data: [] });
     listFilesMock.mockResolvedValue({
       success: false,
       error: "Не удалось получить файлы позиции",
@@ -838,10 +1310,35 @@ describe("PaymentsTab · документы к оплате", () => {
 
     // Вкладка показывает отказ честно, а не пустой список оплат.
     await waitFor(() => {
-      expect(
-        screen.getByText("Не удалось получить файлы позиции"),
-      ).toBeDefined();
+      expect(screen.getByText("Не удалось получить файлы позиции")).toBeDefined();
     });
-    expect(screen.queryByText("Оплат и возвратов: 1")).toBeNull();
+    expect(rows("paid")).toHaveLength(0);
+    expect(rows("planned")).toHaveLength(0);
+  });
+
+  it("отказ чтения отменённых не ломает список", async () => {
+    // Пометка — справка, а не данные: без неё строки обязаны остаться.
+    listPlansMock.mockResolvedValue({ success: true, data: [plan()] });
+    listPaymentsMock.mockResolvedValue({ success: true, data: [] });
+    listCancellationsMock.mockResolvedValue({
+      success: false,
+      error: "Не удалось получить отменённые оплаты",
+    });
+    listFilesMock.mockResolvedValue({ success: true, data: [] });
+
+    render(
+      <PaymentsTab
+        orgSlug="acme"
+        specItemId="item-1"
+        role="owner"
+        currentUserId="user-1"
+        itemCost={10000}
+      />,
+    );
+
+    await waitFor(() => {
+      expect(rows("planned")).toHaveLength(1);
+    });
+    expect(screen.queryByText("Не удалось получить отменённые оплаты")).toBeNull();
   });
 });

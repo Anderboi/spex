@@ -208,7 +208,18 @@ export type DocumentListProps = {
   loading: boolean;
   thumbs: Record<string, string>;
   onThumbFailed: (fileId: string) => void;
+  /**
+   * Строка графика, документы которой показываем И к которой прикрепляем.
+   *
+   * Именно она, а не документы со ссылкой на неё, приходит списку: `paymentId`
+   * или `paymentPlanId` — смотря какую точку входа открыли. Файлы отбираются по
+   * этой ссылке, а загрузка уходит на сервер тем же полем.
+   */
   paymentId?: string | null;
+  /** Строка графика, к которой прикрепляется документ (счёт — основание). */
+  paymentPlanId?: string | null;
+  /** Какую ссылку файла считать «своей» в этом списке. */
+  link?: "payment" | "plan";
   canWrite: boolean;
   onUploaded: (entry: SpecItemFileEntry) => void;
   onChanged: (entry: SpecItemFileEntry) => void;
@@ -442,6 +453,8 @@ export default function DocumentList({
   thumbs,
   onThumbFailed,
   paymentId = null,
+  paymentPlanId = null,
+  link = "payment",
   canWrite,
   onUploaded,
   onChanged,
@@ -614,7 +627,20 @@ export default function DocumentList({
 
       const formData = new FormData();
       formData.set("file", item.file);
-      formData.set("payment_id", paymentId ?? "");
+      /*
+        Ссылка уходит ТОЙ ЖЕ, какой список показывает: у строки оплаты это
+        `payment_id`, у строки графика — `payment_plan_id`. Оба поля формы
+        необязательны и означают независимые связи: счёт, приложенный до оплаты,
+        после неё остаётся привязан к плану (ADR 0006).
+
+        У общего пути загрузки (вкладка «Файлы») ссылки нет ни одной, и оба поля
+        уходят пустыми — файл остаётся обычным документом позиции.
+      */
+      formData.set("payment_id", link === "payment" ? (paymentId ?? "") : "");
+      formData.set(
+        "payment_plan_id",
+        link === "plan" ? (paymentPlanId ?? "") : "",
+      );
       if (category) formData.set("category", category);
 
       try {
@@ -637,7 +663,7 @@ export default function DocumentList({
         return { ok: false, error: "Не удалось загрузить файл" };
       }
     },
-    [onUploaded, orgSlug, paymentId, specItemId],
+    [link, onUploaded, orgSlug, paymentId, paymentPlanId, specItemId],
   );
 
   /**

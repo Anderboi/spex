@@ -44,6 +44,8 @@ function entry(overrides: Partial<SpecItemFileEntry> = {}): SpecItemFileEntry {
     createdAt: "2026-10-06T09:30:00.000Z",
     paymentId: null,
     payment: null,
+    paymentPlanId: null,
+    paymentPlan: null,
     ...overrides,
   };
 }

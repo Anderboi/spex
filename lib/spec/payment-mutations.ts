@@ -78,9 +78,16 @@ export type PaymentsDb = PaymentPlansDb;
 /**
  * Колонки, нужные домену. Литерал обязателен: по нему supabase-js выводит тип
  * строки, и `select("*")` здесь был бы догадкой о схеме.
+ *
+ * Экспортируется: этим же списком читаются ОТМЕНЁННЫЕ записи
+ * (`listCancelledPayments`). Своего списка колонок у них быть не должно — это
+ * та же строка таблицы, и второе перечисление разошлось бы с первым молча:
+ * клиент получил бы под тем же `PaymentEntry` другую запись.
  */
-const PAYMENT_COLUMNS =
+export const PAYMENT_ENTRY_COLUMNS =
   "id, org_id, project_id, spec_item_id, kind, amount, paid_at, payment_plan_id, comment, created_by, author_name_snapshot, code_snapshot, name_snapshot, project_title_snapshot, created_at, updated_at, deleted_at";
+
+const PAYMENT_COLUMNS = PAYMENT_ENTRY_COLUMNS;
 
 type PaymentRow = {
   id: string;
@@ -373,6 +380,64 @@ export async function listPayments(
   if (error) {
     console.error("[listPayments]", error.message);
     return failed("Не удалось получить список оплат");
+  }
+
+  return { ok: true, payments: (data ?? []).map((row) => toEntry(row as PaymentRow)) };
+}
+
+/* ------------------------------------------------------------------ */
+/*  listCancelled                                                      */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Отменённые (мягко удалённые) оплаты, привязанные к строкам графика.
+ *
+ * ── Зачем это читается ─────────────────────────────────────────────────────
+ *
+ * Отмена оплаты возвращает её строку графика в «Не оплачено» (решение Q29:
+ * обязательство снова открыто), но правило «связь с отменённой оплатой
+ * показывается пометкой, а не исчезает молча» продолжает действовать. Живой
+ * список отменённых не показывает, поэтому пометку взять неоткуда — её даёт это
+ * чтение.
+ *
+ * ── Почему только записи с планом ──────────────────────────────────────────
+ *
+ * Строку в списке составляет строка графика, а пометка стоит У строки.
+ * Отменённая оплата без плана не прикреплена ни к чему: показать её значило бы
+ * показать пометку без обязательства, к которому она относится. Список фактов
+ * её тоже не показывает — она отменена.
+ *
+ * ── Почему отдельная функция, а не флаг у `listPayments` ───────────────────
+ *
+ * Флаг превратил бы основной список в «список плюс, может быть, удалённые», и
+ * каждый вызывающий обязан был бы помнить, что удалённые строки нужно
+ * отфильтровать самому. Здесь два разных чтения с разными ответами на разные
+ * вопросы: «что заплачено» и «что отменено».
+ *
+ * Порядок тот же, что у живых записей (`paid_at desc`, затем `created_at desc`):
+ * пометка называет ПОЗДНЮЮ отмену, а порядок задаёт сервер — клиент список не
+ * пересортировывает.
+ */
+export async function listCancelledPayments(
+  db: PaymentsDb,
+  args: { orgId: string; specItemId: string },
+): Promise<ListPaymentsResult> {
+  const item = await resolveSpecItem(db, args);
+  if (!item.ok) return { ok: false, error: item.error };
+
+  const { data, error } = await db
+    .from("spec_item_payments")
+    .select(PAYMENT_COLUMNS)
+    .eq("org_id", args.orgId)
+    .eq("spec_item_id", args.specItemId)
+    .not("deleted_at", "is", null)
+    .not("payment_plan_id", "is", null)
+    .order("paid_at", { ascending: false })
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.error("[listCancelledPayments]", error.message);
+    return failed("Не удалось получить отменённые оплаты");
   }
 
   return { ok: true, payments: (data ?? []).map((row) => toEntry(row as PaymentRow)) };

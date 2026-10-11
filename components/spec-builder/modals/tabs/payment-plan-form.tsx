@@ -17,6 +17,7 @@ import { Textarea } from "@/components/ui/textarea";
 import Field from "@/components/layout/modal-field";
 import { PAYMENT_PLAN_LIMITS } from "@/lib/validations";
 import type { PaymentPlanEntry } from "@/lib/spec/payment-plan-types";
+import type { PaymentPlanFormValues } from "@/lib/spec/payment-form-types";
 
 /**
  * Форма строки графика платежей: создание и правка одной и той же разметкой.
@@ -40,15 +41,17 @@ import type { PaymentPlanEntry } from "@/lib/spec/payment-plan-types";
  * `<input type="date">` отдаёт 'YYYY-MM-DD' или пустую строку. Пустая строка —
  * это «срока нет», и в состояние она уходит как пустое значение, а не как
  * сегодняшняя дата: подставлять дату за пользователя форма не имеет права.
+ *
+ * ── Где эта форма, а где общая ─────────────────────────────────────────────
+ *
+ * Вкладка «Платежи» открывает ОДНУ форму на план, факт и возврат
+ * (`./payment-form`): там переключатель «Запланировано / Оплачено» и одна секция
+ * прикрепления документов. Эта форма остаётся входом из карточки графика, где
+ * факта нет вовсе, и данные отдаёт ТЕМ ЖЕ типом
+ * (`lib/spec/payment-form-types`) — чтобы вкладка принимала обе одинаково.
  */
 
-/** Данные строки в том виде, в каком их принимает действие. */
-export type PaymentPlanFormValues = {
-  title: string;
-  amount: number;
-  condition: string | null;
-  dueDate: string | null;
-};
+export type { PaymentPlanFormValues };
 
 export default function PaymentPlanForm({
   open,

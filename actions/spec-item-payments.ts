@@ -11,6 +11,7 @@ import { fail, ok, type ActionErrorCode, type ActionResult } from "@/lib/action-
 import { eventActorOf, recordSpecItemEvents } from "@/lib/spec/history";
 import {
   createPayment as createPaymentCore,
+  listCancelledPayments as listCancelledPaymentsCore,
   listPayments as listPaymentsCore,
   removePayment as removePaymentCore,
   updatePayment as updatePaymentCore,
@@ -151,6 +152,34 @@ export async function listPayments(
   if (!item) return fail("Позиция не найдена", "NOT_FOUND");
 
   const result = await listPaymentsCore(supabase, {
+    orgId: ctx.orgId,
+    specItemId: item.id,
+  });
+
+  return result.ok ? ok(result.payments) : toFailure(result.error);
+}
+
+/* ------------------------------------------------------------------ */
+/*  listCancelled                                                      */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Отменённые оплаты, привязанные к строкам графика, — для пометки «отменена».
+ *
+ * Читается тем же правом, что и живой список: отмена — часть истории позиции, и
+ * суммы её видят все, включая наблюдателя (решение O9). Наблюдателю пометка
+ * нужна ровно так же: без неё строка выглядела бы просто неоплаченной, а
+ * обязательство, которое по ней закрывали, — никогда не существовавшим.
+ */
+export async function listPaymentCancellations(
+  orgSlug: string,
+  specItemId: string,
+): Promise<ActionResult<PaymentEntry[]>> {
+  const { ctx, supabase, item, failed } = await resolveItem(orgSlug, specItemId);
+  if (failed) return fail("Не удалось получить отменённые оплаты");
+  if (!item) return fail("Позиция не найдена", "NOT_FOUND");
+
+  const result = await listCancelledPaymentsCore(supabase, {
     orgId: ctx.orgId,
     specItemId: item.id,
   });

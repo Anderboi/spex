@@ -62,6 +62,21 @@ const PAYMENT_OTHER_ITEM = "14141414-1414-4414-8414-141414141414";
 const PAYMENT_OTHER_ORG = "15151515-1515-4515-8515-151515151515";
 const PAYMENT_DELETED = "16161616-1616-4616-8616-161616161616";
 
+const PLAN = "18181818-1818-4818-8818-181818181818";
+const PLAN_OTHER_ITEM = "19191919-1919-4919-8919-191919191919";
+const PLAN_OTHER_ORG = "20202020-2020-4020-8020-202020202020";
+/** Строка графика, по которой уже есть живой факт: счёт стал основанием оплаты. */
+const PLAN_PAID = "21212121-2121-4121-8121-212121212121";
+/** Строка графика, которую удалили мягко: привязка счёта при этом не рвётся. */
+const PLAN_DELETED = "23232323-2323-4323-8323-232323232323";
+/** Живой факт по строке PLAN_PAID — тот, что делает её оплаченной. */
+const PAYMENT_BY_PLAN = "26262626-2626-4626-8626-262626262626";
+
+/** Файл, приложенный к НЕоплаченной строке графика: счёт-основание. */
+const FILE_WITH_PLAN = "24242424-2424-4424-8424-242424242424";
+/** Файл, приложенный к строке, которую потом оплатили: обе связи живы. */
+const FILE_WITH_PLAN_PAID = "25252525-2525-4525-8525-252525252525";
+
 const itemPath = (itemId: string, fileId: string) =>
   `${ORG}/spec-items/${itemId}/${fileId}.pdf`;
 
@@ -90,6 +105,8 @@ type Failure = {
   update?: boolean;
   /** Отдельный отказ именно на чтении оплат: список файлов его переживает. */
   selectPayment?: boolean;
+  /** Отдельный отказ на чтении графика: список файлов его тоже переживает. */
+  selectPlans?: boolean;
   /** Отдельный отказ на чтении имён авторов: список файлов его переживает. */
   selectUsers?: boolean;
 };
@@ -205,6 +222,9 @@ function fakeDb(seed: Tables, failure: Failure = {}) {
         if (failure.selectPayment && table === "spec_item_payments") {
           return Promise.resolve({ data: null, error: { message: "ошибка БД" } });
         }
+        if (failure.selectPlans && table === "spec_item_payment_plans") {
+          return Promise.resolve({ data: null, error: { message: "ошибка БД" } });
+        }
         if (failure.selectUsers && table === "users") {
           return Promise.resolve({ data: null, error: { message: "ошибка БД" } });
         }
@@ -230,6 +250,11 @@ function fakeDb(seed: Tables, failure: Failure = {}) {
           );
         }
         if (failure.selectPayment && table === "spec_item_payments") {
+          return Promise.resolve(
+            resolve({ data: null, error: { message: "ошибка БД" } }),
+          );
+        }
+        if (failure.selectPlans && table === "spec_item_payment_plans") {
           return Promise.resolve(
             resolve({ data: null, error: { message: "ошибка БД" } }),
           );
@@ -430,6 +455,40 @@ function seedTables(): Tables {
         deleted_at: null,
         payment_id: PAYMENT_DELETED,
       },
+      {
+        id: FILE_WITH_PLAN,
+        org_id: ORG,
+        project_id: PROJECT,
+        spec_item_id: ITEM,
+        storage_path: itemPath(ITEM, FILE_WITH_PLAN),
+        file_name: "Счёт на аванс.pdf",
+        mime_type: "application/pdf",
+        size_bytes: 384,
+        category: "invoice",
+        uploaded_by: USER,
+        created_at: "2026-01-09T10:00:00.000Z",
+        deleted_at: null,
+        payment_id: null,
+        payment_plan_id: PLAN,
+      },
+      {
+        id: FILE_WITH_PLAN_PAID,
+        org_id: ORG,
+        project_id: PROJECT,
+        spec_item_id: ITEM,
+        storage_path: itemPath(ITEM, FILE_WITH_PLAN_PAID),
+        file_name: "Счёт к оплаченному.pdf",
+        mime_type: "application/pdf",
+        size_bytes: 384,
+        category: "invoice",
+        uploaded_by: USER,
+        created_at: "2026-01-10T10:00:00.000Z",
+        deleted_at: null,
+        // Связей ДВЕ, и вторая не отменяет первую (ADR 0006): счёт остаётся
+        // основанием и после того, как по строке прошли деньги.
+        payment_id: PAYMENT_BY_PLAN,
+        payment_plan_id: PLAN_PAID,
+      },
     ],
     users: [{ id: USER, name: "Иван П." }],
     spec_item_payments: [
@@ -472,6 +531,75 @@ function seedTables(): Tables {
         paid_at: "2026-01-04",
         deleted_at: "2026-01-05T10:00:00.000Z",
       },
+      {
+        // Живой факт по строке PLAN_PAID: именно он делает счёт основанием уже
+        // случившейся оплаты.
+        id: PAYMENT_BY_PLAN,
+        org_id: ORG,
+        project_id: PROJECT,
+        spec_item_id: ITEM,
+        kind: "payment",
+        paid_at: "2026-01-10",
+        payment_plan_id: PLAN_PAID,
+        deleted_at: null,
+      },
+    ],
+    spec_item_payment_plans: [
+      {
+        id: PLAN,
+        org_id: ORG,
+        project_id: PROJECT,
+        spec_item_id: ITEM,
+        title: "Аванс 50 %",
+        amount: "12000.00",
+        due_date: "2026-02-01",
+        deleted_at: null,
+      },
+      {
+        id: PLAN_PAID,
+        org_id: ORG,
+        project_id: PROJECT,
+        spec_item_id: ITEM,
+        title: "Остаток",
+        amount: "8000.00",
+        due_date: null,
+        deleted_at: null,
+      },
+      {
+        // Строка удалена мягко: счёт, который её объяснял, обязан остаться
+        // документом позиции — иначе основание уже случившейся оплаты пропало бы
+        // вместе со строкой графика.
+        id: PLAN_DELETED,
+        org_id: ORG,
+        project_id: PROJECT,
+        spec_item_id: ITEM,
+        title: "Снятый платёж",
+        amount: "1000.00",
+        due_date: "2026-03-01",
+        deleted_at: "2026-01-11T10:00:00.000Z",
+      },
+      {
+        // Чужая позиция: счёт своей позиции на неё ссылаться не может.
+        id: PLAN_OTHER_ITEM,
+        org_id: ORG,
+        project_id: PROJECT,
+        spec_item_id: OTHER_ITEM,
+        title: "Чужой график",
+        amount: "500.00",
+        due_date: null,
+        deleted_at: null,
+      },
+      {
+        // Чужая организация.
+        id: PLAN_OTHER_ORG,
+        org_id: OTHER_ORG,
+        project_id: OTHER_PROJECT,
+        spec_item_id: ITEM,
+        title: "Чужая организация",
+        amount: "500.00",
+        due_date: null,
+        deleted_at: null,
+      },
     ],
   };
 }
@@ -507,9 +635,11 @@ describe("listSpecItemFiles", () => {
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    // `created_at` новее у подставленной строки, поэтому она первая: сортировка
+    // `created_at` новее у подставленных строк, поэтому они первыми: сортировка
     // идёт по времени, а не по идентификатору.
     expect(result.files.map((f) => f.id)).toEqual([
+      FILE_WITH_PLAN_PAID,
+      FILE_WITH_PLAN,
       FILE_WITH_CANCELLED_PAYMENT,
       FILE_WITH_PAYMENT,
       FILE_FOREIGN_PATH,
@@ -550,14 +680,16 @@ describe("listSpecItemFiles", () => {
 
     expect(result.ok).toBe(true);
     if (!result.ok) return;
-    // Свежие первыми: 2026-01-08 (чек к отменённой оплате) новее 2026-01-06.
-    expect(result.files[0].id).toBe(FILE_WITH_CANCELLED_PAYMENT);
-    expect(result.files[1].id).toBe(FILE_WITH_PAYMENT);
+    // Свежие первыми: 2026-01-10 (счёт к оплаченному) новее 2026-01-06.
+    expect(result.files[0].id).toBe(FILE_WITH_PLAN_PAID);
+    expect(result.files[1].id).toBe(FILE_WITH_PLAN);
+    expect(result.files[2].id).toBe(FILE_WITH_CANCELLED_PAYMENT);
+    expect(result.files[3].id).toBe(FILE_WITH_PAYMENT);
   });
 
   it("sanity: данные выше действительно идут не в том порядке, что id", () => {
     // Страховка от «тест сортировки прошёл, потому что данные совпали со
-    // случайным порядком»: у подменённой строки created_at строго позже.
+    // случайным порядком»: у подменённых строк created_at строго позже.
     const rows = seedTables().spec_item_files.filter(
       (r) => r.org_id === ORG && r.spec_item_id === ITEM && r.deleted_at === null,
     );
@@ -566,6 +698,8 @@ describe("listSpecItemFiles", () => {
       FILE_FOREIGN_PATH,
       FILE_WITH_PAYMENT,
       FILE_WITH_CANCELLED_PAYMENT,
+      FILE_WITH_PLAN,
+      FILE_WITH_PLAN_PAID,
     ]);
     expect(String(rows[1].created_at) > String(rows[0].created_at)).toBe(true);
   });
@@ -600,10 +734,12 @@ describe("listSpecItemFiles", () => {
       uploadedBy: USER,
       uploadedByName: "Иван П.",
       createdAt: "2026-01-01T10:00:00.000Z",
-      // Обычный файл позиции: оплаты за ним нет — и поля говорят об этом
-      // одинаково, а не отсутствием ключа.
+      // Обычный файл позиции: ни оплаты, ни плана за ним нет — и поля говорят об
+      // этом одинаково, а не отсутствием ключа.
       paymentId: null,
       payment: null,
+      paymentPlanId: null,
+      paymentPlan: null,
     });
   });
 
@@ -721,6 +857,102 @@ describe("listSpecItemFiles", () => {
     const file = result.files.find((entry) => entry.id === FILE_WITH_PAYMENT);
     expect(file?.payment).toBeNull();
     expect(file?.paymentId).toBe(PAYMENT);
+  });
+
+  it("документ к запланированному платежу приходит со сроком и суммой", async () => {
+    // Решение Q34: счёт без подписи во вкладке «Файлы» — файл, про который
+    // непонятно, почему он здесь. Срок и сумма — то, чем строка графика
+    // объясняет документ до оплаты.
+    const db = fakeDb(seedTables());
+    const result = await listSpecItemFiles(db.client, baseArgs);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const file = result.files.find((entry) => entry.id === FILE_WITH_PLAN);
+    expect(file?.paymentPlanId).toBe(PLAN);
+    expect(file?.paymentPlan).toEqual({
+      id: PLAN,
+      title: "Аванс 50 %",
+      amount: 12000,
+      dueDate: "2026-02-01",
+      paidAt: null,
+    });
+  });
+
+  it("после отметки «Оплачено» подпись счёта называет факт, а связи остаются обе", async () => {
+    // ADR 0006: связи файла ДОБАВЛЯЮТСЯ, а не заменяются. Счёт, приложенный к
+    // плану, получает вторую связь с оплатой — и обе остаются в строке.
+    const db = fakeDb(seedTables());
+    const result = await listSpecItemFiles(db.client, baseArgs);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const file = result.files.find((entry) => entry.id === FILE_WITH_PLAN_PAID);
+
+    expect(file?.paymentId).toBe(PAYMENT_BY_PLAN);
+    expect(file?.payment).toEqual({
+      kind: "payment",
+      paidAt: "2026-01-10",
+      cancelled: false,
+    });
+    // Связь с планом не потеряна — и подпись плана знает, ЧЕМ он оплачен:
+    // именно по этой дате вкладка «Файлы» меняет подпись счёта на «К оплате от».
+    expect(file?.paymentPlanId).toBe(PLAN_PAID);
+    expect(file?.paymentPlan?.paidAt).toBe("2026-01-10");
+  });
+
+  it("счёт у мягко удалённой строки графика остаётся документом позиции", async () => {
+    // Строку графика удаляют, когда обязательство снято, а счёт — документ
+    // позиции. Подписи у него нет (строки в графике больше нет), но и связь не
+    // рвётся: иначе основание уже случившейся оплаты исчезло бы молча.
+    const tables = seedTables();
+    tables.spec_item_files = tables.spec_item_files.map((row) =>
+      row.id === FILE_WITH_PLAN ? { ...row, payment_plan_id: PLAN_DELETED } : row,
+    );
+
+    const result = await listSpecItemFiles(fakeDb(tables).client, baseArgs);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const file = result.files.find((entry) => entry.id === FILE_WITH_PLAN);
+    expect(file?.paymentPlanId).toBe(PLAN_DELETED);
+    expect(file?.paymentPlan).toEqual({
+      id: PLAN_DELETED,
+      title: "Снятый платёж",
+      amount: 1000,
+      dueDate: "2026-03-01",
+      paidAt: null,
+    });
+  });
+
+  it("чужой план не подписывается: ссылка есть, строки по ней нет", async () => {
+    // Строка графика другой позиции в выборку не попадает — условие запроса и
+    // есть проверка принадлежности. Подписи при этом нет, а не выдуманная.
+    const tables = seedTables();
+    tables.spec_item_files = tables.spec_item_files.map((row) =>
+      row.id === FILE_WITH_PLAN ? { ...row, payment_plan_id: PLAN_OTHER_ITEM } : row,
+    );
+
+    const result = await listSpecItemFiles(fakeDb(tables).client, baseArgs);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const file = result.files.find((entry) => entry.id === FILE_WITH_PLAN);
+    expect(file?.paymentPlanId).toBe(PLAN_OTHER_ITEM);
+    expect(file?.paymentPlan).toBeNull();
+  });
+
+  it("ошибка чтения графика не ломает список и не выдумывает подпись", async () => {
+    // Документы важнее подписи. Но и «плана нет» на основании сбоя чтения
+    // утверждать нельзя: подпись остаётся пустой, а не становится чужой.
+    const db = fakeDb(seedTables(), { selectPlans: true });
+    const result = await listSpecItemFiles(db.client, baseArgs);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const file = result.files.find((entry) => entry.id === FILE_WITH_PLAN);
+    expect(file?.paymentPlanId).toBe(PLAN);
+    expect(file?.paymentPlan).toBeNull();
   });
 
   it("чужая организация → позиция не найдена", async () => {
@@ -1157,7 +1389,6 @@ describe("uploadSpecItemFile: документ к оплате", () => {
     expect(db.callsFor("spec_item_payments")).toHaveLength(0);
     expect(store.uploads).toHaveLength(0);
   });
-
   it("сбой чтения оплаты — FAILED, а не «оплата не найдена»", async () => {
     const db = fakeDb(seedTables(), { selectPayment: true });
     const store = fakeStorage();
@@ -1193,6 +1424,161 @@ describe("uploadSpecItemFile: документ к оплате", () => {
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.error.code).toBe("NOT_FOUND");
+    expect(store.uploads).toHaveLength(0);
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/*  upload: счёт к плановому платежу                                   */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Вторая ссылка файла: счёт приходит ДО денег.
+ *
+ * Порядок стал обратным тому, что отвергли 2026-10-10 (ADR 0006): сначала
+ * документ-основание, потом оплата. Проверяется ровно то, чего не может
+ * проверить `list`: куда ссылка записывается и что она НЕ подменяет первую.
+ */
+describe("uploadSpecItemFile: счёт к плановому платежу", () => {
+  it("живая строка графика принимается, ссылка ложится рядом с оплатой", async () => {
+    const db = fakeDb(seedTables());
+    const store = fakeStorage();
+    const result = await uploadSpecItemFile(db.client, store.storage, {
+      ...baseArgs,
+      uploadedBy: USER,
+      paymentPlanId: PLAN,
+      data: uploadData({ category: "invoice" }),
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(db.tables.spec_item_files.at(-1)!.payment_plan_id).toBe(PLAN);
+    // Первая ссылка при этом пуста: счёт приложен к обязательству, а не к факту.
+    expect(db.tables.spec_item_files.at(-1)!.payment_id).toBeNull();
+    // Ответ сразу несёт подпись со сроком: вкладке «Файлы» не нужен второй
+    // запрос, чтобы объяснить, почему счёт здесь.
+    expect(result.file.paymentPlanId).toBe(PLAN);
+    expect(result.file.paymentPlan).toEqual({
+      id: PLAN,
+      title: "Аванс 50 %",
+      amount: 12000,
+      dueDate: "2026-02-01",
+      paidAt: null,
+    });
+  });
+
+  it("обе ссылки сразу: счёт к плану И чек к оплате — ничего не заменяется", async () => {
+    const db = fakeDb(seedTables());
+    const store = fakeStorage();
+    const result = await uploadSpecItemFile(db.client, store.storage, {
+      ...baseArgs,
+      uploadedBy: USER,
+      paymentId: PAYMENT,
+      paymentPlanId: PLAN,
+      data: uploadData({ category: "invoice" }),
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const stored = db.tables.spec_item_files.at(-1)!;
+    expect(stored.payment_id).toBe(PAYMENT);
+    expect(stored.payment_plan_id).toBe(PLAN);
+    expect(result.file.payment).not.toBeNull();
+    expect(result.file.paymentPlan).not.toBeNull();
+  });
+
+  it("мягко удалённая строка графика принимается: счёт объясняет снятое обязательство", async () => {
+    // Правило отличается от оплаты намеренно: отменённая оплата ссылку не
+    // принимает, а удалённая строка графика — принимает. Счёт, который её
+    // объяснял, остаётся документом позиции.
+    const db = fakeDb(seedTables());
+    const store = fakeStorage();
+    const result = await uploadSpecItemFile(db.client, store.storage, {
+      ...baseArgs,
+      uploadedBy: USER,
+      paymentPlanId: PLAN_DELETED,
+      data: uploadData({ category: "invoice" }),
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(db.tables.spec_item_files.at(-1)!.payment_plan_id).toBe(PLAN_DELETED);
+  });
+
+  it("пустая строка — то же, что «счёта к плану нет»", async () => {
+    const db = fakeDb(seedTables());
+    const store = fakeStorage();
+    const result = await uploadSpecItemFile(db.client, store.storage, {
+      ...baseArgs,
+      uploadedBy: USER,
+      paymentPlanId: "",
+      data: uploadData(),
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(db.tables.spec_item_files.at(-1)!.payment_plan_id).toBeNull();
+  });
+
+  const foreignPlanCases: { title: string; paymentPlanId: string }[] = [
+    { title: "чужая позиция", paymentPlanId: PLAN_OTHER_ITEM },
+    { title: "чужая организация", paymentPlanId: PLAN_OTHER_ORG },
+    { title: "несуществующая строка", paymentPlanId: FILE_NEW },
+  ];
+
+  for (const testCase of foreignPlanCases) {
+    it(`${testCase.title} → INVALID_INPUT, объекта в Storage нет`, async () => {
+      const db = fakeDb(seedTables());
+      const store = fakeStorage();
+      const result = await uploadSpecItemFile(db.client, store.storage, {
+        ...baseArgs,
+        uploadedBy: USER,
+        paymentPlanId: testCase.paymentPlanId,
+        data: uploadData(),
+      });
+
+      expect(result.ok).toBe(false);
+      if (result.ok) return;
+      expect(result.error.code).toBe("INVALID_INPUT");
+      expect(result.error.message).toContain("графике не найден");
+      // Проверка идёт ДО Storage и до INSERT: посторонний объект не остаётся.
+      expect(store.uploads).toHaveLength(0);
+      expect(
+        db.callsFor("spec_item_files").some((c) => c.operation === "insert"),
+      ).toBe(false);
+    });
+  }
+
+  it("не-uuid payment_plan_id отвергается до запроса к БД", async () => {
+    const db = fakeDb(seedTables());
+    const store = fakeStorage();
+    const result = await uploadSpecItemFile(db.client, store.storage, {
+      ...baseArgs,
+      uploadedBy: USER,
+      paymentPlanId: "не-uuid",
+      data: uploadData(),
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe("INVALID_INPUT");
+    expect(db.callsFor("spec_item_payment_plans")).toHaveLength(0);
+    expect(store.uploads).toHaveLength(0);
+  });
+
+  it("сбой чтения графика — FAILED, а не «строка не найдена»", async () => {
+    const db = fakeDb(seedTables(), { selectPlans: true });
+    const store = fakeStorage();
+    const result = await uploadSpecItemFile(db.client, store.storage, {
+      ...baseArgs,
+      uploadedBy: USER,
+      paymentPlanId: PLAN,
+      data: uploadData(),
+    });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe("FAILED");
     expect(store.uploads).toHaveLength(0);
   });
 });

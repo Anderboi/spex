@@ -11,6 +11,7 @@ import {
   fileGroupOf,
   fileKindOf,
   fileMetaParts,
+  filePaymentLinkLabel,
   formatFileDate,
   formatFileSize,
   isLeavingDropZone,
@@ -244,6 +245,8 @@ describe("fileAuthorLabel", () => {
     createdAt: "2026-10-06T09:30:00.000Z",
     paymentId: null,
     payment: null,
+    paymentPlanId: null,
+    paymentPlan: null,
   });
 
   it("показывает имя автора, а не uuid загрузившего", () => {
@@ -426,6 +429,71 @@ describe("paymentLinkLabel", () => {
   });
 });
 
+describe("подпись связи файла: план или факт", () => {
+  const file = (over: {
+    payment?: { paidAt: string | null; cancelled?: boolean } | null;
+    paymentPlan?: { dueDate: string | null; paidAt?: string | null } | null;
+  }) => ({
+    payment: over.payment ?? null,
+    paymentPlan: over.paymentPlan ?? null,
+  });
+
+  it("счёт к неоплаченному плану называется планом и его сроком", () => {
+    // Требование Q34: у счёта до оплаты есть подпись, и срок в ней — то, чем
+    // один плановый платёж позиции отличается от другого.
+    expect(
+      filePaymentLinkLabel(file({ paymentPlan: { dueDate: "2026-11-01" } })),
+    ).toBe("К запланированному платежу · до 1 ноября 2026 г.");
+  });
+
+  it("план без срока даёт подпись без обрывка «до »", () => {
+    expect(filePaymentLinkLabel(file({ paymentPlan: { dueDate: null } }))).toBe(
+      "К запланированному платежу",
+    );
+  });
+
+  it("после отметки «Оплачено» подпись сама меняется на дату оплаты", () => {
+    // Файл при этом не правится и ссылка не переезжает: у строки уже обе связи,
+    // и выбор подписи — правило показа, а не данных (ADR 0006).
+    expect(
+      filePaymentLinkLabel(
+        file({
+          payment: { paidAt: "2026-11-05", cancelled: false },
+          paymentPlan: { dueDate: "2026-11-01" },
+        }),
+      ),
+    ).toBe("К оплате от 5 ноября 2026 г.");
+  });
+
+  it("счёт, приложенный ТОЛЬКО к плану, тоже меняет подпись после оплаты", () => {
+    // Второй ссылки у файла может и не быть: счёт приложили к плану, а оплату
+    // отметили позже. Ожидание сбылось, и подписывать файл по-прежнему сроком
+    // значило бы рассказывать про то, чего уже не ждут.
+    expect(
+      filePaymentLinkLabel(
+        file({ paymentPlan: { dueDate: "2026-11-01", paidAt: "2026-11-05" } }),
+      ),
+    ).toBe("К оплате от 5 ноября 2026 г.");
+  });
+
+  it("отменённая оплата при живом плане называется отменённой", () => {
+    // Отмена возвращает строку в «Не оплачено», и файл обязан это сказать: план
+    // снова ожидание, но оплата БЫЛА, и молчать об этом нельзя.
+    expect(
+      filePaymentLinkLabel(
+        file({
+          payment: { paidAt: null, cancelled: true },
+          paymentPlan: { dueDate: "2026-11-01" },
+        }),
+      ),
+    ).toBe("К отменённой оплате");
+  });
+
+  it("файл без обеих связей подписи не получает", () => {
+    expect(filePaymentLinkLabel(file({}))).toBeNull();
+  });
+});
+
 /* ------------------------------------------------------------------ */
 /*  Порядок и вставка записи                                           */
 /* ------------------------------------------------------------------ */
@@ -446,6 +514,8 @@ describe("placeFileEntry", () => {
     createdAt,
     paymentId: null,
     payment: null,
+    paymentPlanId: null,
+    paymentPlan: null,
   });
 
   it("новая запись встаёт по created_at DESC, а не в конец", () => {

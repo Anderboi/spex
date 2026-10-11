@@ -535,6 +535,166 @@ describe("security: RLS Data API", () => {
 });
 
 /* ------------------------------------------------------------------ */
+/*  Основание у планового платежа: spec_item_files.payment_plan_id     */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Миграция `20261012_001`: счёт, приложенный к строке графика.
+ *
+ * ── Что проверяется и почему только здесь ──────────────────────────────────
+ *
+ * Триггер проверки принадлежности и внешний ключ — объекты БД, и на подставном
+ * клиенте их не проверить: unit-тесты проверяют ЯДРО (оно отвергает чужую ссылку
+ * понятным текстом), а здесь — второй контур, для записи в обход кода. Правило у
+ * него другое: расхождение СНИМАЕТ ссылку, а не роняет операцию, — и это ровно
+ * то, что нельзя подделать заглушкой.
+ *
+ * ── Своя уборка ────────────────────────────────────────────────────────────
+ *
+ * Строки создаются здесь и убираются здесь же, до `afterAll` файла: файл с
+ * непустым `payment_plan_id` не удалится, пока жива строка графика (RESTRICT,
+ * ADR 0004), а строка графика не удалится, пока на неё ссылается файл.
+ */
+describe("миграция: payment_plan_id у файла позиции", () => {
+  /** Строки графика прогона: по ним ищутся и убираются ссылки. */
+  const planIds: string[] = [];
+  /** Файлы прогона — чтобы убрать их раньше строк графика. */
+  const fileIds: string[] = [];
+
+  async function addPlan(over: { specItemId?: string; orgId?: string } = {}) {
+    const { data, error } = await admin
+      .from("spec_item_payment_plans")
+      .insert({
+        org_id: over.orgId ?? TARGET.orgId,
+        project_id: TARGET.projectId,
+        spec_item_id: over.specItemId ?? TARGET.specItemId,
+        title: "ОСНОВАНИЕ (тест)",
+        amount: 1000,
+        position: 900,
+      })
+      .select("id, org_id, project_id, spec_item_id")
+      .single();
+
+    expect(error).toBeNull();
+    if (!data) throw new Error("строка графика не создана");
+    planIds.push(data.id);
+    return data;
+  }
+
+  /** Файл строкой, а не через Storage: проверяется триггер, а не загрузка. */
+  async function addFileRow(over: { paymentPlanId?: string | null } = {}) {
+    const { data, error } = await admin
+      .from("spec_item_files")
+      .insert({
+        org_id: TARGET.orgId,
+        project_id: TARGET.projectId,
+        spec_item_id: TARGET.specItemId,
+        storage_path: `${TARGET.orgId}/spec-items/${TARGET.specItemId}/${crypto.randomUUID()}.pdf`,
+        file_name: "ОСНОВАНИЕ (тест).pdf",
+        mime_type: "application/pdf",
+        size_bytes: 10,
+        category: "invoice",
+        payment_plan_id: over.paymentPlanId ?? null,
+      })
+      .select("id, payment_plan_id")
+      .single();
+
+    expect(error).toBeNull();
+    if (!data) throw new Error("строка файла не создана");
+    fileIds.push(data.id);
+    return data;
+  }
+
+  afterAll(async () => {
+    if (fileIds.length > 0) {
+      const { error } = await admin
+        .from("spec_item_files")
+        .delete()
+        .in("id", fileIds);
+      if (error) console.error("[integration] cleanup plan files", error.message);
+    }
+
+    if (planIds.length > 0) {
+      const { error } = await admin
+        .from("spec_item_payment_plans")
+        .delete()
+        .in("id", planIds);
+      if (error) console.error("[integration] cleanup plan rows", error.message);
+    }
+  });
+
+  it("живая строка графика принимается: ссылка ложится в строку файла", async () => {
+    const plan = await addPlan();
+
+    const file = await addFileRow({ paymentPlanId: plan.id });
+
+    expect(file.payment_plan_id).toBe(plan.id);
+  });
+
+  it("строка графика ЧУЖОЙ позиции: ссылка снята, а строка файла жива", async () => {
+    const plan = await addPlan({ specItemId: NEIGHBOUR_ITEM });
+
+    const file = await addFileRow({ paymentPlanId: plan.id });
+
+    // Не ошибка, а починка: триггер обнуляет ссылку, и файл остаётся обычным
+    // документом позиции — его можно открыть и удалить.
+    expect(file.payment_plan_id).toBeNull();
+  });
+
+  it("несуществующая строка графика: отказ внешнего ключа, а не тихая ссылка", async () => {
+    // Второй контур: у ссылки есть цель. Триггер снимает РАСХОЖДЕНИЕ, но выдумку
+    // (ссылка в никуда) не пропускает ни он, ни ключ.
+    const missing = crypto.randomUUID();
+
+    const { error } = await admin.from("spec_item_files").insert({
+      org_id: TARGET.orgId,
+      project_id: TARGET.projectId,
+      spec_item_id: TARGET.specItemId,
+      storage_path: `${TARGET.orgId}/spec-items/${TARGET.specItemId}/${missing}.pdf`,
+      file_name: "НИКУДА (тест).pdf",
+      mime_type: "application/pdf",
+      size_bytes: 10,
+      category: "invoice",
+      payment_plan_id: missing,
+    });
+
+    expect(error).not.toBeNull();
+    expect(error!.code).toBe("23503");
+  });
+
+  it("мягко удалённая строка графика принимается: счёт объясняет снятое обязательство", async () => {
+    // Отличие от оплаты намеренное: документ к ОТМЕНЁННОЙ оплате ссылку не
+    // принимает, а счёт к удалённой строке графика — принимает. Иначе основание
+    // уже случившейся оплаты пропало бы вместе со строкой графика.
+    const plan = await addPlan();
+    const { error: softError } = await admin
+      .from("spec_item_payment_plans")
+      .update({ deleted_at: new Date().toISOString() })
+      .eq("id", plan.id);
+    expect(softError).toBeNull();
+
+    const file = await addFileRow({ paymentPlanId: plan.id });
+
+    expect(file.payment_plan_id).toBe(plan.id);
+  });
+
+  it("RESTRICT: строку графика с приложенным счётом физически не удалить", async () => {
+    const plan = await addPlan();
+    await addFileRow({ paymentPlanId: plan.id });
+
+    const { error } = await admin
+      .from("spec_item_payment_plans")
+      .delete()
+      .eq("id", plan.id);
+
+    // ADR 0004: финансовая история не исчезает каскадом. Штатный путь снятия
+    // обязательства — мягкое удаление, и оно ссылку не трогает.
+    expect(error).not.toBeNull();
+    expect(error!.code).toBe("23503");
+  });
+});
+
+/* ------------------------------------------------------------------ */
 /*  Валидация на живом Storage                                         */
 /* ------------------------------------------------------------------ */
 

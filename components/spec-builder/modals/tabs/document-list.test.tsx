@@ -52,6 +52,8 @@ function entry(overrides: Partial<SpecItemFileEntry> = {}): SpecItemFileEntry {
     createdAt: "2026-10-06T09:30:00.000Z",
     paymentId: null,
     payment: null,
+    paymentPlanId: null,
+    paymentPlan: null,
     ...overrides,
   };
 }
@@ -429,6 +431,61 @@ describe("DocumentList: строка документа", () => {
     expect(
       within(rowOf("Обычный.pdf")).queryByText(/оплате/),
     ).toBeNull();
+  });
+
+  it("счёт к запланированному платежу подписан сроком, а после оплаты — датой оплаты", () => {
+    /*
+      Решение Q34 и ADR 0006: подпись у счёта до оплаты нужна, иначе файл во
+      вкладке «Файлы» выглядит документом, про который непонятно, почему он
+      здесь. После отметки «Оплачено» подпись меняется на дату проводки — файл
+      при этом не правится и ссылка не переезжает.
+    */
+    render(
+      <Harness
+        files={[
+          entry({
+            id: "a",
+            fileName: "Счёт на аванс.pdf",
+            category: "invoice",
+            paymentPlanId: "plan-1",
+            paymentPlan: {
+              id: "plan-1",
+              title: "Аванс 50 %",
+              amount: 10000,
+              dueDate: "2026-11-01",
+              paidAt: null,
+            },
+          }),
+          entry({
+            id: "b",
+            fileName: "Счёт к оплаченному.pdf",
+            category: "invoice",
+            paymentId: "p-1",
+            payment: { kind: "payment", paidAt: "2026-11-05", cancelled: false },
+            paymentPlanId: "plan-2",
+            paymentPlan: {
+              id: "plan-2",
+              title: "Остаток",
+              amount: 8000,
+              dueDate: "2026-11-01",
+              paidAt: "2026-11-05",
+            },
+          }),
+        ]}
+      />,
+    );
+
+    expect(
+      within(rowOf("Счёт на аванс.pdf")).getByText(
+        "К запланированному платежу · до 1 ноября 2026 г.",
+      ),
+    ).toBeTruthy();
+    // Оплата важнее плана: она называет случившееся, план — ожидаемое.
+    expect(
+      within(rowOf("Счёт к оплаченному.pdf")).getByText(
+        "К оплате от 5 ноября 2026 г.",
+      ),
+    ).toBeTruthy();
   });
 });
 

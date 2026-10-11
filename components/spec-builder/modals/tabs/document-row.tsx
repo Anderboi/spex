@@ -45,7 +45,7 @@ import {
   fileGroupOf,
   fileKindOf,
   fileMetaParts,
-  paymentLinkLabel,
+  filePaymentLinkLabel,
 } from "@/lib/spec/file-view";
 import type { SpecItemFileCategory, SpecItemFileKind } from "@/lib/spec/file-content";
 import type { SpecItemFileEntry } from "@/lib/spec/spec-item-files";
@@ -144,7 +144,7 @@ export default function DocumentRow({
   error,
 }: DocumentRowProps) {
   const Icon = KIND_ICON[fileKindOf(file)];
-  const paymentLabel = paymentLinkLabel(file.payment);
+  const paymentLabel = filePaymentLinkLabel(file);
   const meta = fileMetaParts({
     sizeBytes: file.sizeBytes,
     createdAt: file.createdAt,
