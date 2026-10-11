@@ -482,10 +482,12 @@ describe("PaymentsTab · документы к оплате", () => {
 
     // Документ привязан к первой записи: чипс один, и лежит он в карточке этой
     // оплаты — вторая карточка осталась с одним приглашением.
-    expect(screen.getAllByLabelText(/^[^:]+: /)).toHaveLength(1);
     expect(
       documentChipIn(paymentCard("1 октября 2026 г."), "Чек №7.pdf"),
     ).toBeDefined();
+    expect(
+      within(paymentCard("5 октября 2026 г.")).queryByRole("img"),
+    ).toBeNull();
   });
 
   it("чипс показывает вид документа, а имя — в подсказке: управление во вкладке «Файлы»", async () => {

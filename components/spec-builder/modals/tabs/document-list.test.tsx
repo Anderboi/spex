@@ -858,6 +858,51 @@ describe("DocumentList: компактные чипсы", () => {
     expect(documentChip("Второй.pdf")).toBeTruthy();
   });
 
+  it("пока шаг не отвечен, второй файл в строку не принимается", async () => {
+    const user = userEvent.setup();
+    render(<ChipsHarness />);
+
+    pickFiles(picker(), [pdf("Первый.pdf"), pdf("Второй.pdf")]);
+
+    // Очередь вопросов одна: вопрос относится к одному файлу, и второй файл в ней
+    // не дал бы понять, к какому именно. Поэтому и приглашение выключено, и
+    // picker ничего не принимает — пока на шаг не ответили.
+    expect(within(categoryPicker() as HTMLElement).getByText(/Файл 1 из 2/)).toBeTruthy();
+    expect((addDocumentButton() as HTMLButtonElement).disabled).toBe(true);
+
+    pickFiles(picker(), [pdf("Третий.pdf")]);
+    expect(within(categoryPicker() as HTMLElement).queryByText("Третий.pdf")).toBeNull();
+    expect(within(categoryPicker() as HTMLElement).getByText(/Файл 1 из 2/)).toBeTruthy();
+    expect(uploadMock).not.toHaveBeenCalled();
+
+    // Ответ на шаг возвращает очередь в обычное русло: остались те же два файла.
+    await user.click(categoryStepChoice("Чек"));
+    await waitFor(() => expect(uploadMock).toHaveBeenCalledTimes(1));
+    await waitFor(() =>
+      expect(within(categoryPicker() as HTMLElement).getByText(/Файл 2 из 2/)).toBeTruthy(),
+    );
+  });
+
+  it("отказ выбора файла снимается следующей удачной отправкой (вариант «список»)", async () => {
+    // Общий путь до списка файлов тот же (`acceptFiles`), поэтому отказ выбора не
+    // должен на нём залипать: это поведение списка, а не компактного варианта.
+    const huge = new File([new Uint8Array(1)], "Огромный.pdf", {
+      type: "application/pdf",
+    });
+    Object.defineProperty(huge, "size", { value: 26 * 1024 * 1024 });
+
+    uploadMock.mockResolvedValue({ success: true, data: pdfEntry("u-1") });
+    render(<Harness files={[]} />);
+
+    pickFiles(picker(), [huge]);
+    expect(textOf(screen.getByRole("alert"))).toContain("больше 25 МБ");
+
+    pickFiles(picker(), [pdf("Нормальный.pdf")]);
+
+    await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
+    await waitFor(() => expect(uploadMock).toHaveBeenCalledTimes(1));
+  });
+
   it("viewer видит чипсы, но не получает ни точки прикрепления, ни шага выбора вида", () => {
     render(
       <ChipsHarness

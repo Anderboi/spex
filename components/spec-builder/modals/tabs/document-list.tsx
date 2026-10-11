@@ -402,7 +402,7 @@ function AttachPlaceholder({
   disabled,
   onPick,
 }: {
-  /** Сколько файлов ещё ждут своего вида (включая отправляемый). */
+  /** Сколько файлов ещё ждут своего вида — без того, что уже отправляется. */
   waiting: number;
   busy: boolean;
   disabled: boolean;
@@ -669,6 +669,17 @@ export default function DocumentList({
         return;
       }
 
+      /**
+       * Пока шаг выбора вида не отвечен, новые файлы не принимаются.
+       *
+       * Очередь вопросов одна: второй файл встал бы за первым, а вопрос шага
+       * относится к одному — и человек гадал бы, к какому из двух. Точки входа
+       * поэтому выключены (`dropEnabled`, `AttachPlaceholder`), а это — защита от
+       * того же через picker.
+       */
+      if (isChips && categoryQueue.length > 0) return;
+
+      setPickError(null);
       setUploadError(null);
 
       const queue: PendingUpload[] = picked.map((file, index) => ({
@@ -693,7 +704,6 @@ export default function DocumentList({
         setCategoryQueue((current) => [...current, ...queue]);
         return;
       }
-
       setPending((current) => [...current, ...queue]);
 
       void (async () => {
@@ -708,7 +718,7 @@ export default function DocumentList({
         }
       })();
     },
-    [canWrite, isChips, specItemId, uploadItem],
+    [canWrite, categoryQueue.length, isChips, specItemId, uploadItem],
   );
 
   /**
@@ -1056,17 +1066,6 @@ export default function DocumentList({
     const hidden = files.slice(MAX_CHIPS);
     /** Файл, про вид которого спрашивает шаг. Он же — голова очереди. */
     const asked = categoryQueue[0] ?? null;
-    /**
-     * Счётчик переполнения прячется, пока все видимые файлы — ещё не приложенные.
-     *
-     * Иначе пачка из пяти перетащенных файлов сразу показывала бы «+2» у строки,
-     * где документов пока ноль: «+N» — это про скрытые ПРИКРЕПЛЁННЫЕ документы, а
-     * не про очередь. Как только первые три чипса встанут, остаток снова виден —
-     * в том числе если часть пачки не загрузилась.
-     */
-    const overflowHidden =
-      hidden.length > 0 &&
-      (files.length > 0 || categoryQueue.length < categoryProgress.batch);
 
     return (
       <div
@@ -1095,7 +1094,11 @@ export default function DocumentList({
           <FileChip key={file.id} file={file} />
         ))}
 
-        {overflowHidden && (
+        {/*
+          Счётчик считается по ПРИКРЕПЛЁННЫМ документам: файлы, которых ещё нет в
+          списке, ничего не прячут, и «+N» про них ничего не говорит.
+        */}
+        {hidden.length > 0 && (
           <OverflowChip
             count={hidden.length}
             firstHidden={hidden[0].fileName}
@@ -1133,7 +1136,12 @@ export default function DocumentList({
           <AttachPlaceholder
             waiting={categoryQueue.length}
             busy={assigning}
-            disabled={assigning || dragActive}
+            /*
+              Пока шаг не отвечен, приглашение выключено: очередь вопросов одна, и
+              второй файл ждал бы за первым, не давая понять, к какому из двух
+              относится вопрос.
+            */
+            disabled={assigning || asked !== null || dragActive}
             onPick={() => pickerRef.current?.click()}
           />
         )}

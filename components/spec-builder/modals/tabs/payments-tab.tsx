@@ -48,7 +48,6 @@ import type { PaymentEntry } from "@/lib/spec/payment-types";
 import type { PaymentPlanEntry } from "@/lib/spec/payment-plan-types";
 import type { OrgRole } from "@/lib/permissions";
 import DocumentList from "./document-list";
-import { useSignedThumbnails } from "./use-signed-thumbnails";
 import { useStoredFileList } from "./use-file-list";
 import PaymentPlanForm, {
   type PaymentPlanFormValues,
@@ -137,6 +136,19 @@ import PaymentForm, { type PaymentFormValues } from "./payment-form";
 
 /** Сколько строк-заготовок показывать при загрузке. */
 const SKELETON_ROWS = 3;
+
+/**
+ * Превью у чипсов нет: ссылок не подписываем.
+ *
+ * Контракт `DocumentList` один на оба варианта, поэтому пустая карта и обработчик
+ * без работы передаются явно — «миниатюр здесь нет» это не отсутствие пропсов, а
+ * их пустое значение. Ссылки подписывает вкладка «Файлы»: там превью видны.
+ */
+const NO_THUMBS: Record<string, string> = {};
+
+function ignoreThumbFailure() {
+  // Превью не рисуется, значит и сообщать о неудачной картинке нечего.
+}
 
 /**
  * Ключ идемпотентности новой оплаты.
@@ -391,14 +403,12 @@ export default function PaymentsTab({
   const loading = !isCurrent && (error === null || inFlight);
   const failed = !isCurrent && error !== null && !inFlight;
 
-  /**
-   * Миниатюры изображений: одна подпись на ВСЕ карточки сразу.
-   *
-   * Список документов здесь монтируется по одному на каждую оплату, а файлы
-   * вкладка читает один раз на всю позицию — подпись идёт туда же, иначе на
-   * десять карточек приходилось бы десять вызовов подписи вместо одного.
-   */
-  const thumbnails = useSignedThumbnails(orgSlug, specItemId, files, isCurrent);
+  /*
+    Миниатюр документов здесь нет намеренно: список у оплаты компактный (чипсы
+    видов), а чипс рисуется одним текстом. Ссылки на превью подписывает вкладка
+    «Файлы» — `useSignedThumbnails` там, где превью действительно видны; лишний
+    вызов подписи на каждый файл позиции ради невидимых картинок не нужен.
+  */
 
   const busyHere = busy?.itemKey === specItemId ? busy : null;
   const actionErrorHere =
@@ -1002,8 +1012,8 @@ export default function PaymentsTab({
                     specItemId={specItemId}
                     files={files.filter((file) => file.paymentId === payment.id)}
                     loading={false}
-                    thumbs={thumbnails.urls}
-                    onThumbFailed={thumbnails.onFailed}
+                    thumbs={NO_THUMBS}
+                    onThumbFailed={ignoreThumbFailure}
                     paymentId={payment.id}
                     canWrite={canWrite}
                     variant="chips"
