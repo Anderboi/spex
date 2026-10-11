@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import DocumentList from "./document-list";
 import { useStoredFileList } from "./use-file-list";
+import { documentChip } from "./document-chips-test-helper";
 import type { SpecItemFileEntry } from "@/lib/spec/spec-item-files";
 
 /**
@@ -106,6 +107,16 @@ function Harness(overrides: {
 const picker = () =>
   screen.getByLabelText("Выбрать файлы для загрузки") as HTMLInputElement;
 
+/**
+ * Шаг выбора вида после приёма файла.
+ *
+ * Ищется по заголовку шага, а не по кнопкам: «Счёт» и «Чек» — обычные слова,
+ * которые встречаются и в других местах списка, а сам шаг — единственное, что
+ * отличает компактный вариант при загрузке.
+ */
+const categoryPicker = () =>
+  screen.queryByRole("group", { name: "Какой это документ?" });
+
 const addFileButton = () => screen.getByRole("button", { name: "Добавить файл" });
 
 const dropZone = () => document.querySelector("[data-drag-active]") as HTMLElement;
@@ -189,6 +200,68 @@ beforeEach(() => {
 });
 
 afterEach(cleanup);
+
+/**
+ * Обёртка компактного варианта: те же настоящие данные и хук, что у списка.
+ *
+ * `variant` — свойство СПИСКА, а не второй компонент: у оплаты и у вкладки
+ * «Файлы» один список документов, и разойтись им нельзя (см. докблок
+ * `document-list.tsx`). Поэтому компактный показ проверяется на том же
+ * компоненте, что и полный.
+ */
+function ChipsHarness(overrides: {
+  files?: SpecItemFileEntry[];
+  canWrite?: boolean;
+  paymentId?: string | null;
+  loading?: boolean;
+} = {}) {
+  const { files, apply, mutate } = useStoredFileList(overrides.files ?? []);
+
+  return (
+    <DocumentList
+      orgSlug="andy"
+      specItemId="item-1"
+      files={files}
+      loading={overrides.loading ?? false}
+      thumbs={{}}
+      onThumbFailed={() => {}}
+      paymentId={overrides.paymentId ?? "payment-1"}
+      canWrite={overrides.canWrite ?? true}
+      variant="chips"
+      onUploaded={(created) => apply({ type: "uploaded", entry: created })}
+      onChanged={(changed) => apply({ type: "changed", entry: changed })}
+      onDeleted={(fileId) => apply({ type: "deleted", fileId })}
+      mutate={mutate}
+    />
+  );
+}
+
+/** Счётчик переполнения: инертный, поэтому ищется по тексту, а не по роли. */
+const overflowCounter = () => screen.getByText(/^\+\d+$/);
+
+/**
+ * Плейсхолдер прикрепления: кнопка-приглашение в строке оплаты.
+ *
+ * Ищется по НАЧАЛУ доступного имени, а не целиком: подпись меняется от того,
+ * сколько файлов ждёт своего вида («Принять документы · 2»), а сам плейсхолдер от
+ * этого не перестаёт быть одним и тем же входом.
+ */
+const addDocumentButton = () =>
+  screen.getByRole("button", { name: /^(Прикрепить счёт или чек|Принять документы)/ });
+
+const noDocumentsChip = () =>
+  screen.queryByRole("button", {
+    name: /^(Прикрепить счёт или чек|Принять документы)/,
+  });
+
+/**
+ * Пункт шага выбора вида: у документа к оплате роль несут «Счёт» и «Чек».
+ *
+ * Ищется ВНУТРИ шага: те же подписи есть у чипов готовых документов, и
+ * `getByRole` по всей странице дал бы несколько совпадений.
+ */
+const categoryStepChoice = (label: string) =>
+  within(categoryPicker() as HTMLElement).getByRole("button", { name: label });
 
 /* ------------------------------------------------------------------ */
 /*  Группы и фильтры                                                   */
@@ -380,11 +453,14 @@ describe("DocumentList: загрузка", () => {
     expect(uploadMock.mock.calls[0][1]).toBe("item-1");
 
     // Форма несёт файл и признак оплаты — и НЕ несёт вид документа: его
-    // определяет сервер, поэтому клиенту нечего здесь решать.
+    // определяет сервер, поэтому клиенту нечего здесь решать. Это правило
+    // ОБЩЕГО пути: шаг выбора вида есть только у компактного варианта списка,
+    // где документ несёт роль при оплате.
     const form = formDataOf(0);
     expect(form.get("file")).toBeInstanceOf(File);
     expect(form.get("payment_id")).toBe("");
     expect(form.get("category")).toBeNull();
+    expect(categoryPicker()).toBeNull();
 
     // Оба файла появились в списке ответами сервера.
     await waitFor(() => {
@@ -493,6 +569,326 @@ describe("DocumentList: загрузка", () => {
     expect(
       screen.getByRole("button", { name: /Открыть «Счёт №124\.pdf»/ }),
     ).toBeTruthy();
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/*  Компактные чипсы                                                   */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Компактный вариант списка: чипсы видов у строки оплаты.
+ *
+ * ── Что здесь проверяется и почему именно так ──────────────────────────────
+ *
+ * Чипс показывает ВИД, а не имя: у двух чеков на разные суммы виды совпадают, и
+ * различить их чипсами нельзя — имя доступно в `title` и `aria-label`. Поэтому
+ * каждый тест ниже достаёт имя не текстом, а подсказкой.
+ *
+ * Чипс инертен: ни клика, ни меню у него нет. Это не «недоделка», а решение —
+ * управление документом живёт в одном месте, во вкладке «Файлы». Тест
+ * «клик ничего не делает» ловит именно попытку вернуть сюда действия.
+ *
+ * Роль документа к оплате несёт вид (`invoice` — основание, `receipt` —
+ * подтверждение, ADR 0005), поэтому у оплаты вид спрашивают шагом после приёма
+ * файла, а не угадывают форматом.
+ */
+describe("DocumentList: компактные чипсы", () => {
+  it("показывает вид документа, а имя — в подсказке и доступном имени", () => {
+    render(<ChipsHarness files={[entry({ id: "f-1", fileName: "Чек №7.pdf", category: "receipt" })]} />);
+
+    const chipNode = documentChip("Чек №7.pdf");
+    expect(chipNode.textContent).toContain("Чек");
+    expect(chipNode.textContent).not.toContain("Чек №7.pdf");
+    // Обрезанное имя здесь не читается вовсе, поэтому подсказка — не украшение,
+    // а единственный способ узнать, что это за файл.
+    expect(chipNode.getAttribute("title")).toBe("Чек: Чек №7.pdf");
+    expect(chipNode.getAttribute("aria-label")).toBe("Чек: Чек №7.pdf");
+  });
+
+  it("различает два документа одного вида по подсказке", () => {
+    // Ради этого случая имя и ушло в подсказку: два чека на разные суммы
+    // чипсами неразличимы, и различить их можно только именем файла.
+    render(
+      <ChipsHarness
+        files={[
+          entry({ id: "f-1", fileName: "Чек №7.pdf", category: "receipt" }),
+          entry({ id: "f-2", fileName: "Чек №9.pdf", category: "receipt" }),
+        ]}
+      />,
+    );
+
+    expect(documentChip("Чек №7.pdf").getAttribute("title")).toBe("Чек: Чек №7.pdf");
+    expect(documentChip("Чек №9.pdf").getAttribute("title")).toBe("Чек: Чек №9.pdf");
+  });
+
+  it("у документа к оплате вид не выводится из формата заново", () => {
+    // Вид — данные строки: «Счёт» у PDF не превращается в «Документ» от того,
+    // что формат у него общий с ТЗ и договором.
+    render(
+      <ChipsHarness
+        files={[
+          entry({ id: "f-1", fileName: "Основание.pdf", category: "invoice" }),
+        ]}
+      />,
+    );
+
+    expect(documentChip("Основание.pdf").textContent).toContain("Счёт");
+  });
+
+  it("клик по чипсу ничего не делает: открывать и править — во вкладке «Файлы»", async () => {
+    const user = userEvent.setup();
+    render(<ChipsHarness files={[entry({ id: "f-1", fileName: "Чек №7.pdf", category: "receipt" })]} />);
+
+    await user.click(documentChip("Чек №7.pdf"));
+
+    // Ни ссылки, ни меню действий: чипс — span, а не кнопка.
+    expect(urlMock).not.toHaveBeenCalled();
+    expect(
+      screen.queryByRole("button", { name: /Открыть «/ }),
+    ).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: /^Действия с «/ }),
+    ).toBeNull();
+    // Чипс не интерактивен: роль кнопки ему не присвоена.
+    expect(screen.queryByRole("button", { name: "Чек: Чек №7.pdf" })).toBeNull();
+  });
+
+  it("плейсхолдер-чипс остаётся приглашением даже когда документов нет", async () => {
+    const user = userEvent.setup();
+    render(<ChipsHarness files={[]} />);
+
+    // Пустого места в строке не бывает: точка прикрепления видна всегда.
+    const placeholder = addDocumentButton();
+    await user.click(placeholder);
+
+    // Тот же скрытый input, что и у полного списка: путь загрузки один.
+    expect(picker().multiple).toBe(true);
+  });
+
+  it("плейсхолдер остаётся и при непустых документах: прикрепить второй чек есть чем", () => {
+    render(<ChipsHarness files={[entry({ id: "f-1", category: "receipt" })]} />);
+
+    expect(addDocumentButton()).toBeTruthy();
+  });
+
+  it("чипсов не больше предела: остальное — инертный счётчик «+N»", () => {
+    const many = Array.from({ length: 5 }, (_, index) =>
+      entry({ id: `f-${index}`, fileName: `Чек ${index}.pdf`, category: "receipt" }),
+    );
+    render(<ChipsHarness files={many} />);
+
+    // Три чипса и «+2» вместо пяти чипсов, ломающих строку оплаты.
+    expect(documentChip("Чек 0.pdf")).toBeTruthy();
+    expect(documentChip("Чек 2.pdf")).toBeTruthy();
+    expect(screen.queryByLabelText("Чек: Чек 3.pdf")).toBeNull();
+    expect(overflowCounter().textContent).toBe("+2");
+  });
+
+  it("счётчик переполнения ничего не открывает: за ним смотрят во вкладке «Файлы»", async () => {
+    const user = userEvent.setup();
+    const many = Array.from({ length: 5 }, (_, index) =>
+      entry({ id: `f-${index}`, fileName: `Чек ${index}.pdf`, category: "receipt" }),
+    );
+    render(<ChipsHarness files={many} />);
+
+    const counter = overflowCounter();
+    expect(counter.tagName).toBe("SPAN");
+    await user.click(counter);
+
+    // Ни попапа, ни ссылки: попап требовал бы клика, которого у чипсов нет.
+    expect(screen.queryByRole("menu")).toBeNull();
+    expect(urlMock).not.toHaveBeenCalled();
+  });
+
+  it("перетаскивание на строку подсвечивает её и принимает файлы", async () => {
+    uploadMock.mockResolvedValue({
+      success: true,
+      data: entry({ id: "u-1", fileName: "Брошенный.pdf", paymentId: "payment-1" }),
+    });
+    render(<ChipsHarness />);
+
+    fireEvent.dragEnter(dropZone(), dragEvent([pdf()]));
+    expect(isDragActive()).toBe(true);
+    expect(screen.getByText(/Отпустите/)).toBeTruthy();
+
+    fireEvent.drop(dropZone(), dragEvent([pdf("Брошенный.pdf")]));
+
+    expect(isDragActive()).toBe(false);
+    // Вид спрашивается сразу после приёма — файл ещё не ушёл на сервер.
+    const step = categoryPicker() as HTMLElement;
+    expect(within(step).getByText("Брошенный.pdf")).toBeTruthy();
+    expect(uploadMock).not.toHaveBeenCalled();
+
+    await userEvent.setup().click(categoryStepChoice("Чек"));
+
+    await waitFor(() => expect(uploadMock).toHaveBeenCalledTimes(1));
+    // Файл ушёл к ЭТОЙ оплате, а не к позиции: `payment_id` — единственное, что
+    // отличает документ оплаты от обычного файла позиции.
+    expect(formDataOf(0).get("payment_id")).toBe("payment-1");
+  });
+
+  it("выбранный вид уходит на сервер явным category и перебивает догадку", async () => {
+    uploadMock.mockResolvedValue({
+      success: true,
+      data: entry({
+        id: "u-1",
+        fileName: "Основание.pdf",
+        category: "invoice",
+        paymentId: "payment-1",
+      }),
+    });
+    render(<ChipsHarness />);
+
+    pickFiles(picker(), [pdf("Основание.pdf")]);
+    await userEvent.setup().click(categoryStepChoice("Счёт"));
+
+    await waitFor(() => expect(uploadMock).toHaveBeenCalledTimes(1));
+    // PDF без явного вида сервер назвал бы «Документом»: роль основания
+    // потерялась бы молча (ADR 0005).
+    expect(formDataOf(0).get("category")).toBe("invoice");
+  });
+
+  it("пачка сохраняется: у каждого файла спрашивают свой вид", async () => {
+    const user = userEvent.setup();
+    uploadMock
+      .mockResolvedValueOnce({
+        success: true,
+        data: entry({ id: "u-1", fileName: "Основание.pdf", category: "invoice", paymentId: "payment-1" }),
+      })
+      .mockResolvedValueOnce({
+        success: true,
+        data: entry({ id: "u-2", fileName: "Подтверждение.pdf", category: "receipt", paymentId: "payment-1" }),
+      });
+    render(<ChipsHarness />);
+
+    pickFiles(picker(), [pdf("Основание.pdf"), pdf("Подтверждение.pdf")]);
+
+    // Вид спрашивают у каждого файла отдельно: у основания и подтверждения
+    // роли разные, и один ответ на пачку потерял бы одну из них.
+    expect(within(categoryPicker() as HTMLElement).getByText("Основание.pdf")).toBeTruthy();
+    await user.click(categoryStepChoice("Счёт"));
+
+    await waitFor(() => expect(uploadMock).toHaveBeenCalledTimes(1));
+    await waitFor(() =>
+      expect(within(categoryPicker() as HTMLElement).getByText("Подтверждение.pdf")).toBeTruthy(),
+    );
+    await user.click(categoryStepChoice("Чек"));
+
+    await waitFor(() => expect(uploadMock).toHaveBeenCalledTimes(2));
+    expect(formDataOf(0).get("category")).toBe("invoice");
+    expect(formDataOf(1).get("category")).toBe("receipt");
+
+    // Оба документа в строке: ответы сервера, а не локальная догадка.
+    await waitFor(() => {
+      expect(documentChip("Основание.pdf")).toBeTruthy();
+      expect(documentChip("Подтверждение.pdf")).toBeTruthy();
+    });
+  });
+
+  it("кнопка приглашения ведёт тем же путём, что перетаскивание", async () => {
+    // Две точки входа, одно правило: и drop-зона, и плейсхолдер-кнопка открывают
+    // один скрытый input, поэтому документ к оплате приходит с тем же
+    // `payment_id` и тем же шагом выбора вида.
+    const user = userEvent.setup();
+    uploadMock.mockResolvedValue({
+      success: true,
+      data: entry({ id: "u-1", fileName: "Основание.pdf", category: "invoice", paymentId: "payment-1" }),
+    });
+    render(<ChipsHarness />);
+
+    await user.click(addDocumentButton());
+    pickFiles(picker(), [pdf("Основание.pdf")]);
+
+    await user.click(categoryStepChoice("Счёт"));
+
+    await waitFor(() => expect(uploadMock).toHaveBeenCalledTimes(1));
+    expect(formDataOf(0).get("payment_id")).toBe("payment-1");
+    expect(formDataOf(0).get("category")).toBe("invoice");
+  });
+
+  it("отказ от прикрепления на шаге: файл не уходит на сервер и очередь идёт дальше", async () => {
+    const user = userEvent.setup();
+    uploadMock.mockResolvedValue({
+      success: true,
+      data: entry({ id: "u-1", fileName: "Второй.pdf", category: "receipt", paymentId: "payment-1" }),
+    });
+    render(<ChipsHarness />);
+
+    pickFiles(picker(), [pdf("Первый.pdf"), pdf("Второй.pdf")]);
+
+    // Рядом с шагом есть выход: спохватившийся пользователь не обязан
+    // прикреплять файл, который только что перетащил по ошибке.
+    expect(within(categoryPicker() as HTMLElement).getByText(/Файл 1 из 2/)).toBeTruthy();
+    await user.click(within(categoryPicker() as HTMLElement).getByRole("button", { name: "Не прикреплять" }));
+
+    await waitFor(() =>
+      expect(within(categoryPicker() as HTMLElement).getByText("Второй.pdf")).toBeTruthy(),
+    );
+    expect(uploadMock).not.toHaveBeenCalled();
+    expect(screen.queryByLabelText("Чек: Первый.pdf")).toBeNull();
+
+    await user.click(categoryStepChoice("Чек"));
+    await waitFor(() => expect(uploadMock).toHaveBeenCalledTimes(1));
+    expect(documentChip("Второй.pdf")).toBeTruthy();
+  });
+
+  it("ошибка загрузки снимается следующей удачной отправкой", async () => {
+    const user = userEvent.setup();
+    uploadMock
+      .mockResolvedValueOnce({ success: false, error: "Тип файла не поддерживается" })
+      .mockResolvedValueOnce({
+        success: true,
+        data: entry({ id: "u-2", fileName: "Второй.pdf", category: "receipt", paymentId: "payment-1" }),
+      });
+    render(<ChipsHarness />);
+
+    pickFiles(picker(), [pdf("Первый.pdf")]);
+    await user.click(categoryStepChoice("Чек"));
+
+    await waitFor(() =>
+      expect(textOf(screen.getByRole("alert"))).toContain("Тип файла не поддерживается"),
+    );
+
+    // Вторая попытка: отказ не должен висеть над строкой после успеха.
+    pickFiles(picker(), [pdf("Второй.pdf")]);
+    await user.click(categoryStepChoice("Чек"));
+
+    await waitFor(() => expect(screen.queryByRole("alert")).toBeNull());
+    expect(documentChip("Второй.pdf")).toBeTruthy();
+  });
+
+  it("viewer видит чипсы, но не получает ни точки прикрепления, ни шага выбора вида", () => {
+    render(
+      <ChipsHarness
+        files={[entry({ id: "f-1", fileName: "Чек №7.pdf", category: "receipt" })]}
+        canWrite={false}
+      />,
+    );
+
+    // Чтение правами не описывается: документ к оплате — часть суммы, которую
+    // наблюдатель видит.
+    expect(documentChip("Чек №7.pdf")).toBeTruthy();
+    // А запись — описывается: ни приглашения, ни шага.
+    expect(noDocumentsChip()).toBeNull();
+    expect(categoryPicker()).toBeNull();
+  });
+
+  it("наблюдателю перетаскивание ничего не открывает", () => {
+    render(<ChipsHarness canWrite={false} />);
+
+    fireEvent.dragEnter(dropZone(), dragEvent([pdf()]));
+    fireEvent.drop(dropZone(), dragEvent([pdf("Чужой.pdf")]));
+
+    expect(isDragActive()).toBe(false);
+    expect(categoryPicker()).toBeNull();
+    expect(uploadMock).not.toHaveBeenCalled();
+  });
+
+  it("заготовки показываются при загрузке списка", () => {
+    render(<ChipsHarness loading />);
+
+    expect(document.querySelectorAll('[data-slot="skeleton"]').length).toBeGreaterThan(0);
   });
 });
 

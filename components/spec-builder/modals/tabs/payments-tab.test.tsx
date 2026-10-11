@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import PaymentsTab from "./payments-tab";
+import { documentChip, documentChipIn } from "./document-chips-test-helper";
 import type { PaymentEntry } from "@/lib/spec/payment-types";
 import type { PaymentPlanEntry } from "@/lib/spec/payment-plan-types";
 import type { SpecItemFileEntry } from "@/lib/spec/spec-item-files";
@@ -188,8 +189,13 @@ const money = (value: number) =>
  * `userEvent`, который уважает ограничения input'а.
  */
 function pickDocument(input: HTMLElement, chosen: File) {
+  pickDocuments(input, [chosen]);
+}
+
+/** То же для пачки: `multiple` у input'а включён, файлы выбираются сразу. */
+function pickDocuments(input: HTMLElement, chosen: File[]) {
   Object.defineProperty(input, "files", {
-    value: [chosen],
+    value: chosen,
     configurable: true,
   });
   fireEvent.change(input);
@@ -442,25 +448,19 @@ describe("PaymentsTab · возвратов больше, чем оплат", ()
 /* ------------------------------------------------------------------ */
 
 /**
- * Карточка одной записи: в ней живёт свой список документов.
+ * Карточка одной записи: в ней живут чипсы её документов.
  *
  * Опорная точка — дата записи. Она встречается в строке дважды (подпись факта и
- * «К оплате от …» у документа), поэтому берётся ПЕРВОЕ совпадение: подпись факта
- * стоит в разметке выше списка документов. Так тест не зависит от того, какой
- * именно элемент обрамляет карточку, а дата не повторяется в других записях
- * (суммы повторяются — в карточке прогресса та же цифра).
+ * подпись документа), поэтому берётся ПЕРВОЕ совпадение: подпись факта стоит в
+ * разметке выше. Так тест не зависит от того, какой именно элемент обрамляет
+ * карточку, а дата не повторяется в других записях (суммы повторяются — в
+ * карточке прогресса та же цифра).
  */
 const paymentCard = (date: string) =>
   screen.getAllByText(date)[0].closest("div.rounded-xl") as HTMLElement;
 
-/** Список документов внутри карточки: заголовок группы «Закупка» или пусто. */
-const fileRowIn = (card: HTMLElement, fileName: string) =>
-  within(card).getByRole("button", {
-    name: new RegExp(`Открыть «${fileName}»`),
-  });
-
 describe("PaymentsTab · документы к оплате", () => {
-  it("документ виден у своей оплаты и не виден у чужой", async () => {
+  it("документ виден чипсом у своей оплаты и не виден у чужой", async () => {
     setup({
       payments: [
         payment({ id: "p-1", paidAt: "2026-10-01" }),
@@ -477,22 +477,18 @@ describe("PaymentsTab · документы к оплате", () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByText("Чек №7.pdf")).toBeDefined();
+      expect(documentChip("Чек №7.pdf")).toBeDefined();
     });
 
-    // Документ привязан к первой записи: строка документа ровно одна, и она
-    // лежит внутри карточки этой оплаты — вторая карточка документов не имеет.
-    const rows = screen.getAllByRole("button", { name: /^Открыть «/ });
-    expect(rows).toHaveLength(1);
-    expect(rows[0].getAttribute("aria-label")).toBe(
-      "Открыть «Чек №7.pdf» в новой вкладке",
-    );
+    // Документ привязан к первой записи: чипс один, и лежит он в карточке этой
+    // оплаты — вторая карточка осталась с одним приглашением.
+    expect(screen.getAllByLabelText(/^[^:]+: /)).toHaveLength(1);
     expect(
-      fileRowIn(paymentCard("1 октября 2026 г."), "Чек №7.pdf"),
+      documentChipIn(paymentCard("1 октября 2026 г."), "Чек №7.pdf"),
     ).toBeDefined();
   });
 
-  it("документы оплаты показываются тем же списком с группами", async () => {
+  it("чипс показывает вид документа, а имя — в подсказке: управление во вкладке «Файлы»", async () => {
     setup({
       payments: [payment({ id: "p-1", paidAt: "2026-10-01" })],
       files: [
@@ -507,17 +503,46 @@ describe("PaymentsTab · документы к оплате", () => {
     });
 
     await waitFor(() => {
-      expect(screen.getByText("Чек №7.pdf")).toBeDefined();
+      expect(documentChip("Чек №7.pdf")).toBeDefined();
     });
 
-    // Тот же язык, что во вкладке «Файлы»: вид документа виден чипом, файл
-    // лежит в своей группе. «Закупка» встречается дважды — чипом фильтра и
-    // заголовком группы, — поэтому проверяется именно заголовок.
-    const card = paymentCard("1 октября 2026 г.");
-    expect(
-      within(card).getByRole("button", { name: /группу «Закупка»/ }),
-    ).toBeDefined();
-    expect(within(card).getByText("Чек")).toBeDefined();
+    const chip = documentChip("Чек №7.pdf");
+    expect(chip.textContent).toContain("Чек");
+    // Имя показано подсказкой: два чека на разные суммы различаются только им.
+    expect(chip.getAttribute("title")).toBe("Чек: Чек №7.pdf");
+    // Меню и кнопок у документа оплаты в строке больше нет: открыть, скачать,
+    // переименовать, сменить вид и удалить можно только во вкладке «Файлы».
+    expect(screen.queryByRole("button", { name: /^Открыть «/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: /^Действия с «/ })).toBeNull();
+  });
+
+  it("больше трёх документов — одна строка и инертный счётчик «+N», без попапа", async () => {
+    const user = userEvent.setup();
+
+    setup({
+      payments: [payment({ id: "p-1", paidAt: "2026-10-01" })],
+      files: Array.from({ length: 5 }, (_, index) =>
+        file({
+          id: `f-${index}`,
+          fileName: `Чек ${index}.pdf`,
+          category: "receipt",
+          paymentId: "p-1",
+          payment: { kind: "payment", paidAt: "2026-10-01", cancelled: false },
+        }),
+      ),
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText("+2")).toBeDefined();
+    });
+
+    // Три чипса и «+2» вместо пяти: счётчик занимает одну строку, а не вторую.
+    expect(documentChip("Чек 0.pdf")).toBeDefined();
+    expect(documentChip("Чек 2.pdf")).toBeDefined();
+    expect(screen.queryByLabelText("Чек: Чек 3.pdf")).toBeNull();
+    await user.click(screen.getByText("+2"));
+    // Счётчик инертен: попап требовал бы клика, которого у чипсов нет.
+    expect(screen.queryByRole("menu")).toBeNull();
   });
 
   it("обычный файл позиции у оплат не показывается", async () => {
@@ -531,6 +556,7 @@ describe("PaymentsTab · документы к оплате", () => {
     });
 
     expect(screen.queryByText("Чертёж.dwg")).toBeNull();
+    expect(screen.queryByLabelText("Чертёж: Чертёж.dwg")).toBeNull();
   });
 
   it("документ к отменённой оплате не показывается ни у одной живой записи", async () => {
@@ -556,29 +582,42 @@ describe("PaymentsTab · документы к оплате", () => {
     expect(screen.queryByText("Чек к отменённой.pdf")).toBeNull();
   });
 
-  it("участник прикрепляет документ сразу — без диалога, с payment_id", async () => {
+  it("документ прикрепляется к ЭТОЙ оплате: payment_id, доставшийся перетаскиванием", async () => {
     uploadFileMock.mockResolvedValue({
       success: true,
       data: file({
         id: "f-new",
         fileName: "Поручение.pdf",
+        category: "receipt",
         paymentId: "payment-1",
         payment: { kind: "payment", paidAt: "2026-10-01", cancelled: false },
       }),
     });
 
-    setup({ payments: [payment({ id: "payment-1", paidAt: "2026-10-01" })] });
+    setup({
+      payments: [
+        payment({ id: "payment-1", paidAt: "2026-10-01" }),
+        payment({ id: "payment-2", paidAt: "2026-10-05" }),
+      ],
+    });
 
     await waitFor(() => {
-      expect(screen.getByText("Оплат и возвратов: 1")).toBeDefined();
+      expect(screen.getByText("Оплат и возвратов: 2")).toBeDefined();
     });
 
     const card = paymentCard("1 октября 2026 г.");
-    // Скрытый input живёт внутри списка документов этой оплаты.
-    pickDocument(
-      within(card).getByLabelText("Выбрать файлы для загрузки"),
-      new File(["чек"], "Поручение.pdf", { type: "application/pdf" }),
-    );
+    const zone = card.querySelector("[data-drag-active]") as HTMLElement;
+    const dropped = new File(["чек"], "Поручение.pdf", { type: "application/pdf" });
+
+    fireEvent.drop(zone, { dataTransfer: { files: [dropped], types: ["Files"] } });
+
+    // Вид спрашивается сразу после приёма: до ответа файл на сервер не уходит.
+    await waitFor(() => {
+      expect(within(card).getByText("Поручение.pdf")).toBeDefined();
+    });
+    expect(uploadFileMock).not.toHaveBeenCalled();
+
+    await userEvent.setup().click(within(card).getByRole("button", { name: "Чек" }));
 
     await waitFor(() => {
       expect(uploadFileMock).toHaveBeenCalledTimes(1);
@@ -587,18 +626,121 @@ describe("PaymentsTab · документы к оплате", () => {
     const [orgSlug, itemId, formData] = uploadFileMock.mock.calls[0];
     expect(orgSlug).toBe("acme");
     expect(itemId).toBe("item-1");
-    // Оплата уходит идентификатором: всё остальное о ней определяет сервер.
+    // Документ уходит к ЭТОЙ оплате, а не к позиции: вкладка «Файлы» пишет
+    // `payment_id = ""`, и прикрепить чек к оплате можно только отсюда.
     expect((formData as FormData).get("payment_id")).toBe("payment-1");
-    // Вид документа не отправляется: его угадывает сервер по формату файла.
-    expect((formData as FormData).get("category")).toBeNull();
+    // Догадка сервера перебита явным видом: PDF он назвал бы «Документом», и
+    // роль подтверждения потерялась бы молча (ADR 0005).
+    expect((formData as FormData).get("category")).toBe("receipt");
 
-    // Запись сервера встаёт в список документов сразу — без второго запроса.
+    // Запись сервера встаёт в строку сразу — без второго запроса.
     await waitFor(() => {
-      expect(screen.getByText("Поручение.pdf")).toBeDefined();
+      expect(documentChipIn(card, "Поручение.pdf")).toBeDefined();
     });
   });
 
-  it("наблюдатель видит документ, но не может ни прикрепить, ни удалить", async () => {
+  it("пачка принимается целиком: у каждого файла свой вид", async () => {
+    const user = userEvent.setup();
+
+    uploadFileMock
+      .mockResolvedValueOnce({
+        success: true,
+        data: file({
+          id: "f-1",
+          fileName: "Основание.pdf",
+          category: "invoice",
+          paymentId: "p-1",
+          payment: { kind: "payment", paidAt: "2026-10-01", cancelled: false },
+        }),
+      })
+      .mockResolvedValueOnce({
+        success: true,
+        data: file({
+          id: "f-2",
+          fileName: "Подтверждение.pdf",
+          category: "receipt",
+          paymentId: "p-1",
+          payment: { kind: "payment", paidAt: "2026-10-01", cancelled: false },
+        }),
+      });
+
+    setup({ payments: [payment({ id: "p-1", paidAt: "2026-10-01" })] });
+
+    await waitFor(() => {
+      expect(screen.getByText("Оплат и возвратов: 1")).toBeDefined();
+    });
+
+    const card = paymentCard("1 октября 2026 г.");
+    pickDocuments(within(card).getByLabelText("Выбрать файлы для загрузки"), [
+      new File(["счёт"], "Основание.pdf", { type: "application/pdf" }),
+      new File(["чек"], "Подтверждение.pdf", { type: "application/pdf" }),
+    ]);
+
+    // Вид спрашивают у каждого файла отдельно: у основания и подтверждения
+    // роли разные, и один ответ на пачку потерял бы одну из них.
+    await user.click(within(card).getByRole("button", { name: "Счёт" }));
+    await waitFor(() => expect(uploadFileMock).toHaveBeenCalledTimes(1));
+
+    await waitFor(() => {
+      expect(within(card).getByText("Подтверждение.pdf")).toBeDefined();
+    });
+    await user.click(within(card).getByRole("button", { name: "Чек" }));
+
+    await waitFor(() => expect(uploadFileMock).toHaveBeenCalledTimes(2));
+    expect((uploadFileMock.mock.calls[0][2] as FormData).get("category")).toBe("invoice");
+    expect((uploadFileMock.mock.calls[1][2] as FormData).get("category")).toBe("receipt");
+
+    // Оба документа в строке: ответы сервера, а не локальная догадка.
+    await waitFor(() => {
+      expect(documentChipIn(card, "Основание.pdf")).toBeDefined();
+      expect(documentChipIn(card, "Подтверждение.pdf")).toBeDefined();
+    });
+  });
+
+  it("ошибка загрузки снимается следующей удачной отправкой", async () => {
+    const user = userEvent.setup();
+
+    uploadFileMock
+      .mockResolvedValueOnce({ success: false, error: "Тип файла не поддерживается" })
+      .mockResolvedValueOnce({
+        success: true,
+        data: file({
+          id: "f-ok",
+          fileName: "Второй.pdf",
+          category: "receipt",
+          paymentId: "p-1",
+          payment: { kind: "payment", paidAt: "2026-10-01", cancelled: false },
+        }),
+      });
+
+    setup({ payments: [payment({ id: "p-1", paidAt: "2026-10-01" })] });
+
+    await waitFor(() => {
+      expect(screen.getByText("Оплат и возвратов: 1")).toBeDefined();
+    });
+
+    const card = paymentCard("1 октября 2026 г.");
+    const picker = within(card).getByLabelText("Выбрать файлы для загрузки");
+
+    pickDocument(picker, new File(["чек"], "Первый.pdf", { type: "application/pdf" }));
+    await user.click(within(card).getByRole("button", { name: "Чек" }));
+
+    await waitFor(() => {
+      expect(screen.getByText("Тип файла не поддерживается")).toBeDefined();
+    });
+
+    // Поведение сохраняется: вторая удачная отправка гасит текст отказа, а не
+    // оставляет его висеть над строкой.
+    pickDocument(picker, new File(["чек"], "Второй.pdf", { type: "application/pdf" }));
+    await user.click(within(card).getByRole("button", { name: "Чек" }));
+
+    await waitFor(() => {
+      expect(screen.queryByText("Тип файла не поддерживается")).toBeNull();
+    });
+    expect(documentChipIn(card, "Второй.pdf")).toBeDefined();
+  });
+
+  it("наблюдатель видит чипс, но не получает ни точки прикрепления, ни шага выбора вида", async () => {
     listPlansMock.mockResolvedValue({ success: true, data: [plan()] });
     listPaymentsMock.mockResolvedValue({
       success: true,
@@ -627,96 +769,48 @@ describe("PaymentsTab · документы к оплате", () => {
     );
 
     await waitFor(() => {
-      expect(screen.getByText("Чек №7.pdf")).toBeDefined();
+      expect(documentChip("Чек №7.pdf")).toBeDefined();
     });
 
     // Чтение правами не описывается — документ виден; запись правами описана.
-    expect(screen.queryByRole("button", { name: "Добавить файл" })).toBeNull();
+    expect(
+      screen.queryByRole("button", { name: /^Прикрепить счёт или чек/ }),
+    ).toBeNull();
+    // И шага выбора вида наблюдатель тоже не получает: он ничего не прикрепляет.
+    expect(screen.queryByRole("group", { name: "Какой это документ?" })).toBeNull();
+
+    const dropped = new File(["чек"], "Чужой.pdf", { type: "application/pdf" });
+    fireEvent.drop(
+      paymentCard("1 октября 2026 г.").querySelector("[data-drag-active]") as HTMLElement,
+      { dataTransfer: { files: [dropped], types: ["Files"] } },
+    );
+
+    expect(screen.queryByRole("group", { name: "Какой это документ?" })).toBeNull();
+    expect(uploadFileMock).not.toHaveBeenCalled();
+  });
+
+  it("удаление и смена вида документа у оплаты недоступны: они живут во вкладке «Файлы»", async () => {
+    setup({
+      payments: [payment({ id: "p-1", paidAt: "2026-10-01" })],
+      files: [
+        file({
+          id: "f-1",
+          fileName: "Чек №7.pdf",
+          paymentId: "p-1",
+          payment: { kind: "payment", paidAt: "2026-10-01", cancelled: false },
+        }),
+      ],
+    });
+
+    await waitFor(() => {
+      expect(documentChip("Чек №7.pdf")).toBeDefined();
+    });
+
+    // Ни меню `⋯`, ни кнопки удаления: управление документом в одном месте —
+    // во вкладке «Файлы», соседней вкладке той же модалки.
     expect(screen.queryByRole("button", { name: /^Действия с «/ })).toBeNull();
-  });
-
-  it("удаление документа убирает строку только после успеха сервера", async () => {
-    const user = userEvent.setup();
-    deleteFileMock.mockResolvedValue({ success: true, data: { deleted: true } });
-
-    setup({
-      payments: [payment({ id: "p-1", paidAt: "2026-10-01" })],
-      files: [
-        file({
-          id: "f-1",
-          fileName: "Чек №7.pdf",
-          paymentId: "p-1",
-          payment: { kind: "payment", paidAt: "2026-10-01", cancelled: false },
-        }),
-      ],
-    });
-
-    await waitFor(() => {
-      expect(screen.getByText("Чек №7.pdf")).toBeDefined();
-    });
-
-    // Удаление живёт в меню действий строки: сперва открыть меню, потом пункт.
-    await user.click(screen.getByRole("button", { name: "Действия с «Чек №7.pdf»" }));
-    await user.click(
-      await screen.findByRole("menuitem", { name: "Удалить «Чек №7.pdf»" }),
-    );
-
-    // Подтверждение — `AlertDialog`, и его роль именно `alertdialog`: диалог
-    // предупреждает о необратимом действии.
-    const dialog = await screen.findByRole("alertdialog");
-    await user.click(within(dialog).getByRole("button", { name: "Удалить" }));
-
-    await waitFor(() => {
-      expect(deleteFileMock).toHaveBeenCalledWith("acme", "item-1", "f-1");
-    });
-
-    await waitFor(() => {
-      expect(screen.queryByText("Чек №7.pdf")).toBeNull();
-    });
-    // Сама запись оплаты осталась на месте.
-    expect(screen.getByText("Оплат и возвратов: 1")).toBeDefined();
-  });
-
-  it("отказ удаления оставляет документ в списке и показывает текст сервера", async () => {
-    const user = userEvent.setup();
-    deleteFileMock.mockResolvedValue({
-      success: false,
-      error: "Недостаточно прав для удаления файлов",
-    });
-
-    setup({
-      payments: [payment({ id: "p-1", paidAt: "2026-10-01" })],
-      files: [
-        file({
-          id: "f-1",
-          fileName: "Чек №7.pdf",
-          paymentId: "p-1",
-          payment: { kind: "payment", paidAt: "2026-10-01", cancelled: false },
-        }),
-      ],
-    });
-
-    await waitFor(() => {
-      expect(screen.getByText("Чек №7.pdf")).toBeDefined();
-    });
-
-    await user.click(screen.getByRole("button", { name: "Действия с «Чек №7.pdf»" }));
-    await user.click(
-      await screen.findByRole("menuitem", { name: "Удалить «Чек №7.pdf»" }),
-    );
-    await user.click(
-      within(await screen.findByRole("alertdialog")).getByRole("button", {
-        name: "Удалить",
-      }),
-    );
-
-    await waitFor(() => {
-      expect(
-        screen.getByText("Недостаточно прав для удаления файлов"),
-      ).toBeDefined();
-    });
-    // Оптимистичного удаления нет: файл остался на месте.
-    expect(screen.getByText("Чек №7.pdf")).toBeDefined();
+    expect(screen.queryByRole("button", { name: /^Вид документа «/ })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Скачать «Чек №7.pdf»" })).toBeNull();
   });
 
   it("ошибка списка файлов не скрывает оплаты", async () => {

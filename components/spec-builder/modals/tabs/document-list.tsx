@@ -37,6 +37,7 @@ import {
 } from "@/lib/spec/file-content";
 import {
   FILE_GROUP_OPTIONS,
+  fileCategoryLabel,
   fileGroupDotClass,
   fileGroupOf,
   isLeavingDropZone,
@@ -64,7 +65,48 @@ import type { FileList } from "./use-file-list";
  * строки-заготовки, а панель отказа живёт во вкладке — она одна на экран, и
  * вторая такая же внутри списка была бы недостижима.
  *
- * ── Группы, фильтры и сворачивание ─────────────────────────────────────────
+ * ── Два варианта одного списка ─────────────────────────────────────────────
+ *
+ * `variant="list"` — вкладка «Файлы»: группы, фильтры, строки с действиями.
+ * `variant="chips"` — документы ОДНОЙ оплаты: компактные чипсы видов.
+ *
+ * Второй компонент для чипсов не заводится намеренно: у оплаты и у вкладки
+ * «Файлы» один список документов, одна выборка и одна отправка на сервер, поэтому
+ * копия разошлась бы с оригиналом в первой же правке — у одной появился бы
+ * фильтр, у другой нет. Вариант меняет ПОКАЗ и один шаг загрузки, а не правила
+ * работы с документом: что считается файлом, какие у него права и как он
+ * записывается, решается здесь одинаково.
+ *
+ * ── Почему чипс инертен ────────────────────────────────────────────────────
+ *
+ * Чипс показывает вид документа и ничего не делает: ни открытия, ни скачивания,
+ * ни переименования, ни смены вида, ни удаления. Управление документом живёт в
+ * одном месте — во вкладке «Файлы», соседней вкладке той же модалки. Это
+ * осознанная отмена меню `⋯` у чипса: hover не существует на тач-устройствах, а
+ * ряд кнопок в строке нажимается случайно.
+ *
+ * Имя файла в чипсе не показано — у двух чеков на разные суммы виды совпадают, и
+ * чипсы иначе неразличимы. Имя уходит в `title` и в доступное имя, как у
+ * обрезанных имён в списке; что для этого понадобилось и почему — в `FileChip`.
+ *
+ * ── Почему строка всё равно принимает файлы ────────────────────────────────
+ *
+ * Перетаскивание на строку и плейсхолдер-чипс сохранены: иначе документ оплаты
+ * нельзя было бы создать перетаскиванием ниоткуда — вкладка «Файлы» пишет
+ * `payment_id = ""`. Приглашение стоит и когда документов нет, и когда они есть:
+ * у того, кто вправе прикреплять, пустой строки не бывает — там всегда видно, что
+ * сюда можно что-то приложить.
+ *
+ * ── Почему вид спрашивают после приёма файла ───────────────────────────────
+ *
+ * Роль документа к оплате несёт вид (`invoice` — основание, `receipt` —
+ * подтверждение, ADR 0005), а формат роль не различает: PDF счёта и PDF чека
+ * для догадки одинаковы. Поэтому у оплаты вид называет человек. Спросить заранее
+ * нельзя — перетаскивание не даёт такого шага, — поэтому шаг «Счёт / Чек»
+ * открывается сразу после приёма файла, ДО отправки: выбранный вид уходит на
+ * сервер явным `category` и серверную догадку перебивает.
+ *
+ * ── Группы, фильтры и сворачивание (вариант `list`) ────────────────────────
  *
  * Вид документа — это «что за файл» (девять значений), группа — «зачем он
  * нужен» (четыре). Плоский список из девяти бейджей читается как шум, поэтому
@@ -77,11 +119,12 @@ import type { FileList } from "./use-file-list";
  *
  * ── Загрузка без диалога ───────────────────────────────────────────────────
  *
- * Вид документа спрашивать не нужно: он угадывается сервером по формату файла
- * (`guessSpecItemFileCategory`), а потом правится прямо в строке. Поэтому
- * drop-зона и кнопка принимают файлы СРАЗУ, несколькими, и каждый встаёт строкой
- * со статусом «Загружается». Прогресса в процентах нет намеренно: server action
- * его не отдаёт, а рисовать выдуманные проценты — обман.
+ * На общем пути вид документа спрашивать не нужно: он угадывается сервером по
+ * формату файла (`guessSpecItemFileCategory`), а потом правится прямо в строке.
+ * Поэтому drop-зона и кнопка принимают файлы СРАЗУ, несколькими, и каждый встаёт
+ * строкой со статусом «Загружается». Исключение — документ к оплате: там вид
+ * спрашивает шаг выбора (см. выше). Прогресса в процентах нет намеренно: server
+ * action его не отдаёт, а рисовать выдуманные проценты — обман.
  *
  * ── Просмотр, скачивание и правка ──────────────────────────────────────────
  *
@@ -90,6 +133,7 @@ import type { FileList } from "./use-file-list";
  * превью не нарисовать, поэтому картинки списка подписывает ВКЛАДКА — одним
  * вызовом на весь экран (`use-signed-thumbnails`), — а сюда ссылки приходят
  * пропом; ошибка подписи или декодирования не мешает строке — остаётся иконка.
+ * В компактном варианте миниатюр нет вовсе: чипс рисуется одним текстом.
  *
  * Правка (вид документа, имя) уходит отдельным действием и в ответе приносит
  * запись сервера: строка обновляется ею, а не локальной догадкой.
@@ -100,6 +144,32 @@ const SKELETON_ROWS = 4;
 
 /** С какого числа файлов группы показываются свёрнутыми. */
 const COLLAPSE_FROM = 8;
+
+/**
+ * Сколько чипсов помещается в строку оплаты до переполнения.
+ *
+ * Три — предел, за которым чипсы начинают переноситься второй строкой и строка
+ * оплаты перестаёт читаться. Остальное прячется за счётчиком «+N»: потери нет,
+ * потому что всё, что за счётчиком, всё равно смотрят во вкладке «Файлы».
+ */
+const MAX_CHIPS = 3;
+
+/**
+ * Виды, из которых состоит РОЛЬ документа к оплате (ADR 0005).
+ *
+ * `invoice` — основание (почему платим столько), `receipt` — подтверждение (что
+ * деньги ушли). Остальные виды роль не несут, поэтому шаг выбора их не
+ * предлагает: «Документ» в контексте оплаты означает «роль не названа», а не
+ * третью роль.
+ *
+ * Здесь только ЗНАЧЕНИЯ: подписи берутся из `FILE_CATEGORY_OPTIONS`
+ * (`fileCategoryLabel`) — второго списка названий видов в проекте быть не должно,
+ * иначе «Чек» на шаге и «Чек» в строке списка разошлись бы при первой же правке.
+ */
+const PAYMENT_ROLE_CATEGORIES: readonly SpecItemFileCategory[] = [
+  "invoice",
+  "receipt",
+];
 
 /**
  * Контейнер списка.
@@ -117,9 +187,19 @@ const LIST_CLASS =
 type PendingUpload = {
   /** Ключ строки: у файла ещё нет id, а `key` нужен сразу. */
   key: string;
+  /** Сам файл: нужен, чтобы отправить его после выбора вида. */
+  file: File;
   name: string;
   sizeBytes: number;
 };
+
+/**
+ * Вариант показа списка.
+ *
+ * `list` — вкладка «Файлы»: группы, фильтры и строки документа. `chips` —
+ * документы одной оплаты: компактные чипсы видов, приглашение и шаг выбора вида.
+ */
+export type DocumentListVariant = "list" | "chips";
 
 export type DocumentListProps = {
   orgSlug: string;
@@ -134,6 +214,11 @@ export type DocumentListProps = {
   onChanged: (entry: SpecItemFileEntry) => void;
   onDeleted: (fileId: string) => void;
   mutate: FileList["mutate"];
+  /**
+   * Вариант показа. По умолчанию `list` — вкладка «Файлы», где список и
+   * появился первым; компактный вариант запрашивается явно.
+   */
+  variant?: DocumentListVariant;
   title?: string | null;
   emptyHint?: string;
 };
@@ -162,6 +247,193 @@ function GroupDot({ group }: { group: string }) {
   );
 }
 
+/**
+ * Чипс документа к оплате: вид документа, и только он.
+ *
+ * Не кнопка и не ссылка: у чипса нет ни действия, ни меню, поэтому это `span` без
+ * действия — так его нельзя ни нажать, ни сфокусировать «на удачу». Имя файла
+ * видно в подсказке и в доступном имени: два чека на разные суммы различаются
+ * именно именем, а не видом.
+ *
+ * `role="img"` здесь — условие того, что имя вообще доедет до диктора, а не
+ * украшение. Элемент без роли имеет роль `generic`, а на ней `aria-label`
+ * запрещён: ярлык на таком элементе противоречит ARIA, и `span` с одним лишь
+ * «Чек» внутри читался бы как «Чек» — без файла, ради которого имя и уходит из
+ * подписи. `img` — роль из перечня, где `aria-label` разрешён, и означает она
+ * «один объект, имя которого задано снаружи»: чипс и есть один объект (файл), а
+ * его содержимое — точка группы и подпись — оформление этого имени, поэтому
+ * `img` описывает чипс точнее, чем `generic`. Роль не выдумана ради подсказки:
+ * это `img` из ARIA, и по имени этой роли чипс ищут тесты
+ * (`document-chips-test-helper.ts`).
+ */
+function FileChip({ file }: { file: SpecItemFileEntry }) {
+  const label = fileCategoryLabel(file.category);
+  const title = `${label}: ${file.fileName}`;
+
+  return (
+    <span
+      role="img"
+      title={title}
+      aria-label={title}
+      className="inline-flex max-w-40 items-center gap-1.5 rounded-full border border-border-muted bg-bg-card2 px-2 py-0.5 text-[11.5px] text-fg-secondary"
+    >
+      <GroupDot group={fileGroupOf(file.category)} />
+      <span className="truncate">{label}</span>
+    </span>
+  );
+}
+
+/**
+ * Счётчик переполнения: «+N» вместо остальных чипсов.
+ *
+ * Инертный, как и чипс: попап требовал бы клика, которого у чипсов больше нет.
+ * Потери нет — всё, что за счётчиком, смотрят во вкладке «Файлы», где документ
+ * виден целиком. Подсказка называет число и первый скрытый файл: «+2» само по
+ * себе не говорит, что именно спрятано.
+ */
+function OverflowChip({ count, firstHidden }: { count: number; firstHidden: string }) {
+  const title = `Ещё документов: ${count}. Первый — «${firstHidden}». Все документы — во вкладке «Файлы»`;
+
+  return (
+    <span
+      role="img"
+      title={title}
+      aria-label={title}
+      className="inline-flex items-center rounded-full border border-dashed border-border-muted px-2 py-0.5 text-[11.5px] text-fg-muted"
+    >
+      +{count}
+    </span>
+  );
+}
+
+/**
+ * Шаг «Счёт / Чек» после приёма файла.
+ *
+ * Появляется сразу после перетаскивания или выбора файла и НЕ отправляет его на
+ * сервер, пока вид не назван: роль документа к оплате несёт вид (ADR 0005), а
+ * формат роль не различает — PDF счёта и PDF чека для догадки одинаковы.
+ *
+ * `fieldset` с `legend`: шаг — это вопрос, а его варианты — ответ на него. Так
+ * диктор читает не «Счёт, кнопка, Чек, кнопка», а «Какой это документ? Счёт…».
+ *
+ * Спиннера и выключенных кнопок здесь нет намеренно: пока идёт отправка, шаг с
+ * экрана снят (см. `chooseCategory`), поэтому «выключенное» состояние было бы
+ * состоянием, которого никто не увидит.
+ */
+function CategoryStep({
+  name,
+  position,
+  total,
+  onChoose,
+  onSkip,
+}: {
+  name: string;
+  /** Номер файла в пачке — с единицы: «Файл 2 из 3». */
+  position: number;
+  total: number;
+  onChoose: (category: SpecItemFileCategory) => void;
+  onSkip: () => void;
+}) {
+  return (
+    <fieldset className="flex flex-wrap items-center gap-x-2 gap-y-1 rounded-xl border border-dashed border-border-muted px-2.5 py-1.5">
+      <legend className="px-1 text-[11px] text-fg-dim">
+        Какой это документ?
+      </legend>
+
+      <span className="flex min-w-0 items-center gap-1.5 text-[12.5px] text-fg">
+        <Paperclip className="size-3.5 shrink-0 text-fg-dim" aria-hidden="true" />
+        <span className="max-w-52 truncate" title={name}>
+          {name}
+        </span>
+      </span>
+
+      {total > 1 && (
+        <span className="text-[11.5px] text-fg-dim tabular-nums">
+          Файл {position} из {total}
+        </span>
+      )}
+
+      <div className="flex items-center gap-1.5">
+        {PAYMENT_ROLE_CATEGORIES.map((category) => (
+          <Button
+            key={category}
+            type="button"
+            variant="outline"
+            size="sm"
+            className="h-6 px-2 text-[11.5px]"
+            onClick={() => onChoose(category)}
+          >
+            {fileCategoryLabel(category)}
+          </Button>
+        ))}
+        {/*
+          Выход рядом с шагом: файл, перетащенный по ошибке, иначе некуда деть —
+          строки «Загружается» у него ещё нет, а очередь держит его до ответа.
+        */}
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          className="h-6 px-2 text-[11.5px] text-fg-muted"
+          onClick={onSkip}
+        >
+          Не прикреплять
+        </Button>
+      </div>
+    </fieldset>
+  );
+}
+
+/**
+ * Приглашение прикрепить документ.
+ *
+ * Стоит в строке оплаты всегда, когда список читается и человек вправе
+ * прикреплять: и когда документов нет, и когда они есть. Пустого места в строке
+ * не бывает — иначе в строке без документов не было бы видно, что к оплате вообще
+ * можно что-то приложить.
+ *
+ * Пока идёт отправка, кнопка показывает спиннер и число ожидающих файлов: шаг
+ * выбора вида в этот момент снят, и без этого на экране не осталось бы ни одного
+ * признака, что работа идёт.
+ */
+function AttachPlaceholder({
+  waiting,
+  busy,
+  disabled,
+  onPick,
+}: {
+  /** Сколько файлов ещё ждут своего вида (включая отправляемый). */
+  waiting: number;
+  busy: boolean;
+  disabled: boolean;
+  onPick: () => void;
+}) {
+  const title =
+    waiting > 0
+      ? `Принять документы — осталось: ${waiting}`
+      : "Прикрепить счёт или чек — файл можно и перетащить";
+
+  return (
+    <Button
+      type="button"
+      variant="outline"
+      size="sm"
+      title={title}
+      aria-label={title}
+      className="h-6 gap-1 rounded-full border-dashed px-2 text-[11.5px] text-fg-secondary"
+      disabled={disabled}
+      onClick={onPick}
+    >
+      {busy ? (
+        <Loader2 className="size-3 animate-spin" aria-hidden="true" />
+      ) : (
+        <Plus className="size-3" />
+      )}
+      {waiting > 0 ? `Принять документы · ${waiting}` : "Добавить документ"}
+    </Button>
+  );
+}
+
 export default function DocumentList({
   orgSlug,
   specItemId,
@@ -175,9 +447,12 @@ export default function DocumentList({
   onChanged,
   onDeleted,
   mutate,
+  variant = "list",
   title = null,
   emptyHint = "Перетащите файл сюда или добавьте его кнопкой — счета, спецификации поставщика и другие вложения к этому материалу.",
 }: DocumentListProps) {
+  const isChips = variant === "chips";
+
   /** Выбранный фильтр: `null` — «Все». */
   const [filter, setFilter] = useState<SpecItemFileGroup | null>(null);
   /** Свёрнутые группы: только явно свёрнутые пользователем. */
@@ -189,6 +464,28 @@ export default function DocumentList({
   const [dragHover, setDragHover] = useState(false);
   /** Файлы в очереди на отправку: строки «Загружается». */
   const [pending, setPending] = useState<PendingUpload[]>([]);
+  /**
+   * Очередь выбора вида (вариант `chips`): файлы уже приняты, но ещё НЕ
+   * отправлены — вид называется до отправки, чтобы на сервер не попала догадка.
+   */
+  const [categoryQueue, setCategoryQueue] = useState<PendingUpload[]>([]);
+  /**
+   * Ход пачки в очереди выбора вида (вариант `chips`).
+   *
+   * `batch` — сколько файлов пришло последней пачкой, `answered` — сколько из них
+   * уже отправлено или пропущено. Отсюда берётся «Файл N из M» на шаге.
+   *
+   * Это состояние, а не счётчик по длине очереди, по одной причине: неудачная
+   * попытка возвращает файл в очередь, и нумерация по её длине назвала бы
+   * следующий вопрос «Файлом 1 из 2», хотя это тот же второй файл из трёх.
+   */
+  const [categoryProgress, setCategoryProgress] = useState({
+    batch: 1,
+    answered: 0,
+  });
+
+  /** Идёт отправка файла из очереди выбора вида. */
+  const [assigning, setAssigning] = useState(false);
   /** UX-ошибка выбора (размер, права): до сервера дело не доходит. */
   const [pickError, setPickError] = useState<string | null>(null);
   /** Ошибка загрузки — на весь список, а не на строку: строки уже нет. */
@@ -295,6 +592,55 @@ export default function DocumentList({
   /* ------------------------------------------------------------------ */
 
   /**
+   * Отправка одного файла на сервер — ОДНА точка для обоих вариантов.
+   *
+   * Отличается только `category`: на общем пути он не отправляется вовсе и вид
+   * угадывает сервер по подтверждённому формату, а у документа к оплате его
+   * называет человек, и он уходит этим полем (ADR 0005). Всё остальное — оплата,
+   * организация, позиция, разбор ответа и отказ — одинаково, поэтому второй копии
+   * здесь нет.
+   *
+   * Отказ возвращается значением, а не исключением: вызывающему нужно решить, что
+   * показать и куда вернуть файл, — на общем пути строка очереди просто исчезает,
+   * а в очереди выбора вида файл обязан вернуться, иначе пропал бы из интерфейса
+   * навсегда.
+   */
+  const uploadItem = useCallback(
+    async (
+      item: PendingUpload,
+      category?: SpecItemFileCategory,
+    ): Promise<{ ok: true } | { ok: false; error: string }> => {
+      const forItem = specItemId;
+
+      const formData = new FormData();
+      formData.set("file", item.file);
+      formData.set("payment_id", paymentId ?? "");
+      if (category) formData.set("category", category);
+
+      try {
+        const res = await uploadSpecItemFile(orgSlug, forItem, formData);
+
+        // Позиция сменилась — ответ относится к прошлой: в текущий список он не
+        // попадает, а файл уже загружен, поэтому и «ошибкой» это не является.
+        if (specItemIdRef.current !== forItem) return { ok: true };
+
+        if (!res.success) return { ok: false, error: res.error };
+
+        // Успех снимает прошлый отказ: иначе красный текст висел бы над списком
+        // после того, как следующий файл загрузился.
+        setUploadError(null);
+        onUploaded(res.data);
+        return { ok: true };
+      } catch (cause) {
+        console.error("[DocumentList] загрузка", cause);
+        if (specItemIdRef.current !== forItem) return { ok: true };
+        return { ok: false, error: "Не удалось загрузить файл" };
+      }
+    },
+    [onUploaded, orgSlug, paymentId, specItemId],
+  );
+
+  /**
    * Приём файлов — ОДНА точка входа для всех способов выбора.
    *
    * И picker, и drag & drop приходят сюда: дальше путь общий. Проверки только
@@ -323,57 +669,96 @@ export default function DocumentList({
         return;
       }
 
-      setPickError(null);
       setUploadError(null);
 
       const queue: PendingUpload[] = picked.map((file, index) => ({
         key: `${Date.now()}-${index}-${file.name}`,
+        file,
         name: file.name,
         sizeBytes: file.size,
       }));
+
+      /**
+       * Компактный вариант: сперва вид, потом отправка.
+       *
+       * Файл остаётся в очереди выбора и на сервер не уходит, пока человек не
+       * назвал роль. Отправить его сразу с догадкой значило бы записать
+       * «Документ» вместо основания, а потом переписать — то есть на секунду
+       * потерять роль, которую вид и несёт (ADR 0005).
+       */
+      if (isChips) {
+        // Нумерация внутри шага — по ЭТОЙ пачке: предыдущая закончилась, и её
+        // счётчик не должен попадать в «Файл N из M» новой.
+        setCategoryProgress({ batch: queue.length, answered: 0 });
+        setCategoryQueue((current) => [...current, ...queue]);
+        return;
+      }
+
       setPending((current) => [...current, ...queue]);
 
       void (async () => {
-        for (const [index, file] of picked.entries()) {
-          const row = queue[index];
-          const forItem = specItemId;
-
-          const formData = new FormData();
-          formData.set("file", file);
-          // Вид документа НЕ отправляется: его угадывает сервер, а человек
-          // поправит в строке. Явное значение здесь означало бы, что клиент
-          // решает за сервер то, что сервер знает точнее.
-          formData.set("payment_id", paymentId ?? "");
-
-          try {
-            const res = await uploadSpecItemFile(orgSlug, forItem, formData);
-
-            // Позиция сменилась — ответ относится к прошлой: в текущий список
-            // он не попадает. Свою строку «Загружается» снимет `finally`:
-            // чужая позиция свой список уже перезагружает.
-            if (specItemIdRef.current !== forItem) continue;
-
-            if (!res.success) {
-              setUploadError(res.error);
-              continue;
-            }
-
-            // Успех снимает прошлый отказ: иначе красный текст висел бы над
-            // списком после того, как следующий файл загрузился.
-            setUploadError(null);
-            onUploaded(res.data);
-          } catch (cause) {
-            if (specItemIdRef.current !== forItem) continue;
-            console.error("[DocumentList] загрузка", cause);
-            setUploadError("Не удалось загрузить файл");
-          } finally {
-            setPending((current) => current.filter((item) => item.key !== row.key));
-          }
+        for (const item of queue) {
+          // Вид не отправляется: на общем пути его угадывает сервер по
+          // подтверждённому формату, а названный человеком вид правится в строке
+          // списка.
+          const result = await uploadItem(item);
+          if (!result.ok) setUploadError(result.error);
+          if (specItemIdRef.current !== specItemId) return;
+          setPending((current) => current.filter((row) => row.key !== item.key));
         }
       })();
     },
-    [canWrite, onUploaded, orgSlug, paymentId, specItemId],
+    [canWrite, isChips, specItemId, uploadItem],
   );
+
+  /**
+   * Ответ на шаг выбора вида: файл уходит на сервер, очередь идёт дальше.
+   *
+   * Пока идёт отправка, шаг снят с экрана, а кнопка приглашения заменена
+   * спиннером: два быстрых нажатия не отправят один файл дважды, а на месте шага
+   * видно, что работа идёт. Файл при этом вынимается из очереди ДО `await`, иначе
+   * шаг успел бы спросить о нём второй раз.
+   */
+  const chooseCategory = useCallback(
+    (category: SpecItemFileCategory) => {
+      const item = categoryQueue[0];
+      if (!item || assigning) return;
+
+      setCategoryQueue((current) => current.filter((row) => row.key !== item.key));
+      // Файл отправлен — он больше не считается при нумерации, даже если сейчас
+      // вернётся в очередь после отказа.
+      setCategoryProgress((current) => ({
+        ...current,
+        answered: current.answered + 1,
+      }));
+      setPickError(null);
+      setAssigning(true);
+      void uploadItem(item, category)
+        .then((result) => {
+          if (specItemIdRef.current !== specItemId) return;
+          if (result.ok) return;
+
+          // Неудачная попытка возвращает файл в очередь: иначе он исчез бы из
+          // интерфейса навсегда — ни чипса, ни шага, ни следа в списке.
+          setUploadError(result.error);
+          setCategoryQueue((current) => [...current, item]);
+        })
+        .finally(() => setAssigning(false));
+    },
+    [assigning, categoryQueue, specItemId, uploadItem],
+  );
+
+  /** Отказ от прикрепления: файл не уходит на сервер и очередь идёт дальше. */
+  const skipCategory = useCallback(() => {
+    setCategoryQueue((current) => current.slice(1));
+    // Пропущенный файл тоже посчитан: он больше не вернётся, а следующий вопрос
+    // обязан сохранить свой номер в пачке.
+    setCategoryProgress((current) => ({
+      ...current,
+      answered: current.answered + 1,
+    }));
+    setPickError(null);
+  }, []);
 
   /**
    * `change` у скрытого input.
@@ -402,8 +787,13 @@ export default function DocumentList({
    * хрупкий (браузеры по-разному шлют пары для вложенных элементов) и легко
    * «застревает». `dragover` приходит многократно, пока курсор внутри зоны, и
    * состояние самовосстанавливается.
+   *
+   * Пока идёт отправка файла из очереди выбора вида, приём закрыт: новый файл
+   * встал бы в очередь за текущим, и человек спрашивал бы себя, к какому из двух
+   * относится вопрос шага.
    */
-  const dropEnabled = isCurrent && canWrite && renaming === null && !deleting;
+  const dropEnabled =
+    isCurrent && canWrite && renaming === null && !deleting && !assigning;
 
   const dragActive = dragHover && dropEnabled;
 
@@ -640,6 +1030,130 @@ export default function DocumentList({
     </Button>
   );
 
+  const dragOverlay = (
+    <div className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed border-fg-brand bg-bg-card/90 backdrop-blur-sm *:pointer-events-none">
+      <Upload className="size-6 text-fg-brand motion-safe:animate-bounce" />
+      <p className="text-[13px] font-medium text-fg">
+        Отпустите, чтобы добавить файлы
+      </p>
+      <p className="text-[12px] text-fg-muted">
+        {isChips
+          ? `документ прикрепится к этой оплате · до ${MAX_SPEC_ITEM_FILE_LABEL}`
+          : `вид документа определится по типу файла · до ${MAX_SPEC_ITEM_FILE_LABEL}`}
+      </p>
+    </div>
+  );
+
+  /**
+   * Компактный вариант: чипсы видов вместо строк документа.
+   *
+   * Здесь нет ни групп, ни фильтров, ни свёртывания: у одной оплаты документов
+   * единицы, а не десятки, и весь список виден целиком. Скрытый input, drop-зона
+   * и обработчики — те же, что у полного варианта: способ прикрепления один.
+   */
+  if (isChips) {
+    const visible = files.slice(0, MAX_CHIPS);
+    const hidden = files.slice(MAX_CHIPS);
+    /** Файл, про вид которого спрашивает шаг. Он же — голова очереди. */
+    const asked = categoryQueue[0] ?? null;
+    /**
+     * Счётчик переполнения прячется, пока все видимые файлы — ещё не приложенные.
+     *
+     * Иначе пачка из пяти перетащенных файлов сразу показывала бы «+2» у строки,
+     * где документов пока ноль: «+N» — это про скрытые ПРИКРЕПЛЁННЫЕ документы, а
+     * не про очередь. Как только первые три чипса встанут, остаток снова виден —
+     * в том числе если часть пачки не загрузилась.
+     */
+    const overflowHidden =
+      hidden.length > 0 &&
+      (files.length > 0 || categoryQueue.length < categoryProgress.batch);
+
+    return (
+      <div
+        className="relative flex flex-wrap items-center gap-1.5 rounded-xl transition-colors"
+        data-drag-active={dragActive ? "true" : "false"}
+        onDragEnter={handleDragEnter}
+        onDragOver={handleDragOver}
+        onDragLeave={handleDragLeave}
+        onDrop={handleDrop}
+      >
+        <input
+          ref={pickerRef}
+          type="file"
+          multiple
+          className="hidden"
+          onChange={handlePick}
+          aria-label="Выбрать файлы для загрузки"
+        />
+
+        {loading &&
+          Array.from({ length: SKELETON_ROWS }, (_, index) => (
+            <Skeleton key={index} className="h-6 w-20 rounded-full" />
+          ))}
+
+        {visible.map((file) => (
+          <FileChip key={file.id} file={file} />
+        ))}
+
+        {overflowHidden && (
+          <OverflowChip
+            count={hidden.length}
+            firstHidden={hidden[0].fileName}
+          />
+        )}
+
+        {/*
+          Вид спрашивается у ПЕРВОГО файла пачки; остальные ждут своей очереди.
+          Пока идёт отправка, шаг снят: его место занимает спиннер приглашения —
+          иначе шаг спрашивал бы про файл, который уже уходит.
+        */}
+        {isCurrent && asked && !assigning && (
+          <CategoryStep
+            /*
+              Номер и всего считаются по пачке, а не по остатку очереди: шаг
+              обещает, сколько раз ещё спросят, и это число не должно меняться от
+              того, что предыдущий файл уже отправлен.
+            */
+            name={asked.name}
+            position={categoryProgress.answered + 1}
+            total={categoryProgress.batch}
+            onChoose={chooseCategory}
+            onSkip={skipCategory}
+          />
+        )}
+
+        {/*
+          Приглашение — всегда, пока список читается и человек вправе прикреплять.
+          Пустого места в строке не бывает: строка без документов без него не
+          сообщала бы, что сюда можно что-то приложить, а строка с документами —
+          что можно приложить второй. Наблюдателю его нет: прикреплять он не
+          вправе.
+        */}
+        {isCurrent && canWrite && (
+          <AttachPlaceholder
+            waiting={categoryQueue.length}
+            busy={assigning}
+            disabled={assigning || dragActive}
+            onPick={() => pickerRef.current?.click()}
+          />
+        )}
+
+        {dragActive && dragOverlay}
+
+        {pickError && (
+          <p role="alert" className="basis-full px-1 text-[12px] text-fg-red">
+            {pickError}
+          </p>
+        )}
+        {uploadError && !assigning && (
+          <p role="alert" className="basis-full px-1 text-[12px] text-fg-red">
+            {uploadError}
+          </p>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div
       className={LIST_CLASS}
@@ -751,18 +1265,7 @@ export default function DocumentList({
         «перетащите сюда» слишком мелкая цель, чтобы её заметить, а подсветка
         целой зоны отвечает на вопрос «куда отпускать» без чтения текста.
       */}
-      {dragActive && (
-        <div className="absolute inset-0 z-30 flex flex-col items-center justify-center gap-1 rounded-xl border-2 border-dashed border-fg-brand bg-bg-card/90 backdrop-blur-sm *:pointer-events-none">
-          <Upload className="size-6 text-fg-brand motion-safe:animate-bounce" />
-          <p className="text-[13px] font-medium text-fg">
-            Отпустите, чтобы добавить файлы
-          </p>
-          <p className="text-[12px] text-fg-muted">
-            вид документа определится по типу файла · до{" "}
-            {MAX_SPEC_ITEM_FILE_LABEL}
-          </p>
-        </div>
-      )}
+      {dragActive && dragOverlay}
 
       {/* ── Строки «Загружается» ─────────────────────────────────────── */}
       {pending.map((item) => (
