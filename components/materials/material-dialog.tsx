@@ -53,7 +53,10 @@ import Image from "next/image";
 import { toast } from "sonner";
 import { uploadMaterialImage } from "@/actions/materials";
 import { useDialogDismissGuard } from "@/components/ui/use-dialog-dismiss-guard";
-import { resolveDialogPrefill, resolveResetKey } from "@/lib/material-import/dialog-prefill";
+import {
+  resolveDialogPrefill,
+  resolveResetKey,
+} from "@/lib/material-import/dialog-prefill";
 import type { MaterialImportDraft } from "@/lib/material-import/draft";
 import type { ImportNotice } from "@/lib/material-import/notices";
 
@@ -191,7 +194,10 @@ export function MaterialDialog({
   useEffect(() => {
     if (!open) return;
 
-    const prefill = resolveDialogPrefill({ materialToEdit: materialToEdit ?? null, draft });
+    const prefill = resolveDialogPrefill({
+      materialToEdit: materialToEdit ?? null,
+      draft,
+    });
     form.reset(prefill.values);
     setSupplier(prefill.supplier);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -246,8 +252,8 @@ export function MaterialDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={handleOpenChange}>
-        <DialogContent className="sm:max-w-170 max-h-[88vh] bg-bg p-0 gap-0">
-          <DialogHeader className="sticky top-0 gap-2 border-b p-4">
+        <DialogContent className="sm:max-w-170 max-h-[88vh] bg-bg gap-0">
+          <DialogHeader className="gap-3 border-b py-3">
             <DialogTitle>
               {materialToEdit
                 ? "Редактировать материал"
@@ -256,7 +262,7 @@ export function MaterialDialog({
           </DialogHeader>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)}>
-              <ScrollArea className="h-[66svh] pr-4 p-4">
+              <ScrollArea className="h-[66svh] py-4">
                 <section className="flex flex-col gap-4">
                   {/* Замечания импорта — над формой, чтобы пользователь увидел
                       их до того, как начнёт править поля. Сохранение не
@@ -329,18 +335,27 @@ export function MaterialDialog({
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel>Категория *</FormLabel>
-                          <FormControl>
-                            <select
-                              {...field}
-                              className="w-full h-10 px-3 rounded-md border border-input bg-bg-card text-sm"
+                          <Select
+                            onValueChange={field.onChange}
+                            value={field.value}
+                          >
+                            <FormControl>
+                              <SelectTrigger className="h-10! w-full bg-bg-card border border-border-muted">
+                                <SelectValue placeholder="выберите ед." />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent
+                              side="bottom"
+                              alignItemWithTrigger={false}
+                              className="max-h-50 overflow-y-auto bg-bg-card"
                             >
                               {TYPE_ORDER.map((cat) => (
-                                <option key={cat} value={cat}>
+                                <SelectItem key={cat} value={cat}>
                                   {cat}
-                                </option>
+                                </SelectItem>
                               ))}
-                            </select>
-                          </FormControl>
+                            </SelectContent>
+                          </Select>
                           <FormMessage />
                         </FormItem>
                       )}
@@ -355,6 +370,7 @@ export function MaterialDialog({
                               можно ввести своё — справочник не закрытый. */}
                           <MaterialTypePicker
                             category={category}
+                            triggerClassName="bg-bg-card! border border-border-muted"
                             value={field.value ?? null}
                             onChange={field.onChange}
                             placeholder="Керамогранит…"
@@ -455,7 +471,10 @@ export function MaterialDialog({
                                 <SelectValue placeholder="выберите ед." />
                               </SelectTrigger>
                             </FormControl>
-                            <SelectContent>
+                            <SelectContent
+                              alignItemWithTrigger={false}
+                              className="max-h-50 overflow-y-auto bg-bg-card"
+                            >
                               {UNIT_OPTIONS.map((unit) => (
                                 <SelectItem key={unit} value={unit}>
                                   {unit}
@@ -601,9 +620,14 @@ function ImportNotices({ notices }: { notices: ImportNotice[] }) {
       </div>
       <ul className="mt-2 flex flex-col gap-1.5">
         {notices.map((notice, index) => (
-          <li key={`${notice.message}-${index}`} className="text-[12.5px] leading-snug">
+          <li
+            key={`${notice.message}-${index}`}
+            className="text-[12.5px] leading-snug"
+          >
             <span className="text-fg-body">{notice.message}</span>
-            {notice.hint && <span className="text-fg-muted"> {notice.hint}</span>}
+            {notice.hint && (
+              <span className="text-fg-muted"> {notice.hint}</span>
+            )}
           </li>
         ))}
       </ul>

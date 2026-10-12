@@ -24,6 +24,7 @@ import { useSearchParams } from "next/navigation";
 import { useContactsUrl } from "./use-contacts-url";
 import { useDialogUrl } from "@/hooks/use-dialog-url";
 import type { ContactsTab } from "@/lib/types";
+import { EmptyState } from '../layout/empty-state';
 
 /** Доп. параметры открытия контактных диалогов, удаляемые при закрытии. */
 const CONTACT_DIALOG_CLEANUP = ["company_id", "independent"];
@@ -300,6 +301,7 @@ export function ContactsList({
                 ) : (
                   <Button
                     nativeButton={false}
+                    size="lg"
                     render={<Link href={hrefFor("company")} />}
                   >
                     <Plus className="mr-2 size-4" /> Добавить компанию
@@ -326,7 +328,9 @@ export function ContactsList({
         ) : data.independentContacts.length === 0 ? (
           <EmptyState
             icon={<UserPlus className="size-6" />}
-            title={isFiltered ? "Ничего не найдено" : "Нет независимых контактов"}
+            title={
+              isFiltered ? "Ничего не найдено" : "Нет независимых контактов"
+            }
             body={
               isFiltered
                 ? "Попробуйте изменить поисковый запрос или категорию."
@@ -340,6 +344,7 @@ export function ContactsList({
               ) : (
                 <Button
                   nativeButton={false}
+                  size="lg"
                   render={
                     <Link href={hrefFor("contact", { independent: "1" })} />
                   }
@@ -421,28 +426,5 @@ function Count({ children }: { children: ReactNode }) {
     <span className="rounded-full bg-bg-brand px-1.5 py-0.5 text-xs font-medium text-fg">
       {children}
     </span>
-  );
-}
-
-function EmptyState({
-  icon,
-  title,
-  body,
-  action,
-}: {
-  icon: ReactNode;
-  title: string;
-  body: string;
-  action?: ReactNode;
-}) {
-  return (
-    <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border py-16 text-center">
-      <div className="flex size-12 items-center justify-center rounded-full bg-secondary text-muted-foreground">
-        {icon}
-      </div>
-      <h3 className="mt-4 font-serif text-lg text-foreground">{title}</h3>
-      <p className="mt-1 max-w-sm text-sm text-muted-foreground">{body}</p>
-      {action && <div className="mt-5">{action}</div>}
-    </div>
   );
 }

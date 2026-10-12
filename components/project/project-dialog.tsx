@@ -166,16 +166,16 @@ export function ProjectDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={handleOpenChange}>
-        <DialogContent className="sm:max-w-170 max-h-[88vh] bg-bg border-border-muted p-0 gap-0">
-          <DialogHeader className="sticky top-0 gap-2 border-b p-4">
-            <DialogTitle className="text-xl font-bold tracking-tight">
+        <DialogContent className="sm:max-w-180 max-h-[92vh] h-[80svh] bg-bg border-border-muted /p-0">
+          <DialogHeader className="gap-3 border-b border-border-subtle py-3">
+            <DialogTitle>
               {isEditing ? "Редактировать проект" : "Новый проект"}
             </DialogTitle>
           </DialogHeader>
 
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)}>
-              <ScrollArea className="h-[66svh] p-4">
+              <ScrollArea className="h-[66svh]">
                 <article className=" flex flex-col gap-4">
                   {form.formState.errors.root && (
                     <div className="p-3 text-xs font-medium bg-red-500/10 border border-red-500/20 text-red-500 rounded-lg">
@@ -364,7 +364,7 @@ export function ProjectDialog({
                           Акцентный цвет карточки
                         </FormLabel>
                         <FormControl>
-                          <div className="flex items-center gap-2.5 pt-1">
+                          <div className="flex items-center gap-2.5 p-1 pb-2">
                             {ACCENT_COLORS.map((color) => (
                               <button
                                 key={color}

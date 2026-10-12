@@ -25,9 +25,10 @@ export function CreateProjectDialog({ orgSlug }: CreateProjectDialogProps) {
     <>
       <Button
         nativeButton={false}
+        size="lg"
         render={
           <Link
-            className="flex h-10 items-center gap-2 bg-bg-accent text-bg border-none rounded-lg px-6 text-[15px] font-semibold cursor-pointer"
+            className="flex items-center gap-2 bg-bg-accent text-bg border-none rounded-lg px-6 //text-[15px] font-semibold cursor-pointer"
             href={createHref}
           />
         }

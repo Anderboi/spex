@@ -29,13 +29,13 @@ export function ProjectCard({
   const handleEdit = (e: MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    // Логика открытия модального окна редактирования / переход
+    //TODO: Логика открытия модального окна редактирования / переход
   };
 
   const handleDelete = (e: MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    // Логика удаления проекта
+    //TODO: Логика удаления проекта
   };
 
   return (
@@ -142,11 +142,7 @@ export function ProjectCard({
           </div>
           <div>
             <div className="font-mono text-[17px] font-semibold text-fg leading-none truncate">
-              {/* {fmtRub(project.budget)} */}
-              {fmtCompact(project.budget) +
-                // .toLocaleString("ru-RU")
-                // .replace(/,/g, "\u2009")
-                " ₽"}
+              {fmtCompact(project.budget) + " ₽"}
             </div>
             <div className="text-[11px] font-mono capitalize text-fg-muted mt-1 leading-tight">
               Бюджет

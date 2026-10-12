@@ -1,6 +1,8 @@
 import { ProjectCard } from "@/components/project/project-card";
-import EmptyState from "@/components/project/empty-state";
 import type { ProjectListItem } from "@/lib/queries";
+import { EmptyState } from "../layout/empty-state";
+import { CreateProjectDialog } from "../project/create-project-dialog";
+import { HousePlus } from 'lucide-react';
 
 export function ProjectsList({
   projects,
@@ -17,7 +19,12 @@ export function ProjectsList({
         По запросу «{query}» ничего не найдено
       </p>
     ) : (
-      <EmptyState orgSlug={orgSlug} />
+      <EmptyState
+        icon={<HousePlus className="size-6" />}
+        title="Нет проектов"
+        body="Создайте ваш первый дизайн-проект и начните работу над спецификациями."
+        action={<CreateProjectDialog orgSlug={orgSlug} />}
+      />
     );
   }
 

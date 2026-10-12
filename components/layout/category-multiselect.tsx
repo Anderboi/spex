@@ -43,7 +43,7 @@ export function CategoryMultiSelect({
         <span
           role="combobox"
           aria-expanded={open}
-          className="w-full min-h-10 h-auto border flex rounded-lg items-center justify-between px-3 py-1.5 font-normal //bg-bg //hover:bg-bg border-border"
+          className="w-full min-h-10 h-auto border flex rounded-lg items-center justify-between px-3 py-1.5 font-normal  //hover:bg-bg border-border"
         >
           <div className="flex flex-wrap gap-1 items-center max-w-[calc(100%-20px)]">
             {selected.length === 0 ? (
@@ -70,7 +70,7 @@ export function CategoryMultiSelect({
         </span>
       </PopoverTrigger>
 
-      <PopoverContent className="w-[--radix-popover-trigger-width] p-1 max-h-56 overflow-y-auto">
+      <PopoverContent className="w-[--radix-popover-trigger-width] p-1 bg-bg-card max-h-56 overflow-y-auto">
         <div className="flex flex-col gap-0.5">
           {options.map((option) => {
             const isSelected = selected.includes(option);
@@ -78,12 +78,13 @@ export function CategoryMultiSelect({
               <button
                 key={option}
                 type="button"
+                
                 onClick={() => toggleCategory(option)}
                 className={cn(
-                  "flex items-center justify-between w-full px-2.5 py-1.5 text-xs rounded-md transition-colors text-left",
+                  "flex h-8 items-center justify-between w-full px-2.5 py-1.5 text-xs rounded-md transition-colors text-left",
                   isSelected
                     ? "bg-bg-brand text-fg-secondary font-medium"
-                    : "hover:bg-muted/60 text-fg",
+                    : "hover:bg-bg-brand text-fg",
                 )}
               >
                 <span>{option}</span>
