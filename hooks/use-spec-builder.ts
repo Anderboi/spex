@@ -46,7 +46,10 @@ import {
   switchVariant,
   updateVariant,
 } from "@/actions/spec-variants";
-import { SPEC_STATUS_CONFIG } from "@/lib/spec/status";
+import {
+  SPEC_STATUS_CONFIG,
+  statusAfterVariantSwitch,
+} from "@/lib/spec/status";
 import { selectSpecList } from "@/lib/spec/list-filters";
 import { nextCodesFrom } from "@/lib/spec/codes";
 import type {
@@ -658,17 +661,36 @@ export function useSpecBuilder({
   /*  Варианты замены материала                                        */
   /* ---------------------------------------------------------------- */
 
-  /** Мгновенно помечает выбранный вариант активным и пересчитывает плоские поля. */
+  /**
+   * Мгновенно помечает выбранный вариант активным и пересчитывает плоские поля.
+   *
+   * Статус догоняется здесь, а не меняется вторым запросом: согласование снимает
+   * сервер тем же действием (`switchVariant`, ADR 0008), и повторная отправка
+   * статуса дала бы второе «изменение» в истории на один жест. Без догона
+   * список, воронка и бейдж показывали бы прежнее «Согласовано» до перезагрузки
+   * — то же правило, что у статуса, изменившегося от оплаты
+   * (`applyStatusFromServer`).
+   */
   const switchVariantLocal = useCallback(
     (itemId: string, variantId: string) => {
       setItems((prev) =>
         prev.map((it) => {
           if (it.id !== itemId) return it;
+          // A → A — не смена материала: согласование снимать не за что. То же
+          // условие стоит на сервере (`switchVariant`).
+          const materialChanged =
+            it.variants.find((v) => v.isActive)?.id !== variantId;
           const variants = it.variants.map((v) => ({
             ...v,
             isActive: v.id === variantId,
           }));
-          return applyActiveVariant({ ...it, variants });
+          return applyActiveVariant({
+            ...it,
+            variants,
+            status: materialChanged
+              ? statusAfterVariantSwitch(it.status)
+              : it.status,
+          });
         }),
       );
       startTransition(async () => {

@@ -17,6 +17,11 @@ import {
 } from "@/lib/spec/history";
 import { specVariantPatchSchema } from "@/lib/validations";
 import { rowToVariant } from "@/lib/spec/variants";
+import {
+  statusAfterVariantSwitch,
+  variantSwitchDecision,
+} from "@/lib/spec/status";
+import type { SpecStatus } from "@/lib/constants";
 import type { SpecVariant, Tables } from "@/lib/types";
 
 /** Колонки позиции, из которых собирается снимок её базового материала. */
@@ -28,6 +33,10 @@ const BASE_SNAPSHOT_COLUMNS =
  * пользователя есть право её менять (по создателю проекта). Возвращает
  * admin-клиент, projectId для revalidate и актора для истории — или null, если
  * доступа нет.
+ *
+ * Статус читается тем же SELECT'ом: он решает, можно ли менять вариант
+ * (`variantSwitchDecision`), и второй запрос «а какой сейчас статус» открыл бы
+ * окно между проверкой и записью.
  */
 async function assertSpecItem(orgSlug: string, specItemId: string) {
   const ctx = await requireOrgBySlug(orgSlug);
@@ -35,7 +44,7 @@ async function assertSpecItem(orgSlug: string, specItemId: string) {
 
   const { data: item } = await supabase
     .from("spec_items")
-    .select("id, project_id, org_id")
+    .select("id, project_id, org_id, status")
     .eq("id", specItemId)
     .eq("org_id", ctx.orgId)
     .is("deleted_at", null)
@@ -64,6 +73,9 @@ async function assertSpecItem(orgSlug: string, specItemId: string) {
     supabase,
     orgId: ctx.orgId,
     projectId: item.project_id,
+    // Статус позиции — из того же чтения, что и права: ворота смены варианта
+    // стоят на нём (ADR 0008).
+    status: item.status as SpecStatus,
     // Актор для событий истории: сессия уже прочитана, второй запрос не нужен.
     userId: ctx.userId,
     user: ctx.user,
@@ -231,6 +243,23 @@ export async function addVariant(
  *
  * Владелец события `variant_switched`: переключение не проходит через патч
  * позиции, поэтому и история пишется здесь.
+ *
+ * ── Статус позиции ─────────────────────────────────────────────────────────
+ *
+ * Материал и согласование неразделимы: согласовано было конкретное исполнение, а
+ * не позиция вообще. Поэтому согласованную позицию переключить можно, но вместе
+ * с переключением она возвращается в «Подобрано» — согласовывать придётся
+ * заново, и об этом пользователя спрашивают в интерфейсе до записи
+ * (`variantSwitchDecision`). Заказанный и доставленный материал не меняют вовсе:
+ * ворота стоят здесь, а не только в разметке, — устаревшая вкладка или прямой
+ * вызов действия иначе обошли бы правило.
+ *
+ * Понижение статуса — следствие жеста, поэтому `status_changed` из него не
+ * пишется: в журнале остаётся `variant_switched`, который и объясняет, почему
+ * позиция больше не согласована (то же правило, что у оплаты и её
+ * `payment_added`, ADR [0007](../../docs/adr/0007-oplata-zakazyvaet-poziciyu.md)).
+ * Запись условная — `where status = <прочитанный>`: между чтением позиции и этим
+ * UPDATE статус мог уйти дальше.
  */
 export async function switchVariant(
   orgSlug: string,
@@ -239,6 +268,11 @@ export async function switchVariant(
 ): Promise<ActionResult> {
   const ctx = await assertSpecItem(orgSlug, specItemId);
   if (!ctx) return fail("Проект не найден");
+
+  // Ворота статуса — до чтения вариантов и до первой записи: отказ по
+  // заказанному материалу не должен менять ничего.
+  const decision = variantSwitchDecision(ctx.status);
+  if (decision.kind === "forbid") return fail(decision.reason, "NOT_ALLOWED");
 
   // Варианты позиции одним SELECT: из него и «до» (активный), и «после»
   // (целевой), и проверка, что целевой вообще принадлежит этой позиции и
@@ -287,7 +321,8 @@ export async function switchVariant(
   if ((activated ?? []).length !== 1) return fail("Не удалось переключить вариант");
 
   // A → A: пользователь выбрал уже активный вариант — мутация идемпотентна,
-  // но переключения не было, и события нет.
+  // но переключения не было: ни события, ни последствий для согласования
+  // (материал тот же самый).
   if (active?.id !== target.id) {
     await recordSpecItemEvents(
       ctx.supabase,
@@ -303,6 +338,32 @@ export async function switchVariant(
         ],
       }),
     );
+
+    // Материал стал другим — согласование относилось к прежнему. Событие выше
+    // уже записано и не отменяется: вариант действительно переключён, а история
+    // обязана это помнить независимо от исхода записи статуса.
+    const nextStatus = statusAfterVariantSwitch(ctx.status);
+
+    if (nextStatus !== ctx.status) {
+      const { error: statusError } = await ctx.supabase
+        .from("spec_items")
+        .update({ status: nextStatus, updated_at: new Date().toISOString() })
+        .eq("id", specItemId)
+        .eq("org_id", ctx.orgId)
+        .eq("status", ctx.status)
+        .is("deleted_at", null);
+
+      if (statusError) {
+        console.error("[switchVariant] status", statusError.message);
+        // Вариант переключён, но позиция осталась согласованной — состояние,
+        // которого правило не допускает. Молчать об этом нельзя: клиент уже
+        // показал «Подобрано», и без явного текста расхождение выглядело бы как
+        // «всё хорошо» до перезагрузки.
+        return fail(
+          "Вариант переключён, но снять согласование не удалось: переведите позицию в «Подобрано» вручную",
+        );
+      }
+    }
   }
 
   revalidatePath(`/${orgSlug}/projects/${ctx.projectId}`);

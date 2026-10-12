@@ -16,6 +16,7 @@ import { RoomsEditor } from "../../layout/rooms-editor";
 import { SupplierPicker } from "../../layout/supplier-picker";
 import type { CompanyOption } from "@/components/layout/company-picker";
 import type { DetailPanelTab } from "@/hooks/use-spec-builder";
+import { useVariantSwitch } from "@/hooks/use-variant-switch";
 
 interface Props {
   item: SpecItem;
@@ -175,6 +176,12 @@ const OverviewTab = ({
     [item.variants],
   );
   const activeVariant = variants.find((v) => v.isActive) ?? null;
+  // Смена варианта спрашивает то же, что и пилюля в строке таблицы: согласие
+  // относится к материалу, а не к позиции (ADR 0008).
+  const { decision, request, dialog: variantSwitchDialog } = useVariantSwitch({
+    status: item.status,
+    onSwitch: onSwitchVariant,
+  });
 
   /** Самый короткий срок и самая низкая цена — базы для сравнения. */
   const minLead = useMemo(() => {
@@ -324,10 +331,17 @@ const OverviewTab = ({
           // action={openTab("variants")}
         >
           <div className="flex flex-col gap-2">
-            <p className="text-[12px] text-fg-muted">
-              Клик по строке делает вариант активным — он попадает в
-              спецификацию и экспорты.
-            </p>
+            {/* Причина отказа называется словами: выключенный список без
+                объяснения читался бы как поломка. */}
+            {decision.kind === "forbid" ? (
+              <p className="text-[12px] text-fg-muted">{decision.reason}</p>
+            ) : (
+              <p className="text-[12px] text-fg-muted">
+                Клик по строке делает вариант активным — он попадает в
+                спецификацию и экспорты.
+                {decision.kind === "confirm" && ` ${decision.warning}`}
+              </p>
+            )}
 
             <div className="divide-y divide-border-muted">
               {variants.map((v) => {
@@ -342,13 +356,16 @@ const OverviewTab = ({
                   <button
                     key={v.id}
                     type="button"
-                    onClick={() => !v.isActive && onSwitchVariant(v.id)}
+                    disabled={decision.kind === "forbid"}
+                    onClick={() => !v.isActive && request(v.id)}
                     aria-pressed={v.isActive}
                     className={
                       "flex w-full items-center gap-3 px-2 py-2.5 text-left transition-colors " +
                       (v.isActive
                         ? "rounded-lg bg-bg-selected"
-                        : "cursor-pointer hover:bg-bg-select")
+                        : decision.kind === "forbid"
+                          ? "opacity-60"
+                          : "cursor-pointer hover:bg-bg-select")
                     }
                   >
                     <span
@@ -450,6 +467,10 @@ const OverviewTab = ({
           </div>
         </OverviewSection>
       )}
+
+      {/* Вопрос о снятии согласования: секция «Варианты» открыта прямо в
+          карточке, поэтому диалог живёт рядом с ней, а не внутри строки. */}
+      {variantSwitchDialog}
 
       {/* ── Состав: только чтение, правка — на вкладке «Состав» ─────── */}
       <OverviewSection

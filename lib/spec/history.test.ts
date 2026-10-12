@@ -4703,6 +4703,17 @@ describe("status_changed пишет только явная смена стат�
     expect(source).not.toContain("buildStatusChangedEvents");
     expect(source).not.toContain("status_changed");
   });
+
+  it("смена варианта статус не логирует", () => {
+    // Согласование снимается ВМЕСТЕ со сменой материала (ADR 0008), но это
+    // следствие жеста, а не явная смена статуса: в журнале остаётся
+    // variant_switched — он и объясняет, почему позиция больше не согласована.
+    // Второго события на один жест быть не должно.
+    const body = functionBody(sourceOf("spec-variants"), "switchVariant");
+
+    expect(body).not.toContain("buildStatusChangedEvents");
+    expect(body).not.toContain("status_changed");
+  });
 });
 
 /**
@@ -5367,6 +5378,39 @@ describe("variant_switched пишет только переключение ва
     ] as ActionFile[]) {
       expect(sourceOf(file), file).not.toContain("buildVariantSwitchedEvents");
     }
+  });
+
+  /**
+   * Ворота статуса (ADR 0008): заказанный и доставленный материал не меняют.
+   * Проверка текстовая и стоит здесь, рядом с историей, потому что она про
+   * МУТАЦИЮ: отказ обязан выйти до первой записи, иначе позиция в производстве
+   * осталась бы без активного варианта.
+   */
+  it("ворота статуса стоят до первой мутации", () => {
+    const body = functionBody(sourceOf("spec-variants"), "switchVariant");
+    const guardAt = body.indexOf("if (decision.kind === \"forbid\")");
+    const mutationAt = body.indexOf(".update({ is_active: false })");
+
+    expect(guardAt).toBeGreaterThan(-1);
+    expect(mutationAt).toBeGreaterThan(guardAt);
+  });
+
+  /**
+   * Снятие согласования — следствие переключения, а не отдельная смена
+   * статуса. В журнале остаётся `variant_switched` (как `payment_added` у
+   * оплаты, ADR 0007), и запись статуса идёт ПОСЛЕ события: вариант уже
+   * переключён, и сбой этого шага не должен стирать событие о нём.
+   */
+  it("понижение статуса идёт после события и условно", () => {
+    const body = functionBody(sourceOf("spec-variants"), "switchVariant");
+    const recordAt = body.indexOf("buildVariantSwitchedEvents(");
+    const downgradeAt = body.indexOf("statusAfterVariantSwitch(");
+    const conditionAt = body.indexOf(".eq(\"status\", ctx.status)");
+
+    expect(downgradeAt).toBeGreaterThan(recordAt);
+    // `where status = <прочитанный>`: между чтением позиции и записью статус мог
+    // уйти дальше, и вслепую возвращать его в «Подобрано» нельзя.
+    expect(conditionAt).toBeGreaterThan(downgradeAt);
   });
 });
 
