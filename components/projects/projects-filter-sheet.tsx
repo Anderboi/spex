@@ -15,24 +15,27 @@ import { FilterField } from "@/components/layout/filter-field";
 import { useProjectsUrl } from "@/hooks/use-projects-url";
 import {
   DEFAULT_PROJECTS_SORT,
+  DEFAULT_PROJECTS_VIEW,
   PROJECTS_SORTS,
   PROJECTS_STATUS_OPTIONS,
+  PROJECTS_VIEWS,
 } from "@/lib/projects/filters";
 import { cn } from "@/lib/utils";
 import { ProjectsSort } from "./projects-sort";
 import { ProjectsStatusFilter } from "./projects-status-filter";
+import { ProjectsViewFilter } from "./projects-view-filter";
 
 /**
- * Статус и сортировка проектов в нижней шторке (`< sm`).
+ * Режим списка, статус и сортировка проектов в нижней шторке (`< sm`).
  *
  * На телефоне в тулбаре остаётся один ряд: свёрнутый поиск и кнопка шторки
  * (ряд рисует сам `SearchBlock`). Два селекта рядом с иконкой поиска не
  * помещаются, поэтому они переезжают сюда — как в библиотеке материалов.
  *
- * Контролы те же, что в тулбаре (`ProjectsStatusFilter`, `ProjectsSort`), только
- * с `side="top"` и во всю ширину: так пункты, подписи и разбор значений в URL
- * живут в одном месте, а не дублируются в шторке. Счётчик активных фильтров
- * читает URL теми же правилами, что и парсер страницы.
+ * Контролы те же, что в тулбаре (`ProjectsViewFilter`, `ProjectsStatusFilter`,
+ * `ProjectsSort`), только с `side="top"` и во всю ширину: так пункты, подписи и
+ * разбор значений в URL живут в одном месте, а не дублируются в шторке. Счётчик
+ * активных фильтров читает URL теми же правилами, что и парсер страницы.
  *
  * Изменения применяются сразу (состояние в URL), «Готово» просто закрывает
  * шторку.
@@ -43,10 +46,15 @@ export function ProjectsFilterSheet({ className }: { className?: string }) {
   const { update } = useProjectsUrl();
 
   const status = searchParams.get("status");
+  const view = searchParams.get("view") ?? "";
   const sort = searchParams.get("sort") ?? "";
   const activeCount =
     Number(
       PROJECTS_STATUS_OPTIONS.some((option) => option.value === status),
+    ) +
+    Number(
+      (PROJECTS_VIEWS as readonly string[]).includes(view) &&
+        view !== DEFAULT_PROJECTS_VIEW,
     ) +
     Number(
       (PROJECTS_SORTS as readonly string[]).includes(sort) &&
@@ -54,7 +62,11 @@ export function ProjectsFilterSheet({ className }: { className?: string }) {
     );
 
   const handleReset = () =>
-    update({ status: null, sort: DEFAULT_PROJECTS_SORT });
+    update({
+      status: null,
+      view: DEFAULT_PROJECTS_VIEW,
+      sort: DEFAULT_PROJECTS_SORT,
+    });
 
   return (
     <>
@@ -87,6 +99,10 @@ export function ProjectsFilterSheet({ className }: { className?: string }) {
           </SheetHeader>
 
           <div className="flex flex-col gap-4 p-4">
+            <FilterField label="Показывать">
+              <ProjectsViewFilter side="top" className="w-full" />
+            </FilterField>
+
             <FilterField label="Статус">
               <ProjectsStatusFilter side="top" className="w-full" />
             </FilterField>
@@ -96,6 +112,8 @@ export function ProjectsFilterSheet({ className }: { className?: string }) {
             </FilterField>
           </div>
 
+          {/* «Сбросить» возвращает и режим списка: иначе из архива не выйти
+              одной кнопкой, а именно за этим в шторку и заходят. */}
           <SheetFooter className="flex-row gap-2 border-t border-border-subtle p-4">
             <Button
               size="lg"

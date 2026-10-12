@@ -3,8 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { projectSchema, ProjectInput } from "@/lib/validations";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { requireOrg, requireOrgBySlug } from "@/lib/auth/session";
-import { can, canMutateRecord } from "@/lib/permissions";
+import { requireOrgBySlug } from "@/lib/auth/session";
+import { can } from "@/lib/permissions";
 import { assertCanMutate } from "@/lib/db/guard";
 import { ActionResult, ok } from "@/lib/action-result";
 
@@ -78,33 +78,99 @@ export async function upsertProject(
   return ok({ id: data.id as string });
 }
 
+/**
+ * Убрать проект в архив — мягкое удаление (`deleted_at`), а не стирание.
+ *
+ * Первый из двух шагов удаления: случайный клик или удаление «не тем человеком»
+ * перестаёт быть необратимым — проект уходит из рабочего списка в архив, откуда
+ * его возвращает `restoreProject`, а окончательно удаляет `deleteProject`.
+ * Заодно это единственный путь для проектов с платежами: физически они не
+ * удаляются из-за `ON DELETE RESTRICT` (ADR 0004).
+ *
+ * Права как у правки: автор записи или администратор.
+ */
+export async function archiveProject(orgSlug: string, id: string) {
+  const guard = await assertCanMutate(orgSlug, "projects", id);
+  if (!guard.ok) return guard.response;
+
+  const { error } = await guard.ctx.supabase
+    .from("projects")
+    .update({ deleted_at: new Date().toISOString() })
+    .eq("id", id)
+    .eq("org_id", guard.ctx.orgId);
+
+  if (error) {
+    console.error("[archiveProject]", error.message);
+    return { success: false as const, error: "Не удалось убрать проект в архив" };
+  }
+
+  revalidatePath(`/${orgSlug}/projects`);
+  return { success: true as const };
+}
+
+/** Вернуть проект из архива: снимает `deleted_at`. Права — как у архивации. */
+export async function restoreProject(orgSlug: string, id: string) {
+  const guard = await assertCanMutate(orgSlug, "projects", id);
+  if (!guard.ok) return guard.response;
+
+  const { error } = await guard.ctx.supabase
+    .from("projects")
+    .update({ deleted_at: null })
+    .eq("id", id)
+    .eq("org_id", guard.ctx.orgId);
+
+  if (error) {
+    console.error("[restoreProject]", error.message);
+    return {
+      success: false as const,
+      error: "Не удалось вернуть проект из архива",
+    };
+  }
+
+  revalidatePath(`/${orgSlug}/projects`);
+  return { success: true as const };
+}
+
 export async function deleteProject(
   orgSlug: string,
   id: string,
 ): Promise<ActionResponse> {
   if (!id) return { success: false, error: "ID не указан" };
 
-  const { userId, orgId, role } = await requireOrg();
-  const supabase = createAdminClient();
+  // Организация берётся из СЛАГА страницы, а не из `active_org_id` сессии:
+  // переключатель организаций в сайдбаре ведёт обычной ссылкой на `/<slug>/...`
+  // и активную организацию в базе не меняет. Из-за `requireOrg()` удаление
+  // искало проект в чужой организации и заканчивалось «Проект не найден»,
+  // хотя карточка была видна (список читается по слагу).
+  // `assertCanMutate` (lib/db/guard) сам проверяет и принадлежность записи
+  // организации из слага, и права на её изменение, а `guard.ctx.orgId` — тот
+  // самый org_id, по которому надо удалять.
+  const guard = await assertCanMutate(orgSlug, "projects", id);
+  if (!guard.ok) return guard.response;
 
-  // 1. проект существует и принадлежит МОЕЙ организации
-  const { data: project } = await supabase
-    .from("projects")
-    .select("id, created_by")
-    .eq("id", id)
-    .eq("org_id", orgId)
-    .maybeSingle();
-
-  if (!project) return { success: false, error: "Проект не найден" };
-  if (!canMutateRecord({ role, userId, createdBy: project.created_by })) {
+  // Стирание — только владелец и администратор. Убрать проект в архив участник
+  // может (это обратимо), а уничтожить данные организации — нет.
+  if (!can(guard.ctx.role, "record:mutate:any")) {
     return {
       success: false,
-      error: "Удалять чужие проекты может только администратор",
+      error: "Удалить проект окончательно может только администратор",
     };
   }
 
-  const guard = await assertCanMutate(orgSlug, "projects", id);
-  if (!guard.ok) return guard.response;
+  // И только из архива: два шага вместо одного клика — цена необратимости.
+  const { data: project } = await guard.ctx.supabase
+    .from("projects")
+    .select("deleted_at")
+    .eq("id", id)
+    .eq("org_id", guard.ctx.orgId)
+    .maybeSingle();
+
+  // Между проверкой прав и этим чтением проект мог исчезнуть: тогда честнее
+  // сказать «не найден», чем упасть на необъявленном состоянии.
+  if (!project) return { success: false, error: "Проект не найден" };
+  if (project.deleted_at === null) {
+    return { success: false, error: "Сначала переместите проект в архив" };
+  }
 
   const { error } = await guard.ctx.supabase
     .from("projects")
@@ -113,6 +179,16 @@ export async function deleteProject(
     .eq("org_id", guard.ctx.orgId);
 
   if (error) {
+    // 23503 — нарушение внешнего ключа: на платежах и графике платежей стоит
+    // ON DELETE RESTRICT, поэтому проект с финансовой историей физически не
+    // удаляется (см. ADR 0004). Пользователю нужна причина, а не «не удалилось».
+    if (error.code === "23503") {
+      return {
+        success: false,
+        error:
+          "По проекту есть платежи или график платежей — финансовая история не удаляется. Удалить проект нельзя.",
+      };
+    }
     console.error("[deleteProject]", error.message);
     return { success: false, error: "Не удалось удалить проект" };
   }

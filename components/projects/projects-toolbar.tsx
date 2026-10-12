@@ -2,6 +2,7 @@ import { SearchBlock } from "../layout/search-block";
 import { ProjectsStatusFilter } from "./projects-status-filter";
 import { ProjectsSort } from "./projects-sort";
 import { ProjectsFilterSheet } from "./projects-filter-sheet";
+import { ProjectsViewFilter } from "./projects-view-filter";
 
 /**
  * Тулбар списка проектов.
@@ -15,6 +16,10 @@ import { ProjectsFilterSheet } from "./projects-filter-sheet";
  * `SearchBlock` — он же убирает кнопку, пока развёрнуто поле). Статус и
  * сортировка переезжают в нижнюю шторку — как в библиотеке материалов и
  * каталоге контактов.
+ *
+ * Режим списка (`ProjectsViewFilter`) стоит первым среди контролов: он задаёт,
+ * какие проекты вообще показываются, а статус и сортировка уточняют выборку
+ * внутри него.
  */
 export function ProjectsToolbar() {
   return (
@@ -25,6 +30,7 @@ export function ProjectsToolbar() {
         expandedContent={<ProjectsFilterSheet className="sm:hidden" />}
       />
       <div className="hidden sm:contents">
+        <ProjectsViewFilter />
         <ProjectsStatusFilter />
         <ProjectsSort />
       </div>

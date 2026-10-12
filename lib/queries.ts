@@ -329,7 +329,7 @@ export async function getMaterialById(orgSlug: string, id: string) {
  * ==========================================
  */
 const PROJECT_LIST_SELECT =
-  "id, title, client_name, accent_color, status, cover_url, updated_at, created_at, org_id, budget, address, type, rooms";
+  "id, title, client_name, accent_color, status, cover_url, updated_at, created_at, org_id, budget, address, type, rooms, deleted_at";
 
 export type ProjectListItem = {
   id: string;
@@ -344,6 +344,8 @@ export type ProjectListItem = {
   address: string | null;
   type: ProjectType;
   rooms: string[];
+  /** `null` — проект в работе; дата — проект в архиве (мягко удалён). */
+  deletedAt: string | null;
 };
 
 type ProjectRow = {
@@ -360,6 +362,7 @@ type ProjectRow = {
   address: string | null;
   type: string | null;
   rooms: string[] | null;
+  deleted_at: string | null;
 };
 
 function toProjectListItem(r: ProjectRow): ProjectListItem {
@@ -376,6 +379,7 @@ function toProjectListItem(r: ProjectRow): ProjectListItem {
     address: r.address,
     type: (r.type ?? "Интерьер") as ProjectType,
     rooms: r.rooms ?? [],
+    deletedAt: r.deleted_at,
   };
 }
 
@@ -387,11 +391,17 @@ export const getProjects = cache(
     const { orgId } = await requireOrgBySlug(orgSlug);
     const supabase = createAdminClient();
 
-    let query = supabase
+    // Архив — это мягко удалённые записи (`deleted_at`), а не статус проекта:
+    // `status = 'archived'` живёт отдельно и от режима списка не зависит.
+    const scoped = supabase
       .from("projects")
       .select(PROJECT_LIST_SELECT, { count: "exact" })
-      .eq("org_id", orgId)
-      .is("deleted_at", null);
+      .eq("org_id", orgId);
+
+    let query =
+      filters.view === "archive"
+        ? scoped.not("deleted_at", "is", null)
+        : scoped.is("deleted_at", null);
 
     const s = sanitizeSearch(filters.query);
     if (s) {

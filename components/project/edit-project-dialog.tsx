@@ -3,41 +3,12 @@
 import { useMemo } from "react";
 import { useRouter } from "next/navigation";
 
-import type { ProjectInput, ProjectStatus } from "@/lib/validations";
+import {
+  toProjectInput,
+  type EditableProject,
+} from "@/lib/projects/project-input";
 import { useDialogUrl } from "@/hooks/use-dialog-url";
 import { ProjectDialog } from "./project-dialog";
-
-/**
- * Поля проекта, которые редактируются на странице спецификации.
- * По составу совпадают с выборкой getProjectById (lib/queries).
- */
-export interface EditableProject {
-  id: string;
-  title: string;
-  client_name: string | null;
-  accent_color: string | null;
-  cover_url: string | null;
-  address: string | null;
-  budget: number | null;
-  status: string;
-  type: string | null;
-  rooms: string[];
-}
-
-function toProjectInput(p: EditableProject): ProjectInput {
-  return {
-    id: p.id,
-    title: p.title,
-    client_name: p.client_name ?? "",
-    accent_color: p.accent_color ?? "#000000",
-    cover_url: p.cover_url ?? null,
-    address: p.address ?? "",
-    budget: p.budget ?? 0,
-    status: (p.status || "draft") as ProjectStatus,
-    type: (p.type || "Интерьер") as ProjectInput["type"],
-    rooms: p.rooms ?? [],
-  };
-}
 
 interface EditProjectDialogProps {
   orgSlug: string;

@@ -7,6 +7,8 @@ import { ProjectsToolbar } from "@/components/projects/projects-toolbar";
 import { ProjectsList } from "@/components/projects/projects-list";
 import { ProjectsPagination } from "@/components/projects/projects-pagination";
 import { ProjectsSkeleton } from "@/components/projects/projects-skeleton";
+import { requireOrgBySlug } from "@/lib/auth/session";
+import { can } from "@/lib/permissions";
 
 export const metadata = { title: "Проекты" };
 
@@ -46,11 +48,22 @@ async function ProjectsData({
   const sp = await searchParams;
   const filters = parseProjectsFilters(sp);
 
-  const { items, pageCount } = await getProjects(orgSlug, filters);
+  const [{ items, pageCount }, ctx] = await Promise.all([
+    getProjects(orgSlug, filters),
+    // Роль нужна карточкам архива: окончательное удаление — только владелец и
+    // администратор, и кнопка, которая заведомо не сработает, не показывается.
+    requireOrgBySlug(orgSlug),
+  ]);
 
   return (
     <section className="mt-4">
-      <ProjectsList projects={items} orgSlug={orgSlug} query={filters.query} />
+      <ProjectsList
+        projects={items}
+        orgSlug={orgSlug}
+        query={filters.query}
+        view={filters.view}
+        canDeleteForever={can(ctx.role, "record:mutate:any")}
+      />
       <ProjectsPagination page={filters.page} pageCount={pageCount} />
     </section>
   );

@@ -109,9 +109,18 @@ export type ContactsFilters = {
 
 export type ProjectsSort = "date" | "name" | "budget";
 
+/**
+ * Что показывает список проектов: рабочие проекты или архив.
+ *
+ * `archive` — не статус проекта (`archived` в `ProjectStatus` — отдельная
+ * сущность), а мягко удалённые записи (`projects.deleted_at`).
+ */
+export type ProjectsView = "active" | "archive";
+
 export type ProjectsFilters = {
   query: string;
   status: ProjectStatus | null;
+  view: ProjectsView;
   sort: ProjectsSort;
   page: number;
 };
