@@ -147,6 +147,32 @@ export async function acceptInvite(
 }
 
 /**
+ * Состояние формы принятия приглашения — для `useActionState`.
+ *
+ * Ожидаемые отказы возвращаются значением, а не исключением: в production
+ * Next заменяет текст исключения из Server Action на «An error occurred in the
+ * Server Components render», оставляя только digest, и человек по ссылке не
+ * понимает, почему приглашение не принято (например, что вошёл не тот аккаунт).
+ */
+export type AcceptInviteState = { error: string | null };
+
+/**
+ * Обёртка `acceptInvite` под форму: токен приходит скрытым полем, отказ — в
+ * состояние. Успех уводит редиректом из `acceptInvite` (он бросает исключение
+ * редиректа, поэтому код ниже не выполняется).
+ */
+export async function acceptInviteFromForm(
+  _prevState: AcceptInviteState,
+  formData: FormData,
+): Promise<AcceptInviteState> {
+  const token = String(formData.get("token") ?? "").trim();
+  if (!token) return { error: "В ссылке нет токена приглашения" };
+
+  const res = await acceptInvite(token);
+  return res.success ? { error: null } : { error: res.error };
+}
+
+/**
  * 3. Изменение роли участника.
  *
  * Разрешены переходы member → admin, admin → member, а также назначение и

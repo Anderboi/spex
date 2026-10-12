@@ -321,3 +321,19 @@ export async function loginWithCredentials(formData: FormData) {
 export async function logout() {
   await signOut({ redirectTo: "/login" });
 }
+
+/**
+ * Выход с возвратом на конкретную страницу. Нужен там, где под текущим
+ * аккаунтом действие невозможно — например, приглашение выписано на другой
+ * адрес, и человеку надо войти заново.
+ *
+ * Путь приходит с клиента, поэтому пускаем только внутренние адреса:
+ * абсолютный URL превратил бы выход в открытый редирект.
+ */
+export async function logoutTo(returnTo: string) {
+  const target =
+    returnTo.startsWith("/") && !returnTo.startsWith("//")
+      ? returnTo
+      : "/login";
+  await signOut({ redirectTo: target });
+}

@@ -19,7 +19,8 @@ import {
   SpecItem,
 } from "./types";
 import { one } from "./utils";
-import { canMutateRecord, type InviteRole, type OrgRole } from "./permissions";
+import { canMutateRecord, isInviteRole, type InviteRole, type OrgRole } from "./permissions";
+import type { InviteLookup } from "./invites";
 import { MATERIAL_TARGET_PROJECT_STATUSES } from "./constants";
 import { MATERIALS_PAGE_SIZE } from "./materials/filters";
 import { CONTACTS_PAGE_SIZE } from "./contacts/filters";
@@ -1004,6 +1005,50 @@ export type ActiveInvite = {
   created_at: string;
   expires_at: string;
 };
+
+/**
+ * Приглашение по токену — для публичной страницы `/invite/accept`.
+ *
+ * Читаем административным клиентом: у гостя нет сессии, а RLS на
+ * `organization_invites` пускает только менеджеров организации. Решение о
+ * принятии всё равно принимает `accept_invite` в БД — здесь только показ.
+ */
+export async function lookupInvite(token: string): Promise<InviteLookup> {
+  const supabase = createAdminClient();
+
+  const { data, error } = await supabase
+    .from("organization_invites")
+    .select("email, role, expires_at, organizations ( name, slug )")
+    .eq("token", token)
+    .maybeSingle();
+
+  if (error) {
+    console.error("[lookupInvite]", error.message);
+    return { status: "error" };
+  }
+  if (!data) return { status: "not_found" };
+
+  const org = one(
+    data.organizations as
+      | { name: string; slug: string }
+      | { name: string; slug: string }[]
+      | null,
+  );
+  if (!org) return { status: "not_found" };
+
+  return {
+    status: "ok",
+    invite: {
+      email: data.email,
+      // В БД CHECK (role IN ('admin','member')) — испорченную строку считаем
+      // приглашением рядового участника, а не отказываем во входе.
+      role: isInviteRole(data.role) ? data.role : "member",
+      expires_at: data.expires_at,
+      org_name: org.name,
+      org_slug: org.slug,
+    },
+  };
+}
 
 /**
  * Данные страницы «Команда».
