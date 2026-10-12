@@ -533,6 +533,11 @@ export default function SpecBuilder({
           onQty={(d) => ctx.incQty(ctx.current!.id, d)}
           onPrice={(v) => ctx.setPrice(ctx.current!.id, v)}
           onStatus={(s) => ctx.setStatus(ctx.current!.id, s)}
+          // Статус, изменённый сервером (оплата заказывает позицию): локальный
+          // догон без второй записи — она уже сделана действием оплаты.
+          onStatusFromServer={(s) =>
+            ctx.applyStatusFromServer(ctx.current!.id, s)
+          }
           onClear={() => ctx.clearContent(ctx.current!.id)}
           onDelete={() => ctx.openDelete(ctx.current!.id)}
           onShare={() => ctx.shareItem(ctx.current!)}

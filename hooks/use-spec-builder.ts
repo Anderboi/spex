@@ -516,6 +516,22 @@ export function useSpecBuilder({
     [orgSlug, projectId, persist, showToast],
   );
 
+  /**
+   * Статус, изменённый НА СЕРВЕРЕ чужим действием: оплата переводит
+   * согласованную позицию в «Заказано» (`statusAfterPayment`, ADR 0007).
+   *
+   * Только локально, и это не оптимизация: статус уже записан действием оплаты.
+   * `setStatus` отправил бы второй запрос и второе «изменение» в историю —
+   * `status_changed` пишет исключительно явная смена
+   * (`actions/specifications.ts`), а побочный переход обязан быть виден по
+   * своему событию (`payment_added`). Без этого догона список и воронка
+   * показывали бы прежний статус до перезагрузки — а по нему считается «Сумма в
+   * закупке» и ворота оплаты.
+   */
+  const applyStatusFromServer = useCallback((id: string, status: SpecStatus) => {
+    setItems((prev) => prev.map((i) => (i.id === id ? { ...i, status } : i)));
+  }, []);
+
   const incQty = useCallback(
     (id: string, delta: number) => {
       updateItem(
@@ -1981,6 +1997,7 @@ export function useSpecBuilder({
     updateMany,
     setItemParent,
     setStatus,
+    applyStatusFromServer,
     incQty,
     setQty,
     setPrice,

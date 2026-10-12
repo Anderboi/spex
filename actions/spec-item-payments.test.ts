@@ -101,7 +101,18 @@ function paymentRow(over: Row = {}): Row {
  */
 function fakeAdmin(seed: Row[] = []) {
   const tables: Record<string, Row[]> = {
-    spec_items: [{ id: ITEM, org_id: ORG, project_id: PROJECT, deleted_at: null }],
+    spec_items: [
+      {
+        id: ITEM,
+        org_id: ORG,
+        project_id: PROJECT,
+        // Статус и заглушка нужны воротам оплаты (ADR 0007): без них запись
+        // факта отказывала бы по любой позиции.
+        status: "approved",
+        is_placeholder: false,
+        deleted_at: null,
+      },
+    ],
     spec_item_payment_plans: [
       {
         id: PLAN_A,
@@ -127,15 +138,21 @@ function fakeAdmin(seed: Row[] = []) {
     let countRequested = false;
     let headOnly = false;
 
+    /**
+     * Приведение к uuid — только для uuid-значений: по нему «не-uuid строка» не
+     * совпадает ни с чем, как в Postgres. Остальные колонки (статус, вид записи)
+     * сравниваются как есть — ворота оплаты фильтруют именно статусом.
+     */
     const matches = (row: Row) =>
       eqs.every(([column, value]) => {
-        const expected = asUuid(value);
-        if (expected === null) return false;
         const actual =
           typeof row[column] === "string"
             ? (row[column] as string).toLowerCase()
             : row[column];
-        return actual === expected;
+        if (typeof value === "string" && UUID_RE.test(value)) {
+          return actual === asUuid(value);
+        }
+        return actual === value;
       }) && isNull.every((column) => (row[column] ?? null) === null);
 
     const matched = () => (tables[table] ?? []).filter(matches);

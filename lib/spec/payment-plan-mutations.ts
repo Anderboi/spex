@@ -43,6 +43,7 @@
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Database } from "../types";
+import type { SpecStatus } from "../constants";
 import type { SpecItemEventActor, SpecItemEventInput } from "./history";
 import { callRpc } from "../supabase/rpc";
 import {
@@ -194,6 +195,17 @@ type SpecItemRow = {
   id: string;
   org_id: string;
   project_id: string;
+  /**
+   * Статус и заглушка — только ради ВОРОТ ОПЛАТЫ (`./payment-mutations`):
+   * платить можно по позиции, которая уже в закупке, а после оплаты
+   * согласованная становится заказанной (ADR 0007).
+   *
+   * Графику эти поля не нужны, но читаются тем же запросом намеренно: отдельный
+   * запрос «позиция со статусом» был бы вторым правилом «позиция в организации»
+   * — ровно тем, от которого этот `resolveSpecItem` и существует.
+   */
+  status: SpecStatus;
+  is_placeholder: boolean;
   deleted_at: string | null;
 };
 
@@ -216,7 +228,7 @@ export async function resolveSpecItem(
 > {
   const { data, error } = await db
     .from("spec_items")
-    .select("id, org_id, project_id, deleted_at")
+    .select("id, org_id, project_id, status, is_placeholder, deleted_at")
     .eq("id", args.specItemId)
     .eq("org_id", args.orgId)
     .maybeSingle<SpecItemRow>();

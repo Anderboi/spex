@@ -26,6 +26,8 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn, fmtDate, fmtRub } from "@/lib/utils";
+import { isInProcurementScope, type SpecStatus } from "@/lib/constants";
+import { SPEC_STATUS_CONFIG, statusAfterPayment } from "@/lib/spec/status";
 import {
   createPaymentPlan,
   listPaymentPlans,
@@ -271,6 +273,15 @@ export default function PaymentsTab({
   currentUserId,
   /** Стоимость позиции — справка. Остаток от неё не считается (решение Q1). */
   itemCost,
+  /** Статус позиции: по нему решается, можно ли вносить деньги (ADR 0007). */
+  status,
+  /** Заглушка: у неё не бывает воронки, а значит и оплат. */
+  isPlaceholder,
+  /**
+   * Статус, изменённый НА СЕРВЕРЕ: оплата заказывает согласованную позицию, и
+   * список с воронкой обязаны узнать об этом, не дожидаясь перезагрузки.
+   */
+  onStatusFromServer,
 }: {
   /** Слаг организации: организация берётся на сервере из сессии, не с клиента. */
   orgSlug: string;
@@ -279,6 +290,9 @@ export default function PaymentsTab({
   role: OrgRole | null;
   currentUserId: string;
   itemCost?: number;
+  status: SpecStatus;
+  isPlaceholder: boolean;
+  onStatusFromServer?: (status: SpecStatus) => void;
 }) {
   const [plans, setPlans] = useState<PaymentPlanEntry[]>([]);
   const [payments, setPayments] = useState<PaymentEntry[]>([]);
@@ -346,6 +360,19 @@ export default function PaymentsTab({
   }, [specItemId]);
 
   const canWrite = canRecordPayment({ role });
+
+  /**
+   * Ворота оплаты: деньги вносятся по позиции, которая уже в закупке, — не раньше
+   * «Согласовано» (ADR 0007). Правило то же, что у «Суммы в закупке»
+   * (`isInProcurementScope`), поэтому оплаченное не может оказаться деньгами по
+   * позиции, которой в закупке нет.
+   *
+   * Разделение с `canWrite` намеренное: право роли отвечает на «кто», ворота — на
+   * «когда». Возврат ворота не знает (он исправляет уже записанные деньги), а
+   * заведение счёта в графике — не деньги вовсе, поэтому оба остаются доступны.
+   */
+  const payable = isInProcurementScope({ isPlaceholder, status });
+  const canPay = canWrite && payable;
 
   /**
    * Загрузка списков: ничего не пишет в состояние сама, а возвращает результат —
@@ -647,6 +674,20 @@ export default function PaymentsTab({
                 )
               : [res.data, ...current];
           });
+
+          /*
+            Оплата заказывает позицию (ADR 0007): сервер уже перевёл согласованную
+            в «Заказано», и список с воронкой обязаны узнать об этом здесь — иначе
+            до перезагрузки они показывали бы прежний статус. Локальный догон
+            живёт тем же правилом (`statusAfterPayment`), а не своей догадкой.
+
+            Только у отметки «Оплачено»: возврат денег обязательство не заказывает,
+            а правка записи вообще не новое движение.
+          */
+          if (opened.markPaidPlan) {
+            const next = statusAfterPayment(status);
+            if (next !== status) onStatusFromServer?.(next);
+          }
           /*
             Отметка «Оплачено» снимает пометку об отмене: у строки появился
             живой факт, и рассказывать про прошлую отмену больше нечего — она
@@ -704,7 +745,7 @@ export default function PaymentsTab({
         return { error: "Не удалось сохранить запись" };
       }
     },
-    [applyFile, files, form, orgSlug, specItemId, uploadAttachments],
+    [applyFile, files, form, orgSlug, specItemId, status, onStatusFromServer, uploadAttachments],
   );
 
   /** Удалить приложенный документ прямо из формы. */
@@ -1027,6 +1068,20 @@ export default function PaymentsTab({
             )}
           </div>
 
+          {/*
+            Ворота оплаты объясняются СЛОВАМИ, а не спрятанной кнопкой: причина не
+            в правах и не в форме — позицию нужно сначала согласовать (ADR 0007).
+            Скрытая кнопка без объяснения читалась бы как «здесь так и задумано».
+          */}
+          {canWrite && !payable && (
+            <p className="px-1 text-[12px] text-fg-muted">
+              Оплата доступна по позициям в закупке, то есть после согласования:
+              сейчас статус «{SPEC_STATUS_CONFIG[status].label}». Переведите
+              позицию в «Согласовано» — отметка «Оплачено» появится у строк
+              графика. Счёт в график можно завести и сейчас.
+            </p>
+          )}
+
           {rows.length === 0 && (
             <div className="flex flex-col items-center gap-1.5 rounded-xl border-2 border-dashed border-border-muted px-4 py-6 text-center">
               <Receipt className="size-5 text-fg-dim" aria-hidden="true" />
@@ -1034,8 +1089,14 @@ export default function PaymentsTab({
                 Платежей пока нет
               </p>
               <p className="max-w-xs text-[12.5px] text-fg-muted">
-                Запланируйте платёж по счёту поставщика или внесите оплату, если
-                деньги уже ушли.
+                {/*
+                  Пустое состояние не обещает того, чего не будет: у
+                  несогласованной позиции «внесите оплату» — приглашение к
+                  действию, которое откажет.
+                */}
+                {payable
+                  ? "Запланируйте платёж по счёту поставщика или внесите оплату, если деньги уже ушли."
+                  : "Запланируйте платёж по счёту поставщика: отметить его оплаченным можно будет после согласования позиции."}
               </p>
             </div>
           )}
@@ -1164,25 +1225,34 @@ export default function PaymentsTab({
                       */}
                       {!isPaid && row.plan && (
                         <>
-                          <Button
-                            type="button"
-                            variant="outline"
-                            size="sm"
-                            className="h-6 gap-1 rounded-full px-2 text-[11.5px]"
-                            aria-label={`Отметить «${row.plan.title}» оплаченным`}
-                            disabled={rowBusy !== null}
-                            onClick={() =>
-                              openForm({
-                                editingPlan: null,
-                                editingPayment: null,
-                                markPaidPlan: row.plan,
-                                fixedKind: "payment",
-                              })
-                            }
-                          >
-                            <Check className="size-3" />
-                            Оплачено
-                          </Button>
+                          {/*
+                            Отметка «Оплачено» — единственный вход фактических
+                            денег в строке, поэтому она под воротами оплаты
+                            (ADR 0007): по несогласованной позиции деньги не
+                            вносятся. «Изменить» рядом остаётся — правка счёта
+                            деньгами не является.
+                          */}
+                          {canPay && (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="h-6 gap-1 rounded-full px-2 text-[11.5px]"
+                              aria-label={`Отметить «${row.plan.title}» оплаченным`}
+                              disabled={rowBusy !== null}
+                              onClick={() =>
+                                openForm({
+                                  editingPlan: null,
+                                  editingPayment: null,
+                                  markPaidPlan: row.plan,
+                                  fixedKind: "payment",
+                                })
+                              }
+                            >
+                              <Check className="size-3" />
+                              Оплачено
+                            </Button>
+                          )}
                           <Button
                             type="button"
                             variant="ghost"

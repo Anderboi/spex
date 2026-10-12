@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { PROCUREMENT_FLOW, isInProcurementScope } from "@/lib/constants";
-import { allowedStatuses } from "./status";
+import { allowedStatuses, statusAfterPayment } from "./status";
 
 /**
  * Инвариант, на котором держится правило области воронки.
@@ -54,5 +54,31 @@ describe("заглушка и воронка закупки", () => {
     expect(
       isInProcurementScope({ isPlaceholder: true, status: "approved" }),
     ).toBe(false);
+  });
+});
+
+/**
+ * Правило оплаты: согласованная позиция становится заказанной (ADR 0007).
+ *
+ * Проверяются все шесть статусов, а не только «Согласовано»: список короткий, и
+ * именно на нём видно, что функция не «двигает статус вперёд», а переводит ровно
+ * один переход — остальные оставляет человеку.
+ */
+describe("statusAfterPayment", () => {
+  it("согласованную позицию оплата заказывает", () => {
+    expect(statusAfterPayment("approved")).toBe("ordered");
+  });
+
+  it("пройденные статусы не откатывает", () => {
+    expect(statusAfterPayment("ordered")).toBe("ordered");
+    expect(statusAfterPayment("delivered")).toBe("delivered");
+  });
+
+  it("«Заменить» и статусы до согласования не трогает", () => {
+    // Из «Не выбрано» и «Подобрано» оплатить нельзя вовсе (ворота стоят до
+    // записи), а «Заменить» — решение человека о браке, а не следствие денег.
+    expect(statusAfterPayment("draft")).toBe("draft");
+    expect(statusAfterPayment("picked")).toBe("picked");
+    expect(statusAfterPayment("replace")).toBe("replace");
   });
 });

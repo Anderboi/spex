@@ -97,6 +97,7 @@ export function DetailModal({
   onQty,
   onPrice,
   onStatus,
+  onStatusFromServer,
   onClear,
   onDelete,
   onShare,
@@ -166,6 +167,14 @@ export function DetailModal({
   onQty: (delta: number) => void;
   onPrice: (raw: string) => void;
   onStatus: (s: SpecStatus) => void;
+  /**
+   * Статус, изменённый НА СЕРВЕРЕ чужим действием: оплата заказывает
+   * согласованную позицию (ADR 0007). Канал отдельный от `onStatus`, потому что
+   * здесь нечего записывать на сервер — он уже записан; родителю нужно только
+   * догнать локальное состояние, иначе список и воронка показывали бы прежний
+   * статус до перезагрузки.
+   */
+  onStatusFromServer: (s: SpecStatus) => void;
   onClear: () => void;
   onDelete: () => void;
   onShare: () => void;
@@ -408,6 +417,9 @@ export function DetailModal({
               role={role}
               currentUserId={currentUser.id}
               itemCost={priceOf(item).total}
+              status={item.status}
+              isPlaceholder={item.isPlaceholder}
+              onStatusFromServer={onStatusFromServer}
             />
           </ScrollableTab>
         </Tabs>

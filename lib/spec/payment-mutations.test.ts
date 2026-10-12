@@ -106,6 +106,25 @@ function planRow(over: Row = {}): Row {
 }
 
 /**
+ * Позиция.
+ *
+ * Статус и заглушка здесь не для полноты строки: их читают ВОРОТА ОПЛАТЫ
+ * (ADR 0007), и без них ворота отказали бы каждому тесту записи сразу. По
+ * умолчанию позиция согласована — то есть деньги вносить можно.
+ */
+function itemRow(over: Row = {}): Row {
+  return {
+    id: ITEM,
+    org_id: ORG,
+    project_id: PROJECT,
+    status: "approved",
+    is_placeholder: false,
+    deleted_at: null,
+    ...over,
+  };
+}
+
+/**
  * Подставной клиент.
  *
  * Повторяет ровно те возможности, которыми пользуется ядро: выборку с фильтрами и
@@ -115,13 +134,10 @@ function planRow(over: Row = {}): Row {
  * проверял бы не правило, а заглушку.
  */
 function fakeAdmin(
-  seed: { payments?: Row[]; plans?: Row[] } = {},
+  seed: { payments?: Row[]; plans?: Row[]; items?: Row[] } = {},
 ) {
   const tables: Record<string, Row[]> = {
-    spec_items: [
-      { id: ITEM, org_id: ORG, project_id: PROJECT, deleted_at: null },
-      { id: OTHER_ITEM, org_id: ORG, project_id: PROJECT, deleted_at: null },
-    ],
+    spec_items: seed.items ?? [itemRow(), itemRow({ id: OTHER_ITEM })],
     spec_item_payment_plans: seed.plans ?? [
       planRow(),
       planRow({ id: PLAN_OTHER_ITEM, spec_item_id: OTHER_ITEM }),
@@ -134,6 +150,14 @@ function fakeAdmin(
 
   /** Ошибка, которую следующая вставка отдаст вместо успеха (гонка). */
   let nextInsertError: { code: string; message: string } | null = null;
+
+  /**
+   * Ошибка, которую следующий UPDATE отдаст вместо успеха.
+   *
+   * Нужна ровно одному случаю — сбою записи статуса после оплаты: он не отменяет
+   * оплату, и это правило проверяется тестом, а не комментарием.
+   */
+  let nextUpdateError: { code: string; message: string } | null = null;
 
   /** Сколько раз читали таблицу оплат: по этому видно повторный запрос. */
   const reads: string[] = [];
@@ -149,15 +173,24 @@ function fakeAdmin(
     let columns = "*";
     const orderBy: { column: string; ascending: boolean }[] = [];
 
+    /**
+     * Сравнение фильтра с колонкой.
+     *
+     * Приведение к uuid — только для uuid-значений: по нему «не-uuid строка» не
+     * совпадает ни с чем, как в Postgres. Остальные колонки (статус, вид записи,
+     * признак удаления) сравниваются как есть — ворота оплаты фильтруют именно
+     * статусом, и приведение к uuid нашло бы там пустоту.
+     */
     const matches = (row: Row) =>
       eqs.every(([column, value]) => {
-        const expected = asUuid(value);
-        if (expected === null) return false;
         const actual =
           typeof row[column] === "string"
             ? (row[column] as string).toLowerCase()
             : row[column];
-        return actual === expected;
+        if (typeof value === "string" && UUID_RE.test(value)) {
+          return actual === asUuid(value);
+        }
+        return actual === value;
       }) && isNull.every((column) => (row[column] ?? null) === null);
 
     const matched = () => (tables[table] ?? []).filter(matches);
@@ -231,6 +264,11 @@ function fakeAdmin(
       }
 
       if (operation === "update") {
+        if (nextUpdateError) {
+          const error = nextUpdateError;
+          nextUpdateError = null;
+          return { data: null, error };
+        }
         const rows = matched();
         const patched = rows.map((row) => {
           const next = { ...row, ...(patch ?? {}) };
@@ -342,6 +380,10 @@ function fakeAdmin(
     /** Следующая вставка в оплаты упадёт этой ошибкой (гонка/отказ БД). */
     failNextInsert(error: { code: string; message: string }) {
       nextInsertError = error;
+    },
+    /** Следующий UPDATE упадёт этой ошибкой (сбой записи статуса). */
+    failNextUpdate(error: { code: string; message: string }) {
+      nextUpdateError = error;
     },
   };
 }
@@ -641,6 +683,153 @@ describe("createPayment", () => {
 
     expect(errorCodeOf(result)).toBe("NOT_FOUND");
     expect(tables.spec_item_payments).toHaveLength(0);
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/*  ворота оплаты                                                      */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Оплата доступна по позиции, которая уже в закупке, и заказывает её (ADR 0007).
+ *
+ * Проверяется стык двух правил: ворота стоят на ФАКТЕ оплаты (возврат проходит),
+ * а перевод в «Заказано» случается только из «Согласовано» и ровно один раз.
+ */
+describe("createPayment · ворота оплаты и заказ позиции", () => {
+  it("деньги доступны статусам закупки, а до согласования — нет", async () => {
+    // Тот же набор, что у «Суммы в закупке» (`isInProcurementScope`): иначе
+    // оплаченное оказалось бы деньгами по позиции, которой в закупке нет.
+    for (const status of ["draft", "picked", "replace"] as const) {
+      const { client, tables } = fakeAdmin({ items: [itemRow({ status })] });
+
+      const result = await createPayment(client, { ...base, data: data() });
+
+      expect(errorCodeOf(result), status).toBe("NOT_ALLOWED");
+      expect(tables.spec_item_payments, status).toHaveLength(0);
+    }
+
+    for (const status of ["approved", "ordered", "delivered"] as const) {
+      const { client } = fakeAdmin({ items: [itemRow({ status })] });
+
+      const result = await createPayment(client, { ...base, data: data() });
+
+      expect(result.ok, status).toBe(true);
+    }
+  });
+
+  it("отказ называет и причину, и что сделать", async () => {
+    // Текст читает человек: «проверьте данные» здесь неверно — данные верны,
+    // неверен статус позиции, и починить это можно только в списке.
+    const { client } = fakeAdmin({ items: [itemRow({ status: "picked" })] });
+
+    const result = await createPayment(client, { ...base, data: data() });
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.message).toContain("Согласовано");
+    expect(result.error.message).toContain("Подобрано");
+  });
+
+  it("заглушке оплата недоступна даже со статусом воронки", async () => {
+    // Статус заглушке не помогает: правило смотрит на оба признака сразу.
+    const { client, tables } = fakeAdmin({
+      items: [itemRow({ is_placeholder: true, status: "ordered" })],
+    });
+
+    const result = await createPayment(client, { ...base, data: data() });
+
+    expect(errorCodeOf(result)).toBe("NOT_ALLOWED");
+    expect(tables.spec_item_payments).toHaveLength(0);
+  });
+
+  it("возврат ворота не знает: он исправляет уже записанные деньги", async () => {
+    // Оплату по такой позиции провести нельзя, а вернуть по ней деньги — можно:
+    // иначе ошибочная оплата (в том числе пришедшая из старых данных) осталась бы
+    // запертой навсегда.
+    const { client, tables } = fakeAdmin({ items: [itemRow({ status: "draft" })] });
+
+    const result = await createPayment(client, {
+      ...base,
+      data: data({ kind: "refund", paymentPlanId: null }),
+    });
+
+    expect(result.ok).toBe(true);
+    expect(tables.spec_item_payments).toHaveLength(1);
+  });
+
+  it("оплата переводит согласованную позицию в «Заказано»", async () => {
+    const { client, tables } = fakeAdmin();
+
+    const result = await createPayment(client, { ...base, data: data() });
+
+    expect(result.ok).toBe(true);
+    expect(tables.spec_items[0].status).toBe("ordered");
+  });
+
+  it("возврат статус не двигает: он не заказывает позицию", async () => {
+    const { client, tables } = fakeAdmin();
+
+    await createPayment(client, { ...base, data: data({ kind: "refund" }) });
+
+    expect(tables.spec_items[0].status).toBe("approved");
+  });
+
+  it("статус дальше «Согласовано» оплата не откатывает", async () => {
+    // «Заказано» и «Доставлено» уже пройдены: деньги их не переписывают.
+    for (const status of ["ordered", "delivered"] as const) {
+      const { client, tables } = fakeAdmin({ items: [itemRow({ status })] });
+
+      await createPayment(client, { ...base, data: data() });
+
+      expect(tables.spec_items[0].status, status).toBe(status);
+    }
+  });
+
+  it("повтор с тем же ключом второй раз статус не пишет", async () => {
+    // Идемпотентность: повтор ничего не совершает, а «Заказано» записано первым
+    // запросом. UPDATE'ов позиции поэтому ровно один.
+    const { client, updated } = fakeAdmin();
+    const args = { ...base, data: data() };
+
+    await createPayment(client, args);
+    const afterFirst = updated.filter((row) => row.id === ITEM).length;
+    expect(afterFirst).toBe(1);
+
+    const repeat = await createPayment(client, args);
+
+    expect(repeat.ok).toBe(true);
+    if (!repeat.ok) return;
+    expect(repeat.existing).toBe(true);
+    expect(updated.filter((row) => row.id === ITEM)).toHaveLength(afterFirst);
+  });
+
+  it("сбой записи статуса не отменяет оплату", async () => {
+    // Деньги записаны, и «не удалось» на этом шаге подтолкнуло бы внести оплату
+    // заново — то есть вторым платежом. Статус — следствие, а не операция.
+    const { client, tables, failNextUpdate } = fakeAdmin();
+    failNextUpdate({ code: "P0001", message: "boom" });
+
+    const result = await createPayment(client, { ...base, data: data() });
+
+    expect(result.ok).toBe(true);
+    expect(tables.spec_item_payments).toHaveLength(1);
+    expect(tables.spec_items[0].status).toBe("approved");
+  });
+
+  it("следующий запрос по той же позиции догоняет статус", async () => {
+    // Сбой выше не остаётся навсегда: перевод в «Заказано» пробуется на КАЖДОМ
+    // успешном пути записи, в том числе на повторе с тем же ключом.
+    const { client, tables, failNextUpdate } = fakeAdmin();
+    failNextUpdate({ code: "P0001", message: "boom" });
+    const args = { ...base, data: data() };
+
+    await createPayment(client, args);
+    expect(tables.spec_items[0].status).toBe("approved");
+
+    await createPayment(client, args);
+
+    expect(tables.spec_items[0].status).toBe("ordered");
   });
 });
 

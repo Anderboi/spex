@@ -48,6 +48,8 @@
  */
 
 import type { SpecItemEventActor, SpecItemEventInput } from "./history";
+import { isInProcurementScope, type SpecStatus } from "../constants";
+import { SPEC_STATUS_CONFIG, statusAfterPayment } from "./status";
 import {
   buildPaymentAddedEvents,
   buildPaymentChangedEvents,
@@ -59,7 +61,7 @@ import {
   type PaymentPlanError,
   type PaymentPlansDb,
 } from "./payment-plan-mutations";
-import { toAmount } from "./payment-schedule";
+import { toAmount, type PaymentRecordKind } from "./payment-schedule";
 import {
   isPaymentKind,
   PAYMENT_AMOUNT_MAX,
@@ -447,6 +449,97 @@ export async function listCancelledPayments(
 /*  create                                                             */
 /* ------------------------------------------------------------------ */
 
+/** Подпись статуса для текста отказа: словарь статусов один на весь интерфейс. */
+function statusLabel(status: SpecStatus): string {
+  return SPEC_STATUS_CONFIG[status]?.label ?? "неизвестный статус";
+}
+
+/**
+ * Оплата заказывает позицию: согласованная после денег становится заказанной
+ * (правило `statusAfterPayment`, ADR 0007).
+ *
+ * ── Почему ошибка НЕ отменяет оплату ───────────────────────────────────────
+ *
+ * Деньги уже записаны. Ответить на сбой этого шага отказом значило бы подтолкнуть
+ * пользователя внести оплату заново — то есть вторым платежом. Статус здесь
+ * следствие, а не сама операция: его отсутствие видно в списке и поправимо
+ * переводом позиции вручную, а каждый следующий платёж по этой же позиции
+ * (включая повтор запроса с тем же ключом) пробует записать статус снова.
+ *
+ * ── Почему обновление условное ─────────────────────────────────────────────
+ *
+ * `.eq("status", from)` — не перепроверка ради красоты: между чтением позиции и
+ * этой записью статус мог уйти дальше («Доставлено»), и вслепую возвращать его в
+ * «Заказано» нельзя. Условие стоит в том же UPDATE, поэтому окна между проверкой
+ * и записью нет.
+ */
+async function orderItemAfterPayment(
+  db: PaymentsDb,
+  args: {
+    orgId: string;
+    specItemId: string;
+    kind: PaymentRecordKind;
+    status: SpecStatus;
+  },
+): Promise<void> {
+  // Возврат позицию не заказывает: он исправляет деньги, а не обязательство.
+  if (args.kind !== "payment") return;
+
+  const next = statusAfterPayment(args.status);
+  // Обычный случай повтора: статус уже приведён первым запросом — ни UPDATE, ни
+  // второго «изменения» не появляется.
+  if (next === args.status) return;
+
+  const { error } = await db
+    .from("spec_items")
+    .update({ status: next, updated_at: new Date().toISOString() })
+    .eq("id", args.specItemId)
+    .eq("org_id", args.orgId)
+    .eq("status", args.status)
+    .is("deleted_at", null);
+
+  if (error) console.error("[createPayment] order", error.message);
+}
+
+/**
+ * Успешный исход записи: перед ответом статус позиции приводится в порядок.
+ *
+ * Отдельная функция, а не вызов `orderItemAfterPayment` в каждой ветви: успешных
+ * путей у `createPayment` три (запись, повтор с тем же ключом, гонка вставок), и
+ * «привести статус» обязано быть ровно одно место. Забытая ветвь здесь не видна
+ * глазом: оплата записана, ответ успешен, а позиция осталась согласованной.
+ */
+async function settle(
+  db: PaymentsDb,
+  args: {
+    orgId: string;
+    specItemId: string;
+    /** Статус позиции из прочитанной строки — до записи денег. */
+    status: SpecStatus;
+    kind: PaymentRecordKind;
+    payment: PaymentEntry;
+    existing: boolean;
+    events: SpecItemEventInput[];
+  },
+): Promise<CreatePaymentResult> {
+  await orderItemAfterPayment(db, {
+    orgId: args.orgId,
+    specItemId: args.specItemId,
+    kind: args.kind,
+    // Статус — из того же чтения позиции, что прошли ворота: второй запрос «а
+    // какой сейчас статус» не нужен, а окно между чтениями уже закрыто условием
+    // в самом UPDATE.
+    status: args.status,
+  });
+
+  return {
+    ok: true,
+    payment: args.payment,
+    existing: args.existing,
+    events: args.events,
+  };
+}
+
 /**
  * Внести оплату или возврат.
  *
@@ -472,6 +565,37 @@ export async function createPayment(
 
   const validated = validatePaymentData(input.data, input.now);
   if (!validated.ok) return { ok: false, error: validated.error };
+
+  /*
+    ── Ворота оплаты ─────────────────────────────────────────────────────────
+    Платить можно по позиции, которая уже в закупке, то есть не раньше
+    «Согласовано» (ADR 0007). Правило — то же `isInProcurementScope`, из которого
+    конструктор считает «Сумму в закупке»: иначе «оплачено по закупке» оказалось
+    бы деньгами по позиции, которой в закупке нет.
+
+    Возврат ворота не знает. Он исправляет УЖЕ записанные деньги, в том числе по
+    позиции, которую в закупку не переводили (такие есть — строка «мимо области
+    воронки» в модалке закупки). Запретить возврат значило бы запереть ошибочную
+    оплату навсегда, а «отменить и внести верную» здесь и есть штатный путь
+    исправления.
+
+    Правка и отмена записи тоже не гейтятся: это не новые деньги.
+  */
+  if (
+    validated.values.kind === "payment" &&
+    !isInProcurementScope({
+      isPlaceholder: item.item.is_placeholder === true,
+      status: item.item.status,
+    })
+  ) {
+    return {
+      ok: false,
+      error: {
+        code: "NOT_ALLOWED",
+        message: `Оплата доступна по согласованным позициям: сначала переведите позицию в «Согласовано» (сейчас «${statusLabel(item.item.status)}»)`,
+      },
+    };
+  }
 
   if (validated.values.paymentPlanId) {
     const plan = await resolvePlan(db, {
@@ -508,7 +632,15 @@ export async function createPayment(
       };
     }
 
-    return { ok: true, payment: toEntry(existing), events: [], existing: true };
+    return settle(db, {
+      orgId: input.orgId,
+      specItemId: item.item.id,
+      status: item.item.status,
+      kind: validated.values.kind,
+      payment: toEntry(existing),
+      existing: true,
+      events: [],
+    });
   }
 
   const { data, error } = await db
@@ -537,10 +669,21 @@ export async function createPayment(
     // запрос с тем же ключом успел первым. Ответ на это — не «ошибка», а та же
     // самая запись: пользователь нажал один раз.
     if (error?.code === "23505") {
-      return resolveIdempotentRace(db, {
+      const raced = await resolveIdempotentRace(db, {
         orgId: input.orgId,
         idempotencyKey: input.idempotencyKey,
         values: validated.values,
+      });
+      if (!raced.ok) return raced;
+
+      return settle(db, {
+        orgId: input.orgId,
+        specItemId: item.item.id,
+        status: item.item.status,
+        kind: validated.values.kind,
+        payment: raced.payment,
+        existing: true,
+        events: [],
       });
     }
 
@@ -550,8 +693,11 @@ export async function createPayment(
 
   const row = data as PaymentRow;
 
-  return {
-    ok: true,
+  return settle(db, {
+    orgId: input.orgId,
+    specItemId: item.item.id,
+    status: item.item.status,
+    kind: validated.values.kind,
     payment: toEntry(row),
     existing: false,
     events: buildPaymentAddedEvents({
@@ -560,7 +706,7 @@ export async function createPayment(
       actor: input.actor,
       snapshot: toSnapshot(row),
     }),
-  };
+  });
 }
 
 /* ------------------------------------------------------------------ */

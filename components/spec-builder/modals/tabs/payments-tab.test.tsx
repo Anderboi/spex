@@ -7,6 +7,7 @@ import { documentChip, documentChipIn } from "./document-chips-test-helper";
 import type { PaymentEntry } from "@/lib/spec/payment-types";
 import type { PaymentPlanEntry } from "@/lib/spec/payment-plan-types";
 import type { SpecItemFileEntry } from "@/lib/spec/spec-item-files";
+import type { SpecStatus } from "@/lib/constants";
 
 /**
  * Тесты вкладки «Платежи»: строки-обязательства, отметка «Оплачено», пометка об
@@ -133,6 +134,14 @@ function setup(over: {
   files?: SpecItemFileEntry[];
   /** Стоимость позиции — база прогресса. */
   itemCost?: number;
+  /**
+   * Статус позиции. По умолчанию «Согласовано»: это обычное состояние, в котором
+   * деньги вносить можно, — остальные кейсы включают ворота оплаты явно.
+   */
+  status?: SpecStatus;
+  isPlaceholder?: boolean;
+  /** Догон статуса после оплаты: «сервер перевёл позицию в „Заказано“». */
+  onStatusFromServer?: (status: SpecStatus) => void;
 } = {}) {
   listPlansMock.mockResolvedValue({
     success: true,
@@ -164,6 +173,9 @@ function setup(over: {
       role="owner"
       currentUserId="user-1"
       itemCost={over.itemCost ?? 10000}
+      status={over.status ?? "approved"}
+      isPlaceholder={over.isPlaceholder ?? false}
+      onStatusFromServer={over.onStatusFromServer}
     />,
   );
 }
@@ -950,6 +962,8 @@ describe("PaymentsTab · отметка «Оплачено»", () => {
         role="viewer"
         currentUserId="user-2"
         itemCost={10000}
+        status="approved"
+        isPlaceholder={false}
       />,
     );
 
@@ -1272,6 +1286,8 @@ describe("PaymentsTab · документы к оплате", () => {
         role="viewer"
         currentUserId="user-2"
         itemCost={10000}
+        status="approved"
+        isPlaceholder={false}
       />,
     );
 
@@ -1305,6 +1321,8 @@ describe("PaymentsTab · документы к оплате", () => {
         role="owner"
         currentUserId="user-1"
         itemCost={10000}
+        status="approved"
+        isPlaceholder={false}
       />,
     );
 
@@ -1333,6 +1351,8 @@ describe("PaymentsTab · документы к оплате", () => {
         role="owner"
         currentUserId="user-1"
         itemCost={10000}
+        status="approved"
+        isPlaceholder={false}
       />,
     );
 
@@ -1340,5 +1360,132 @@ describe("PaymentsTab · документы к оплате", () => {
       expect(rows("planned")).toHaveLength(1);
     });
     expect(screen.queryByText("Не удалось получить отменённые оплаты")).toBeNull();
+  });
+});
+
+/* ------------------------------------------------------------------ */
+/*  ворота оплаты                                                      */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Деньги вносятся по позиции, которая уже в закупке, и заказывают её (ADR 0007).
+ *
+ * Здесь проверяется ГЕЙТ интерфейса и догон статуса; сам запрет живёт в ядре
+ * (`lib/spec/payment-mutations`) и проверяется там. Скрытая кнопка — не защита, а
+ * обещание пользователю: сервер отказал бы и без неё.
+ */
+describe("PaymentsTab · ворота оплаты", () => {
+  it("до согласования отметки «Оплачено» нет, а причина названа", async () => {
+    setup({ status: "picked" });
+
+    await waitFor(() => {
+      expect(rows("planned")).toHaveLength(1);
+    });
+
+    expect(screen.queryByRole("button", { name: /^Отметить «/ })).toBeNull();
+    // Причина называется словами: спрятанная кнопка без объяснения читалась бы
+    // как «здесь так и задумано», а дело не в правах и не в форме.
+    expect(
+      screen.getByText(/Оплата доступна по позициям в закупке/),
+    ).toBeDefined();
+  });
+
+  it("у согласованной позиции отметка «Оплачено» на месте", async () => {
+    setup({ status: "approved" });
+
+    await waitFor(() => {
+      expect(rows("planned")).toHaveLength(1);
+    });
+
+    expect(
+      screen.getByRole("button", { name: "Отметить «Аванс 50 %» оплаченным" }),
+    ).toBeDefined();
+    expect(
+      screen.queryByText(/Оплата доступна по позициям в закупке/),
+    ).toBeNull();
+  });
+
+  it("заглушке отметка недоступна: у неё не бывает воронки", async () => {
+    setup({ isPlaceholder: true, status: "picked" });
+
+    await waitFor(() => {
+      expect(rows("planned")).toHaveLength(1);
+    });
+
+    expect(screen.queryByRole("button", { name: /^Отметить «/ })).toBeNull();
+  });
+
+  it("возврат и счёт в график доступны и до согласования", async () => {
+    // Ворота стоят на ДЕНЬГАХ: возврат исправляет уже записанное, а строка
+    // графика — счёт, а не оплата. Запереть их значило бы запретить и
+    // исправление ошибочной оплаты, и приём счетов до согласования.
+    setup({ status: "picked" });
+
+    await waitFor(() => {
+      expect(rows("planned")).toHaveLength(1);
+    });
+
+    const actions = within(screen.getByTestId("payment-actions"));
+    expect(actions.getByRole("button", { name: "Внести возврат" })).toBeDefined();
+    expect(actions.getByRole("button", { name: "Внести оплату" })).toBeDefined();
+  });
+
+  it("успешная отметка сообщает наверх «Заказано»", async () => {
+    // Сервер перевёл согласованную позицию в «Заказано»: список и воронка обязаны
+    // узнать об этом, не дожидаясь перезагрузки, — иначе «Сумма в закупке» и
+    // ворота считались бы по прежнему статусу.
+    const user = userEvent.setup();
+    const onStatusFromServer = vi.fn();
+    createPaymentMock.mockResolvedValue({
+      success: true,
+      data: payment({ id: "p-new", paymentPlanId: "plan-1", amount: 10000 }),
+    });
+
+    setup({ status: "approved", onStatusFromServer });
+
+    await waitFor(() => {
+      expect(rows("planned")).toHaveLength(1);
+    });
+
+    await user.click(
+      screen.getByRole("button", { name: "Отметить «Аванс 50 %» оплаченным" }),
+    );
+    await user.click(screen.getByRole("button", { name: "Отметить оплаченным" }));
+
+    await waitFor(() => {
+      expect(onStatusFromServer).toHaveBeenCalledWith("ordered");
+    });
+  });
+
+  it("возврат статус наверх не отправляет", async () => {
+    // Возврат деньги исправляет, а позицию не заказывает: догон был бы выдумкой
+    // клиента о том, чего сервер не делал.
+    const user = userEvent.setup();
+    const onStatusFromServer = vi.fn();
+    createPaymentMock.mockResolvedValue({
+      success: true,
+      data: payment({ id: "r-new", kind: "refund", paymentPlanId: null }),
+    });
+
+    setup({ status: "approved", onStatusFromServer });
+
+    await waitFor(() => {
+      expect(rows("planned")).toHaveLength(1);
+    });
+
+    await user.click(
+      within(screen.getByTestId("payment-actions")).getByRole("button", {
+        name: "Внести возврат",
+      }),
+    );
+    await user.type(screen.getByLabelText("Сумма, ₽"), "1000");
+    await user.click(
+      within(screen.getByRole("dialog")).getByRole("button", {
+        name: "Внести возврат",
+      }),
+    );
+
+    await waitFor(() => expect(createPaymentMock).toHaveBeenCalledTimes(1));
+    expect(onStatusFromServer).not.toHaveBeenCalled();
   });
 });
