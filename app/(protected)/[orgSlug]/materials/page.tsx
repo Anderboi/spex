@@ -74,7 +74,10 @@ async function MaterialsData({
   // выборку, которой может и не понадобиться.
   return (
     <>
-      <MaterialsToolbar brands={brands} />
+      <MaterialsToolbar
+        brands={brands}
+        companies={counterparties.companies}
+      />
 
       <MaterialsClient
         orgSlug={orgSlug}

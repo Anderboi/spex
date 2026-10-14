@@ -34,6 +34,8 @@ interface ContactsListProps {
   companies: CompanyRow[];
   independentContacts: ContactRow[];
   managers: ContactRow[];
+  /** Материалов библиотеки на компанию — для бейджа на карточке (см. `CompanyCard`). */
+  materialCounts: Record<string, number>;
   companiesCount: number;
   independentCount: number;
   tab: ContactsTab;
@@ -81,6 +83,7 @@ export function ContactsList({
   companies,
   independentContacts,
   managers,
+  materialCounts,
   companiesCount,
   independentCount,
   tab,
@@ -317,6 +320,8 @@ export function ContactsList({
                 <CompanyCard
                   key={c.id}
                   company={c}
+                  orgSlug={orgSlug}
+                  materialCount={materialCounts[c.id]}
                   managers={managersByCompanyId.get(c.id) || []}
                   onOpenContacts={handleOpenContacts}
                   onEditCompany={handleEditCompany}

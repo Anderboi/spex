@@ -125,10 +125,6 @@ export function ContactDialog({
 
   const categories = form.watch("category") || [];
 
-  // Защита от случайного закрытия: клик мимо диалога / Escape при заполненной
-  // форме не закрывают окно, а показывают предупреждение.
-  // ВАЖНО: isDirty читаем именно во время рендера — иначе RHF не подпишется
-  // на него и вернёт устаревшее false.
   const isDirty = form.formState.isDirty;
   const { handleOpenChange } = useDialogDismissGuard({
     onClose,
@@ -361,7 +357,7 @@ export function ContactDialog({
               name="category"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Категории компании</FormLabel>
+                  <FormLabel>{`Категории компании (не обязательно)`}</FormLabel>
                   <FormControl>
                     <CategoryMultiSelect
                       options={TYPE_ORDER}

@@ -84,7 +84,7 @@ export function CompanyContactsSheet({
             )}
 
             <div className="min-w-0 flex-1 pr-8">
-              <SheetTitle className="line-clamp-2 break-words font-serif text-base font-semibold leading-snug text-fg-body">
+              <SheetTitle className="line-clamp-2 wrap-break-word font-semibold leading-snug text-fg-body">
                 {company?.name}
               </SheetTitle>
               <p className="mt-1 font-mono text-xs tabular-nums text-fg-muted">
@@ -210,16 +210,18 @@ export function CompanyContactsSheet({
                 <h3 className="font-mono text-[11px] uppercase tracking-wide text-fg-dim">
                   О компании
                 </h3>
-                <dl className="mt-3 flex flex-col gap-2 text-sm text-fg-body">
+                <dl className="mt-3 flex flex-col gap-3 text-sm text-fg-body">
                   {company?.address && (
-                    <div className="flex items-start gap-2">
+                    <div className="flex items-start gap-3">
                       <dt className="sr-only">Адрес</dt>
                       <MapPin className="mt-0.5 size-4 shrink-0 text-fg-icon" />
-                      <dd className="min-w-0 break-words">{company.address}</dd>
+                      <dd className="min-w-0 wrap-break-word">
+                        {company.address}
+                      </dd>
                     </div>
                   )}
                   {company?.phone && (
-                    <div className="flex items-start gap-2">
+                    <div className="flex items-start gap-3">
                       <dt className="sr-only">Телефон</dt>
                       <Phone className="mt-0.5 size-4 shrink-0 text-fg-icon" />
                       <dd>
@@ -233,7 +235,7 @@ export function CompanyContactsSheet({
                     </div>
                   )}
                   {company?.email && (
-                    <div className="flex items-start gap-2">
+                    <div className="flex items-start gap-3">
                       <dt className="sr-only">Эл. почта</dt>
                       <Mail className="mt-0.5 size-4 shrink-0 text-fg-icon" />
                       <dd className="min-w-0">
@@ -247,7 +249,7 @@ export function CompanyContactsSheet({
                     </div>
                   )}
                   {website && (
-                    <div className="flex items-start gap-2">
+                    <div className="flex items-start gap-3">
                       <dt className="sr-only">Сайт</dt>
                       <Globe className="mt-0.5 size-4 shrink-0 text-fg-icon" />
                       <dd className="min-w-0">
@@ -284,7 +286,7 @@ export function CompanyContactsSheet({
           {/* Подвал: добавление контакта — частое действие, поэтому всегда на виду */}
           <div className="flex items-center justify-between gap-2 border-t border-border-subtle p-4">
             <Button
-              size="sm"
+              size="lg"
               className="cursor-pointer"
               onClick={() => onAddManager(company?.id ?? "")}
             >
@@ -292,7 +294,7 @@ export function CompanyContactsSheet({
             </Button>
             <Button
               variant="ghost"
-              size="sm"
+              size="lg"
               className="cursor-pointer text-fg-muted hover:text-fg"
               onClick={() => company && onEditCompany(company.id)}
             >

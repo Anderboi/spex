@@ -13,19 +13,21 @@ import {
 } from "@/components/ui/sheet";
 import { FilterField } from "@/components/layout/filter-field";
 import { useMaterialsUrl } from "@/hooks/use-materials-url";
-import type { MaterialBrands } from "@/lib/queries";
+import type { CompanyListItem, MaterialBrands } from "@/lib/queries";
 import { cn } from "@/lib/utils";
+import { MaterialsCompanyFilter } from "./materials-company-filter";
 import { MaterialsManufacturerFilter } from "./materials-manufacturer-filter";
 import { MaterialsStatusFilter } from "./materials-status-filter";
 import { MaterialsSort } from "./materials-sort";
 
 /**
- * Вторичные фильтры (производитель, статус) и сортировка в нижней шторке.
+ * Вторичные фильтры (компания, производитель, статус) и сортировка в нижней
+ * шторке.
  *
- * На мобильной ширине четыре контрола в одну строку не помещаются и переносятся
- * «лестницей», поэтому в тулбаре остаётся только поиск с кнопкой, а сами
- * контролы переезжают в шторку. Категория остаётся снаружи: это основной разрез
- * библиотеки, и прятать её за лишний тап незачем.
+ * На мобильной ширине поиск и четыре контрола в одну строку не помещаются и
+ * переносятся «лестницей», поэтому в тулбаре остаётся только поиск с кнопкой, а
+ * сами контролы переезжают в шторку. Категория остаётся снаружи: это основной
+ * разрез библиотеки, и прятать её за лишний тап незачем.
  *
  * Кнопка живёт в мобильном ряду `SearchBlock` и на `sm+` скрыта (`sm:hidden`):
  * там вторичные фильтры стоят в тулбаре, и шторка не нужна.
@@ -34,21 +36,27 @@ import { MaterialsSort } from "./materials-sort";
  */
 export function MaterialsFilterSheet({
   brands,
+  companies,
   className,
 }: {
   brands: MaterialBrands;
+  companies: CompanyListItem[];
   className?: string;
 }) {
   const [open, setOpen] = useState(false);
   const searchParams = useSearchParams();
   const { update } = useMaterialsUrl();
 
+  const company = searchParams.get("company");
   const manufacturer = searchParams.get("manufacturer");
   const status = searchParams.get("status");
   const activeCount =
-    Number(Boolean(manufacturer)) + Number(Boolean(status));
+    Number(Boolean(company)) +
+    Number(Boolean(manufacturer)) +
+    Number(Boolean(status));
 
-  const handleReset = () => update({ manufacturer: null, status: null });
+  const handleReset = () =>
+    update({ company: null, manufacturer: null, status: null });
 
   return (
     <>
@@ -82,6 +90,13 @@ export function MaterialsFilterSheet({
           </SheetHeader>
 
           <div className="flex flex-col gap-4 p-4">
+            <FilterField label="Компания">
+              <MaterialsCompanyFilter
+                companies={companies}
+                side="top"
+                className="w-full"
+              />
+            </FilterField>
             <FilterField
               label="Производитель"
               hint={

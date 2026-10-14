@@ -86,6 +86,7 @@ export type MaterialsFilters = {
   query: string;
   category: string | null;
   manufacturer: string | null;
+  company: string | null;
   status: string | null;
   sort: MaterialsSort;
   page: number;

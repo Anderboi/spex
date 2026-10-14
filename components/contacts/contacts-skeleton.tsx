@@ -19,21 +19,30 @@ function CompanyCardSkeleton() {
         </div>
       </div>
 
-      {/* Зона 2: строка-слот контактов */}
-      <div className="flex min-h-14 items-center gap-2.5 border-t border-border-subtle px-4 py-2">
-        <Skeleton className="size-7 shrink-0 rounded-full" />
-        <Skeleton className="h-4 w-32" />
+      {/* Зона 2: строка-слот контактов и компактный переход в библиотеку —
+          та же одна строка с вертикальной чертой между действиями */}
+      <div className="flex min-h-14 items-stretch border-t border-border-subtle">
+        <div className="flex min-w-0 flex-1 items-center gap-2.5 px-4 py-2">
+          <Skeleton className="size-7 shrink-0 rounded-full" />
+          <Skeleton className="h-4 w-32" />
+        </div>
+        <div className="flex shrink-0 items-center gap-2 border-l border-border-subtle px-3 py-2">
+          <Skeleton className="size-4 shrink-0 rounded" />
+          <Skeleton className="h-4 w-4 rounded" />
+          <Skeleton className="size-4 shrink-0 rounded" />
+        </div>
       </div>
 
-      {/* Зона 3: реквизиты и превью заметки */}
-      <div className="mt-auto">
+      {/* Зона 3: реквизиты и превью заметки — блок растягивается так же, как в
+          карточке, а заметка прижата к его низу */}
+      <div className="flex flex-1 flex-col">
         <div className="grid grid-cols-1 gap-x-6 gap-y-1 border-t border-border-subtle px-4 py-3 @[24rem]:grid-cols-2">
           <Skeleton className="h-3.5 w-40" />
           <Skeleton className="h-3.5 w-32" />
           <Skeleton className="h-3.5 w-36" />
           <Skeleton className="h-3.5 w-28" />
         </div>
-        <div className="flex min-h-9 items-center border-t border-border-subtle px-4">
+        <div className="mt-auto flex min-h-9 items-center border-t border-border-subtle px-4">
           <Skeleton className="h-3.5 w-2/5" />
         </div>
       </div>

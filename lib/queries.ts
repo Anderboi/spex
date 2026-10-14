@@ -220,6 +220,9 @@ export async function getMaterialsPage(
 
   if (filters.category) query = query.eq("category", filters.category);
   if (filters.manufacturer) query = query.eq("brand", filters.manufacturer);
+  // Компания-поставщик: так библиотека открывается из карточки компании
+  // (`?company=<id>`), а не по бренду — это разные сущности.
+  if (filters.company) query = query.eq("company_id", filters.company);
 
   if (filters.sort === "name_asc") {
     query = query.order("name", { ascending: true });
@@ -806,6 +809,12 @@ export type ContactsDirectory = {
   companies: CompanyRow[];
   independentContacts: ContactRow[];
   managers: ContactRow[];
+  /**
+   * Сколько материалов библиотеки закреплено за компанией — по `id` компании.
+   * Компании без числа в карте (запрос не удался) карточка показывает без
+   * бейджа: «неизвестно» честнее нуля.
+   */
+  materialCounts: Record<string, number>;
   companiesCount: number;
   independentCount: number;
   pageCount: number;
@@ -829,6 +838,55 @@ function failContactsFetch(tab: ContactsTab, error: PostgrestError): never {
       ? "Не удалось загрузить компании"
       : "Не удалось загрузить контакты",
   );
+}
+
+/**
+ * Сколько материалов библиотеки закреплено за каждой компанией.
+ *
+ * Число берётся точным count'ом (`count: "exact"`, `head: true`): сами строки по
+ * сети не едут, PostgREST отвечает только заголовком. Запрос на компанию — их не
+ * больше, чем карточек на странице (`CONTACTS_PAGE_SIZE`) — уходят параллельно.
+ * Одним запросом «все `company_id` организации» не обойтись: ответ PostgREST
+ * ограничен лимитом строк, и на большой библиотеке счёт молча оказался бы
+ * меньше настоящего.
+ *
+ * Архивные материалы (`deleted_at`) не считаются: бейдж обещает ровно ту
+ * выборку, которую пользователь увидит, перейдя в библиотеку с фильтром по
+ * компании (там статус по умолчанию — активные материалы).
+ *
+ * Неудачный запрос оставляет компанию без числа: карточка покажет кнопку без
+ * бейджа, а не соврёт нулём.
+ */
+async function countMaterialsByCompany(
+  supabase: ReturnType<typeof createAdminClient>,
+  orgId: string,
+  companyIds: string[],
+): Promise<Record<string, number>> {
+  const counts: Record<string, number> = {};
+
+  await Promise.all(
+    companyIds.map(async (companyId) => {
+      const { count, error } = await supabase
+        .from("materials")
+        .select("id", { count: "exact", head: true })
+        .eq("org_id", orgId)
+        .eq("company_id", companyId)
+        .is("deleted_at", null);
+
+      if (error) {
+        console.error(
+          "[getContactsDirectory] материалы компании",
+          companyId,
+          error.message,
+        );
+        return;
+      }
+
+      counts[companyId] = count ?? 0;
+    }),
+  );
+
+  return counts;
 }
 
 export async function getContactsDirectory(
@@ -954,27 +1012,34 @@ export async function getContactsDirectory(
     }
   }
 
-  let managers: ContactRow[] = [];
-  if (companies.length > 0) {
-    const companyIds = companies.map((c) => c.id);
-    const { data, error } = await supabase
-      .from("contacts")
-      .select("*")
-      .eq("org_id", orgId)
-      .in("company_id", companyIds)
-      .order("created_at", { ascending: false });
+  // Контакты компаний страницы и число их материалов в библиотеке — независимые
+  // выборки от одного и того же списка компаний, поэтому идут параллельно.
+  const pageCompanyIds = companies.map((c) => c.id);
 
-    if (error) {
-      console.error("[getContactsDirectory] managers", error.message);
-    } else {
-      managers = (data as ContactRow[]) ?? [];
-    }
+  const [managersRes, materialCounts] = await Promise.all([
+    pageCompanyIds.length > 0
+      ? supabase
+          .from("contacts")
+          .select("*")
+          .eq("org_id", orgId)
+          .in("company_id", pageCompanyIds)
+          .order("created_at", { ascending: false })
+      : Promise.resolve({ data: null, error: null }),
+    countMaterialsByCompany(supabase, orgId, pageCompanyIds),
+  ]);
+
+  let managers: ContactRow[] = [];
+  if (managersRes.error) {
+    console.error("[getContactsDirectory] managers", managersRes.error.message);
+  } else {
+    managers = (managersRes.data as ContactRow[] | null) ?? [];
   }
 
   return {
     companies,
     independentContacts,
     managers,
+    materialCounts,
     companiesCount,
     independentCount,
     pageCount,

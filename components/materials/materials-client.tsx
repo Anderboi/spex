@@ -268,13 +268,20 @@ export function MaterialsClient({
     query ||
       searchParams.get("category") ||
       searchParams.get("manufacturer") ||
+      searchParams.get("company") ||
       searchParams.get("status"),
   );
 
   /** Выход из пустого результата: снимаем все фильтры, страница сбрасывается
       вместе с ними (см. RESET_PAGE_KEYS в lib/materials/filters.ts). */
   const handleResetFilters = useCallback(() => {
-    update({ query: "", category: null, manufacturer: null, status: null });
+    update({
+      query: "",
+      category: null,
+      manufacturer: null,
+      company: null,
+      status: null,
+    });
   }, [update]);
 
   return (
@@ -300,7 +307,7 @@ export function MaterialsClient({
           <EmptyState
             icon={<Search className="size-6" />}
             title="Ничего не найдено"
-            body="Попробуйте изменить запрос, категорию или производителя."
+            body="Попробуйте изменить запрос, категорию, компанию или производителя."
             action={
               <Button variant="outline" onClick={handleResetFilters}>
                 <RotateCcw className="mr-2 size-4" /> Сбросить фильтры

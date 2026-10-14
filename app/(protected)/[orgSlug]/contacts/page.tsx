@@ -44,6 +44,7 @@ async function ContactsData({
     companies,
     independentContacts,
     managers,
+    materialCounts,
     companiesCount,
     independentCount,
     pageCount,
@@ -60,6 +61,7 @@ async function ContactsData({
         companies={companies}
         independentContacts={independentContacts}
         managers={managers}
+        materialCounts={materialCounts}
         companiesCount={companiesCount}
         independentCount={independentCount}
         tab={filters.tab}

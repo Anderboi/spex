@@ -70,11 +70,13 @@ export function MaterialsSkeleton() {
       aria-busy="true"
       aria-label="Загрузка библиотеки материалов"
     >
-      {/* Тулбар: поиск, фильтры (на sm+ — производитель, статус, сортировка) */}
+      {/* Тулбар: поиск, фильтры (на sm+ — компания, производитель, статус,
+          сортировка) */}
       <div className="mt-5 flex flex-wrap items-center gap-3">
         <Skeleton className="h-10 min-w-0 flex-1 rounded-lg sm:min-w-60" />
         <Skeleton className="h-10 w-28 rounded-lg sm:hidden" />
         <div className="hidden items-center gap-3 sm:flex">
+          <Skeleton className="h-10 w-40 rounded-lg" />
           <Skeleton className="h-10 w-40 rounded-lg" />
           <Skeleton className="h-10 w-36 rounded-lg" />
           <Skeleton className="h-10 w-40 rounded-lg" />

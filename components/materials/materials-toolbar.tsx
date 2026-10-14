@@ -3,17 +3,18 @@
 import { MaterialsSort } from "./materials-sort";
 import { MaterialsCategoryFilter } from "./materials-category-filter";
 import { MaterialsCategorySelect } from "./materials-category-select";
+import { MaterialsCompanyFilter } from "./materials-company-filter";
 import { MaterialsManufacturerFilter } from "./materials-manufacturer-filter";
 import { MaterialsStatusFilter } from "./materials-status-filter";
 import { MaterialsFilterSheet } from "./materials-filter-sheet";
 import { SearchBlock } from "../layout/search-block";
 import { useMaterialsUrl } from "@/hooks/use-materials-url";
-import type { MaterialBrands } from "@/lib/queries";
+import type { CompanyListItem, MaterialBrands } from "@/lib/queries";
 
 /**
  * Тулбар библиотеки материалов.
  *
- * `sm+` — поиск и три контрола в одной переносящейся строке (обёртка с
+ * `sm+` — поиск и четыре контрола в одной переносящейся строке (обёртка с
  * `sm:contents` отдаёт свои children внешнему flex-контейнеру, поэтому перенос
  * работает как раньше), под ней чипсы категорий.
  *
@@ -24,13 +25,23 @@ import type { MaterialBrands } from "@/lib/queries";
  * Чипсы на `< sm` не рендерятся вовсе (`hidden sm:block`) — иначе мобильный
  * селект `MaterialsCategoryFilter` давал бы второй контрол категории строкой.
  */
-export function MaterialsToolbar({ brands }: { brands: MaterialBrands }) {
+export function MaterialsToolbar({
+  brands,
+  companies,
+}: {
+  brands: MaterialBrands;
+  companies: CompanyListItem[];
+}) {
   const mobileRow = (
     <>
       <MaterialsCategorySelect className="min-w-0 flex-1 sm:hidden" />
       {/* `sm:hidden` — кнопка живёт в мобильном ряду; на `sm+` вторичные фильтры
           стоят в тулбаре, и шторка не нужна. */}
-      <MaterialsFilterSheet brands={brands} className="sm:hidden" />
+      <MaterialsFilterSheet
+        brands={brands}
+        companies={companies}
+        className="sm:hidden"
+      />
     </>
   );
 
@@ -45,6 +56,7 @@ export function MaterialsToolbar({ brands }: { brands: MaterialBrands }) {
         />
 
         <div className="hidden sm:contents">
+          <MaterialsCompanyFilter companies={companies} />
           <MaterialsManufacturerFilter brands={brands} />
           <MaterialsStatusFilter />
           <MaterialsSort />
