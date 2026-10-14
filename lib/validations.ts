@@ -93,9 +93,38 @@ export type ContactRow = ContactInput & { id: string };
 
 // --- MATERIALS ---
 /**
+ * Поставщик материала: компания, её менеджер, цена и ссылка на страницу товара.
+ *
+ * Один и тот же материал бывает у нескольких компаний, и цена у каждой своя —
+ * поэтому цена живёт здесь, а не только в `materials.price`: там лежит зеркало
+ * основного поставщика (см. `lib/materials/suppliers.ts`).
+ *
+ * `company_id` допускает `null` на входе: так выглядит строка, которую в форме
+ * только что добавили и ещё не заполнили. Такие строки отбрасывает нормализация,
+ * а не валидация — иначе пользователь получал бы ошибку про UUID на пустой строке.
+ */
+export const materialSupplierSchema = z.object({
+  id: z.string().uuid().optional(),
+  company_id: z.string().uuid().nullable(),
+  contact_id: z.string().uuid().nullable().optional().default(null),
+  price: z.coerce
+    .number()
+    .min(0, "Цена не может быть отрицательной")
+    .default(0),
+  product_url: z.string().trim().max(2048).nullable().optional().default(null),
+  position: z.number().int().min(0).optional().default(0),
+});
+
+export type MaterialSupplierInput = z.infer<typeof materialSupplierSchema>;
+
+/**
  * Материал библиотеки — шаблон для позиций спецификации: категория (раздел),
  * тип внутри категории (керамогранит, ламинат…) и характеристики, которые
  * переносятся в позицию при добавлении материала в проект.
+ *
+ * `company_id`/`contact_id`/`price`/`product_url` — зеркало основного поставщика
+ * из `suppliers`; форму они не правят, их собирает `upsertMaterial`. Материал без
+ * поставщиков хранит в них собственные цену и ссылку.
  */
 export const materialSchema = z.object({
   id: z.string().uuid().optional(),
@@ -118,6 +147,8 @@ export const materialSchema = z.object({
   image_url: z.string().optional().nullable(),
   /** Характеристики материала: ключ → значение. */
   attrs: z.record(z.string(), z.string().max(500)).default({}),
+  /** Компании, у которых материал есть; первая — основной поставщик. */
+  suppliers: z.array(materialSupplierSchema).default([]),
   // tags: z.array(z.string()).optional().default([]),
 });
 

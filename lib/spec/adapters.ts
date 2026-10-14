@@ -1,6 +1,25 @@
 // lib/materials/adapters.ts
-import type { MaterialListItem } from "@/lib/queries";
+import type { MaterialListItem, MaterialSupplierItem } from "@/lib/queries";
 import type { MaterialInput } from "@/lib/validations";
+
+/** Строка поставщика: значения формы → строка списка. */
+function supplierToListItem(
+  supplier: MaterialInput["suppliers"][number],
+  index: number,
+): MaterialSupplierItem {
+  return {
+    id: supplier.id ?? `temp-supplier-${index}`,
+    companyId: supplier.company_id,
+    // Имя компании форма не знает: его подставляет `withSupplierNames` в
+    // `materials-client`, у которого под рукой справочник.
+    companyName: "",
+    contactId: supplier.contact_id ?? null,
+    contactName: "",
+    price: supplier.price ?? 0,
+    productUrl: supplier.product_url ?? null,
+    position: supplier.position ?? index,
+  };
+}
 
 /** Строка списка → значения формы. */
 export function toFormValues(
@@ -20,6 +39,14 @@ export function toFormValues(
     product_url: m.product_url ?? null,
     product_type: m.product_type ?? null,
     attrs: m.attrs ?? {},
+    suppliers: m.suppliers.map((s, index) => ({
+      id: s.id,
+      company_id: s.companyId,
+      contact_id: s.contactId,
+      price: s.price,
+      product_url: s.productUrl,
+      position: s.position ?? index,
+    })),
   };
 }
 
@@ -28,6 +55,10 @@ export function toListItem(
   input: MaterialInput,
   prev?: MaterialListItem,
 ): MaterialListItem {
+  // Поставщики до сохранения живут без id (новые строки) и без имён компаний:
+  // id нужен только как ключ React, имя дорисует справочник.
+  const suppliers = (input.suppliers ?? []).map(supplierToListItem);
+
   return {
     id: input.id ?? prev?.id ?? `temp-${crypto.randomUUID()}`,
     name: input.name,
@@ -45,6 +76,7 @@ export function toListItem(
     product_url: input.product_url ?? prev?.product_url ?? null,
     product_type: input.product_type ?? prev?.product_type ?? null,
     attrs: input.attrs ?? prev?.attrs ?? {},
+    suppliers,
     // Архивность формой не управляется: правка материала его не восстанавливает.
     deletedAt: prev?.deletedAt ?? null,
   };

@@ -112,6 +112,20 @@ export function MaterialsClient({
           item.companyName || companyNames.get(item.companyId ?? "") || "",
         contactName:
           item.contactName || contactNames.get(item.contactId ?? "") || "",
+        // Имена поставщиков форма не знает — только id компаний. Карточка после
+        // сохранения перечисляет их (и считает самую дешёвую цену), поэтому
+        // резолвим здесь, пока не приехал `revalidatePath`.
+        suppliers: item.suppliers.map((supplier) => ({
+          ...supplier,
+          companyName:
+            supplier.companyName ||
+            companyNames.get(supplier.companyId ?? "") ||
+            "",
+          contactName:
+            supplier.contactName ||
+            contactNames.get(supplier.contactId ?? "") ||
+            "",
+        })),
       });
 
       const input = action.payload;

@@ -43,10 +43,13 @@ import {
 import { TYPE_ORDER, UNIT_OPTIONS } from "@/lib/constants";
 import { MaterialTypePicker } from "@/components/layout/material-type-picker";
 import { AttrsEditor } from "@/components/layout/attrs-editor";
+import type { CompanyOption } from "@/components/layout/company-picker";
+import { MaterialSuppliersField } from "./material-suppliers-field";
 import {
-  CompanyPicker,
-  type CompanyOption,
-} from "@/components/layout/company-picker";
+  normalizeMaterialSuppliers,
+  primaryMaterialSupplier,
+  type MaterialSupplierDraft,
+} from "@/lib/materials/suppliers";
 import { SpecPickerCompany, SpecPickerContact } from "@/lib/queries";
 import { ScrollArea } from "../ui/scroll-area";
 import Image from "next/image";
@@ -110,7 +113,9 @@ export function MaterialDialog({
 
   const form = useForm<
     z.input<typeof materialSchema>,
-    any,
+    // Контекст формы не используется: третий параметр — тип значений ПОСЛЕ
+    // резолвера, а `any` здесь был просто заглушкой и глушил проверку типов.
+    unknown,
     z.output<typeof materialSchema>
   >({
     resolver: zodResolver(materialSchema),
@@ -160,18 +165,15 @@ export function MaterialDialog({
    * ре-рендеров.
    */
   /**
-   * Выбранный поставщик — отдельным состоянием, а не только в форме.
+   * Поставщики материала — отдельным состоянием, а не полями формы.
    *
-   * Форму диалога переинициализирует эффект ниже (и `form.reset` из формы
-   * материала течёт сюда же), из-за чего выбранный в `CompanyPicker` поставщик
-   * мог «слетать»: в поле он виден, а в состоянии формы и в payload остаётся
-   * `null`. Держим выбор рядом с формой и собираем payload из него — тогда
-   * никакая переинициализация не может потерять поставщика.
+   * Строк может быть несколько, и порядок в них задаёт пользователь (первая —
+   * основной поставщик), поэтому список живёт здесь, а форма лишь зеркалит его
+   * для dirty-state. Причина та же, что была у одиночного `supplier`: форму
+   * переинициализирует эффект ниже, и выбранный в `CompanyPicker` поставщик мог
+   * «слетать» — в поле он виден, а в payload остаётся `null`.
    */
-  const [supplier, setSupplier] = useState<{
-    companyId: string | null;
-    contactId: string | null;
-  }>({ companyId: null, contactId: null });
+  const [suppliers, setSuppliers] = useState<MaterialSupplierDraft[]>([]);
 
   /**
    * Переинициализация формы — только при открытии диалога или смене ключа.
@@ -199,7 +201,7 @@ export function MaterialDialog({
       draft,
     });
     form.reset(prefill.values);
-    setSupplier(prefill.supplier);
+    setSuppliers(prefill.suppliers);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, resetKey]);
 
@@ -215,17 +217,53 @@ export function MaterialDialog({
     });
 
   const onSubmit: SubmitHandler<FormValues> = (values) => {
+    /**
+     * Список чистится здесь, а не в поле: пустая строка (компанию ещё не выбрали)
+     * не должна мешать сохранению, а повтор компании не должен доехать до
+     * уникального индекса в БД.
+     */
+    const rows = normalizeMaterialSuppliers(suppliers);
+    const primary = primaryMaterialSupplier(rows);
+
     const payload: MaterialInput = {
       ...values,
-      // Поставщика берём из состояния (см. `supplier`), а не из значений формы:
-      // повторная переинициализация формы успевала обнулить `company_id`.
-      company_id: supplier.companyId,
-      contact_id: supplier.contactId,
+      // Компания позиции — основной поставщик. Материал без поставщиков
+      // сохраняет собственные цену и ссылку: они у него свои, а не чьи-то.
+      company_id: primary?.company_id ?? null,
+      contact_id: primary?.contact_id ?? null,
+      price: primary ? primary.price : (values.price ?? 0),
+      product_url: primary ? primary.product_url : (values.product_url ?? null),
+      suppliers: rows.map((row) => ({
+        id: row.id,
+        company_id: row.company_id,
+        contact_id: row.contact_id,
+        price: row.price,
+        product_url: row.product_url,
+        position: row.position,
+      })),
       id: materialToEdit?.id,
     };
 
     onSave(payload);
     onOpenChange(false);
+  };
+
+  /**
+   * Правка списка поставщиков.
+   *
+   * Состояние — источник payload'а, форма получает копию ради dirty-state:
+   * иначе удаление последнего поставщика или смена основного не считались бы
+   * изменением, и окно закрывалось бы молча (см. `useDialogDismissGuard`).
+   */
+  const handleSuppliersChange = (next: MaterialSupplierDraft[]) => {
+    setSuppliers(next);
+    form.setValue("suppliers", next, { shouldDirty: true });
+    form.setValue("company_id", next[0]?.company_id ?? null, {
+      shouldDirty: true,
+    });
+    form.setValue("contact_id", next[0]?.contact_id ?? null, {
+      shouldDirty: true,
+    });
   };
 
   const handleFile = async (e: ChangeEvent<HTMLInputElement>) => {
@@ -435,26 +473,32 @@ export function MaterialDialog({
                   />
 
                   <div className="grid grid-cols-2 gap-3">
-                    <FormField
-                      control={form.control}
-                      name="price"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Цена (₽)</FormLabel>
-                          <FormControl>
-                            <Input
-                              type="number"
-                              placeholder="0"
-                              {...field}
-                              onChange={(e) =>
-                                field.onChange(e.target.valueAsNumber || 0)
-                              }
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+                    {/* Цена материала показывается, только пока поставщиков нет.
+                        Как только компания выбрана, цена у неё своя и живёт в её
+                        строке — иначе в карточке было бы две цены на один
+                        материал, и непонятно, какая уйдёт в позицию. */}
+                    {suppliers.length === 0 && (
+                      <FormField
+                        control={form.control}
+                        name="price"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Цена (₽)</FormLabel>
+                            <FormControl>
+                              <Input
+                                type="number"
+                                placeholder="0"
+                                {...field}
+                                onChange={(e) =>
+                                  field.onChange(e.target.valueAsNumber || 0)
+                                }
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    )}
 
                     <FormField
                       control={form.control}
@@ -488,67 +532,47 @@ export function MaterialDialog({
                     />
                   </div>
 
-                  <FormField
-                    control={form.control}
-                    name="product_url"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Ссылка на сайт</FormLabel>
-                        <FormControl>
-                          <Input
-                            type="text"
-                            placeholder="https://example.com"
-                            {...field}
-                            value={field.value ?? ""}
-                            onChange={field.onChange}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                  {/* Ссылка материала — тоже только без поставщиков: у каждой
+                      компании своя страница товара. */}
+                  {suppliers.length === 0 && (
+                    <FormField
+                      control={form.control}
+                      name="product_url"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Ссылка на сайт</FormLabel>
+                          <FormControl>
+                            <Input
+                              type="text"
+                              placeholder="https://example.com"
+                              {...field}
+                              value={field.value ?? ""}
+                              onChange={field.onChange}
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  )}
 
-                  {/* Поставщик: компанию можно не только найти, но и завести
-                      прямо здесь — CompanyPicker откроет карточку компании с
-                      уже введённым названием. */}
-                  <FormField
-                    control={form.control}
-                    name="company_id"
-                    render={() => (
-                      <FormItem className="flex flex-col">
-                        <FormLabel>Поставщик / Менеджер</FormLabel>
-                        <FormControl>
-                          <CompanyPicker
-                            orgSlug={orgSlug}
-                            companies={companies}
-                            contacts={contacts}
-                            // Значение берём из состояния, а не из формы: форму
-                            // переинициализирует эффект, и выбранный поставщик
-                            // мог «слетать» (см. `supplier`).
-                            value={supplier.companyId}
-                            contactValue={supplier.contactId}
-                            placeholder="Выберите компанию или контакт..."
-                            searchPlaceholder="Поиск компании или менеджера..."
-                            emptyText="Ничего не найдено — можно создать компанию."
-                            onChange={({ companyId, contactId }) => {
-                              // Держим выбор и в состоянии (источник payload'а),
-                              // и в форме — чтобы работали валидация и dirty-state.
-                              setSupplier({ companyId, contactId });
-                              form.setValue("company_id", companyId, {
-                                shouldDirty: true,
-                                shouldValidate: true,
-                              });
-                              form.setValue("contact_id", contactId, {
-                                shouldDirty: true,
-                              });
-                            }}
-                            onCompanyCreated={onCompanyCreated}
-                          />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                  {/* Поставщики: компаний может быть несколько — материал бывает
+                      у разных поставщиков, и цена у каждой своя. Компанию можно
+                      не только найти, но и завести прямо из строки. */}
+                  <div className="flex flex-col">
+                    <MaterialSuppliersField
+                      orgSlug={orgSlug}
+                      companies={companies}
+                      contacts={contacts}
+                      value={suppliers}
+                      onChange={handleSuppliersChange}
+                      onCompanyCreated={onCompanyCreated}
+                      defaults={{
+                        price: Number(form.watch("price")) || 0,
+                        productUrl: form.watch("product_url") ?? null,
+                      }}
+                    />
+                  </div>
                 </section>
               </ScrollArea>
               <DialogFooter className="flex justify-end gap-2">

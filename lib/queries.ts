@@ -88,8 +88,34 @@ const MATERIAL_LIST_SELECT = `
   contacts:contact_id (id, name),
   product_url,
   product_type,
-  attrs
+  attrs,
+  material_suppliers (
+    id,
+    company_id,
+    contact_id,
+    price,
+    product_url,
+    position,
+    companies:company_id (id, name),
+    contacts:contact_id (id, name)
+  )
 `;
+
+/**
+ * Поставщик материала в списке библиотеки: компания, её менеджер, цена и ссылка
+ * на страницу товара. Первая строка (`position` = 0) — основной поставщик, её
+ * значения продублированы в полях самого материала.
+ */
+export type MaterialSupplierItem = {
+  id: string;
+  companyId: string | null;
+  companyName: string;
+  contactId: string | null;
+  contactName: string;
+  price: number;
+  productUrl: string | null;
+  position: number;
+};
 
 export type MaterialListItem = {
   id: string;
@@ -111,6 +137,8 @@ export type MaterialListItem = {
   product_type: string | null;
   /** Характеристики материала — шаблон для новых позиций спецификации. */
   attrs: Record<string, string>;
+  /** Компании, у которых материал есть, в порядке отображения. */
+  suppliers: MaterialSupplierItem[];
   /**
    * Мягкое удаление: материал лежит в архиве библиотеки. Такой материал нельзя
    * прикрепить к проекту, но позиции, где он уже использован, живут.
@@ -118,9 +146,52 @@ export type MaterialListItem = {
   deletedAt: string | null;
 };
 
-function toMaterialListItem(r: any): MaterialListItem {
-  const company = one<{ id: string; name: string }>(r.companies);
-  const contact = one<{ id: string; name: string }>(r.contacts);
+/**
+ * Строка ответа PostgREST до маппинга.
+ *
+ * Поля намеренно описаны свободно: `numeric` PostgREST отдаёт то числом, то
+ * строкой, а вложенная выборка приходит массивом или объектом в зависимости от
+ * кардинальности связи — приводить это к общему виду и есть работа
+ * `toMaterialListItem`.
+ */
+type MaterialRawRow = {
+  id: string;
+  name: string;
+  category: string | null;
+  brand: string | null;
+  article: string | null;
+  price: number | string | null;
+  unit: string | null;
+  image_url: string | null;
+  created_at: string;
+  deleted_at: string | null;
+  product_url: string | null;
+  product_type: string | null;
+  attrs: unknown;
+  companies: unknown;
+  contacts: unknown;
+  material_suppliers: unknown;
+};
+
+/** Строка поставщика в том же ответе — вложенная выборка `material_suppliers`. */
+type MaterialSupplierRawRow = {
+  id: string;
+  company_id?: string | null;
+  contact_id?: string | null;
+  price?: number | string | null;
+  product_url?: string | null;
+  position?: number | null;
+  companies: unknown;
+  contacts: unknown;
+};
+
+function toMaterialListItem(r: MaterialRawRow): MaterialListItem {
+  const company = one<{ id: string; name: string }>(
+    r.companies as { id: string; name: string } | null,
+  );
+  const contact = one<{ id: string; name: string }>(
+    r.contacts as { id: string; name: string } | null,
+  );
   return {
     id: r.id,
     name: r.name,
@@ -138,8 +209,45 @@ function toMaterialListItem(r: any): MaterialListItem {
     product_url: r.product_url ?? null,
     product_type: r.product_type ?? null,
     attrs: (r.attrs as Record<string, string> | null) ?? {},
+    suppliers: toMaterialSuppliers(r.material_suppliers),
     deletedAt: r.deleted_at ?? null,
   };
+}
+
+/**
+ * Строки поставщиков из ответа PostgREST.
+ *
+ * Сортируем по `position`, а не доверяем порядку ответа: именно первая строка
+ * считается основным поставщиком, и «основной» не должен зависеть от того, как
+ * PostgREST разложил вложенную выборку.
+ */
+function toMaterialSuppliers(value: unknown): MaterialSupplierItem[] {
+  const rows: MaterialSupplierRawRow[] = Array.isArray(value)
+    ? (value as MaterialSupplierRawRow[])
+    : value
+      ? [value as MaterialSupplierRawRow]
+      : [];
+
+  return rows
+    .map((row) => {
+      const company = one<{ id: string; name: string }>(
+        row.companies as { id: string; name: string } | null,
+      );
+      const contact = one<{ id: string; name: string }>(
+        row.contacts as { id: string; name: string } | null,
+      );
+      return {
+        id: String(row.id),
+        companyId: company?.id ?? row.company_id ?? null,
+        companyName: company?.name ?? "",
+        contactId: contact?.id ?? row.contact_id ?? null,
+        contactName: contact?.name ?? "",
+        price: Number(row.price ?? 0),
+        productUrl: row.product_url ?? null,
+        position: Number(row.position ?? 0),
+      };
+    })
+    .sort((a, b) => a.position - b.position);
 }
 
 export async function getMaterials(
@@ -222,7 +330,13 @@ export async function getMaterialsPage(
   if (filters.manufacturer) query = query.eq("brand", filters.manufacturer);
   // Компания-поставщик: так библиотека открывается из карточки компании
   // (`?company=<id>`), а не по бренду — это разные сущности.
-  if (filters.company) query = query.eq("company_id", filters.company);
+  //
+  // Фильтр идёт по массиву `supplier_company_ids`, а не по `company_id`: у
+  // материала бывает несколько компаний, и «Материалы поставщика X» обещает
+  // показать материал, даже если X в нём не основной. Материалы без поставщика
+  // из выборки не выпадают: массив у них пустой, а не отсутствует.
+  if (filters.company)
+    query = query.contains("supplier_company_ids", [filters.company]);
 
   if (filters.sort === "name_asc") {
     query = query.order("name", { ascending: true });
@@ -850,6 +964,10 @@ function failContactsFetch(tab: ContactsTab, error: PostgrestError): never {
  * ограничен лимитом строк, и на большой библиотеке счёт молча оказался бы
  * меньше настоящего.
  *
+ * Считается по `supplier_company_ids`, а не по `company_id`: материал бывает у
+ * нескольких компаний, и бейдж должен совпасть с тем, что покажет библиотека с
+ * фильтром по компании.
+ *
  * Архивные материалы (`deleted_at`) не считаются: бейдж обещает ровно ту
  * выборку, которую пользователь увидит, перейдя в библиотеку с фильтром по
  * компании (там статус по умолчанию — активные материалы).
@@ -870,7 +988,7 @@ async function countMaterialsByCompany(
         .from("materials")
         .select("id", { count: "exact", head: true })
         .eq("org_id", orgId)
-        .eq("company_id", companyId)
+        .contains("supplier_company_ids", [companyId])
         .is("deleted_at", null);
 
       if (error) {

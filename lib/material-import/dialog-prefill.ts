@@ -20,6 +20,7 @@ import {
   materialImportDraftToFormValues,
 } from "./mapper";
 import type { MaterialImportDraft } from "./draft";
+import type { MaterialSupplierDraft } from "@/lib/materials/suppliers";
 
 /**
  * Значения, которыми диалог инициализирует форму. Все поля заполнены: форма
@@ -57,17 +58,17 @@ export type MaterialPrefillSource = {
   attrs?: Record<string, string> | null;
   company_id?: string | null;
   contact_id?: string | null;
-};
-
-/** Поставщик — отдельное состояние диалога, а не только поле формы. */
-export type MaterialDialogSupplier = {
-  companyId: string | null;
-  contactId: string | null;
+  suppliers?: readonly MaterialSupplierDraft[] | null;
 };
 
 export type MaterialDialogPrefill = {
   values: MaterialDialogInitialValues;
-  supplier: MaterialDialogSupplier;
+  /**
+   * Поставщики материала — отдельное состояние диалога, а не только поля формы:
+   * строк может быть несколько, и порядок в них задаёт пользователь (первая —
+   * основной поставщик).
+   */
+  suppliers: MaterialSupplierDraft[];
 };
 
 /** Пустая форма создания — те же дефолты, что в `useForm({ defaultValues })`. */
@@ -102,17 +103,53 @@ export function resolveResetKey(input: {
 }
 
 /**
+ * Поставщики, которые диалог показывает при открытии материала.
+ *
+ * Список строк — источник правды. Собственные колонки материала
+ * (`company_id`/`contact_id`/`price`/`product_url`) — их зеркало, и читаются они
+ * только как запасной вариант: материал, у которого строк ещё нет (или они не
+ * доехали до клиента), но поставщик указан, не должен открываться с пустым
+ * блоком.
+ *
+ * Импортёр контрагента не определяет вовсе, поэтому у черновика список пуст.
+ */
+export function resolveMaterialSuppliers(
+  material: MaterialPrefillSource,
+): MaterialSupplierDraft[] {
+  const rows = material.suppliers ?? [];
+  if (rows.length > 0) {
+    return rows.map((row) => ({
+      id: row.id,
+      company_id: row.company_id ?? null,
+      contact_id: row.contact_id ?? null,
+      price: row.price ?? 0,
+      product_url: row.product_url ?? null,
+    }));
+  }
+
+  if (!material.company_id) return [];
+
+  return [
+    {
+      company_id: material.company_id,
+      contact_id: material.contact_id ?? null,
+      price: material.price ?? 0,
+      product_url: material.product_url ?? null,
+    },
+  ];
+}
+
+/**
  * Что подставить в форму при сбросе.
  *
  * Три случая, в порядке приоритета:
- *  1. редактирование — значения материала и его поставщик;
- *  2. создание из импорта — значения из черновика, поставщик пуст
+ *  1. редактирование — значения материала и его поставщики;
+ *  2. создание из импорта — значения из черновика, поставщиков нет
  *     (импортёр его не определяет: контрагента выбирает пользователь);
  *  3. обычное создание — пустая форма.
  *
- * `supplierFromMaterial` — потому что `supplier` в диалоге живёт отдельным
- * состоянием и не должен теряться при сбросе. Тип принимает `MaterialInput`
- * (у него есть `company_id`/`contact_id`) и `MaterialFormValues`.
+ * `suppliers` вынесены отдельно, потому что в диалоге это состояние, а не поля
+ * формы: оно не должно теряться при сбросе.
  */
 export function resolveDialogPrefill(input: {
   materialToEdit?: MaterialPrefillSource | null;
@@ -133,10 +170,7 @@ export function resolveDialogPrefill(input: {
         product_url: material.product_url ?? null,
         attrs: material.attrs ?? {},
       },
-      supplier: {
-        companyId: material.company_id ?? null,
-        contactId: material.contact_id ?? null,
-      },
+      suppliers: resolveMaterialSuppliers(material),
     };
   }
 
@@ -156,7 +190,7 @@ export function resolveDialogPrefill(input: {
         attrs: mapped.attrs,
       },
       // Импортёр не создаёт и не выбирает контрагента.
-      supplier: { companyId: null, contactId: null },
+      suppliers: [],
     };
   }
 
@@ -164,6 +198,6 @@ export function resolveDialogPrefill(input: {
     // Свежая копия `attrs`: общий объект на уровне модуля мог бы быть изменён
     // формой (и уж точно не должен разделяться между вызовами).
     values: { ...EMPTY_DIALOG_VALUES, attrs: {} },
-    supplier: { companyId: null, contactId: null },
+    suppliers: [],
   };
 }

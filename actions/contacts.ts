@@ -11,6 +11,7 @@ import { assertCanMutate, forbidden, scoped } from "@/lib/db/guard";
 import { can } from "@/lib/permissions";
 import { requireOrgBySlug } from "@/lib/auth/session";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { callRpc } from "@/lib/supabase/rpc";
 
 // --- ИЗОБРАЖЕНИЯ (Storage) ---
 
@@ -189,6 +190,23 @@ export async function deleteCompany(orgSlug: string, id: string) {
     .maybeSingle();
   await removeStoredImage(guard.ctx.supabase, existing?.logo_url ?? null);
 
+  /**
+   * Материалы, у которых эта компания была поставщиком.
+   *
+   * Список читается ДО удаления: внешний ключ обнуляет `company_id` в строках
+   * поставщиков (`on delete set null`), и после удаления уже не спросить, чьи
+   * зеркала устарели.
+   */
+  const { data: linked, error: linkedError } = await guard.ctx.supabase
+    .from("material_suppliers")
+    .select("material_id")
+    .eq("org_id", guard.ctx.orgId)
+    .eq("company_id", id);
+
+  if (linkedError) {
+    console.error("[deleteCompany] material_suppliers", linkedError.message);
+  }
+
   // FK: contacts.company_id → SET NULL, materials.company_id → SET NULL
   // контакты станут независимыми, материалы останутся без поставщика
   const { error } = await guard.ctx.supabase
@@ -201,6 +219,35 @@ export async function deleteCompany(orgSlug: string, id: string) {
     console.error("[deleteCompany]", error.message);
     return { success: false as const, error: "Не удалось удалить компанию" };
   }
+
+  /**
+   * Зеркало в `materials` собирается из строк поставщиков, поэтому после
+   * удаления компании его нужно пересобрать: иначе материал остался бы
+   * «у компании, которой больше нет» — и попал бы в фильтр по её имени.
+   * `p_suppliers: null` — набор строк не менялся, строка просто потеряла
+   * компанию и удалится внутри функции.
+   */
+  const affected = [...new Set((linked ?? []).map((row) => row.material_id))];
+  await Promise.all(
+    affected.map(async (materialId) => {
+      const { error: syncError } = await callRpc(
+        guard.ctx.supabase,
+        "sync_material_suppliers",
+        {
+          p_org_id: guard.ctx.orgId,
+          p_material_id: materialId,
+          p_suppliers: null,
+        },
+      );
+      if (syncError) {
+        console.error(
+          "[deleteCompany] sync_material_suppliers",
+          materialId,
+          syncError.message,
+        );
+      }
+    }),
+  );
 
   revalidatePath(`/${orgSlug}/contacts`);
   revalidatePath(`/${orgSlug}/materials`); // ← у материалов пропал поставщик

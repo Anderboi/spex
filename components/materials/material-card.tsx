@@ -8,6 +8,7 @@ import {
   ExternalLink,
   FolderPlus,
   ImageIcon,
+  Layers,
   MoreHorizontal,
   Pencil,
   Trash2,
@@ -15,7 +16,11 @@ import {
 } from "lucide-react";
 import { Button } from "../ui/button";
 import { cn, fmt } from "@/lib/utils";
-import { MaterialListItem } from "@/lib/queries";
+import { MaterialListItem, MaterialSupplierItem } from "@/lib/queries";
+import {
+  cheapestMaterialSupplier,
+  type MaterialSupplierRow,
+} from "@/lib/materials/suppliers";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -57,6 +62,27 @@ const MaterialCard = memo(
     const hasPrice = typeof mat.price === "number" && mat.price > 0;
     const isArchived = mat.deletedAt !== null;
 
+    /**
+     * Поставщики: в строке карточки видно одного, остальные — счётчиком и самой
+     * низкой ценой. Полный список с ценами живёт в диалоге материала: карточка
+     * отвечает на «сколько их и от какой цены», а не заменяет сравнение.
+     */
+    const suppliers = mat.suppliers ?? [];
+    const extraSuppliers = Math.max(0, suppliers.length - 1);
+    const cheapestPrice =
+      cheapestMaterialSupplier(
+        suppliers.map(
+          (s): MaterialSupplierRow => ({
+            id: s.id,
+            company_id: s.companyId,
+            contact_id: s.contactId,
+            price: s.price,
+            product_url: s.productUrl,
+            position: s.position,
+          }),
+        ),
+      )?.row.price ?? null;
+
     const handleEdit = () => onEdit(mat.id);
     const handleRequestDelete = () => setShowDeleteDialog(true);
     const handleAttach = () => onAttach(mat.id);
@@ -67,6 +93,8 @@ const MaterialCard = memo(
           mat={mat}
           supplierName={supplierName}
           hasPrice={hasPrice}
+          extraSuppliers={extraSuppliers}
+          cheapestPrice={cheapestPrice}
           onEdit={handleEdit}
           onRequestDelete={handleRequestDelete}
           onAttach={handleAttach}
@@ -150,7 +178,12 @@ const MaterialCard = memo(
                 </p>
               )}
 
-              <SupplierAndArticle mat={mat} supplierName={supplierName} />
+              <SupplierAndArticle
+                mat={mat}
+                supplierName={supplierName}
+                extraSuppliers={extraSuppliers}
+                cheapestPrice={cheapestPrice}
+              />
             </div>
 
             <div className="flex items-center justify-between gap-2 border-t border-border pt-2">
@@ -215,13 +248,19 @@ const MaterialCard = memo(
 function SupplierAndArticle({
   mat,
   supplierName,
+  extraSuppliers,
+  cheapestPrice,
   className,
 }: {
   mat: MaterialListItem;
   supplierName: string;
+  /** Сколько поставщиков, кроме показанного; 0 — остальных нет. */
+  extraSuppliers: number;
+  /** Самая низкая цена среди поставщиков — «от … ₽». */
+  cheapestPrice: number | null;
   className?: string;
 }) {
-  if (!mat.article && !supplierName) return null;
+  if (!mat.article && !supplierName && extraSuppliers === 0) return null;
 
   return (
     <div
@@ -245,8 +284,46 @@ function SupplierAndArticle({
           <span className="truncate">{supplierName}</span>
         </span>
       )}
+      {extraSuppliers > 0 && (
+        <span
+          className="flex min-w-0 items-center gap-1"
+          title={
+            suppliersTitle(mat.suppliers, extraSuppliers, cheapestPrice)
+          }
+        >
+          <Layers className="size-3.5 shrink-0 text-fg-icon" />
+          <span className="truncate">
+            ещё {extraSuppliers}
+            {cheapestPrice !== null && ` · от ${fmt(cheapestPrice)} ₽`}
+          </span>
+        </span>
+      )}
     </div>
   );
+}
+
+/**
+ * Подсказка к счётчику поставщиков: перечисляет компании и их цены.
+ *
+ * Названия компаний могут быть ещё не резолвлены (сразу после создания
+ * компании справочник догоняет), поэтому пустое имя не превращается в пустую
+ * строку списка.
+ */
+function suppliersTitle(
+  suppliers: MaterialSupplierItem[],
+  extraSuppliers: number,
+  cheapestPrice: number | null,
+): string {
+  const names = suppliers
+    .map((s) => s.companyName)
+    .filter(Boolean)
+    .join(", ");
+  const head = names
+    ? `Поставщики: ${names}`
+    : `Поставщиков: ${extraSuppliers + 1}`;
+  return cheapestPrice !== null
+    ? `${head}. Самая низкая цена — ${fmt(cheapestPrice)} ₽`
+    : head;
 }
 
 /** Цена с единицей измерения либо честное «не указана» при нуле. */
@@ -297,6 +374,8 @@ function MobileMaterialRow({
   mat,
   supplierName,
   hasPrice,
+  extraSuppliers,
+  cheapestPrice,
   onEdit,
   onRequestDelete,
   onAttach,
@@ -304,6 +383,8 @@ function MobileMaterialRow({
   mat: MaterialListItem;
   supplierName: string;
   hasPrice: boolean;
+  extraSuppliers: number;
+  cheapestPrice: number | null;
   onEdit: () => void;
   onRequestDelete: () => void;
   onAttach: () => void;
@@ -354,7 +435,12 @@ function MobileMaterialRow({
             {mat.name}
           </h3>
 
-          <SupplierAndArticle mat={mat} supplierName={supplierName} />
+          <SupplierAndArticle
+            mat={mat}
+            supplierName={supplierName}
+            extraSuppliers={extraSuppliers}
+            cheapestPrice={cheapestPrice}
+          />
 
           <div className="pt-0.5">
             <MaterialPrice

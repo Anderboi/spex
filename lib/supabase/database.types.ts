@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.5"
+    PostgrestVersion: "14.15"
   }
   public: {
     Tables: {
@@ -194,6 +194,74 @@ export type Database = {
           },
         ]
       }
+      material_suppliers: {
+        Row: {
+          company_id: string | null
+          contact_id: string | null
+          created_at: string
+          id: string
+          material_id: string
+          org_id: string
+          position: number
+          price: number
+          product_url: string | null
+          updated_at: string
+        }
+        Insert: {
+          company_id?: string | null
+          contact_id?: string | null
+          created_at?: string
+          id?: string
+          material_id: string
+          org_id: string
+          position?: number
+          price?: number
+          product_url?: string | null
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string | null
+          contact_id?: string | null
+          created_at?: string
+          id?: string
+          material_id?: string
+          org_id?: string
+          position?: number
+          price?: number
+          product_url?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "material_suppliers_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "material_suppliers_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "contacts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "material_suppliers_material_id_fkey"
+            columns: ["material_id"]
+            isOneToOne: false
+            referencedRelation: "materials"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "material_suppliers_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       materials: {
         Row: {
           article: string | null
@@ -216,6 +284,7 @@ export type Database = {
           product_description: string | null
           product_type: string | null
           product_url: string | null
+          supplier_company_ids: string[]
           tags: string[] | null
           unit: string
           updated_at: string
@@ -241,6 +310,7 @@ export type Database = {
           product_description?: string | null
           product_type?: string | null
           product_url?: string | null
+          supplier_company_ids?: string[]
           tags?: string[] | null
           unit?: string
           updated_at?: string
@@ -266,6 +336,7 @@ export type Database = {
           product_description?: string | null
           product_type?: string | null
           product_url?: string | null
+          supplier_company_ids?: string[]
           tags?: string[] | null
           unit?: string
           updated_at?: string
@@ -1942,6 +2013,10 @@ export type Database = {
         }[]
       }
       slugify: { Args: { p_text: string }; Returns: string }
+      sync_material_suppliers: {
+        Args: { p_material_id: string; p_org_id: string; p_suppliers?: Json }
+        Returns: undefined
+      }
       transfer_organization_ownership: {
         Args: { p_actor_id: string; p_org_id: string; p_target_name: string }
         Returns: undefined

@@ -92,4 +92,31 @@ export type CustomFunctions = {
       neighbour_position: number | null;
     }[];
   };
+  /**
+   * Полная замена списка поставщиков материала и пересборка зеркала в колонках
+   * `materials` (миграция 20261013_003).
+   *
+   * Существует как RPC, а не как серия запросов из приложения: список и его
+   * зеркало обязаны совпадать, а сбой между двумя запросами оставил бы материал
+   * с поставщиком в одной таблице и без него в другой.
+   *
+   * `p_suppliers` — весь набор строк материала. `null` — набор не менялся,
+   * пересобрать только зеркало (так вызывается после удаления компании из
+   * справочника, когда строки теряют компанию по `on delete set null`).
+   */
+  sync_material_suppliers: {
+    Args: {
+      p_org_id: string;
+      p_material_id: string;
+      p_suppliers?: {
+        id?: string;
+        company_id: string;
+        contact_id?: string | null;
+        price?: number;
+        product_url?: string | null;
+        position?: number;
+      }[] | null;
+    };
+    Returns: null;
+  };
 };

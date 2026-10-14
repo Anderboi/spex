@@ -14,6 +14,12 @@ import {
   type SpecType,
 } from "@/lib/constants";
 import { prefixFor } from "@/lib/utils";
+import {
+  materialSupplierMirror,
+  normalizeMaterialSuppliers,
+  type MaterialSupplierRow,
+} from "@/lib/materials/suppliers";
+import { callRpc } from "@/lib/supabase/rpc";
 import { nextCodesFrom } from "@/lib/spec/codes";
 import {
   buildCreatedEvents,
@@ -40,7 +46,29 @@ export async function upsertMaterial(
     return { success: false as const, error: parsed.error.issues[0].message };
   }
 
-  const { id, ...fields } = parsed.data as MaterialInput & { id?: string };
+  const { id, suppliers: rawSuppliers, ...fields } = parsed.data as MaterialInput & {
+    id?: string;
+  };
+
+  /**
+   * Поставщики материала: набор чистится здесь, а не в форме.
+   *
+   * Пустая строка (компанию ещё не выбрали) и повтор компании отбрасываются —
+   * так же, как их отбросил бы частичный уникальный индекс в БД, только без
+   * ошибки констрейнта в лицо пользователю. Первая строка списка — основной
+   * поставщик, и её значения уезжают в колонки материала.
+   */
+  const suppliers = normalizeMaterialSuppliers(rawSuppliers ?? []);
+
+  /**
+   * Зеркало основного поставщика в колонки `materials`.
+   *
+   * Пишется и здесь, и внутри `sync_material_suppliers`: функция владеет
+   * инвариантом «список = зеркало», а этот `update` не даёт материалу остаться
+   * без поставщика, если вызов функции не доехал. Материал без поставщиков
+   * сохраняет собственную цену и ссылку — их зеркало не переписывает.
+   */
+  const mirror = materialSupplierMirror(suppliers);
 
   if (id) {
     const guard = await assertCanMutate(orgSlug, "materials", id);
@@ -48,7 +76,7 @@ export async function upsertMaterial(
 
     const { data, error } = await guard.ctx.supabase
       .from("materials")
-      .update(fields)
+      .update({ ...fields, ...mirror })
       .eq("id", id)
       .eq("org_id", guard.ctx.orgId)
       .select()
@@ -61,7 +89,19 @@ export async function upsertMaterial(
         error: "Не удалось сохранить материал",
       };
     }
+
+    const synced = await syncMaterialSuppliers(
+      guard.ctx.supabase,
+      guard.ctx.orgId,
+      id,
+      suppliers,
+    );
+    if (synced) return { success: false as const, error: synced };
+
     revalidatePath(`/${orgSlug}/materials`);
+    // Бейдж «Материалы поставщика N» в справочнике считается по тем же связям:
+    // материал мог перейти к другой компании прямо сейчас.
+    revalidatePath(`/${orgSlug}/contacts`);
     return { success: true as const, data };
   }
 
@@ -71,7 +111,7 @@ export async function upsertMaterial(
 
   const { data, error } = await ctx.supabase
     .from("materials")
-    .insert({ ...fields, org_id: ctx.orgId, created_by: ctx.userId })
+    .insert({ ...fields, ...mirror, org_id: ctx.orgId, created_by: ctx.userId })
     .select()
     .single();
 
@@ -80,8 +120,57 @@ export async function upsertMaterial(
     return { success: false as const, error: "Не удалось создать материал" };
   }
 
+  // Строки поставщиков пишутся после материала: у новой строки ещё нет
+  // `material_id`, на который ссылается `on delete cascade`.
+  const synced = await syncMaterialSuppliers(
+    ctx.supabase,
+    ctx.orgId,
+    data.id,
+    suppliers,
+  );
+  if (synced) return { success: false as const, error: synced };
+
   revalidatePath(`/${orgSlug}/materials`);
+  revalidatePath(`/${orgSlug}/contacts`);
   return { success: true as const, data };
+}
+
+/**
+ * Записать список поставщиков материала и пересобрать зеркало — одной транзакцией
+ * (`sync_material_suppliers`, миграция 20261013_003).
+ *
+ * `null` вместо списка значит «набор не менялся, пересобери зеркало»: этот режим
+ * нужен там, где строки потеряли компанию сами (`deleteCompany`).
+ *
+ * Возвращает текст ошибки либо `null` — вызывающий решает, что с ним делать.
+ */
+async function syncMaterialSuppliers(
+  supabase: ReturnType<typeof createAdminClient>,
+  orgId: string,
+  materialId: string,
+  suppliers: readonly MaterialSupplierRow[] | null,
+): Promise<string | null> {
+  const { error } = await callRpc(supabase, "sync_material_suppliers", {
+    p_org_id: orgId,
+    p_material_id: materialId,
+    p_suppliers: suppliers
+      ? suppliers.map((row) => ({
+          id: row.id,
+          company_id: row.company_id as string,
+          contact_id: row.contact_id,
+          price: row.price,
+          product_url: row.product_url,
+          position: row.position,
+        }))
+      : null,
+  });
+
+  if (error) {
+    console.error("[syncMaterialSuppliers]", materialId, error.message);
+    return "Не удалось сохранить поставщиков материала";
+  }
+
+  return null;
 }
 
 export async function deleteMaterial(orgSlug: string, id: string) {

@@ -98,7 +98,7 @@ describe("resolveDialogPrefill: обычное создание", () => {
     expect(prefill.values.unit).toBe(MATERIAL_FORM_DEFAULTS.unit);
     expect(prefill.values.price).toBe(0);
     expect(prefill.values.attrs).toEqual({});
-    expect(prefill.supplier).toEqual({ companyId: null, contactId: null });
+    expect(prefill.suppliers).toEqual([]);
   });
 });
 
@@ -128,10 +128,56 @@ describe("resolveDialogPrefill: редактирование существую�
     expect(prefill.values.price).toBe(1000);
     expect(prefill.values.attrs).toEqual({ "Покрытие": "Хром" });
     // Поставщик обязан восстановиться: именно он «слетал» в старой регрессии.
-    expect(prefill.supplier).toEqual({
-      companyId: "22222222-2222-4222-8222-222222222222",
-      contactId: "33333333-3333-4333-8333-333333333333",
+    // Материал старше списка поставщиков, поэтому строка собирается из зеркала —
+    // собственных колонок company_id/contact_id/price/product_url.
+    expect(prefill.suppliers).toEqual([
+      {
+        company_id: "22222222-2222-4222-8222-222222222222",
+        contact_id: "33333333-3333-4333-8333-333333333333",
+        price: 1000,
+        product_url: "https://gessi.com/p/1",
+      },
+    ]);
+  });
+
+  it("предпочитает список строк зеркалу в колонках материала", () => {
+    // Список — источник правды; колонки материала лишь его копия. Если они
+    // разошлись, карточка должна показать список, а не копию.
+    const prefill = resolveDialogPrefill({
+      materialToEdit: {
+        id: "11111111-1111-4111-8111-111111111111",
+        name: "Керамогранит",
+        category: "Отделка",
+        company_id: "22222222-2222-4222-8222-222222222222",
+        price: 3500,
+        suppliers: [
+          {
+            company_id: "22222222-2222-4222-8222-222222222222",
+            contact_id: null,
+            price: 3500,
+            product_url: "https://kerama.example/x",
+          },
+          {
+            id: "44444444-4444-4444-8444-444444444444",
+            company_id: "55555555-5555-4555-8555-555555555555",
+            contact_id: "66666666-6666-4666-8666-666666666666",
+            price: 3200,
+            product_url: null,
+          },
+        ],
+      },
     });
+
+    expect(prefill.suppliers.map((s) => s.company_id)).toEqual([
+      "22222222-2222-4222-8222-222222222222",
+      "55555555-5555-4555-8555-555555555555",
+    ]);
+    // Порядок строк — это порядок поставщиков: первая строка основная, и
+    // пересортировка здесь сломала бы «основного поставщика».
+    expect(prefill.suppliers[1].id).toBe("44444444-4444-4444-8444-444444444444");
+    expect(prefill.suppliers[1].contact_id).toBe(
+      "66666666-6666-4666-8666-666666666666",
+    );
   });
 
   it("подставляет дефолты вместо отсутствующих полей", () => {
@@ -182,7 +228,7 @@ describe("resolveDialogPrefill: создание из импортированн
 
   it("не подставляет поставщика: его выбирает пользователь", () => {
     const prefill = resolveDialogPrefill({ draft: draft() });
-    expect(prefill.supplier).toEqual({ companyId: null, contactId: null });
+    expect(prefill.suppliers).toEqual([]);
   });
 
   it("подставляет дефолты формы для неполного черновика", () => {
@@ -370,8 +416,13 @@ describe("resolveDialogPrefill: сквозные сценарии flow", () => {
       },
     });
 
-    expect(prefill.supplier.companyId).toBe("22222222-2222-4222-8222-222222222222");
-    expect(prefill.supplier.contactId).toBe("33333333-3333-4333-8333-333333333333");
+    expect(prefill.suppliers).toHaveLength(1);
+    expect(prefill.suppliers[0].company_id).toBe(
+      "22222222-2222-4222-8222-222222222222",
+    );
+    expect(prefill.suppliers[0].contact_id).toBe(
+      "33333333-3333-4333-8333-333333333333",
+    );
   });
 
   it("import → выбор поставщика вручную не подменяется черновиком", () => {
@@ -380,7 +431,7 @@ describe("resolveDialogPrefill: сквозные сценарии flow", () => {
       draft: draft(),
       // Ключ импорта не должен влиять на поставщика.
     });
-    expect(prefill.supplier).toEqual({ companyId: null, contactId: null });
+    expect(prefill.suppliers).toEqual([]);
   });
 
   it("image failure → черновик остаётся пригодным для формы", () => {
