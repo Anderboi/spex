@@ -112,8 +112,8 @@ export function MaterialImportDialog({
       onOpenChange={handleOpenChange}
       onOpenChangeComplete={handleOpenChangeComplete}
     >
-      <DialogContent className="sm:max-w-130 bg-bg px-0">
-        <DialogHeader className="px-4">
+      <DialogContent className="sm:max-w-130 bg-bg">
+        <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Link2 className="size-5" />
             Импорт материала по ссылке
@@ -125,7 +125,7 @@ export function MaterialImportDialog({
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4 pt-1">
-          <div className="space-y-2 px-4">
+          <div className="space-y-2">
             <label
               htmlFor="material-import-url"
               className="font-mono text-[10px] uppercase tracking-[.08em] text-fg-muted"

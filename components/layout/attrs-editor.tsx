@@ -30,7 +30,7 @@ export function AttrsEditor({
   materialType,
   attrs,
   onChange,
-  title = "Характеристики",
+  title ,
   variant = "grid",
   header = true,
 }: {
@@ -148,7 +148,7 @@ export function AttrsEditor({
 
   return (
     <>
-      {header && (
+      {/* {header && (
         <>
           <div className="flex items-baseline justify-between gap-3">
             <ModalBlockLabel>{title}</ModalBlockLabel>
@@ -160,10 +160,10 @@ export function AttrsEditor({
           </div>
           <Separator />
         </>
-      )}
+      )} */}
 
       {variant === "inline" ? (
-        <div className="grid gap-2 py-1">
+        <div className="grid gap-2 py-1 bg-bg-card p-2 border rounded-lg">
           <div className="grid divide-y divide-border-muted/60">
             {rows.map((key, i) => {
               const isPreset = presets.includes(key);
@@ -210,7 +210,7 @@ export function AttrsEditor({
             })}
           </div>
           {undoRow}
-          <div className="flex gap-2 border-t border-border-muted/60 pt-3">
+          <div className="flex gap-2 border-t border-border-muted/60 py-2">
             {addRow}
           </div>
         </div>
@@ -256,7 +256,7 @@ export function AttrsEditor({
             })}
           </ul>
           {undoRow}
-          <div className="flex gap-2 border-t border-border-muted pt-3">
+          <div className="flex gap-2 mt-4 border-t border-border-muted pt-3">
             {addRow}
           </div>
         </>

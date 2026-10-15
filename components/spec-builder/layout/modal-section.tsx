@@ -24,7 +24,7 @@ import { cn } from "@/lib/utils";
  * позиции: сам компонент ввода перемонтируется по `key` в родителе, а этот
  * блок остаётся.
  */
-export function ModalSection({
+function ModalSection({
   title,
   badge,
   defaultOpen = false,
@@ -48,7 +48,7 @@ export function ModalSection({
       <CollapsibleTrigger
         className={cn(
           "group/section -mx-2 flex min-h-10 items-center justify-between gap-3 rounded-md px-2 text-left outline-none transition-colors",
-          "hover:bg-bg-card focus-visible:ring-3 focus-visible:ring-ring/50",
+          "hover:underline focus-visible:ring-3 focus-visible:ring-ring/50",
         )}
       >
         <span className="flex items-baseline gap-2">
@@ -71,7 +71,7 @@ export function ModalSection({
       {/* Панель не оставляет места в закрытом состоянии: содержимое
           размонтировано, `overflow-hidden` страхует внешние отступы детей. */}
       <CollapsibleContent className="flex flex-col overflow-hidden">
-        <Separator className="my-2" />
+        {/* <Separator className="my-2" /> */}
         <div className={cn("flex flex-col pt-2", className)}>{children}</div>
       </CollapsibleContent>
     </Collapsible>

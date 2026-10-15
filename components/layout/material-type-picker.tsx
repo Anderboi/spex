@@ -94,7 +94,7 @@ export function MaterialTypePicker({
             aria-label={ariaLabel}
             disabled={disabled}
             className={cn(
-              "h-10 flex-1 justify-between hover:bg-bg-card border-0 font-semibold",
+              "h-10 flex-1 justify-between bg-transparent hover:bg-bg-card2 border-0 font-semibold",
               !current && "text-fg-muted",
               triggerClassName,
             )}

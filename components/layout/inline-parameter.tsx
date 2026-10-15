@@ -26,7 +26,7 @@ function SpecParameterInlineEdit({ label, htmlFor, className, hint, children }: 
       <label
         htmlFor={htmlFor}
         className={cn(
-          "flex w-36 shrink-0 items-baseline gap-1.5 truncate px-2 font-mono text-xs tracking-tighter text-fg-muted md:px-0",
+          "flex w-36 shrink-0 items-baseline gap-1.5 truncate px-2 font-mono text-sm tracking-tighter text-fg-muted md:px-0",
           className,
         )}
         title={label}

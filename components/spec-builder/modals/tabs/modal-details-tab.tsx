@@ -52,8 +52,8 @@ const ModalDetailsTab = ({
       className="flex flex-col gap-2 py-4"
     >
       {/* //? Details */}
-      <ModalSection title="Описание продукта" defaultOpen emphasized>
-        <div className="grid grid-cols-1 divide-y divide-border-muted/60 md:py-2">
+      <ModalSection title="Описание продукта" defaultOpen emphasized className='border p-2 rounded-lg bg-bg-card'>
+        <div className="grid grid-cols-1 divide-y divide-border-muted/60">
           <SpecParameterInlineEdit label="Наименование" htmlFor="Наименование">
             <Input
               className={EDITABLE_FIELD_CLASS}
@@ -213,12 +213,13 @@ const ModalDetailsTab = ({
           materialType={item.product_type}
           attrs={item.attrs}
           onChange={(attrs) => onPatch({ attrs })}
+          
         />
       </ModalSection>
 
       {/* //? Notes */}
       <ModalSection title="Заметки" badge={hasNotes ? undefined : "пусто"}>
-        <div className="flex flex-col gap-4">
+        <div className="flex flex-col gap-4 bg-bg-card p-2 border rounded-lg">
           <Field label="Описание">
             <textarea
               defaultValue={item.spec}

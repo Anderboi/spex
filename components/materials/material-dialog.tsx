@@ -62,6 +62,7 @@ import {
 } from "@/lib/material-import/dialog-prefill";
 import type { MaterialImportDraft } from "@/lib/material-import/draft";
 import type { ImportNotice } from "@/lib/material-import/notices";
+import ModalSection from "../spec-builder/layout/modal-section";
 
 interface MaterialDialogProps {
   open: boolean;
@@ -300,8 +301,8 @@ export function MaterialDialog({
           </DialogHeader>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)}>
-              <ScrollArea className="h-[66svh] py-4">
-                <section className="flex flex-col gap-4">
+              <ScrollArea className="h-[66svh] pr-4">
+                <section className="flex flex-col gap-4 py-4">
                   {/* Замечания импорта — над формой, чтобы пользователь увидел
                       их до того, как начнёт править поля. Сохранение не
                       блокируют. */}
@@ -454,24 +455,6 @@ export function MaterialDialog({
                     />
                   </div>
 
-                  {/* Характеристики материала — шаблон: при добавлении материала
-                      в спецификацию значения переносятся в новую позицию. */}
-                  <FormField
-                    control={form.control}
-                    name="attrs"
-                    render={({ field }) => (
-                      <FormItem className="border-t border-border-muted pt-4">
-                        <AttrsEditor
-                          category={category}
-                          materialType={productType}
-                          attrs={(field.value ?? {}) as Record<string, string>}
-                          onChange={field.onChange}
-                        />
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-
                   <div className="grid grid-cols-2 gap-3">
                     {/* Цена материала показывается, только пока поставщиков нет.
                         Как только компания выбрана, цена у неё своя и живёт в её
@@ -573,6 +556,32 @@ export function MaterialDialog({
                       }}
                     />
                   </div>
+
+                  {/* Характеристики материала — шаблон: при добавлении материала
+                      в спецификацию значения переносятся в новую позицию. */}
+                  <FormField
+                    control={form.control}
+                    name="attrs"
+                    render={({ field }) => (
+                      <FormItem className="border p-4 rounded-lg border-border-muted">
+                        <ModalSection
+                          title="Характеристики"
+                          defaultOpen
+                          emphasized
+                        >
+                          <AttrsEditor
+                            category={category}
+                            materialType={productType}
+                            attrs={
+                              (field.value ?? {}) as Record<string, string>
+                            }
+                            onChange={field.onChange}
+                          />
+                        </ModalSection>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
                 </section>
               </ScrollArea>
               <DialogFooter className="flex justify-end gap-2">

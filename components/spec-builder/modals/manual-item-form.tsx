@@ -38,6 +38,7 @@ import {
   Field as ShadField,
 } from "@/components/ui/field";
 import { Checkbox } from "@/components/ui/checkbox";
+import ModalSection from '../layout/modal-section';
 
 export function ManualItemForm({
   companies,
@@ -174,6 +175,34 @@ export function ManualItemForm({
       className="flex min-h-0 flex-1 flex-col"
     >
       <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
+        {/* Галочка «в библиотеку» стоит ПОСЛЕ данных и характеристик, но ДО
+            количества/цены/поставщика: это решение про сам материал, а не про
+            закупку конкретной позиции. Одна и та же галочка работает и для
+            ручного ввода, и для импорта по ссылке. */}
+        {!editing && (
+          <FieldLabel>
+            <ShadField orientation="horizontal">
+              <Controller
+                control={form.control}
+                name="saveToLibrary"
+                render={({ field }) => (
+                  <Checkbox
+                    checked={!!field.value}
+                    onCheckedChange={(checked) => field.onChange(checked)}
+                  />
+                )}
+              />
+              <FieldContent>
+                <FieldTitle>Сохранить в библиотеку материалов</FieldTitle>
+                <FieldDescription>
+                  Материал станет доступен в других проектах. Снимите галочку
+                  для разовых позиций.
+                </FieldDescription>
+              </FieldContent>
+            </ShadField>
+          </FieldLabel>
+        )}
+        
         <section className="flex items-start gap-4">
           {imageUrl ? (
             <div className="relative size-24 shrink-0 overflow-hidden rounded-lg border border-border">
@@ -301,52 +330,6 @@ export function ManualItemForm({
             </select>
           </Field>
         </div>
-
-        {/* Галочка «в библиотеку» стоит ПОСЛЕ данных и характеристик, но ДО
-            количества/цены/поставщика: это решение про сам материал, а не про
-            закупку конкретной позиции. Одна и та же галочка работает и для
-            ручного ввода, и для импорта по ссылке. */}
-        {!editing && (
-          <FieldLabel>
-            <ShadField orientation="horizontal">
-              <Controller
-                control={form.control}
-                name="saveToLibrary"
-                render={({ field }) => (
-                  <Checkbox
-                    checked={!!field.value}
-                    onCheckedChange={(checked) => field.onChange(checked)}
-                  />
-                )}
-              />
-              <FieldContent>
-                <FieldTitle>Сохранить в библиотеку материалов</FieldTitle>
-                <FieldDescription>
-                  Материал станет доступен в других проектах. Снимите галочку
-                  для разовых позиций.
-                </FieldDescription>
-              </FieldContent>
-            </ShadField>
-          </FieldLabel>
-        )}
-
-        {/* Характеристики. Пресеты ключей зависят от категории и типа:
-            у керамогранита — формат и морозостойкость, у обоев — раппорт. */}
-        <section className="rounded-lg border border-border-muted p-3">
-          <Controller
-            control={form.control}
-            name="attrs"
-            render={({ field }) => (
-              <AttrsEditor
-                variant="grid"
-                category={type}
-                materialType={productType}
-                attrs={(field.value ?? {}) as Record<string, string>}
-                onChange={field.onChange}
-              />
-            )}
-          />
-        </section>
 
         {/* ── количество и цена ───────────────────────── */}
         <div className="flex gap-3">
@@ -476,6 +459,26 @@ export function ManualItemForm({
             className="h-10 bg-bg-card font-mono"
           />
         </Field>
+
+        {/* Характеристики. Пресеты ключей зависят от категории и типа:
+            у керамогранита — формат и морозостойкость, у обоев — раппорт. */}
+        <section className="rounded-lg border border-border-muted p-3">
+          <Controller
+            control={form.control}
+            name="attrs"
+            render={({ field }) => (
+              <ModalSection title="Характеристики" defaultOpen emphasized>
+                <AttrsEditor
+                  variant="grid"
+                  category={type}
+                  materialType={productType}
+                  attrs={(field.value ?? {}) as Record<string, string>}
+                  onChange={field.onChange}
+                />
+              </ModalSection>
+            )}
+          />
+        </section>
 
         {/* ── предпросмотр ────────────────────────────── */}
         {showPreview && (
