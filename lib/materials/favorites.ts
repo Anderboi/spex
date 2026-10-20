@@ -32,6 +32,20 @@ import type { Database } from "../types";
 export type FavoritesDb = SupabaseClient<Database>;
 
 /**
+ * Отметки «избранное» вложением в строку библиотеки.
+ *
+ * Строка приходит с отметками только текущего пользователя: фильтр ставится по
+ * вложенной таблице (`.eq("material_favorites.user_id", …)` в `getMaterialsPage`),
+ * поэтому чужие строки в ответ не попадают. Без `inner` материалы без отметки из
+ * выборки не выпадают; с ним — остаются только отмеченные, и `count` считает уже
+ * отфильтрованный набор. Признак считается в `toMaterialListItem` (`isFavorite`).
+ */
+export const MATERIAL_FAVORITES_SELECT = "material_favorites ( user_id )";
+/** Внутреннее соединение: материал без моей отметки в выборку не попадает. */
+export const MATERIAL_FAVORITES_INNER_SELECT =
+  "material_favorites!inner ( user_id )";
+
+/**
  * Причина отказа: та же пара «код + текст», что у графика платежей
  * (`lib/spec/payment-plan-types.ts`). Код нужен server action и UI, текст —
  * человеку.

@@ -21,6 +21,11 @@ import { AttachToProjectDialog } from "./attach-to-project-dialog";
 import { useSearchParams } from "next/navigation";
 import { useDialogUrl } from "@/hooks/use-dialog-url";
 import { useMaterialsUrl } from "@/hooks/use-materials-url";
+import {
+  hasMaterialsFilters,
+  isMaterialsFavoriteOnly,
+  parseMaterialsFiltersFromSearchParams,
+} from "@/lib/materials/filters";
 import MaterialCard from "./material-card";
 import type { CompanyOption } from "@/components/layout/company-picker";
 import type {
@@ -34,7 +39,7 @@ import { createImportReviewState } from "@/lib/material-import/notices";
 import type { ImportReviewState } from "@/lib/material-import/notices";
 import type { MaterialImportResult } from "@/actions/material-import";
 import { Button } from "@/components/ui/button";
-import { PackageOpen, Plus, RotateCcw, Search } from "lucide-react";
+import { Heart, PackageOpen, Plus, RotateCcw, Search } from "lucide-react";
 import { toast } from "sonner";
 import { EmptyState } from '../layout/empty-state';
 
@@ -57,6 +62,12 @@ export function MaterialsClient({
 }: MaterialsClientProps) {
   const searchParams = useSearchParams();
   const { update, isPending } = useMaterialsUrl();
+  /**
+   * Те же правила разбора, что у сервера: один источник истины для того, какие
+   * фильтры включены и что осталось в адресе.
+   */
+  const filters = parseMaterialsFiltersFromSearchParams(searchParams);
+
   /**
    * Диалоги открываются «shallow»: URL меняется через History API, но страница
    * не перерисовывается на сервере. Иначе каждое открытие окна материала ждало
@@ -309,14 +320,14 @@ export function MaterialsClient({
     [orgSlug, setOptimisticMaterials],
   );
 
-  const query = searchParams.get("query") ?? "";
-  const isFiltered = Boolean(
-    query ||
-      searchParams.get("category") ||
-      searchParams.get("manufacturer") ||
-      searchParams.get("company") ||
-      searchParams.get("status"),
-  );
+  const isFiltered = hasMaterialsFilters(filters);
+
+  /**
+   * Избранное — единственный активный фильтр. Такой пустой результат
+   * объясняется отдельно: «Ничего не найдено» здесь советовало бы менять
+   * запрос, которого нет, а человеку нужно отметить первый материал.
+   */
+  const isOnlyFavorite = isMaterialsFavoriteOnly(filters);
 
   /** Выход из пустого результата: снимаем все фильтры, страница сбрасывается
       вместе с ними (см. RESET_PAGE_KEYS в lib/materials/filters.ts). */
@@ -327,6 +338,7 @@ export function MaterialsClient({
       manufacturer: null,
       company: null,
       status: null,
+      favorite: false,
     });
   }, [update]);
 
@@ -350,7 +362,18 @@ export function MaterialsClient({
       </div>
 
       {optimisticMaterials.length === 0 &&
-        (isFiltered ? (
+        (isOnlyFavorite ? (
+          <EmptyState
+            icon={<Heart className="size-6" />}
+            title="В избранном пока пусто"
+            body="Отметьте материал сердцем на карточке — он появится здесь."
+            action={
+              <Button variant="outline" onClick={handleResetFilters}>
+                <RotateCcw className="mr-2 size-4" /> Сбросить фильтры
+              </Button>
+            }
+          />
+        ) : isFiltered ? (
           <EmptyState
             icon={<Search className="size-6" />}
             title="Ничего не найдено"

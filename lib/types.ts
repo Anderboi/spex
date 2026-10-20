@@ -88,6 +88,8 @@ export type MaterialsFilters = {
   manufacturer: string | null;
   company: string | null;
   status: string | null;
+  /** Только мои отмеченные материалы (`?favorite=1`). */
+  favorite: boolean;
   sort: MaterialsSort;
   page: number;
 };

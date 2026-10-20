@@ -13,18 +13,20 @@ import {
 } from "@/components/ui/sheet";
 import { FilterField } from "@/components/layout/filter-field";
 import { useMaterialsUrl } from "@/hooks/use-materials-url";
+import { isMaterialsArchiveStatus } from "@/lib/materials/filters";
 import type { CompanyListItem, MaterialBrands } from "@/lib/queries";
 import { cn } from "@/lib/utils";
 import { MaterialsCompanyFilter } from "./materials-company-filter";
 import { MaterialsManufacturerFilter } from "./materials-manufacturer-filter";
 import { MaterialsStatusFilter } from "./materials-status-filter";
+import { MaterialsFavoriteToggle } from "./materials-favorite-toggle";
 import { MaterialsSort } from "./materials-sort";
 
 /**
- * Вторичные фильтры (компания, производитель, статус) и сортировка в нижней
- * шторке.
+ * Вторичные фильтры (избранное, компания, производитель, статус) и сортировка
+ * в нижней шторке.
  *
- * На мобильной ширине поиск и четыре контрола в одну строку не помещаются и
+ * На мобильной ширине поиск и пять контролов в одну строку не помещаются и
  * переносятся «лестницей», поэтому в тулбаре остаётся только поиск с кнопкой, а
  * сами контролы переезжают в шторку. Категория остаётся снаружи: это основной
  * разрез библиотеки, и прятать её за лишний тап незачем.
@@ -50,19 +52,27 @@ export function MaterialsFilterSheet({
   const company = searchParams.get("company");
   const manufacturer = searchParams.get("manufacturer");
   const status = searchParams.get("status");
+  const isArchive = isMaterialsArchiveStatus(status);
+  const favorite = !isArchive && searchParams.get("favorite") === "1";
   const activeCount =
     Number(Boolean(company)) +
     Number(Boolean(manufacturer)) +
-    Number(Boolean(status));
+    Number(Boolean(status)) +
+    Number(favorite);
 
   const handleReset = () =>
-    update({ company: null, manufacturer: null, status: null });
+    update({
+      company: null,
+      manufacturer: null,
+      status: null,
+      favorite: false,
+    });
 
   return (
     <>
       <Button
         variant="outline"
-        className={cn("h-10 shrink-0 gap-2", className)}
+        className={cn("h-10 shrink-0 gap-2 bg-bg-card", className)}
         aria-label={
           activeCount > 0
             ? `Фильтры, активно ${activeCount}`
@@ -90,6 +100,7 @@ export function MaterialsFilterSheet({
           </SheetHeader>
 
           <div className="flex flex-col gap-4 p-4">
+            
             <FilterField label="Компания">
               <MaterialsCompanyFilter
                 companies={companies}

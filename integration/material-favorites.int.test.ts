@@ -6,6 +6,8 @@ import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import {
   hasFavoriteMark,
   listFavoriteMaterialIds,
+  MATERIAL_FAVORITES_INNER_SELECT,
+  MATERIAL_FAVORITES_SELECT,
   saveMaterialFavorite,
 } from "../lib/materials/favorites";
 
@@ -249,12 +251,18 @@ describe("выборка библиотеки: признак «отмечен �
   /**
    * Тот же вложенный фильтр, что в `getMaterialsPage`: отметки только этого
    * пользователя и этой организации. У материала без отметки вложение пустое, а
-   * сама строка из выборки не выпадает.
+   * сама строка из выборки не выпадает. `favoriteOnly` — тот же запрос с
+   * внутренним соединением, каким работает переключатель «Избранное»: материал
+   * без моей отметки в выборку не попадает.
    */
-  function libraryRows(userId: string) {
+  function libraryRows(userId: string, favoriteOnly = false) {
+    const favorites = favoriteOnly
+      ? MATERIAL_FAVORITES_INNER_SELECT
+      : MATERIAL_FAVORITES_SELECT;
+
     return admin
       .from("materials")
-      .select("id, material_favorites ( user_id )", { count: "exact" })
+      .select(`id, ${favorites}`, { count: "exact" })
       .eq("org_id", TARGET_ORG)
       .eq("material_favorites.user_id", userId)
       .eq("material_favorites.org_id", TARGET_ORG)
@@ -287,6 +295,35 @@ describe("выборка библиотеки: признак «отмечен �
     // Материал без отметки из выборки не выпадает.
     expect(removable).toBeTruthy();
     expect(hasFavoriteMark(removable?.material_favorites, users.a)).toBe(false);
+  });
+
+  it("фильтр «только избранное» оставляет мои отметки и не задваивает строки", async () => {
+    await saveMaterialFavorite(admin, {
+      orgId: TARGET_ORG,
+      userId: users.a,
+      materialId: materials.shared,
+      favorite: true,
+    });
+    // Чужие отметки не должны расширять мой отфильтрованный список: коллега
+    // отметил общий материал и материал без моей отметки.
+    await saveMaterialFavorite(admin, {
+      orgId: TARGET_ORG,
+      userId: users.b,
+      materialId: materials.shared,
+      favorite: true,
+    });
+    await saveMaterialFavorite(admin, {
+      orgId: TARGET_ORG,
+      userId: users.b,
+      materialId: materials.removable,
+      favorite: true,
+    });
+
+    const { data, error, count } = await libraryRows(users.a, true);
+
+    expect(error).toBeNull();
+    expect(count).toBe(1);
+    expect(data?.map((row) => row.id)).toEqual([materials.shared]);
   });
 
   it("отметка с чужой организацией карточку не подсвечивает", async () => {

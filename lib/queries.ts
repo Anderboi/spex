@@ -23,7 +23,11 @@ import { canMutateRecord, isInviteRole, type InviteRole, type OrgRole } from "./
 import type { InviteLookup } from "./invites";
 import { MATERIAL_TARGET_PROJECT_STATUSES } from "./constants";
 import { MATERIALS_PAGE_SIZE } from "./materials/filters";
-import { hasFavoriteMark } from "./materials/favorites";
+import {
+  hasFavoriteMark,
+  MATERIAL_FAVORITES_INNER_SELECT,
+  MATERIAL_FAVORITES_SELECT,
+} from "./materials/favorites";
 import { CONTACTS_PAGE_SIZE } from "./contacts/filters";
 import { PROJECTS_PAGE_SIZE } from "./projects/filters";
 import { applyActiveVariant, rowToVariant } from './spec/variants';
@@ -101,16 +105,6 @@ const MATERIAL_LIST_SELECT = `
     contacts:contact_id (id, name)
   )
 `;
-
-/**
- * Отметки «избранное» вложением в строку библиотеки.
- *
- * Строка приходит с отметками только текущего пользователя — фильтр ставится по
- * вложенной таблице (`.eq("material_favorites.user_id", …)` в `getMaterialsPage`),
- * поэтому материалы без отметки из выборки не выпадают, а чужие строки в ответ
- * не попадают. Признак считается в `toMaterialListItem` (`isFavorite`).
- */
-const MATERIAL_FAVORITES_SELECT = "material_favorites ( user_id )";
 
 /**
  * Поставщик материала в списке библиотеки: компания, её менеджер, цена и ссылка
@@ -335,16 +329,24 @@ export async function getMaterialsPage(
   const { orgId, userId } = await requireOrgBySlug(orgSlug);
   const supabase = createAdminClient();
 
+  // «Только избранное» — внутреннее соединение с отметками: `count` считает уже
+  // отфильтрованный набор, поэтому пагинация обещает столько страниц, сколько
+  // их есть.
+  const favoritesSelect = filters.favorite
+    ? MATERIAL_FAVORITES_INNER_SELECT
+    : MATERIAL_FAVORITES_SELECT;
+
   let query = supabase
     .from("materials")
     // Признак «отмечен мной» приходит вместе со строкой: один запрос на
     // страницу, без отдельного прохода по карточкам.
-    .select(`${MATERIAL_LIST_SELECT}, ${MATERIAL_FAVORITES_SELECT}`, {
+    .select(`${MATERIAL_LIST_SELECT}, ${favoritesSelect}`, {
       count: "exact",
     })
     .eq("org_id", orgId)
-    // Фильтр вложенной таблицы: в строку попадают только МОИ отметки, но
-    // материалы без отметки из выборки не выпадают (это не `!inner`).
+    // Фильтр вложенной таблицы: в строку попадают только МОИ отметки. Без
+    // «только избранное» материалы без отметки не выпадают (это не `!inner`),
+    // с ним — остаются только отмеченные.
     .eq("material_favorites.user_id", userId)
     // Организация — граница видимости и для самой отметки: строка, записанная в
     // чужой организации, карточку не подсвечивает. Модуль чтения проверяет то же.

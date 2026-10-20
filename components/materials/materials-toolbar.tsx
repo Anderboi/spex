@@ -6,6 +6,7 @@ import { MaterialsCategorySelect } from "./materials-category-select";
 import { MaterialsCompanyFilter } from "./materials-company-filter";
 import { MaterialsManufacturerFilter } from "./materials-manufacturer-filter";
 import { MaterialsStatusFilter } from "./materials-status-filter";
+import { MaterialsFavoriteToggle } from "./materials-favorite-toggle";
 import { MaterialsFilterSheet } from "./materials-filter-sheet";
 import { SearchBlock } from "../layout/search-block";
 import { useMaterialsUrl } from "@/hooks/use-materials-url";
@@ -14,7 +15,7 @@ import type { CompanyListItem, MaterialBrands } from "@/lib/queries";
 /**
  * Тулбар библиотеки материалов.
  *
- * `sm+` — поиск и четыре контрола в одной переносящейся строке (обёртка с
+ * `sm+` — поиск и пять контролов в одной переносящейся строке (обёртка с
  * `sm:contents` отдаёт свои children внешнему flex-контейнеру, поэтому перенос
  * работает как раньше), под ней чипсы категорий.
  *
@@ -37,6 +38,8 @@ export function MaterialsToolbar({
       <MaterialsCategorySelect className="min-w-0 flex-1 sm:hidden" />
       {/* `sm:hidden` — кнопка живёт в мобильном ряду; на `sm+` вторичные фильтры
           стоят в тулбаре, и шторка не нужна. */}
+      {/* Кнопка сама называет фильтр, поэтому подпись поля не дублируется. */}
+      {<MaterialsFavoriteToggle/>}
       <MaterialsFilterSheet
         brands={brands}
         companies={companies}
@@ -60,6 +63,7 @@ export function MaterialsToolbar({
           <MaterialsManufacturerFilter brands={brands} />
           <MaterialsStatusFilter />
           <MaterialsSort />
+          <MaterialsFavoriteToggle />
         </div>
       </div>
       {/* Чипсы категорий — только на `sm+`: на телефоне категория уже стоит в
