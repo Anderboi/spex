@@ -99,13 +99,13 @@ export function QtyStepper({
       </Button>
       <InputGroup
         className={cn(
-          "min-w-14 items-baseline sm:items-center rounded bg-transparent! border border-transparent focus:outline-none! hover:border-border-muted focus:border-fg-brand",
+          "min-w-14 items-center rounded bg-transparent! border border-transparent focus:outline-none! hover:border-border-muted focus:border-fg-brand",
           fieldSize,
           boxLook,
         )}
       >
         <InputGroupInput
-          className={cn("text-right //font-mono px-0! tabular-nums", fieldText)}
+          className={cn("text-right font-mono font-semibold px-0! tabular-nums", fieldText)}
           value={draft ?? qty}
           readOnly={!editable}
           inputMode="decimal"

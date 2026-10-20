@@ -57,14 +57,14 @@ export function PriceField({
         }}
         className={cn(
           className,
-          "w-full min-w-0 rounded border border-transparent bg-transparent  focus:px-1 py-1 text-left font-mono text-[13px] tabular-nums focus:outline-none h-6",
+          "w-full min-w-0 rounded border border-transparent bg-transparent  focus:px-1 py-1 text-left font-mono text-[13px] tabular-nums focus:outline-none h-8",
           readOnly
             ? "cursor-default text-fg-secondary"
             : "hover:border-border-muted focus:border-fg-brand",
         )}
       />
-      <InputGroupAddon align="inline-end">
-        <InputGroupText className="text-lg">₽</InputGroupText>
+      <InputGroupAddon align="inline-end" >
+        <InputGroupText className="//text-[16px] font-light">₽</InputGroupText>
       </InputGroupAddon>
     </InputGroup>
   );

@@ -141,9 +141,9 @@ export const SpecCard = memo(function SpecCard({
                 className="min-w-0 text-right! text-[16px]!"
                 onCommit={(v) => h.onPrice(item.id, v)}
               />
-              <span className="shrink-0 font-mono text-[12.5px] text-fg-secondary">
+              {/* <span className="shrink-0 font-mono text-[12.5px] text-fg-secondary">
                 ₽
-              </span>
+              </span> */}
             </div>
           </div>
 
@@ -161,7 +161,7 @@ export const SpecCard = memo(function SpecCard({
       )}
 
       {/* Price line: qty × price = total, with modifier footnote */}
-      <div className="mt-3 border-t border-border-muted pt-2">
+      <div className="mt-3 //border-t border-border-muted pt-2">
         <div className="min-w-0 flex-1 flex justify-between">
           <p className="text-[11px] font-medium font-mono uppercase tracking-wider text-fg-muted">
             Итого
