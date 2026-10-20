@@ -194,6 +194,49 @@ export type Database = {
           },
         ]
       }
+      material_favorites: {
+        Row: {
+          created_at: string
+          material_id: string
+          org_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          material_id: string
+          org_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          material_id?: string
+          org_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "material_favorites_material_id_fkey"
+            columns: ["material_id"]
+            isOneToOne: false
+            referencedRelation: "materials"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "material_favorites_org_id_fkey"
+            columns: ["org_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "material_favorites_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       material_suppliers: {
         Row: {
           company_id: string | null

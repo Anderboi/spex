@@ -27,6 +27,7 @@ import {
   recordSpecItemEvents,
 } from "@/lib/spec/history";
 import { getMaterialProjectTargets, type MaterialProjectTarget } from "@/lib/queries";
+import { saveMaterialFavorite } from "@/lib/materials/favorites";
 import { storeMaterialImage } from "@/lib/material-import/storage";
 import type { TablesInsert } from "@/lib/supabase/database.types";
 
@@ -191,6 +192,55 @@ export async function deleteMaterial(orgSlug: string, id: string) {
 
   revalidatePath(`/${orgSlug}/materials`);
   return { success: true as const };
+}
+
+/* ------------------------------------------------------------------ */
+/*  Избранное в библиотеке                                             */
+/* ------------------------------------------------------------------ */
+
+const materialFavoriteSchema = z.object({
+  materialId: z.string().uuid("Некорректный материал"),
+  favorite: z.boolean(),
+});
+
+/**
+ * Поставить или снять личную отметку «избранное».
+ *
+ * Целевое состояние приходит с клиента явно (`favorite`), а не как «переключи»:
+ * повторный вызов идемпотентен, гонка двух вкладок не переворачивает намерение.
+ * Организация и пользователь берутся из сессии, поэтому отметить материал «за
+ * коллегу» или в чужой библиотеке нечем.
+ *
+ * Права менять материал не нужны: отметка личная, её ставит и наблюдатель.
+ * `revalidatePath` обновляет список — оптимистичное состояние на клиенте
+ * подтверждается данными сервера.
+ */
+export async function setMaterialFavorite(
+  orgSlug: string,
+  materialId: string,
+  favorite: boolean,
+): Promise<ActionResult<{ favorite: boolean }>> {
+  const parsed = materialFavoriteSchema.safeParse({ materialId, favorite });
+  if (!parsed.success) {
+    return fail(
+      parsed.error.issues[0]?.message ?? "Неверные данные",
+      "INVALID_INPUT",
+    );
+  }
+
+  const ctx = await scoped(orgSlug);
+
+  const result = await saveMaterialFavorite(ctx.supabase, {
+    orgId: ctx.orgId,
+    userId: ctx.userId,
+    materialId: parsed.data.materialId,
+    favorite: parsed.data.favorite,
+  });
+
+  if (!result.ok) return fail(result.error.message, result.error.code);
+
+  revalidatePath(`/${orgSlug}/materials`);
+  return ok({ favorite: result.favorite });
 }
 
 /* ------------------------------------------------------------------ */

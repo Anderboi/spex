@@ -12,6 +12,7 @@ import { type MaterialInput } from "@/lib/validations";
 import {
   deleteMaterial,
   listMaterialProjectTargets,
+  setMaterialFavorite,
   upsertMaterial,
 } from "@/actions/materials";
 import { MaterialDialog } from "./material-dialog";
@@ -45,7 +46,8 @@ interface MaterialsClientProps {
 }
 type OptimisticAction =
   | { type: "save"; payload: MaterialInput }
-  | { type: "delete"; payload: string };
+  | { type: "delete"; payload: string }
+  | { type: "favorite"; payload: { id: string; favorite: boolean } };
 
 export function MaterialsClient({
   initialMaterials,
@@ -104,6 +106,14 @@ export function MaterialsClient({
     ): MaterialListItem[] => {
       if (action.type === "delete") {
         return state.filter((m) => m.id !== action.payload);
+      }
+
+      if (action.type === "favorite") {
+        return state.map((m) =>
+          m.id === action.payload.id
+            ? { ...m, isFavorite: action.payload.favorite }
+            : m,
+        );
       }
 
       const withSupplier = (item: MaterialListItem): MaterialListItem => ({
@@ -254,6 +264,28 @@ export function MaterialsClient({
     [orgSlug, setOptimisticMaterials],
   );
 
+  /**
+   * Личная отметка «избранное».
+   *
+   * Применяется к списку сразу, до ответа сервера: клик по сердцу не должен
+   * ждать `revalidatePath`. Если запись не удалась, `useOptimistic` откатывает
+   * состояние в конце перехода, а пользователь видит понятное сообщение.
+   */
+  const handleToggleFavorite = useCallback(
+    (id: string, favorite: boolean) => {
+      startTransition(async () => {
+        setOptimisticMaterials({ type: "favorite", payload: { id, favorite } });
+        const res = await setMaterialFavorite(orgSlug, id, favorite);
+        if (!res.success) {
+          toast.error("Не удалось обновить избранное", {
+            description: res.error,
+          });
+        }
+      });
+    },
+    [orgSlug, setOptimisticMaterials],
+  );
+
   const handleSave = useCallback(
     (data: MaterialInput) => {
       // Сохранение закрывает окно проверки импорта: черновик свою работу
@@ -312,6 +344,7 @@ export function MaterialsClient({
             onEdit={handleEdit}
             onDelete={handleDelete}
             onAttach={handleAttach}
+            onToggleFavorite={handleToggleFavorite}
           />
         ))}
       </div>

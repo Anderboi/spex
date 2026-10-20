@@ -23,6 +23,7 @@ import { canMutateRecord, isInviteRole, type InviteRole, type OrgRole } from "./
 import type { InviteLookup } from "./invites";
 import { MATERIAL_TARGET_PROJECT_STATUSES } from "./constants";
 import { MATERIALS_PAGE_SIZE } from "./materials/filters";
+import { hasFavoriteMark } from "./materials/favorites";
 import { CONTACTS_PAGE_SIZE } from "./contacts/filters";
 import { PROJECTS_PAGE_SIZE } from "./projects/filters";
 import { applyActiveVariant, rowToVariant } from './spec/variants';
@@ -102,6 +103,16 @@ const MATERIAL_LIST_SELECT = `
 `;
 
 /**
+ * Отметки «избранное» вложением в строку библиотеки.
+ *
+ * Строка приходит с отметками только текущего пользователя — фильтр ставится по
+ * вложенной таблице (`.eq("material_favorites.user_id", …)` в `getMaterialsPage`),
+ * поэтому материалы без отметки из выборки не выпадают, а чужие строки в ответ
+ * не попадают. Признак считается в `toMaterialListItem` (`isFavorite`).
+ */
+const MATERIAL_FAVORITES_SELECT = "material_favorites ( user_id )";
+
+/**
  * Поставщик материала в списке библиотеки: компания, её менеджер, цена и ссылка
  * на страницу товара. Первая строка (`position` = 0) — основной поставщик, её
  * значения продублированы в полях самого материала.
@@ -144,6 +155,12 @@ export type MaterialListItem = {
    * прикрепить к проекту, но позиции, где он уже использован, живут.
    */
   deletedAt: string | null;
+  /**
+   * «Отмечен мной»: личная отметка текущего пользователя. Всегда `false` там,
+   * где пользователь не известен (выборка для конструктора спецификации) или
+   * материал не читали с вложением отметок.
+   */
+  isFavorite: boolean;
 };
 
 /**
@@ -171,6 +188,8 @@ type MaterialRawRow = {
   companies: unknown;
   contacts: unknown;
   material_suppliers: unknown;
+  /** Вложенная выборка отметок; есть только у строк библиотеки. */
+  material_favorites?: unknown;
 };
 
 /** Строка поставщика в том же ответе — вложенная выборка `material_suppliers`. */
@@ -185,7 +204,11 @@ type MaterialSupplierRawRow = {
   contacts: unknown;
 };
 
-function toMaterialListItem(r: MaterialRawRow): MaterialListItem {
+function toMaterialListItem(
+  r: MaterialRawRow,
+  /** Кто смотрит: по нему считается признак «отмечен мной». */
+  viewerId?: string | null,
+): MaterialListItem {
   const company = one<{ id: string; name: string }>(
     r.companies as { id: string; name: string } | null,
   );
@@ -211,6 +234,9 @@ function toMaterialListItem(r: MaterialRawRow): MaterialListItem {
     attrs: (r.attrs as Record<string, string> | null) ?? {},
     suppliers: toMaterialSuppliers(r.material_suppliers),
     deletedAt: r.deleted_at ?? null,
+    isFavorite: viewerId
+      ? hasFavoriteMark(r.material_favorites, viewerId)
+      : false,
   };
 }
 
@@ -290,7 +316,8 @@ export async function getMaterials(
     throw new Error(`Failed to fetch materials: ${error.message}`);
   }
 
-  return (data ?? []).map(toMaterialListItem);
+  // Смотрящего здесь нет: выборка конструктора спецификации, отметки не нужны.
+  return (data ?? []).map((row) => toMaterialListItem(row));
 }
 
 function sanitizeSearch(search?: string): string {
@@ -305,13 +332,23 @@ export async function getMaterialsPage(
   orgSlug: string,
   filters: MaterialsFilters,
 ): Promise<{ items: MaterialListItem[]; pageCount: number }> {
-  const { orgId } = await requireOrgBySlug(orgSlug);
+  const { orgId, userId } = await requireOrgBySlug(orgSlug);
   const supabase = createAdminClient();
 
   let query = supabase
     .from("materials")
-    .select(MATERIAL_LIST_SELECT, { count: "exact" })
-    .eq("org_id", orgId);
+    // Признак «отмечен мной» приходит вместе со строкой: один запрос на
+    // страницу, без отдельного прохода по карточкам.
+    .select(`${MATERIAL_LIST_SELECT}, ${MATERIAL_FAVORITES_SELECT}`, {
+      count: "exact",
+    })
+    .eq("org_id", orgId)
+    // Фильтр вложенной таблицы: в строку попадают только МОИ отметки, но
+    // материалы без отметки из выборки не выпадают (это не `!inner`).
+    .eq("material_favorites.user_id", userId)
+    // Организация — граница видимости и для самой отметки: строка, записанная в
+    // чужой организации, карточку не подсвечивает. Модуль чтения проверяет то же.
+    .eq("material_favorites.org_id", orgId);
 
   if (filters.status === "archived") {
     query = query.not("deleted_at", "is", null);
@@ -359,7 +396,10 @@ export async function getMaterialsPage(
 
   const total = count ?? 0;
   const pageCount = Math.max(1, Math.ceil(total / MATERIALS_PAGE_SIZE));
-  return { items: (data ?? []).map(toMaterialListItem), pageCount };
+  return {
+    items: (data ?? []).map((row) => toMaterialListItem(row, userId)),
+    pageCount,
+  };
 }
 
 /**

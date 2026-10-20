@@ -79,5 +79,7 @@ export function toListItem(
     suppliers,
     // Архивность формой не управляется: правка материала его не восстанавливает.
     deletedAt: prev?.deletedAt ?? null,
+    // Отметка «избранное» — не поле формы: правка материала её не меняет.
+    isFavorite: prev?.isFavorite ?? false,
   };
 }

@@ -4,30 +4,15 @@ import { memo, useState } from "react";
 import Image from "next/image";
 import {
   ArrowRight,
-  Building2,
   ExternalLink,
-  FolderPlus,
   ImageIcon,
-  Layers,
-  MoreHorizontal,
-  Pencil,
-  Trash2,
-  UserRound,
 } from "lucide-react";
 import { Button } from "../ui/button";
-import { cn, fmt } from "@/lib/utils";
-import { MaterialListItem, MaterialSupplierItem } from "@/lib/queries";
+import { MaterialListItem } from "@/lib/queries";
 import {
   cheapestMaterialSupplier,
   type MaterialSupplierRow,
 } from "@/lib/materials/suppliers";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -39,6 +24,10 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import IconButtonBlock from "../layout/icon-button-block";
+import FavoriteButton from '../layout/favorite-button';
+import MobileMaterialRow from './material-mobile-row';
+import SupplierAndArticle from './supplier-and-article';
+import MaterialPrice from './material-price';
 
 interface MaterialCardProps {
   mat: MaterialListItem;
@@ -46,6 +35,8 @@ interface MaterialCardProps {
   onDelete: (id: string) => void;
   /** Открыть выбор проекта, в спецификацию которого добавить материал. */
   onAttach: (id: string) => void;
+  /** Поставить/снять личную отметку «избранное» (целевое состояние). */
+  onToggleFavorite: (id: string, favorite: boolean) => void;
 }
 
 const MaterialCard = memo(
@@ -54,6 +45,7 @@ const MaterialCard = memo(
     onEdit,
     onDelete,
     onAttach,
+    onToggleFavorite,
   }: MaterialCardProps) {
     const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
@@ -86,6 +78,8 @@ const MaterialCard = memo(
     const handleEdit = () => onEdit(mat.id);
     const handleRequestDelete = () => setShowDeleteDialog(true);
     const handleAttach = () => onAttach(mat.id);
+    const handleToggleFavorite = () =>
+      onToggleFavorite(mat.id, !mat.isFavorite);
 
     return (
       <div className="group flex flex-col">
@@ -98,6 +92,7 @@ const MaterialCard = memo(
           onEdit={handleEdit}
           onRequestDelete={handleRequestDelete}
           onAttach={handleAttach}
+          onToggleFavorite={handleToggleFavorite}
         />
 
         <div className="hidden flex-1 flex-col overflow-hidden rounded-xl border border-border bg-bg-card transition-colors hover:border-border-muted md:flex">
@@ -128,6 +123,18 @@ const MaterialCard = memo(
               onClick={handleEdit}
               onDelete={handleRequestDelete}
             />
+
+            {/* Сердце видно всегда, а не по наведению: состояние отметки — это
+                ответ на вопрос «мой материал или нет», а не скрытое действие.
+                У архивного материала сердца нет: там отметками не управляют. */}
+            {!isArchived && (
+              <FavoriteButton
+                favorite={mat.isFavorite}
+                materialName={mat.name}
+                onToggle={handleToggleFavorite}
+                className="absolute right-2 bottom-2 z-20"
+              />
+            )}
           </div>
 
           <div className="flex flex-1 flex-col justify-between gap-3 p-4">
@@ -241,274 +248,8 @@ const MaterialCard = memo(
     prev.mat === next.mat &&
     prev.onEdit === next.onEdit &&
     prev.onDelete === next.onDelete &&
-    prev.onAttach === next.onAttach,
+    prev.onAttach === next.onAttach &&
+    prev.onToggleFavorite === next.onToggleFavorite,
 );
-
-/** Артикул и поставщик одной строкой — общие данные обеих раскладок. */
-function SupplierAndArticle({
-  mat,
-  supplierName,
-  extraSuppliers,
-  cheapestPrice,
-  className,
-}: {
-  mat: MaterialListItem;
-  supplierName: string;
-  /** Сколько поставщиков, кроме показанного; 0 — остальных нет. */
-  extraSuppliers: number;
-  /** Самая низкая цена среди поставщиков — «от … ₽». */
-  cheapestPrice: number | null;
-  className?: string;
-}) {
-  if (!mat.article && !supplierName && extraSuppliers === 0) return null;
-
-  return (
-    <div
-      className={cn(
-        "flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-fg-muted",
-        className,
-      )}
-    >
-      {mat.article && (
-        <span className="font-mono" title={`Артикул ${mat.article}`}>
-          арт. {mat.article}
-        </span>
-      )}
-      {supplierName && (
-        <span className="flex min-w-0 items-center gap-1" title={supplierName}>
-          {mat.contactName ? (
-            <UserRound className="size-3.5 shrink-0 text-fg-icon" />
-          ) : (
-            <Building2 className="size-3.5 shrink-0 text-fg-icon" />
-          )}
-          <span className="truncate">{supplierName}</span>
-        </span>
-      )}
-      {extraSuppliers > 0 && (
-        <span
-          className="flex min-w-0 items-center gap-1"
-          title={
-            suppliersTitle(mat.suppliers, extraSuppliers, cheapestPrice)
-          }
-        >
-          <Layers className="size-3.5 shrink-0 text-fg-icon" />
-          <span className="truncate">
-            ещё {extraSuppliers}
-            {cheapestPrice !== null && ` · от ${fmt(cheapestPrice)} ₽`}
-          </span>
-        </span>
-      )}
-    </div>
-  );
-}
-
-/**
- * Подсказка к счётчику поставщиков: перечисляет компании и их цены.
- *
- * Названия компаний могут быть ещё не резолвлены (сразу после создания
- * компании справочник догоняет), поэтому пустое имя не превращается в пустую
- * строку списка.
- */
-function suppliersTitle(
-  suppliers: MaterialSupplierItem[],
-  extraSuppliers: number,
-  cheapestPrice: number | null,
-): string {
-  const names = suppliers
-    .map((s) => s.companyName)
-    .filter(Boolean)
-    .join(", ");
-  const head = names
-    ? `Поставщики: ${names}`
-    : `Поставщиков: ${extraSuppliers + 1}`;
-  return cheapestPrice !== null
-    ? `${head}. Самая низкая цена — ${fmt(cheapestPrice)} ₽`
-    : head;
-}
-
-/** Цена с единицей измерения либо честное «не указана» при нуле. */
-function MaterialPrice({
-  price,
-  unit,
-  hasPrice,
-  size = "sm",
-}: {
-  price: number | null;
-  unit: string | null;
-  hasPrice: boolean;
-  size?: "sm" | "md" | "lg";
-}) {
-  if (!hasPrice) {
-    return (
-      <span className="min-w-0 font-sans text-xs text-fg-muted">
-        Цена не указана
-      </span>
-    );
-  }
-
-  return (
-    <span
-      className={cn(
-        "min-w-0 font-mono font-semibold",
-        size === "md" && "text-[13px]",
-        size === "sm" && "text-xs",
-        size === "lg" && "text-[16px]",
-      )}
-    >
-      {fmt(price)} ₽
-      {unit && (
-        <span className={cn("text-fg-muted", size === "lg" && "text-sm")}>
-          {" "}
-          / {unit}
-        </span>
-      )}
-    </span>
-  );
-}
-
-/**
- * Компактная строка для мобильной ширины: одна кнопка на всю строку плюс меню
- * действий. Высота ≈ 100px вместо ~340px у вертикальной карточки.
- */
-function MobileMaterialRow({
-  mat,
-  supplierName,
-  hasPrice,
-  extraSuppliers,
-  cheapestPrice,
-  onEdit,
-  onRequestDelete,
-  onAttach,
-}: {
-  mat: MaterialListItem;
-  supplierName: string;
-  hasPrice: boolean;
-  extraSuppliers: number;
-  cheapestPrice: number | null;
-  onEdit: () => void;
-  onRequestDelete: () => void;
-  onAttach: () => void;
-}) {
-  const isArchived = mat.deletedAt !== null;
-
-  return (
-    <div className="flex items-start gap-1 rounded-xl border border-border bg-bg-card p-2.5 transition-colors md:hidden">
-      <button
-        type="button"
-        onClick={onEdit}
-        aria-label={`Открыть материал ${mat.name}`}
-        className="flex min-w-0 flex-1 cursor-pointer gap-3 text-left"
-      >
-        <div className="relative size-22 shrink-0 overflow-hidden rounded-lg bg-bg-brand2">
-          {mat.imageUrl ? (
-            <Image
-              src={mat.imageUrl}
-              alt="material cover"
-              fill
-              sizes="88px"
-              className="object-cover"
-              loading='eager'
-            />
-          ) : (
-            <div
-              aria-hidden
-              className="flex size-full items-center justify-center text-fg-icon"
-            >
-              <ImageIcon className="size-6" />
-            </div>
-          )}
-        </div>
-
-        <div className="min-w-0 flex-1 space-y-0.5">
-          <div className="flex items-center gap-1.5">
-            <span className="truncate rounded-full border border-fg-brand/50 bg-bg-brand/30 px-1.5 py-px text-[10px] font-medium text-fg-brand">
-              {mat.category || "Без категории"}
-            </span>
-            {mat.brand && (
-              <span className="min-w-0 truncate font-mono text-[10px] text-fg-muted">
-                {mat.brand}
-              </span>
-            )}
-          </div>
-
-          <h3 className="line-clamp-2 text-sm leading-snug font-semibold text-fg-body">
-            {mat.name}
-          </h3>
-
-          <SupplierAndArticle
-            mat={mat}
-            supplierName={supplierName}
-            extraSuppliers={extraSuppliers}
-            cheapestPrice={cheapestPrice}
-          />
-
-          <div className="pt-0.5">
-            <MaterialPrice
-              price={mat.price}
-              unit={mat.unit}
-              hasPrice={hasPrice}
-              size="md"
-            />
-          </div>
-        </div>
-      </button>
-
-      <DropdownMenu>
-        <DropdownMenuTrigger
-          render={
-            <Button
-              variant="ghost"
-              size="icon-lg"
-              className="shrink-0 cursor-pointer text-fg-muted"
-              aria-label={`Действия с материалом ${mat.name}`}
-            />
-          }
-        >
-          <MoreHorizontal className="size-4" />
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="min-w-44 bg-bg-card">
-          <DropdownMenuItem
-            className="h-9 gap-2"
-            onClick={onAttach}
-            disabled={isArchived}
-            title={
-              isArchived
-                ? "Материал удалён из библиотеки — сначала восстановите его"
-                : undefined
-            }
-          >
-            <FolderPlus className="size-4" /> В проект
-          </DropdownMenuItem>
-          <DropdownMenuItem className="h-9 gap-2" onClick={onEdit}>
-            <Pencil className="size-4" /> Редактировать
-          </DropdownMenuItem>
-          {mat.product_url && (
-            <DropdownMenuItem
-              className="h-9 gap-2"
-              render={
-                <a
-                  href={mat.product_url}
-                  target="_blank"
-                  rel="noreferrer"
-                  aria-label={`Открыть страницу материала ${mat.name}`}
-                />
-              }
-            >
-              <ExternalLink className="size-4" /> Открыть на сайте
-            </DropdownMenuItem>
-          )}
-          <DropdownMenuSeparator />
-          <DropdownMenuItem
-            variant="destructive"
-            className="h-9 gap-2"
-            onClick={onRequestDelete}
-          >
-            <Trash2 className="size-4" /> Удалить
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </div>
-  );
-}
 
 export default MaterialCard;
